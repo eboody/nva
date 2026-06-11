@@ -1,0 +1,17 @@
+{
+  "name": "pet-resort-agent-foundation",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": ["apps/staff-web"],
+  "scripts": {
+    "dev:web": "npm --workspace @pet-resort/staff-web run dev",
+    "build:web": "npm --workspace @pet-resort/staff-web run build",
+    "lint:web": "npm --workspace @pet-resort/staff-web run lint",
+    "typecheck:web": "npm --workspace @pet-resort/staff-web run typecheck",
+    "test:web": "npm --workspace @pet-resort/staff-web run test",
+    "test:rust": "cargo test --workspace",
+    "lint:rust": "cargo clippy --workspace --all-targets -- -D warnings",
+    "fmt:rust": "cargo fmt --all -- --check"
+  },
+  "devDependencies": {}
+}

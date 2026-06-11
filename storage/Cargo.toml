@@ -1,0 +1,16 @@
+[package]
+name = "storage"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+bon.workspace = true
+domain.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+chrono.workspace = true
+uuid.workspace = true

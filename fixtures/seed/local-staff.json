@@ -1,0 +1,20 @@
+{
+  "staff": [
+    {
+      "id": "staff_local_manager",
+      "display_name": "Local Manager",
+      "role": "manager",
+      "location_id": "location_local"
+    },
+    {
+      "id": "staff_local_care",
+      "display_name": "Local Care Staff",
+      "role": "staff",
+      "location_id": "location_local"
+    }
+  ],
+  "live_side_effects": {
+    "customer_messaging": "disabled",
+    "provider_writes": "disabled"
+  }
+}

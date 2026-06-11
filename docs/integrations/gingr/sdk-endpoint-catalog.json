@@ -1,0 +1,1509 @@
+{
+  "catalog_name": "Gingr SDK read-only endpoint catalog",
+  "generated_for_plan": "docs/plans/2026-06-10-gingr-sdk-kanban-plan.md",
+  "source_category": "https://support.gingrapp.com/hc/en-us/categories/25361341525645-Developer-Guide",
+  "base_url_pattern": "https://{your_app}.gingrapp.com",
+  "transport": {
+    "protocol": "HTTPS over TLS",
+    "request_encoding": "Examples use application/x-www-form-urlencoded query/body parameters; SDK should support query encoding for GET and form body for POST.",
+    "response_format": "JSON object"
+  },
+  "auth": {
+    "api_key_parameter": "key",
+    "api_key_scope": "user-account-specific API key",
+    "permission_required": "Can Access API",
+    "redaction_rule": "Never log, print, persist, or include real API keys in docs/fixtures/errors; redact key values in URLs, bodies, traces, and test failures."
+  },
+  "safety_boundary": {
+    "documented_boundary": "Gingr public API requests are HTTPS JSON and all endpoints are documented as read-only.",
+    "sdk_boundary": "Expose only read/query builders. Do not expose operational writes, customer-facing actions, check-in/check-out commands, phone-call notifications, or payment actions as agent-executable operations.",
+    "excluded_from_read_only_sdk_v0": [
+      {
+        "name": "quick_checkin",
+        "method": "GET",
+        "path": "/api/v1/quick_checkin",
+        "reason": "Side effects: checks in pets, creates a reservation if one does not exist, and checks it in.",
+        "source_line_start": 525
+      },
+      {
+        "name": "receive_call",
+        "method": "POST",
+        "path": "/api/v1/receive_call",
+        "reason": "Side effects: triggers in-app alert and records an incoming phone call.",
+        "source_line_start": 538
+      }
+    ],
+    "no_live_calls": "This catalog was produced from local/public docs only; no live Gingr calls or real keys were used."
+  },
+  "module_groups": {
+    "reservations": [
+      "reservations",
+      "reservation_widget_data",
+      "reservations_by_animal",
+      "reservations_by_owner",
+      "reservation_types",
+      "get_services_by_type",
+      "existing_reservation_estimate",
+      "recently_cancelled_reservations",
+      "back_of_house"
+    ],
+    "owners_animals": [
+      "authorize_owner",
+      "new_modified_owners",
+      "forms_get_form",
+      "owner",
+      "owners",
+      "animals",
+      "custom_field_search",
+      "get_feeding_info",
+      "get_medication_info"
+    ],
+    "reference_data": [
+      "get_locations",
+      "get_species",
+      "get_breeds",
+      "get_vets",
+      "get_temperaments",
+      "get_immunization_types",
+      "get_animal_immunizations"
+    ],
+    "commerce_retail": [
+      "get_all_retail_items",
+      "list_transactions",
+      "list_invoices",
+      "transaction",
+      "get_subscription",
+      "get_subscriptions"
+    ],
+    "labor_ops": [
+      "timeclock_report"
+    ],
+    "report_cards_files": [
+      "report_card_files"
+    ]
+  },
+  "endpoints": [
+    {
+      "name": "reservations",
+      "method": "POST",
+      "path": "/api/v1/reservations",
+      "sdk_module": "reservations",
+      "purpose": "Retrieve reservations within a date range or all currently checked-in reservations.",
+      "required_params": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "API key",
+          "redact": true
+        },
+        {
+          "name": "checked_in",
+          "required": true,
+          "type": "boolean"
+        }
+      ],
+      "optional_params": [
+        {
+          "name": "start_date",
+          "required_when": "checked_in=false",
+          "type": "YYYY-MM-DD"
+        },
+        {
+          "name": "end_date",
+          "required_when": "checked_in=false",
+          "type": "YYYY-MM-DD"
+        },
+        {
+          "name": "location_id",
+          "required": false,
+          "type": "integer"
+        }
+      ],
+      "date_or_range_constraints": [
+        "start_date/end_date maximum range is 30 days",
+        "start_date/end_date are required only when checked_in=false and disregarded when checked_in=true"
+      ],
+      "pagination": "not documented",
+      "location_scoping_caveats": "Optional location_id restricts to a location in the app.",
+      "response_shape_notes": "Returns matching reservation records in Gingr JSON envelope/array form; exact schema not fully documented.",
+      "sdk_notes": [
+        "Treat POST as read-only per API docs; encode as form body."
+      ],
+      "catalog_status": "included",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 12
+      }
+    },
+    {
+      "name": "reservation_widget_data",
+      "method": "GET",
+      "path": "/api/v1/reservation_widget_data",
+      "sdk_module": "reservations",
+      "purpose": "Retrieve dashboard-widget reservation summary for a date, including counts of check-ins, check-outs, and overnights.",
+      "required_params": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "API key",
+          "redact": true
+        },
+        {
+          "name": "timestamp",
+          "required": true,
+          "type": "YYYY-MM-DD"
+        }
+      ],
+      "optional_params": [],
+      "date_or_range_constraints": [
+        "timestamp is a date in YYYY-MM-DD format"
+      ],
+      "pagination": "not documented",
+      "location_scoping_caveats": "none documented",
+      "response_shape_notes": "Summary counts used by the top-center Gingr Dashboard widget.",
+      "sdk_notes": [],
+      "catalog_status": "included",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 40
+      }
+    },
+    {
+      "name": "reservations_by_animal",
+      "method": "POST",
+      "path": "/api/v1/reservations_by_animal",
+      "sdk_module": "reservations",
+      "purpose": "Retrieve reservations for a given animal.",
+      "required_params": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "API key",
+          "redact": true
+        },
+        {
+          "name": "id",
+          "required": true,
+          "type": "animal ID"
+        }
+      ],
+      "optional_params": [
+        {
+          "name": "restrict_to",
+          "required": false,
+          "type": "enum",
+          "values": [
+            "pending_requests",
+            "currently_checked_in",
+            "future",
+            "past",
+            "wait_listed"
+          ]
+        },
+        {
+          "name": "params[fromDate]",
+          "required": false,
+          "type": "ISO 8601 date"
+        },
+        {
+          "name": "params[toDate]",
+          "required": false,
+          "type": "ISO 8601 date"
+        },
+        {
+          "name": "params[reservationTypeIds]",
+          "required": false,
+          "type": "array of reservation type IDs"
+        },
+        {
+          "name": "params[animalIds]",
+          "required": false,
+          "type": "array of animal IDs"
+        },
+        {
+          "name": "params[cancelledOnly]",
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "name": "params[confirmedOnly]",
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "name": "params[completedOnly]",
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "name": "params[limit]",
+          "required": false,
+          "type": "number"
+        }
+      ],
+      "date_or_range_constraints": [
+        "params[fromDate]/params[toDate] are ISO 8601 dates"
+      ],
+      "pagination": "params[limit] limits records returned; no offset/page documented",
+      "location_scoping_caveats": "Only pulls reservation data for the location the API user is currently logged into; reservations in other locations do not appear.",
+      "response_shape_notes": "HTTPS JSON object; endpoint-specific shape not documented in source article.",
+      "sdk_notes": [],
+      "catalog_status": "included",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 51
+      }
+    },
+    {
+      "name": "reservations_by_owner",
+      "method": "POST",
+      "path": "/api/v1/reservations_by_owner",
+      "sdk_module": "reservations",
+      "purpose": "Retrieve reservations for a given owner.",
+      "required_params": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "API key",
+          "redact": true
+        },
+        {
+          "name": "id",
+          "required": true,
+          "type": "owner ID"
+        }
+      ],
+      "optional_params": [
+        {
+          "name": "restrict_to",
+          "required": false,
+          "type": "enum",
+          "values": [
+            "pending_requests",
+            "currently_checked_in",
+            "future",
+            "past",
+            "wait_listed"
+          ]
+        },
+        {
+          "name": "params[fromDate]",
+          "required": false,
+          "type": "ISO 8601 date"
+        },
+        {
+          "name": "params[toDate]",
+          "required": false,
+          "type": "ISO 8601 date"
+        },
+        {
+          "name": "params[reservationTypeIds]",
+          "required": false,
+          "type": "array of reservation type IDs"
+        },
+        {
+          "name": "params[animalIds]",
+          "required": false,
+          "type": "array of animal IDs"
+        },
+        {
+          "name": "params[cancelledOnly]",
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "name": "params[confirmedOnly]",
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "name": "params[completedOnly]",
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "name": "params[limit]",
+          "required": false,
+          "type": "number"
+        }
+      ],
+      "date_or_range_constraints": [
+        "params[fromDate]/params[toDate] are ISO 8601 dates"
+      ],
+      "pagination": "params[limit] limits records returned; no offset/page documented",
+      "location_scoping_caveats": "Only pulls reservation data for the location the API user is currently logged into; reservations in other locations do not appear.",
+      "response_shape_notes": "HTTPS JSON object; endpoint-specific shape not documented in source article.",
+      "sdk_notes": [],
+      "catalog_status": "included",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 82
+      }
+    },
+    {
+      "name": "reservation_types",
+      "method": "GET",
+      "path": "/api/v1/reservation_types",
+      "sdk_module": "reservations",
+      "purpose": "Retrieve reservation types.",
+      "required_params": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "API key",
+          "redact": true
+        }
+      ],
+      "optional_params": [
+        {
+          "name": "id",
+          "required": false,
+          "type": "reservation type ID"
+        },
+        {
+          "name": "active_only",
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "date_or_range_constraints": [],
+      "pagination": "not documented",
+      "location_scoping_caveats": "none documented",
+      "response_shape_notes": "HTTPS JSON object; endpoint-specific shape not documented in source article.",
+      "sdk_notes": [],
+      "catalog_status": "included",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 113
+      }
+    },
+    {
+      "name": "get_services_by_type",
+      "method": "GET",
+      "path": "/api/v1/get_services_by_type",
+      "sdk_module": "reservations",
+      "purpose": "Retrieve allowable additional services for a reservation type.",
+      "required_params": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "API key",
+          "redact": true
+        },
+        {
+          "name": "type_id",
+          "required": true,
+          "type": "integer reservation type ID"
+        }
+      ],
+      "optional_params": [
+        {
+          "name": "location_id",
+          "required": false,
+          "type": "integer"
+        }
+      ],
+      "date_or_range_constraints": [],
+      "pagination": "not documented",
+      "location_scoping_caveats": "Optional location_id restricts to a location; docs say probably 1 for single-location apps.",
+      "response_shape_notes": "HTTPS JSON object; endpoint-specific shape not documented in source article.",
+      "sdk_notes": [],
+      "catalog_status": "included",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 124
+      }
+    },
+    {
+      "name": "existing_reservation_estimate",
+      "method": "GET",
+      "path": "/api/v1/existing_reservation_estimate",
+      "sdk_module": "reservations",
+      "purpose": "Retrieve estimated cost for a future reservation.",
+      "required_params": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "API key",
+          "redact": true
+        },
+        {
+          "name": "id",
+          "required": true,
+          "type": "reservation ID"
+        }
+      ],
+      "optional_params": [],
+      "date_or_range_constraints": [],
+      "pagination": "not documented",
+      "location_scoping_caveats": "none documented",
+      "response_shape_notes": "Estimated cost data for one future reservation; exact fields not documented.",
+      "sdk_notes": [],
+      "catalog_status": "included",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 267
+      }
+    },
+    {
+      "name": "recently_cancelled_reservations",
+      "method": "POST",
+      "path": "/api/v1/recently_cancelled_reservations",
+      "sdk_module": "reservations",
+      "purpose": "Retrieve reservations cancelled within a date range.",
+      "required_params": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "API key",
+          "redact": true
+        },
+        {
+          "name": "start_date",
+          "required": true,
+          "type": "YYYY-MM-DD"
+        },
+        {
+          "name": "end_date",
+          "required": true,
+          "type": "YYYY-MM-DD"
+        }
+      ],
+      "optional_params": [
+        {
+          "name": "location_id",
+          "required": false,
+          "type": "integer"
+        }
+      ],
+      "date_or_range_constraints": [
+        "start_date and end_date are YYYY-MM-DD"
+      ],
+      "pagination": "not documented",
+      "location_scoping_caveats": "If location_id is set, filters down to owners of the specified home location.",
+      "response_shape_notes": "HTTPS JSON object; endpoint-specific shape not documented in source article.",
+      "sdk_notes": [],
+      "catalog_status": "included",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 172
+      }
+    },
+    {
+      "name": "back_of_house",
+      "method": "GET",
+      "path": "/api/v1/back_of_house",
+      "sdk_module": "reservations",
+      "purpose": "Retrieve data used to power Gingr's Digital Whiteboard.",
+      "required_params": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "API key",
+          "redact": true
+        },
+        {
+          "name": "location_id",
+          "required": true,
+          "type": "integer"
+        },
+        {
+          "name": "type_ids",
+          "required": true,
+          "type": "array of reservation type IDs"
+        }
+      ],
+      "optional_params": [
+        {
+          "name": "mins_future",
+          "required": false,
+          "type": "integer minutes"
+        },
+        {
+          "name": "full_day",
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "date_or_range_constraints": [
+        "mins_future restricts to next/last X minutes",
+        "full_day ignores mins_future and includes all reservations checking in/out today"
+      ],
+      "pagination": "not documented",
+      "location_scoping_caveats": "location_id is required.",
+      "response_shape_notes": "JSON envelope with success/error and data.checking_in/data.checking_out arrays; example fields include reservation, owner, animal, type, timestamps, run/area, belonging counts, status, event_time.",
+      "sdk_notes": [],
+      "catalog_status": "included",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 451
+      }
+    },
+    {
+      "name": "authorize_owner",
+      "method": "POST",
+      "path": "/api/v1/authorize_owner",
+      "sdk_module": "owners_animals",
+      "purpose": "Authorize that an owner account exists and the provided password matches Gingr's record.",
+      "required_params": [
+        {
+          "name": "email",
+          "required": true,
+          "type": "customer email address",
+          "sensitive": true
+        },
+        {
+          "name": "password",
+          "required": true,
+          "type": "customer Gingr password",
+          "sensitive": true
+        },
+        {
+          "name": "key",
+          "required": true,
+          "type": "API key",
+          "redact": true
+        }
+      ],
+      "optional_params": [],
+      "date_or_range_constraints": [],
+      "pagination": "not documented",
+      "location_scoping_caveats": "none documented",
+      "response_shape_notes": "Authorization result; exact schema not documented.",
+      "sdk_notes": [
+        "Sensitive credential verification endpoint: keep out of normal data-ingestion flows unless explicitly reviewed."
+      ],
+      "catalog_status": "included",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 135
+      }
+    },
+    {
+      "name": "new_modified_owners",
+      "method": "POST",
+      "path": "/api/v1/new_modified_owners",
+      "sdk_module": "owners_animals",
+      "purpose": "Retrieve customers created or modified within a date range.",
+      "required_params": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "API key",
+          "redact": true
+        },
+        {
+          "name": "start_date",
+          "required": true,
+          "type": "YYYY-MM-DD"
+        },
+        {
+          "name": "end_date",
+          "required": true,
+          "type": "YYYY-MM-DD"
+        }
+      ],
+      "optional_params": [
+        {
+          "name": "location_id",
+          "required": false,
+          "type": "integer"
+        }
+      ],
+      "date_or_range_constraints": [
+        "start_date and end_date are YYYY-MM-DD"
+      ],
+      "pagination": "not documented",
+      "location_scoping_caveats": "If location_id is set, filters down to owners of the specified home location.",
+      "response_shape_notes": "HTTPS JSON object; endpoint-specific shape not documented in source article.",
+      "sdk_notes": [],
+      "catalog_status": "included",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 159
+      }
+    },
+    {
+      "name": "forms_get_form",
+      "method": "GET",
+      "path": "/forms/get_form",
+      "sdk_module": "owners_animals",
+      "purpose": "Return a form data structure for a type of record.",
+      "required_params": [
+        {
+          "name": "form",
+          "required": true,
+          "type": "enum",
+          "values": [
+            "owner_form",
+            "animal_form"
+          ]
+        }
+      ],
+      "optional_params": [],
+      "date_or_range_constraints": [],
+      "pagination": "not documented",
+      "location_scoping_caveats": "none documented",
+      "response_shape_notes": "Form data structure; article does not state key requirement for this endpoint, unlike most /api/v1 endpoints.",
+      "sdk_notes": [
+        "Path is outside /api/v1."
+      ],
+      "catalog_status": "included",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 185
+      }
+    },
+    {
+      "name": "owner",
+      "method": "GET",
+      "path": "/api/v1/owner",
+      "sdk_module": "owners_animals",
+      "purpose": "Retrieve a specific owner record.",
+      "required_params": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "API key",
+          "redact": true
+        }
+      ],
+      "optional_params": [
+        {
+          "name": "id",
+          "required": false,
+          "type": "owner ID"
+        },
+        {
+          "name": "animal_id",
+          "required": false,
+          "type": "animal ID"
+        },
+        {
+          "name": "reservation_id",
+          "required": false,
+          "type": "reservation ID"
+        },
+        {
+          "name": "phone",
+          "required": false,
+          "type": "cell phone number",
+          "sensitive": true
+        },
+        {
+          "name": "email",
+          "required": false,
+          "type": "email",
+          "sensitive": true
+        }
+      ],
+      "date_or_range_constraints": [],
+      "pagination": "not documented",
+      "location_scoping_caveats": "none documented",
+      "response_shape_notes": "Owner record; source lists id as both required and optional, so SDK should require at least one lookup discriminator.",
+      "sdk_notes": [
+        "Normalize builder as one-of owner id, animal id, reservation id, phone, or email."
+      ],
+      "catalog_status": "included",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 191
+      }
+    },
+    {
+      "name": "owners",
+      "method": "GET",
+      "path": "/api/v1/owners",
+      "sdk_module": "owners_animals",
+      "purpose": "Retrieve a list of owners.",
+      "required_params": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "API key",
+          "redact": true
+        }
+      ],
+      "optional_params": [
+        {
+          "name": "params[*]",
+          "required": false,
+          "type": "key-value where clauses"
+        }
+      ],
+      "date_or_range_constraints": [],
+      "pagination": "not documented",
+      "location_scoping_caveats": "none documented",
+      "response_shape_notes": "Owner list; example filters by params[zip]=80302.",
+      "sdk_notes": [
+        "Where-clause filter names are provider-specific and should remain quarantined/raw unless typed later."
+      ],
+      "catalog_status": "included",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 341
+      }
+    },
+    {
+      "name": "animals",
+      "method": "GET",
+      "path": "/api/v1/animals",
+      "sdk_module": "owners_animals",
+      "purpose": "Retrieve a list of animals.",
+      "required_params": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "API key",
+          "redact": true
+        }
+      ],
+      "optional_params": [
+        {
+          "name": "params[*]",
+          "required": false,
+          "type": "key-value where clauses"
+        }
+      ],
+      "date_or_range_constraints": [],
+      "pagination": "not documented",
+      "location_scoping_caveats": "none documented",
+      "response_shape_notes": "Animal list; example filters by MySQL expression params[month(from_unixtime(birthday))]=11.",
+      "sdk_notes": [
+        "Avoid exposing arbitrary SQL-like filter strings to agent policy decisions without allowlisting."
+      ],
+      "catalog_status": "included",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 356
+      }
+    },
+    {
+      "name": "custom_field_search",
+      "method": "GET",
+      "path": "/api/v1/custom_field_search",
+      "sdk_module": "owners_animals",
+      "purpose": "Retrieve custom field information for an owner or animal.",
+      "required_params": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "API key",
+          "redact": true
+        },
+        {
+          "name": "form_id",
+          "required": true,
+          "type": "integer; owner_form=1 animal_form=2"
+        },
+        {
+          "name": "field_name",
+          "required": true,
+          "type": "technical field name"
+        },
+        {
+          "name": "search",
+          "required": true,
+          "type": "search term"
+        }
+      ],
+      "optional_params": [],
+      "date_or_range_constraints": [],
+      "pagination": "not documented",
+      "location_scoping_caveats": "none documented",
+      "response_shape_notes": "JSON envelope {success,error,data:[...]} with owner/animal-like rows; example includes PII and password-like fields, so response logging must be redacted/quarantined.",
+      "sdk_notes": [
+        "High-PII response; never log raw data."
+      ],
+      "catalog_status": "included",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 403
+      }
+    },
+    {
+      "name": "get_feeding_info",
+      "method": "GET",
+      "path": "/api/v1/get_feeding_info",
+      "sdk_module": "owners_animals",
+      "purpose": "Retrieve an animal's feeding information.",
+      "required_params": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "API key",
+          "redact": true
+        },
+        {
+          "name": "animal_id",
+          "required": true,
+          "type": "animal ID"
+        }
+      ],
+      "optional_params": [],
+      "date_or_range_constraints": [],
+      "pagination": "not documented",
+      "location_scoping_caveats": "none documented",
+      "response_shape_notes": "Animal feeding information; exact fields not documented.",
+      "sdk_notes": [],
+      "catalog_status": "included_candidate_not_in_original_plan_grouping",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 553
+      }
+    },
+    {
+      "name": "get_medication_info",
+      "method": "GET",
+      "path": "/api/v1/get_medication_info",
+      "sdk_module": "owners_animals",
+      "purpose": "Retrieve an animal's medication information.",
+      "required_params": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "API key",
+          "redact": true
+        },
+        {
+          "name": "animal_id",
+          "required": true,
+          "type": "animal ID"
+        }
+      ],
+      "optional_params": [],
+      "date_or_range_constraints": [],
+      "pagination": "not documented",
+      "location_scoping_caveats": "none documented",
+      "response_shape_notes": "Animal medication information; exact fields not documented.",
+      "sdk_notes": [],
+      "catalog_status": "included_candidate_not_in_original_plan_grouping",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 562
+      }
+    },
+    {
+      "name": "get_locations",
+      "method": "GET",
+      "path": "/api/v1/get_locations",
+      "sdk_module": "reference_data",
+      "purpose": "Retrieve locations for this app.",
+      "required_params": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "API key",
+          "redact": true
+        }
+      ],
+      "optional_params": [],
+      "date_or_range_constraints": [],
+      "pagination": "not documented",
+      "location_scoping_caveats": "none documented",
+      "response_shape_notes": "Location list; exact fields not documented.",
+      "sdk_notes": [],
+      "catalog_status": "included",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 211
+      }
+    },
+    {
+      "name": "get_species",
+      "method": "GET",
+      "path": "/api/v1/get_species",
+      "sdk_module": "reference_data",
+      "purpose": "Retrieve species for this app.",
+      "required_params": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "API key",
+          "redact": true
+        }
+      ],
+      "optional_params": [],
+      "date_or_range_constraints": [],
+      "pagination": "not documented",
+      "location_scoping_caveats": "none documented",
+      "response_shape_notes": "HTTPS JSON object; endpoint-specific shape not documented in source article.",
+      "sdk_notes": [],
+      "catalog_status": "included",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 217
+      }
+    },
+    {
+      "name": "get_breeds",
+      "method": "GET",
+      "path": "/api/v1/get_breeds",
+      "sdk_module": "reference_data",
+      "purpose": "Retrieve breeds for this app.",
+      "required_params": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "API key",
+          "redact": true
+        }
+      ],
+      "optional_params": [],
+      "date_or_range_constraints": [],
+      "pagination": "not documented",
+      "location_scoping_caveats": "none documented",
+      "response_shape_notes": "HTTPS JSON object; endpoint-specific shape not documented in source article.",
+      "sdk_notes": [],
+      "catalog_status": "included",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 223
+      }
+    },
+    {
+      "name": "get_vets",
+      "method": "GET",
+      "path": "/api/v1/get_vets",
+      "sdk_module": "reference_data",
+      "purpose": "Retrieve vet names for this app.",
+      "required_params": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "API key",
+          "redact": true
+        }
+      ],
+      "optional_params": [
+        {
+          "name": "vetFlag",
+          "required": false,
+          "type": "boolean; true returns all vet information"
+        }
+      ],
+      "date_or_range_constraints": [],
+      "pagination": "not documented",
+      "location_scoping_caveats": "none documented",
+      "response_shape_notes": "Vet names by default; all vet information when vetFlag=true.",
+      "sdk_notes": [],
+      "catalog_status": "included",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 229
+      }
+    },
+    {
+      "name": "get_temperaments",
+      "method": "GET",
+      "path": "/api/v1/get_temperaments",
+      "sdk_module": "reference_data",
+      "purpose": "Retrieve temperaments for this app.",
+      "required_params": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "API key",
+          "redact": true
+        }
+      ],
+      "optional_params": [],
+      "date_or_range_constraints": [],
+      "pagination": "not documented",
+      "location_scoping_caveats": "none documented",
+      "response_shape_notes": "HTTPS JSON object; endpoint-specific shape not documented in source article.",
+      "sdk_notes": [],
+      "catalog_status": "included",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 237
+      }
+    },
+    {
+      "name": "get_immunization_types",
+      "method": "GET",
+      "path": "/api/v1/get_immunization_types",
+      "sdk_module": "reference_data",
+      "purpose": "Retrieve immunization types for a species.",
+      "required_params": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "API key",
+          "redact": true
+        },
+        {
+          "name": "species_id",
+          "required": true,
+          "type": "species ID"
+        }
+      ],
+      "optional_params": [],
+      "date_or_range_constraints": [],
+      "pagination": "not documented",
+      "location_scoping_caveats": "none documented",
+      "response_shape_notes": "HTTPS JSON object; endpoint-specific shape not documented in source article.",
+      "sdk_notes": [],
+      "catalog_status": "included",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 243
+      }
+    },
+    {
+      "name": "get_animal_immunizations",
+      "method": "GET",
+      "path": "/api/v1/get_animal_immunizations",
+      "sdk_module": "reference_data",
+      "purpose": "Retrieve immunization records for an animal.",
+      "required_params": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "API key",
+          "redact": true
+        },
+        {
+          "name": "animal_id",
+          "required": true,
+          "type": "animal ID"
+        }
+      ],
+      "optional_params": [],
+      "date_or_range_constraints": [],
+      "pagination": "not documented",
+      "location_scoping_caveats": "none documented",
+      "response_shape_notes": "Animal immunization records; exact fields not documented.",
+      "sdk_notes": [],
+      "catalog_status": "included",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 252
+      }
+    },
+    {
+      "name": "get_all_retail_items",
+      "method": "GET",
+      "path": "/api/v1/get_all_retail_items",
+      "sdk_module": "commerce_retail",
+      "purpose": "Retrieve all retail items for sale.",
+      "required_params": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "API key",
+          "redact": true
+        }
+      ],
+      "optional_params": [],
+      "date_or_range_constraints": [],
+      "pagination": "not documented",
+      "location_scoping_caveats": "none documented",
+      "response_shape_notes": "HTTPS JSON object; endpoint-specific shape not documented in source article.",
+      "sdk_notes": [],
+      "catalog_status": "included",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 261
+      }
+    },
+    {
+      "name": "list_transactions",
+      "method": "GET",
+      "path": "/api/v1/list_transactions",
+      "sdk_module": "commerce_retail",
+      "purpose": "Retrieve POS transactions.",
+      "required_params": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "API key",
+          "redact": true
+        },
+        {
+          "name": "from_date",
+          "required": true,
+          "type": "YYYY-MM-DD"
+        },
+        {
+          "name": "to_date",
+          "required": true,
+          "type": "YYYY-MM-DD"
+        }
+      ],
+      "optional_params": [],
+      "date_or_range_constraints": [
+        "from_date/to_date are YYYY-MM-DD",
+        "Only returns POS transactions before 2019-08-01"
+      ],
+      "pagination": "not documented",
+      "location_scoping_caveats": "none documented",
+      "response_shape_notes": "Transaction list; exact fields not documented.",
+      "sdk_notes": [],
+      "catalog_status": "included",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 276
+      }
+    },
+    {
+      "name": "list_invoices",
+      "method": "GET",
+      "path": "/api/v1/list_invoices",
+      "sdk_module": "commerce_retail",
+      "purpose": "Retrieve invoices/estimates created on or after 2019-08-01.",
+      "required_params": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "API key",
+          "redact": true
+        }
+      ],
+      "optional_params": [
+        {
+          "name": "per_page",
+          "required": false,
+          "type": "integer"
+        },
+        {
+          "name": "page",
+          "required": false,
+          "type": "integer starting result number"
+        },
+        {
+          "name": "complete",
+          "required": false,
+          "type": "boolean; true invoices, false estimates; default false"
+        },
+        {
+          "name": "closed_only",
+          "required": false,
+          "type": "boolean; true closed only, false open and closed; default false"
+        },
+        {
+          "name": "from_date",
+          "required": false,
+          "type": "YYYY-MM-DD"
+        },
+        {
+          "name": "to_date",
+          "required": false,
+          "type": "YYYY-MM-DD"
+        }
+      ],
+      "date_or_range_constraints": [
+        "from_date/to_date are YYYY-MM-DD when supplied",
+        "Only returns invoices created on/after 2019-08-01"
+      ],
+      "pagination": "per_page and page must be used together; page is the starting result number and increments by per_page (per_page=10 => page=1, 11, 21...).",
+      "location_scoping_caveats": "none documented",
+      "response_shape_notes": "Invoice/estimate list; exact fields not documented.",
+      "sdk_notes": [],
+      "catalog_status": "included",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 289
+      }
+    },
+    {
+      "name": "transaction",
+      "method": "POST",
+      "path": "/api/v1/transaction",
+      "sdk_module": "commerce_retail",
+      "purpose": "Retrieve a transaction and payment details.",
+      "required_params": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "API key",
+          "redact": true
+        },
+        {
+          "name": "id",
+          "required": true,
+          "type": "POS Transaction ID"
+        }
+      ],
+      "optional_params": [],
+      "date_or_range_constraints": [],
+      "pagination": "not documented",
+      "location_scoping_caveats": "none documented",
+      "response_shape_notes": "Transaction and payment details; likely payment-sensitive, exact fields not documented.",
+      "sdk_notes": [
+        "Treat response as payment-sensitive and redact/quarantine raw payloads."
+      ],
+      "catalog_status": "included",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 312
+      }
+    },
+    {
+      "name": "get_subscription",
+      "method": "GET",
+      "path": "/api/v1/get_subscription",
+      "sdk_module": "commerce_retail",
+      "purpose": "Retrieve one subscription by ID.",
+      "required_params": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "API key",
+          "redact": true
+        },
+        {
+          "name": "id",
+          "required": true,
+          "type": "subscription ID"
+        }
+      ],
+      "optional_params": [],
+      "date_or_range_constraints": [],
+      "pagination": "not documented",
+      "location_scoping_caveats": "none documented",
+      "response_shape_notes": "HTTPS JSON object; endpoint-specific shape not documented in source article.",
+      "sdk_notes": [],
+      "catalog_status": "included",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 373
+      }
+    },
+    {
+      "name": "get_subscriptions",
+      "method": "GET",
+      "path": "/api/v1/get_subscriptions",
+      "sdk_module": "commerce_retail",
+      "purpose": "Retrieve subscriptions.",
+      "required_params": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "API key",
+          "redact": true
+        }
+      ],
+      "optional_params": [
+        {
+          "name": "include_deleted",
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "name": "bill_day_of_month",
+          "required": false,
+          "type": "integer day of month"
+        },
+        {
+          "name": "owner_id",
+          "required": false,
+          "type": "owner ID"
+        },
+        {
+          "name": "limit",
+          "required": false,
+          "type": "integer"
+        },
+        {
+          "name": "offset",
+          "required": false,
+          "type": "integer"
+        },
+        {
+          "name": "location_id",
+          "required": false,
+          "type": "integer"
+        },
+        {
+          "name": "package_id",
+          "required": false,
+          "type": "package ID"
+        }
+      ],
+      "date_or_range_constraints": [],
+      "pagination": "limit and offset can be used together to paginate.",
+      "location_scoping_caveats": "location_id limits to a specific location; owner_id limits to subscriptions of that owner.",
+      "response_shape_notes": "HTTPS JSON object; endpoint-specific shape not documented in source article.",
+      "sdk_notes": [],
+      "catalog_status": "included",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 382
+      }
+    },
+    {
+      "name": "timeclock_report",
+      "method": "GET",
+      "path": "/api/v1/timeclock_report",
+      "sdk_module": "labor_ops",
+      "purpose": "Retrieve timeclock records.",
+      "required_params": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "API key",
+          "redact": true
+        },
+        {
+          "name": "start_date",
+          "required": true,
+          "type": "YYYY-MM-DD"
+        },
+        {
+          "name": "end_date",
+          "required": true,
+          "type": "YYYY-MM-DD"
+        },
+        {
+          "name": "location_id",
+          "required": true,
+          "type": "integer"
+        }
+      ],
+      "optional_params": [
+        {
+          "name": "include_deleted",
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "name": "include_clocked_in",
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "name": "user_ids",
+          "required": false,
+          "type": "array of user IDs"
+        }
+      ],
+      "date_or_range_constraints": [
+        "start_date/end_date are YYYY-MM-DD"
+      ],
+      "pagination": "not documented",
+      "location_scoping_caveats": "location_id is required.",
+      "response_shape_notes": "Timeclock record list; exact fields not documented.",
+      "sdk_notes": [],
+      "catalog_status": "included",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 321
+      }
+    },
+    {
+      "name": "report_card_files",
+      "method": "GET",
+      "path": "/api/v1/report_card_files",
+      "sdk_module": "report_cards_files",
+      "purpose": "Retrieve recently uploaded report card files.",
+      "required_params": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "API key",
+          "redact": true
+        }
+      ],
+      "optional_params": [
+        {
+          "name": "number_days",
+          "required": false,
+          "type": "integer; today minus X days"
+        },
+        {
+          "name": "limit",
+          "required": false,
+          "type": "integer"
+        },
+        {
+          "name": "location_id",
+          "required": false,
+          "type": "integer"
+        }
+      ],
+      "date_or_range_constraints": [],
+      "pagination": "limit caps records returned; no offset/page documented",
+      "location_scoping_caveats": "Optional location_id restricts to a location.",
+      "response_shape_notes": "Report card file records; exact fields not documented.",
+      "sdk_notes": [],
+      "catalog_status": "included",
+      "source": {
+        "article": "Gingr API Functions (Reference)",
+        "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+        "local_path": "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+        "line_start": 146
+      }
+    }
+  ],
+  "source_files": [
+    "docs/integrations/gingr/articles/25722122517517-gingr-api-functions-reference.md",
+    "docs/integrations/gingr/articles/25721874372109-access-api-keys-how-to.md",
+    "docs/integrations/gingr/articles/27482358729101-api-feature-overview.md",
+    "docs/integrations/gingr/articles/26687020531853-api-feature-overview.md"
+  ]
+}

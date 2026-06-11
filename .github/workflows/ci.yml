@@ -1,0 +1,54 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      - run: npm --workspace @pet-resort/staff-web run typecheck
+      - run: npm --workspace @pet-resort/staff-web run lint
+
+  migrations:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: pet_resort
+          POSTGRES_PASSWORD: pet_resort
+          POSTGRES_DB: pet_resort
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pet_resort -d pet_resort"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://pet_resort:pet_resort@127.0.0.1:5432/pet_resort
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo install sqlx-cli --no-default-features --features postgres,rustls
+      - run: sqlx migrate run --source migrations --database-url "$DATABASE_URL"

@@ -1,0 +1,15 @@
+{
+  "source_event_key": "local-smoke-inquiry-001",
+  "event_type": "inquiry.received",
+  "location_id": "location_local",
+  "customer": {
+    "name": "Casey Local",
+    "email": "casey.local@example.invalid"
+  },
+  "pet": {
+    "name": "Miso",
+    "species": "dog"
+  },
+  "requested_service": "boarding",
+  "message": "Do you have room for Miso next weekend?"
+}

@@ -1,0 +1,82 @@
+import { readFileSync } from "node:fs";
+import { test } from "node:test";
+import assert from "node:assert/strict";
+
+const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+
+const requiredOperationalSurfaces = [
+  "Session guard",
+  "Today operations",
+  "Pet profile",
+  "Reservation view",
+  "Inquiry intake queue",
+  "Parsed lead",
+  "Inquiry draft reply",
+  "Missing-info task",
+  "Booking triage",
+  "Hard-rule results",
+  "AI recommendation",
+  "Staff confirmation controls",
+  "Confirmation draft",
+  "Task queue",
+  "Document review queue",
+  "Staff notes",
+  "Incident entry",
+  "Incident list",
+  "Audit-visible staff actions"
+];
+
+test("staff dashboard exposes all MVP operational surfaces", () => {
+  for (const surface of requiredOperationalSurfaces) {
+    assert.match(page, new RegExp(surface, "i"), `${surface} surface is missing`);
+  }
+});
+
+test("sensitive actions are visibly draft or review oriented", () => {
+  assert.match(page, /no live customer sends/i);
+  assert.match(page, /draft/i);
+  assert.match(page, /manager review/i);
+  assert.match(page, /append-only audit/i);
+});
+
+test("booking triage makes confirmation rejection and exception gates explicit", () => {
+  assert.match(page, /confirmed booking automation requires staff approval/i);
+  assert.match(page, /reject\/decline remains human approval gated/i);
+  assert.match(page, /special-care acceptance requires care-team approval/i);
+  assert.match(page, /behavior exceptions require behavior review/i);
+  assert.match(page, /produce draft confirmation/i);
+});
+
+test("incident escalation MVP keeps serious decisions behind human gates", () => {
+  for (const expected of [
+    "Record incident",
+    "classification draft",
+    "Generate owner-message draft",
+    "Create follow-up task",
+    "CustomerMessageApproval",
+    "BehaviorReview",
+    "ManagerApproval",
+    "final classification requires manager approval",
+    "Eligibility-impacting flag recommendation only",
+    "manager-review queue"
+  ]) {
+    assert.match(page, new RegExp(expected, "i"), `missing incident MVP evidence: ${expected}`);
+  }
+});
+
+test("vaccine document review UI shows upload extraction approval eligibility and audit boundaries", () => {
+  for (const expected of [
+    "Vaccine document MVP",
+    "Upload sample vaccine document",
+    "vaccine_extraction.v1",
+    "medical document uncertainty policy",
+    "Approve vaccine record",
+    "Reject vaccine record",
+    "pet eligibility updates only after approval",
+    "document.received",
+    "vaccine_record.review_requested",
+    "approval.decision.recorded"
+  ]) {
+    assert.match(page, new RegExp(expected, "i"), `missing vaccine document MVP evidence: ${expected}`);
+  }
+});

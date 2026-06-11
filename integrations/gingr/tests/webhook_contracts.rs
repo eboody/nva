@@ -1,0 +1,144 @@
+use gingr::webhook;
+
+const FIXTURE_KEY: &str = "test-webhook-signature-key";
+
+#[test]
+fn reservation_check_out_fixture_verifies_before_payload_can_be_inspected() {
+    let raw = include_str!(
+        "../../../docs/integrations/gingr/fixtures/webhooks/reservation-check-out.json"
+    );
+    let key = webhook::WebhookSignatureKey::from_secret(FIXTURE_KEY);
+
+    let envelope = webhook::WebhookEnvelope::from_json(raw)
+        .expect("fixture parses as unverified boundary payload");
+    let verified = envelope
+        .verify(&key)
+        .expect("fixture signature matches fake key");
+
+    assert_eq!(verified.event_type(), webhook::WebhookEventType::CheckOut);
+    assert_eq!(verified.entity_id().as_str(), "76390");
+    assert_eq!(
+        verified.entity_type(),
+        webhook::WebhookEntityType::Reservation
+    );
+    assert_eq!(verified.payload().entity_data()["animal_name"], "Bella");
+}
+
+#[test]
+fn email_sent_fixture_normalizes_numeric_entity_id_for_signature_verification() {
+    let raw = include_str!("../../../docs/integrations/gingr/fixtures/webhooks/email-sent.json");
+    let key = webhook::WebhookSignatureKey::from_secret(FIXTURE_KEY);
+
+    let verified = webhook::WebhookEnvelope::from_json(raw)
+        .expect("fixture parses")
+        .verify(&key)
+        .expect("numeric entity id verifies with decimal text normalization");
+
+    assert_eq!(verified.event_type(), webhook::WebhookEventType::EmailSent);
+    assert_eq!(verified.entity_id().as_str(), "5917");
+    assert_eq!(verified.entity_type(), webhook::WebhookEntityType::Owner);
+    assert_eq!(
+        verified.payload().email_data().unwrap()["subject"],
+        "Sanitized email subject"
+    );
+    assert_eq!(
+        verified.payload().recipients().unwrap()[0]["email"],
+        "recipient@example.test"
+    );
+}
+
+#[test]
+fn unverified_debug_output_exposes_only_verification_metadata_not_payload() {
+    let raw = include_str!(
+        "../../../docs/integrations/gingr/fixtures/webhooks/reservation-check-out.json"
+    );
+
+    let envelope = webhook::WebhookEnvelope::from_json(raw).expect("fixture parses");
+    let debug = format!("{envelope:?}");
+
+    assert!(debug.contains("webhook_type"));
+    assert!(debug.contains("entity_type"));
+    assert!(debug.contains("signature_present"));
+    assert!(!debug.contains("Bella"));
+    assert!(!debug.contains("Sample Owner"));
+    assert!(!debug.contains("entity_data"));
+}
+
+#[test]
+fn verification_rejects_tampered_signatures_without_exposing_secret_material() {
+    let raw = include_str!(
+        "../../../docs/integrations/gingr/fixtures/webhooks/reservation-check-out.json"
+    )
+    .replace(
+        "e6d62e27528513a9c4aa399e3a79192aacc490cfeae202fa753f319967ab30eb",
+        "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    );
+    let key = webhook::WebhookSignatureKey::from_secret(FIXTURE_KEY);
+
+    let error = webhook::WebhookEnvelope::from_json(&raw)
+        .expect("tampered fixture still parses")
+        .verify(&key)
+        .expect_err("tampered signature must not verify");
+
+    assert_eq!(error, webhook::WebhookVerificationError::SignatureMismatch);
+    assert!(!format!("{error:?}").contains(FIXTURE_KEY));
+    assert!(!error.to_string().contains(FIXTURE_KEY));
+}
+
+#[test]
+fn verification_reports_unsupported_entity_id_and_malformed_signature_boundaries() {
+    let key = webhook::WebhookSignatureKey::from_secret(FIXTURE_KEY);
+    let unsupported_entity_id = r#"{
+        "webhook_url":"https://example.test/gingr/webhooks",
+        "webhook_type":"check_out",
+        "entity_id":{"nested":"76390"},
+        "entity_type":"reservation",
+        "signature":"e6d62e27528513a9c4aa399e3a79192aacc490cfeae202fa753f319967ab30eb",
+        "entity_data":{}
+    }"#;
+    let malformed_signature = r#"{
+        "webhook_url":"https://example.test/gingr/webhooks",
+        "webhook_type":"check_out",
+        "entity_id":"76390",
+        "entity_type":"reservation",
+        "signature":"not-lowercase-hex",
+        "entity_data":{}
+    }"#;
+
+    let entity_id_error = webhook::WebhookEnvelope::from_json(unsupported_entity_id)
+        .expect("boundary payload parses")
+        .verify(&key)
+        .expect_err("object entity_id is unsupported");
+    assert!(matches!(
+        entity_id_error,
+        webhook::WebhookVerificationError::UnsupportedEntityId { .. }
+    ));
+
+    let signature_error = webhook::WebhookEnvelope::from_json(malformed_signature)
+        .expect("boundary payload parses")
+        .verify(&key)
+        .expect_err("malformed signature is rejected before comparison");
+    assert!(matches!(
+        signature_error,
+        webhook::WebhookVerificationError::MalformedSignature { .. }
+    ));
+}
+
+#[test]
+fn receiver_ack_semantics_match_gingr_retry_contract() {
+    assert_eq!(webhook::WebhookAck::Processed.http_status(), 200);
+    assert_eq!(webhook::WebhookAck::RejectedPermanently.http_status(), 403);
+    assert_eq!(webhook::WebhookAck::RetryableFailure.http_status(), 500);
+    assert_eq!(
+        webhook::WebhookAck::retryable_status(503).http_status(),
+        503
+    );
+    assert_eq!(
+        webhook::WebhookAck::retryable_status(200).http_status(),
+        500
+    );
+    assert_eq!(
+        webhook::WebhookAck::retryable_status(403).http_status(),
+        500
+    );
+}

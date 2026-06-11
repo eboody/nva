@@ -1,0 +1,300 @@
+{
+  "source_category": "https://support.gingrapp.com/hc/en-us/categories/25361341525645-Developer-Guide",
+  "articles": [
+    {
+      "id": "26757044893069",
+      "title": "Access from a Web Browser (How-To)",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/26757044893069-Access-from-a-Web-Browser-How-To",
+      "section_id": 25381181698317,
+      "area": "customer_portal",
+      "path": "articles/26757044893069-access-from-a-web-browser-how-to.md",
+      "text_chars": 1386
+    },
+    {
+      "id": "26757384207117",
+      "title": "Access from the Gingr for Pet Parents Mobile App (How-To)",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/26757384207117-Access-from-the-Gingr-for-Pet-Parents-Mobile-App-How-To",
+      "section_id": 25381181698317,
+      "area": "customer_portal",
+      "path": "articles/26757384207117-access-from-the-gingr-for-pet-parents-mobile-app-how-to.md",
+      "text_chars": 1768
+    },
+    {
+      "id": "26810571027725",
+      "title": "Get Started with the Customer Portal (Topic Outline)",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/26810571027725-Get-Started-with-the-Customer-Portal-Topic-Outline",
+      "section_id": 25381181698317,
+      "area": "customer_portal",
+      "path": "articles/26810571027725-get-started-with-the-customer-portal-topic-outline.md",
+      "text_chars": 466
+    },
+    {
+      "id": "26757899407117",
+      "title": "Notifications Center Overview (Reference)",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/26757899407117-Notifications-Center-Overview-Reference",
+      "section_id": 25381181698317,
+      "area": "customer_portal",
+      "path": "articles/26757899407117-notifications-center-overview-reference.md",
+      "text_chars": 762
+    },
+    {
+      "id": "26758082407437",
+      "title": "Reset Password for Pet Parents (How-To)",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/26758082407437-Reset-Password-for-Pet-Parents-How-To",
+      "section_id": 25381181698317,
+      "area": "customer_portal",
+      "path": "articles/26758082407437-reset-password-for-pet-parents-how-to.md",
+      "text_chars": 574
+    },
+    {
+      "id": "33571861934093",
+      "title": "Sign Legal Agreements in the Customer Portal (How To)",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/33571861934093-Sign-Legal-Agreements-in-the-Customer-Portal-How-To",
+      "section_id": 25381181698317,
+      "area": "customer_portal",
+      "path": "articles/33571861934093-sign-legal-agreements-in-the-customer-portal-how-to.md",
+      "text_chars": 1243
+    },
+    {
+      "id": "26757720199309",
+      "title": "Upload Vaccination Records (How-To)",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/26757720199309-Upload-Vaccination-Records-How-To",
+      "section_id": 25381181698317,
+      "area": "customer_portal",
+      "path": "articles/26757720199309-upload-vaccination-records-how-to.md",
+      "text_chars": 1013
+    },
+    {
+      "id": "25845902262285",
+      "title": "Add Custom CSS & JavaScript (How-To)",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/25845902262285-Add-Custom-CSS-JavaScript-How-To",
+      "section_id": 25380161804813,
+      "area": "customer_portal_js",
+      "path": "articles/25845902262285-add-custom-css-javascript-how-to.md",
+      "text_chars": 1445
+    },
+    {
+      "id": "25846389005325",
+      "title": "Google Tag Manager (Adwords/Analytics) in JavaScript Events (Reference)",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/25846389005325-Google-Tag-Manager-Adwords-Analytics-in-JavaScript-Events-Reference",
+      "section_id": 25380161804813,
+      "area": "customer_portal_js",
+      "path": "articles/25846389005325-google-tag-manager-adwords-analytics-in-javascript-events-reference.md",
+      "text_chars": 6112
+    },
+    {
+      "id": "25846095500557",
+      "title": "JavaScript Events Emitted (Reference)",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/25846095500557-JavaScript-Events-Emitted-Reference",
+      "section_id": 25380161804813,
+      "area": "customer_portal_js",
+      "path": "articles/25846095500557-javascript-events-emitted-reference.md",
+      "text_chars": 627
+    },
+    {
+      "id": "25846282748045",
+      "title": "Listen for Custom JavaScript Events (Reference)",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/25846282748045-Listen-for-Custom-JavaScript-Events-Reference",
+      "section_id": 25380161804813,
+      "area": "customer_portal_js",
+      "path": "articles/25846282748045-listen-for-custom-javascript-events-reference.md",
+      "text_chars": 969
+    },
+    {
+      "id": "25846641444109",
+      "title": "Meta Pixel in JavaScript Events (Reference)",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/25846641444109-Meta-Pixel-in-JavaScript-Events-Reference",
+      "section_id": 25380161804813,
+      "area": "customer_portal_js",
+      "path": "articles/25846641444109-meta-pixel-in-javascript-events-reference.md",
+      "text_chars": 1811
+    },
+    {
+      "id": "26779465452685",
+      "title": "Set Up Owner's Map (How-To)",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/26779465452685-Set-Up-Owner-s-Map-How-To",
+      "section_id": 26779515142157,
+      "area": "customer_portal_js",
+      "path": "articles/26779465452685-set-up-owner-s-map-how-to.md",
+      "text_chars": 2892
+    },
+    {
+      "id": "26690528840589",
+      "title": "Customer Portal (Feature Overview)",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/26690528840589-Customer-Portal-Feature-Overview",
+      "section_id": 25380009352461,
+      "area": "integrations",
+      "path": "articles/26690528840589-customer-portal-feature-overview.md",
+      "text_chars": 1169
+    },
+    {
+      "id": "26689830918669",
+      "title": "Integrations (Topic Outline)",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/26689830918669-Integrations-Topic-Outline",
+      "section_id": 25380121365645,
+      "area": "integrations",
+      "path": "articles/26689830918669-integrations-topic-outline.md",
+      "text_chars": 359
+    },
+    {
+      "id": "27482358729101",
+      "title": "API (Feature Overview)",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/27482358729101-API-Feature-Overview",
+      "section_id": 26779471974413,
+      "area": "read_api",
+      "path": "articles/27482358729101-api-feature-overview.md",
+      "text_chars": 961
+    },
+    {
+      "id": "25721874372109",
+      "title": "Access API Keys (How-To)",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/25721874372109-Access-API-Keys-How-To",
+      "section_id": 25380109776397,
+      "area": "read_api",
+      "path": "articles/25721874372109-access-api-keys-how-to.md",
+      "text_chars": 1352
+    },
+    {
+      "id": "25722122517517",
+      "title": "Gingr API Functions (Reference)",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/25722122517517-Gingr-API-Functions-Reference",
+      "section_id": 25380109776397,
+      "area": "read_api",
+      "path": "articles/25722122517517-gingr-api-functions-reference.md",
+      "text_chars": 15384
+    },
+    {
+      "id": "26817735212429",
+      "title": "Gingr's API (Topic Outline)",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/26817735212429-Gingr-s-API-Topic-Outline",
+      "section_id": 26779521691661,
+      "area": "read_api",
+      "path": "articles/26817735212429-gingr-s-api-topic-outline.md",
+      "text_chars": 915
+    },
+    {
+      "id": "26785932585741",
+      "title": "Google Maps API (Topic Outline)",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/26785932585741-Google-Maps-API-Topic-Outline",
+      "section_id": 26779515142157,
+      "area": "read_api",
+      "path": "articles/26785932585741-google-maps-api-topic-outline.md",
+      "text_chars": 1293
+    },
+    {
+      "id": "26785597375885",
+      "title": "Set Up Address Lookup (How-To)",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/26785597375885-Set-Up-Address-Lookup-How-To",
+      "section_id": 26779515142157,
+      "area": "read_api",
+      "path": "articles/26785597375885-set-up-address-lookup-how-to.md",
+      "text_chars": 1102
+    },
+    {
+      "id": "25722435154573",
+      "title": "Set Up Address Lookup and Owner Map in Google Maps API (How-To)",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/25722435154573-Set-Up-Address-Lookup-and-Owner-Map-in-Google-Maps-API-How-To",
+      "section_id": 25380109776397,
+      "area": "read_api",
+      "path": "articles/25722435154573-set-up-address-lookup-and-owner-map-in-google-maps-api-how-to.md",
+      "text_chars": 5186
+    },
+    {
+      "id": "26817570653965",
+      "title": "Use & Access API Keys (How-To)",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/26817570653965-Use-Access-API-Keys-How-To",
+      "section_id": 26779521691661,
+      "area": "read_api",
+      "path": "articles/26817570653965-use-access-api-keys-how-to.md",
+      "text_chars": 774
+    },
+    {
+      "id": "25656686643213",
+      "title": "Sign in to Gingr",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/25656686643213",
+      "section_id": null,
+      "area": "unknown",
+      "path": "articles/25656686643213-sign-in-to-gingr.md",
+      "text_chars": 289
+    },
+    {
+      "id": "26687020531853",
+      "title": "API (Feature Overview)",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/26687020531853-API-Feature-Overview",
+      "section_id": 25380122317453,
+      "area": "webhooks",
+      "path": "articles/26687020531853-api-feature-overview.md",
+      "text_chars": 937
+    },
+    {
+      "id": "25660732990477",
+      "title": "Activate Webhooks (How-To)",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/25660732990477-Activate-Webhooks-How-To",
+      "section_id": 25380163240589,
+      "area": "webhooks",
+      "path": "articles/25660732990477-activate-webhooks-how-to.md",
+      "text_chars": 1715
+    },
+    {
+      "id": "26687431397901",
+      "title": "Custom CSS & JavaScript (Topic Outline)",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/26687431397901-Custom-CSS-JavaScript-Topic-Outline",
+      "section_id": 25380161804813,
+      "area": "webhooks",
+      "path": "articles/26687431397901-custom-css-javascript-topic-outline.md",
+      "text_chars": 836
+    },
+    {
+      "id": "25659829911565",
+      "title": "Event Data Structure Examples (Reference)",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/25659829911565-Event-Data-Structure-Examples-Reference",
+      "section_id": 25380163240589,
+      "area": "webhooks",
+      "path": "articles/25659829911565-event-data-structure-examples-reference.md",
+      "text_chars": 6728
+    },
+    {
+      "id": "25660010986125",
+      "title": "Event Types and Response Codes (Reference)",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/25660010986125-Event-Types-and-Response-Codes-Reference",
+      "section_id": 25380163240589,
+      "area": "webhooks",
+      "path": "articles/25660010986125-event-types-and-response-codes-reference.md",
+      "text_chars": 3540
+    },
+    {
+      "id": "26687212732685",
+      "title": "Get Started with API (Topic Outline)",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/26687212732685-Get-Started-with-API-Topic-Outline",
+      "section_id": 25380109776397,
+      "area": "webhooks",
+      "path": "articles/26687212732685-get-started-with-api-topic-outline.md",
+      "text_chars": 557
+    },
+    {
+      "id": "25659213118733",
+      "title": "Integrate Gingr with Slack via Zapier (How-To)",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/25659213118733-Integrate-Gingr-with-Slack-via-Zapier-How-To",
+      "section_id": 25380121365645,
+      "area": "webhooks",
+      "path": "articles/25659213118733-integrate-gingr-with-slack-via-zapier-how-to.md",
+      "text_chars": 1649
+    },
+    {
+      "id": "26688281811597",
+      "title": "Webhooks (Topic Outline)",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/26688281811597-Webhooks-Topic-Outline",
+      "section_id": 25380163240589,
+      "area": "webhooks",
+      "path": "articles/26688281811597-webhooks-topic-outline.md",
+      "text_chars": 947
+    }
+  ],
+  "errors": [
+    {
+      "id": "26686883788685",
+      "url": "https://support.gingrapp.com/hc/en-us/articles/26686883788685",
+      "error": "HTTP Error 404: Not Found"
+    }
+  ]
+}

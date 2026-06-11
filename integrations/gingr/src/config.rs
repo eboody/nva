@@ -1,0 +1,207 @@
+use secrecy::SecretString;
+use std::fmt;
+use url::Url;
+
+pub type Result<T> = core::result::Result<T, Error>;
+
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+pub enum Error {
+    #[error("invalid Gingr subdomain: {value}")]
+    InvalidSubdomain { value: String },
+    #[error("invalid Gingr base URL: {reason}")]
+    InvalidBaseUrl { reason: String },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Subdomain(String);
+
+impl Subdomain {
+    pub fn parse(raw: impl AsRef<str>) -> Result<Self> {
+        let value = raw.as_ref();
+        let valid = !value.is_empty()
+            && value.len() <= 63
+            && value
+                .bytes()
+                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+            && !value.starts_with('-')
+            && !value.ends_with('-');
+
+        if valid {
+            Ok(Self(value.to_owned()))
+        } else {
+            Err(Error::InvalidSubdomain {
+                value: value.to_owned(),
+            })
+        }
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for Subdomain {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct BaseUrl(Url);
+
+impl BaseUrl {
+    pub fn for_subdomain(subdomain: &Subdomain) -> Self {
+        let raw = format!("https://{}.gingrapp.com", subdomain.as_str());
+        Self(Url::parse(&raw).expect("constructed Gingr URL is valid"))
+    }
+
+    pub fn parse(raw: impl AsRef<str>) -> Result<Self> {
+        let raw = raw.as_ref();
+        let url = Url::parse(raw).map_err(|error| Error::InvalidBaseUrl {
+            reason: error.to_string(),
+        })?;
+        if url.scheme() != "https" {
+            return Err(Error::InvalidBaseUrl {
+                reason: "Gingr API base URL must use https".to_owned(),
+            });
+        }
+        if url.path() != "/" || url.query().is_some() || url.fragment().is_some() {
+            return Err(Error::InvalidBaseUrl {
+                reason: "Gingr API base URL must not include path, query, or fragment".to_owned(),
+            });
+        }
+        let host = url.host_str().unwrap_or_default();
+        let Some(subdomain) = host.strip_suffix(".gingrapp.com") else {
+            return Err(Error::InvalidBaseUrl {
+                reason: "host must be a gingrapp.com subdomain".to_owned(),
+            });
+        };
+        Subdomain::parse(subdomain)?;
+        Ok(Self(url))
+    }
+
+    pub fn as_str(&self) -> &str {
+        self.0.as_str().trim_end_matches('/')
+    }
+
+    pub(crate) fn join_path(&self, path: &str) -> core::result::Result<Url, url::ParseError> {
+        self.0.join(path.trim_start_matches('/'))
+    }
+}
+
+impl fmt::Debug for BaseUrl {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_tuple("BaseUrl")
+            .field(&self.as_str())
+            .finish()
+    }
+}
+
+impl fmt::Display for BaseUrl {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+#[derive(Clone)]
+pub struct ApiKey(SecretString);
+
+impl ApiKey {
+    pub fn from_secret(raw: impl Into<String>) -> Self {
+        Self(SecretString::new(raw.into()))
+    }
+
+    pub(crate) fn expose_for_transport(&self) -> &str {
+        use secrecy::ExposeSecret;
+        self.0.expose_secret()
+    }
+}
+
+impl fmt::Debug for ApiKey {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("ApiKey(<redacted>)")
+    }
+}
+
+impl fmt::Display for ApiKey {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("<redacted>")
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Provider {
+    label: Option<String>,
+}
+
+impl Provider {
+    pub fn gingr() -> Self {
+        Self { label: None }
+    }
+
+    pub fn gingr_app(label: impl Into<String>) -> Self {
+        Self {
+            label: Some(label.into()),
+        }
+    }
+}
+
+impl fmt::Display for Provider {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.label {
+            Some(label) => write!(formatter, "Gingr({label})"),
+            None => formatter.write_str("Gingr"),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct ClientConfig {
+    base_url: BaseUrl,
+    api_key: ApiKey,
+    provider: Provider,
+}
+
+impl ClientConfig {
+    pub fn new(base_url: BaseUrl, api_key: ApiKey) -> Self {
+        Self {
+            base_url,
+            api_key,
+            provider: Provider::gingr(),
+        }
+    }
+
+    pub fn base_url(&self) -> &BaseUrl {
+        &self.base_url
+    }
+
+    pub fn api_key(&self) -> &ApiKey {
+        &self.api_key
+    }
+
+    pub fn provider(&self) -> &Provider {
+        &self.provider
+    }
+}
+
+impl fmt::Debug for ClientConfig {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ClientConfig")
+            .field("base_url", &self.base_url)
+            .field("api_key", &"<redacted>")
+            .field("provider", &self.provider)
+            .finish()
+    }
+}
+
+impl fmt::Display for ClientConfig {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "Gingr client config {{ base_url: {}, api_key: <redacted>, provider: {} }}",
+            self.base_url, self.provider
+        )
+    }
+}

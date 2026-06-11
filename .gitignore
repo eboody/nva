@@ -1,0 +1,9 @@
+target/
+node_modules/
+.next/
+out/
+build/
+.env
+*.tsbuildinfo
+.DS_Store
+/tmp/

@@ -1,0 +1,55 @@
+{
+  "webhook_url": "https://example.test/gingr/webhooks",
+  "webhook_type": "email_sent",
+  "entity_id": 5917,
+  "entity_type": "owner",
+  "signature": "2e1a768a873926e959d89b86d7a7f6c8b62dcf4426e2af6839f6dff306b9a1ef",
+  "entity_data": {
+    "id": "5917",
+    "first_name": "Sample",
+    "last_name": "Recipient",
+    "address_1": "200 Example Avenue",
+    "address_2": null,
+    "city": "Boulder",
+    "state": "Colorado",
+    "zip": "80302",
+    "email": "recipient@example.test",
+    "home_phone": "(303) 555-0102",
+    "cell_phone": "(303) 555-0103",
+    "emergency_contact_name": "",
+    "emergency_contact_phone": "",
+    "notes": null,
+    "default_payment_method_fk": null,
+    "home_location": "2",
+    "opt_out_email": "0",
+    "opt_out_sms": "0",
+    "opt_out_marketing_email": "0",
+    "opt_out_marketing_sms": "0",
+    "opt_out_photo_sharing": "0",
+    "opt_out_reminder_email": "0",
+    "opt_out_reminder_sms": "0",
+    "current_balance": "-2.56",
+    "latitude": "40.0150",
+    "longitude": "-105.2705",
+    "stripe_customer_id": null,
+    "stripe_default_card": null,
+    "payment_processor_id": "1",
+    "key": "fixture-owner-key",
+    "barcode": null,
+    "allow_online_login": "1",
+    "created_at": "1361422800",
+    "created_by": null,
+    "kl_owner_id": "fixture-owner-2",
+    "form_token": "fixture-form-token"
+  },
+  "email_data": {
+    "subject": "Sanitized email subject",
+    "value": "<p>Sanitized email body from public documentation fixture.</p>"
+  },
+  "recipients": [
+    {
+      "name": "Sample Recipient",
+      "email": "recipient@example.test"
+    }
+  ]
+}
