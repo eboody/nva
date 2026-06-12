@@ -1,7 +1,6 @@
 use domain::{
-    agent, agents, booking_triage, care, customer, daily_brief, entities, lead, location, money,
-    operations, payment, pet, policy, portal, reputation, reservation, service::grooming, staff,
-    temperament, workflow,
+    agent, care, customer, daily_brief, entities, lead, location, money, operations, payment, pet,
+    policy, portal, reputation, reservation, service::grooming, staff, temperament, workflow,
 };
 
 #[test]
@@ -29,24 +28,6 @@ fn ordinary_domain_structs_have_compile_checked_bon_builders() {
 
     assert_eq!(spec.name.into_inner(), "booking-triage");
     assert_eq!(spec.allowed_tools.len(), 1);
-}
-
-#[test]
-fn booking_triage_uses_typestate_for_legal_readiness_progression() {
-    let intake = booking_triage::Request::<booking_triage::Intake>::builder()
-        .reservation(booking_triage::Reservation::try_new("REQ-123").unwrap())
-        .build();
-
-    let with_pet_profile = intake.attach_pet_profile(
-        pet::Name::try_new("Moose").unwrap(),
-        booking_triage::PetProfileCompleteness::Complete,
-    );
-    let with_policy = with_pet_profile.attach_policy_snapshot(
-        booking_triage::PolicySnapshot::try_new("default-conservative-play-policy").unwrap(),
-    );
-    let ready = with_policy.mark_ready_for_policy_decision();
-
-    assert_eq!(ready.reservation().clone().into_inner(), "REQ-123");
 }
 
 #[test]
@@ -282,56 +263,6 @@ fn customer_contact_and_portal_identity_use_validated_values() {
 }
 
 #[test]
-fn agent_prompt_packets_use_semantic_policy_and_schema_names() {
-    let packet = agents::AgentPromptPacket::builder()
-        .workflow_name(agent::Name::try_new("booking-triage").unwrap())
-        .goal(agent::Purpose::try_new("Prepare deterministic booking triage context.").unwrap())
-        .event(workflow::WorkflowEvent {
-            event_id: workflow::WorkflowEventId(uuid::Uuid::nil()),
-            event_type: workflow::WorkflowEventType::BookingTriageNeeded,
-            occurred_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
-            actor: entities::ActorRef::System,
-            location_id: entities::LocationId(uuid::Uuid::nil()),
-            subject: workflow::WorkflowSubject::Reservation(entities::ReservationId(
-                uuid::Uuid::nil(),
-            )),
-            policy_context: workflow::PolicyContext {
-                allowed_actions: vec![workflow::AllowedAction::ExtractStructuredData],
-                automation_level: policy::AutomationLevel::DraftOnly,
-                required_reviews: vec![policy::ReviewGate::ManagerApproval],
-            },
-        })
-        .input(())
-        .policies(vec![
-            agent::PolicyInstruction::try_new("manager approval before customer-facing output")
-                .unwrap(),
-        ])
-        .output_schema_name(agent::OutputSchemaName::try_new("BookingTriageOutput").unwrap())
-        .build();
-
-    assert_eq!(
-        packet.output_schema_name.into_inner(),
-        "BookingTriageOutput"
-    );
-    assert_eq!(packet.policies.len(), 1);
-}
-
-#[test]
-fn agent_prompt_packet_semantics_are_reexported_from_agent_boundary() {
-    let policy_instruction =
-        agents::PolicyInstruction::try_new("manager approval before customer-facing output")
-            .expect("policy instruction is an agent-packet semantic value");
-    let schema_name = agents::OutputSchemaName::try_new("BookingTriageOutput")
-        .expect("schema name is an agent-packet semantic value");
-
-    assert_eq!(
-        policy_instruction.into_inner(),
-        "manager approval before customer-facing output"
-    );
-    assert_eq!(schema_name.into_inner(), "BookingTriageOutput");
-}
-
-#[test]
 fn actor_refs_use_role_specific_identity_contracts() {
     let staff = entities::ActorRef::Staff {
         staff_id: entities::StaffId::try_new("  kennel-tech-17  ").unwrap(),
@@ -462,58 +393,6 @@ fn reservation_hard_stops_carry_policy_semantics_not_raw_strings() {
         entities::HardStop::IneligibleForGroupPlay(
             policy::PlayIneligibilityReason::BehaviorFlagsRequireReview
         )
-    );
-}
-
-#[test]
-fn tool_and_policy_results_use_semantic_decisions_not_bool_string_pairs() {
-    let availability = domain::tools::AvailabilityResult {
-        decision: domain::tools::AvailabilityDecision::Available {
-            reason: domain::tools::AvailabilitySuccessReason::CapacityHeld,
-            capacity_snapshot_id: domain::tools::CapacitySnapshotId::try_new("  cap-123  ")
-                .unwrap(),
-        },
-    };
-    assert!(availability.is_available());
-    let domain::tools::AvailabilityDecision::Available {
-        capacity_snapshot_id,
-        ..
-    } = availability.decision
-    else {
-        panic!("expected held capacity snapshot for available decision");
-    };
-    assert_eq!(capacity_snapshot_id.into_inner(), "cap-123");
-
-    let availability_request = domain::tools::AvailabilityRequest {
-        location_id: entities::LocationId(uuid::Uuid::nil()),
-        reservation_id: Some(entities::ReservationId(uuid::Uuid::nil())),
-        service_notes: domain::tools::AvailabilityServiceNotes::try_new(
-            "  boarding suite with medication watch  ",
-        )
-        .unwrap(),
-    };
-    assert_eq!(
-        availability_request.service_notes.into_inner(),
-        "boarding suite with medication watch"
-    );
-    assert!(domain::tools::AvailabilityServiceNotes::try_new("   ").is_err());
-
-    let draft = domain::tools::ReservationUpdateDraft {
-        reservation_id: entities::ReservationId(uuid::Uuid::nil()),
-        proposed_status: entities::ReservationStatus::Waitlisted,
-        rationale: domain::tools::StatusSuggestionReason::CapacityUnavailable,
-    };
-    assert_eq!(
-        draft.proposed_status,
-        entities::ReservationStatus::Waitlisted
-    );
-
-    let tool_denial = domain::tools::ToolError::policy_denied(
-        policy::PolicyDenialReason::ManagerApprovalRequired,
-    );
-    assert_eq!(
-        tool_denial.to_string(),
-        "policy denied: manager approval required"
     );
 }
 
@@ -831,85 +710,6 @@ fn staff_operations_tasks_encode_due_evidence_and_manager_attention() {
 }
 
 #[test]
-fn external_integration_contracts_are_semantic_boundary_types() {
-    let lookup = domain::tools::portal::LookupRequest {
-        provider: domain::tools::portal::Provider::Gingr,
-        account: domain::tools::portal::AccountId::try_new("  gingr-east-1  ").unwrap(),
-        criteria: domain::tools::portal::LookupCriteria::Reservation(entities::ReservationId(
-            uuid::Uuid::nil(),
-        )),
-        include: vec![domain::tools::portal::Include::PetProfile],
-    };
-    assert_eq!(lookup.account.into_inner(), "gingr-east-1");
-
-    let authorization = domain::tools::payments::AuthorizationRequest {
-        subject: domain::tools::payments::PaymentSubject::ReservationDeposit(
-            entities::ReservationId(uuid::Uuid::nil()),
-        ),
-        amount: money::Money::new(
-            money::MinorUnits::try_new(5_000).unwrap(),
-            money::Currency::Usd,
-        ),
-        capture_policy: domain::tools::payments::CapturePolicy::AuthorizeOnly,
-        idempotency_key: domain::tools::payments::IdempotencyKey::try_new(
-            "  reservation-deposit-123  ",
-        )
-        .unwrap(),
-    };
-    assert_eq!(
-        authorization.idempotency_key.into_inner(),
-        "reservation-deposit-123"
-    );
-
-    let message = domain::tools::messaging::DraftMessageRequest {
-        channel: domain::tools::messaging::DeliveryChannel::Email,
-        recipient: domain::tools::messaging::Recipient::Customer(entities::CustomerId(
-            uuid::Uuid::nil(),
-        )),
-        body: domain::tools::messaging::MessageBody::try_new(
-            "  Please upload updated rabies records.  ",
-        )
-        .unwrap(),
-        review: domain::tools::messaging::MessageReviewPolicy::ManagerApprovalRequired,
-    };
-    assert_eq!(
-        message.body.into_inner(),
-        "Please upload updated rabies records."
-    );
-
-    let intake = domain::tools::documents::DocumentIntakeRequest {
-        document: domain::tools::documents::DocumentRef::try_new("  file/vaccine.pdf  ").unwrap(),
-        source: domain::tools::documents::DocumentSource::CustomerUpload,
-        expected_content: domain::tools::documents::ExpectedContent::VaccineProof,
-    };
-    assert_eq!(intake.document.into_inner(), "file/vaccine.pdf");
-
-    let snapshot = domain::tools::media::MediaSnapshotRequest {
-        location_id: entities::LocationId(uuid::Uuid::nil()),
-        camera_id: domain::tools::media::CameraId::try_new("  lobby-cam-1  ").unwrap(),
-        purpose: domain::tools::media::CapturePurpose::PetStatusCheck(entities::PetId(
-            uuid::Uuid::nil(),
-        )),
-    };
-    assert_eq!(snapshot.camera_id.into_inner(), "lobby-cam-1");
-
-    let task = domain::tools::hermes::TaskDraftRequest {
-        title: workflow::task::Title::try_new("  Review vaccine proof  ").unwrap(),
-        body: workflow::task::Body::try_new("Confirm rabies expiration date.").unwrap(),
-        queue: domain::tools::hermes::QueueName::try_new("  manager-review  ").unwrap(),
-        trigger: domain::tools::hermes::Trigger::WorkflowReview,
-    };
-    assert_eq!(task.queue.into_inner(), "manager-review");
-
-    assert!(domain::tools::portal::AccountId::try_new("   ").is_err());
-    assert!(domain::tools::payments::IdempotencyKey::try_new("   ").is_err());
-    assert!(domain::tools::messaging::MessageBody::try_new("   ").is_err());
-    assert!(domain::tools::documents::DocumentRef::try_new("   ").is_err());
-    assert!(domain::tools::media::CameraId::try_new("   ").is_err());
-    assert!(domain::tools::hermes::QueueName::try_new("   ").is_err());
-}
-
-#[test]
 fn nva_context_pack_business_services_and_systems_are_typed() {
     let portfolio = operations::PetResortPortfolio::builder()
         .operator(operations::Operator::NationalVeterinaryAssociates)
@@ -1061,59 +861,6 @@ fn nva_context_pack_operating_vocabulary_and_data_hygiene_are_typed() {
         operations::DataQualityIssue::StaffNotesTooVague,
     ];
     assert!(hygiene.contains(&operations::DataQualityIssue::DuplicateCustomers));
-}
-
-#[test]
-fn baseline_agent_specs_include_context_driven_operations_agents() {
-    let names: Vec<_> = agents::baseline_agent_specs()
-        .into_iter()
-        .map(|spec| spec.name.into_inner())
-        .collect();
-
-    for expected in [
-        "manager-daily-brief",
-        "lead-conversion",
-        "grooming-rebooking",
-        "reputation-triage",
-        "sop-policy-assistant",
-    ] {
-        assert!(
-            names.iter().any(|name| name == expected),
-            "missing baseline operations agent spec: {expected}"
-        );
-    }
-}
-
-#[test]
-fn prelude_consolidates_common_agent_entity_and_tool_boundaries() {
-    use domain::prelude as api;
-
-    let spec: api::AgentSpec = api::AgentSpec::builder()
-        .name(api::AgentName::try_new("booking-triage").unwrap())
-        .purpose(api::AgentPurpose::try_new("Evaluate deterministic booking policy.").unwrap())
-        .allowed_tools(vec![api::ToolName::try_new("availability-read").unwrap()])
-        .forbidden_actions(vec![
-            api::ForbiddenAction::try_new("invent availability").unwrap(),
-        ])
-        .default_review_gates(vec![api::ReviewGate::ManagerApproval])
-        .build();
-
-    let availability = api::AvailabilityResult {
-        decision: api::AvailabilityDecision::Unavailable {
-            reason: api::AvailabilityDenialReason::RequiresHumanReview,
-        },
-    };
-    let pet = api::Pet::builder()
-        .id(api::PetId(uuid::Uuid::nil()))
-        .customer_id(api::CustomerId(uuid::Uuid::nil()))
-        .name(pet::Name::try_new("Moose").unwrap())
-        .species(api::Species::Dog)
-        .spay_neuter_status(api::SpayNeuterStatus::Neutered)
-        .build();
-
-    assert_eq!(spec.name.into_inner(), "booking-triage");
-    assert!(!availability.is_available());
-    assert_eq!(pet.species, api::Species::Dog);
 }
 
 #[test]

@@ -1,16 +1,13 @@
 //! Typed foundation for a 170-location pet-resort workflow/agent platform.
 //!
 //! This crate intentionally models *business contracts* before implementation details:
-//! entities, workflow events, agent boundaries, tool traits, and policy decisions.
+//! entities, workflow events, agent identity values, and policy decisions.
 
 pub mod agent;
-pub mod agents;
 pub mod audit;
-pub mod booking_triage;
 pub mod care;
 pub mod customer;
 pub mod daily_brief;
-pub mod daily_update;
 pub mod document;
 pub mod entities;
 pub mod incident;
@@ -28,7 +25,6 @@ pub mod reservation;
 pub mod service;
 pub mod staff;
 pub mod temperament;
-pub mod tools;
 pub mod vaccine;
 pub mod workflow;
 
@@ -37,7 +33,6 @@ pub mod prelude {
         ForbiddenAction, Name as AgentName, OutputSchemaName, PolicyInstruction,
         Purpose as AgentPurpose, Spec as AgentSpec, ToolName,
     };
-    pub use crate::agents::{AgentPromptPacket, WorkflowAgent, baseline_agent_specs};
     pub use crate::entities::{
         ActorRef, AddOn, AuditAction, AuditEvent, AuditMetadataKey, AuditMetadataValue,
         AuditSubject, Brand, CareProfile, ContactChannel, Customer, CustomerId, Deposit, HardStop,
@@ -50,11 +45,6 @@ pub mod prelude {
     pub use crate::staff::{
         StaffRole, StaffTask, StaffTaskAssignment, StaffTaskKind, StaffTaskPriority,
         StaffTaskSource, StaffTaskStatus, TaskCompletionEvidence,
-    };
-    pub use crate::tools::{
-        AvailabilityDecision, AvailabilityDenialReason, AvailabilityRequest, AvailabilityResult,
-        AvailabilityServiceNotes, AvailabilitySuccessReason, CapacitySnapshotId,
-        ReservationUpdateDraft, StatusSuggestionReason, ToolError,
     };
     pub use crate::workflow::{
         AllowedAction, PolicyContext, RecommendedAction, ReviewReason, RiskFlag, Summary,

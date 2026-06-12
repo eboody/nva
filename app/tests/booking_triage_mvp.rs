@@ -1,4 +1,5 @@
-use domain::{booking_triage, entities};
+use app::booking_triage;
+use domain::entities;
 
 fn evidence(label: &str) -> booking_triage::EvidenceRef {
     booking_triage::EvidenceRef::try_new(label).unwrap()

@@ -1,11 +1,11 @@
 use bon::Builder;
 use serde::{Deserialize, Serialize};
 
-use crate::agent;
-use crate::policy::ReviewGate;
-use crate::workflow::{WorkflowEvent, WorkflowResult};
+use domain::agent;
+use domain::policy::ReviewGate;
+use domain::workflow::{WorkflowEvent, WorkflowResult};
 
-pub use crate::agent::{OutputSchemaName, PolicyInstruction};
+pub use domain::agent::{OutputSchemaName, PolicyInstruction};
 
 pub type AgentSpec = agent::Spec;
 

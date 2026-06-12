@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::policy;
+use domain::policy;
 
 pub type Result<T> = std::result::Result<T, ToolError>;
 
@@ -47,9 +47,9 @@ impl std::fmt::Display for ToolResource {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ToolResourceId {
-    Customer(crate::entities::CustomerId),
-    Pet(crate::entities::PetId),
-    Reservation(crate::entities::ReservationId),
+    Customer(domain::entities::CustomerId),
+    Pet(domain::entities::PetId),
+    Reservation(domain::entities::ReservationId),
     Snapshot(super::CapacitySnapshotId),
     Draft(super::DraftId),
     External(String),

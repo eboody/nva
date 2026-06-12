@@ -2,7 +2,7 @@ use nutype::nutype;
 use serde::{Deserialize, Serialize};
 use statum::{machine, state, transition};
 
-use crate::pet;
+use domain::pet;
 
 #[nutype(
     sanitize(trim),
@@ -607,17 +607,17 @@ impl StaffEvaluationPacket {
         &self.audit_event_drafts
     }
 
-    pub const fn suggested_status(&self) -> crate::entities::ReservationStatus {
+    pub const fn suggested_status(&self) -> domain::entities::ReservationStatus {
         match self.deterministic_result.recommended_status {
-            ReadinessBucket::ReadyForStaffApproval => crate::entities::ReservationStatus::Offered,
-            ReadinessBucket::MissingInfo => crate::entities::ReservationStatus::MissingInfo,
-            ReadinessBucket::VaccinePending => crate::entities::ReservationStatus::VaccinePending,
-            ReadinessBucket::SpecialReview => crate::entities::ReservationStatus::SpecialReview,
-            ReadinessBucket::Waitlisted => crate::entities::ReservationStatus::Waitlisted,
-            ReadinessBucket::Offered => crate::entities::ReservationStatus::Offered,
-            ReadinessBucket::Confirmed => crate::entities::ReservationStatus::Offered,
-            ReadinessBucket::Rejected => crate::entities::ReservationStatus::SpecialReview,
-            ReadinessBucket::FailedSafely => crate::entities::ReservationStatus::SpecialReview,
+            ReadinessBucket::ReadyForStaffApproval => domain::entities::ReservationStatus::Offered,
+            ReadinessBucket::MissingInfo => domain::entities::ReservationStatus::MissingInfo,
+            ReadinessBucket::VaccinePending => domain::entities::ReservationStatus::VaccinePending,
+            ReadinessBucket::SpecialReview => domain::entities::ReservationStatus::SpecialReview,
+            ReadinessBucket::Waitlisted => domain::entities::ReservationStatus::Waitlisted,
+            ReadinessBucket::Offered => domain::entities::ReservationStatus::Offered,
+            ReadinessBucket::Confirmed => domain::entities::ReservationStatus::Offered,
+            ReadinessBucket::Rejected => domain::entities::ReservationStatus::SpecialReview,
+            ReadinessBucket::FailedSafely => domain::entities::ReservationStatus::SpecialReview,
         }
     }
 

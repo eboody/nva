@@ -6,8 +6,9 @@ use std::collections::BTreeMap;
 use thiserror::Error;
 use uuid::Uuid;
 
+use crate::agents;
 use crate::agents::WorkflowAgent;
-use crate::{agent, agents, audit, customer, entities, message, pet, policy, workflow};
+use domain::{agent, audit, customer, entities, message, pet, policy, workflow};
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum Error {

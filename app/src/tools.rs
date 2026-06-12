@@ -2,11 +2,11 @@ use async_trait::async_trait;
 use nutype::nutype;
 use serde::{Deserialize, Serialize};
 
-use crate::entities::{
+use domain::entities::{
     Customer, CustomerId, LocationId, Pet, PetId, Reservation, ReservationId, ReservationStatus,
 };
-use crate::money::Money;
-use crate::workflow::{self, WorkflowEvent, WorkflowResult};
+use domain::money::Money;
+use domain::workflow::{self, WorkflowEvent, WorkflowResult};
 
 pub mod error;
 
@@ -273,7 +273,7 @@ pub mod payments {
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct RefundRequest {
-        pub payment_reference: crate::payment::PaymentReference,
+        pub payment_reference: domain::payment::PaymentReference,
         pub amount: Money,
         pub reason: RefundReason,
         pub idempotency_key: IdempotencyKey,
@@ -288,14 +288,14 @@ pub mod payments {
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct DepositRecordRequest {
         pub reservation_id: ReservationId,
-        pub payment_reference: crate::payment::PaymentReference,
+        pub payment_reference: domain::payment::PaymentReference,
         pub amount: Money,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct DepositRecordResult {
         pub reservation_id: ReservationId,
-        pub deposit_status: crate::payment::DepositStatus,
+        pub deposit_status: domain::payment::DepositStatus,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -425,8 +425,8 @@ pub mod messaging {
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub enum Recipient {
         Customer(CustomerId),
-        Staff(crate::entities::StaffId),
-        Manager(crate::entities::ManagerId),
+        Staff(domain::entities::StaffId),
+        Manager(domain::entities::ManagerId),
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

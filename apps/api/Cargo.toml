@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+app.workspace = true
 axum.workspace = true
 domain.workspace = true
 serde.workspace = true

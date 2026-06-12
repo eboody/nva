@@ -1,4 +1,5 @@
-use domain::{daily_update, entities, policy, workflow};
+use app::daily_update;
+use domain::{entities, policy, workflow};
 
 fn workflow_event(event_type: workflow::WorkflowEventType) -> workflow::WorkflowEvent {
     workflow::WorkflowEvent {

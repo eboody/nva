@@ -77,6 +77,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
+name = "app"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bon",
+ "chrono",
+ "domain",
+ "nutype",
+ "serde",
+ "serde_json",
+ "statum",
+ "thiserror",
+ "uuid",
+]
+
+[[package]]
 name = "async-trait"
 version = "0.1.89"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -290,8 +306,8 @@ name = "cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "app",
  "clap",
- "domain",
  "serde_json",
 ]
 
@@ -1022,6 +1038,7 @@ name = "pet-resort-api"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "app",
  "axum",
  "chrono",
  "domain",
@@ -1042,6 +1059,7 @@ name = "pet-resort-worker"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "app",
  "domain",
  "serde",
  "serde_json",
