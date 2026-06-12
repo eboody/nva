@@ -276,7 +276,7 @@ fn daycare_assignment_requires_group_play_eligibility_and_staff_coverage() {
             reason: daycare::coverage::InsufficiencyReason::RatioExceeded,
             gate: domain::policy::ReviewGate::ManagerApproval,
         })
-        .playgroup(daycare::assignment::PlaygroupId::try_new(" small-dogs-am ").unwrap())
+        .playgroup(daycare::assignment::playgroup_id::Id::try_new(" small-dogs-am ").unwrap())
         .build();
 
     let decision = daycare::assignment::Service.assign(request);

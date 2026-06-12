@@ -1,6 +1,4 @@
-use thiserror::Error;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum Error {
     #[error("minimum age must be at least one week")]
     EmptyMinimumAge,

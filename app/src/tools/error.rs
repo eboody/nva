@@ -1,10 +1,8 @@
-use thiserror::Error;
-
 use domain::policy;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug, Error, Clone, PartialEq, Eq)]
+#[derive(Debug, thiserror::Error, Clone, PartialEq, Eq)]
 pub enum Error {
     #[error("not found: {resource} {id}")]
     NotFound { resource: Resource, id: ResourceId },

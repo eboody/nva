@@ -1,6 +1,4 @@
-use thiserror::Error;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum Error {
     #[error("payment reference must not be empty")]
     EmptyReference,
