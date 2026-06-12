@@ -270,8 +270,12 @@ fn provider_dtos_preserve_unknown_fields_and_mappers_promote_only_existing_domai
     assert_eq!(customer.full_name.into_inner(), "Ana Rivera");
     assert_eq!(customer.email.unwrap().into_inner(), "ana@example.test");
     assert_eq!(customer.mobile_phone.unwrap().into_inner(), "+1 555 0100");
+    assert_eq!(owner.id, endpoint::OwnerId::new(42));
+    assert_eq!(owner.email.as_ref().unwrap().as_str(), " ana@example.test ");
     assert_eq!(customer.provider_owner_id, endpoint::OwnerId::new(42));
     assert_eq!(pet.name.into_inner(), "Juniper");
+    assert_eq!(animal.id, endpoint::AnimalId::new(9));
+    assert_eq!(animal.owner_id, Some(endpoint::OwnerId::new(42)));
     assert_eq!(pet.provider_animal_id, endpoint::AnimalId::new(9));
     assert!(owner.unknown.contains_key("password"));
     assert!(animal.unknown.contains_key("custom_provider_blob"));

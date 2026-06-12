@@ -22,7 +22,7 @@ pub fn name_candidate(record: &response::AnimalRecord) -> Result<NameCandidate> 
     })?;
 
     Ok(NameCandidate {
-        provider_animal_id: endpoint::AnimalId::new(record.id),
+        provider_animal_id: record.id,
         name,
     })
 }

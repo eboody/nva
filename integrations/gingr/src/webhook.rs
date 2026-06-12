@@ -1,3 +1,4 @@
+use crate::response;
 use hmac::{Hmac, Mac};
 use secrecy::SecretString;
 use sha2::Sha256;
@@ -335,23 +336,23 @@ pub enum WebhookAck {
     Processed,
     RejectedPermanently,
     RetryableFailure,
-    RetryableStatus(u16),
+    RetryableStatus(response::HttpStatus),
 }
 
 impl WebhookAck {
-    pub fn retryable_status(status: u16) -> Self {
-        if status == 200 || status == 403 || !(100..=599).contains(&status) {
-            Self::RetryableFailure
-        } else {
+    pub fn retryable_status(status: response::HttpStatus) -> Self {
+        if status.is_gingr_retry_override_allowed() {
             Self::RetryableStatus(status)
+        } else {
+            Self::RetryableFailure
         }
     }
 
-    pub fn http_status(&self) -> u16 {
+    pub fn http_status(&self) -> response::HttpStatus {
         match self {
-            Self::Processed => 200,
-            Self::RejectedPermanently => 403,
-            Self::RetryableFailure => 500,
+            Self::Processed => response::HttpStatus::OK,
+            Self::RejectedPermanently => response::HttpStatus::FORBIDDEN,
+            Self::RetryableFailure => response::HttpStatus::INTERNAL_SERVER_ERROR,
             Self::RetryableStatus(status) => *status,
         }
     }

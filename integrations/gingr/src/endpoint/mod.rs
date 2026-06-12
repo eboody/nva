@@ -6,6 +6,8 @@ pub mod reference_data;
 pub mod report_cards_files;
 pub mod reservations;
 
+pub use reservations::Reservations;
+
 use crate::transport;
 use chrono::NaiveDate;
 use std::fmt;
@@ -117,7 +119,19 @@ impl DateRange {
 
 macro_rules! id_type {
     ($name:ident) => {
-        #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        #[derive(
+            Clone,
+            Copy,
+            Debug,
+            PartialEq,
+            Eq,
+            PartialOrd,
+            Ord,
+            Hash,
+            serde::Deserialize,
+            serde::Serialize,
+        )]
+        #[serde(transparent)]
         pub struct $name(u64);
 
         impl $name {
@@ -143,6 +157,33 @@ id_type!(OwnerId);
 id_type!(ReservationId);
 id_type!(LocationId);
 id_type!(SpeciesId);
+id_type!(FormId);
+id_type!(ReferenceId);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Path(&'static str);
+
+impl Path {
+    pub const fn new(value: &'static str) -> Self {
+        Self(value)
+    }
+
+    pub const fn as_str(self) -> &'static str {
+        self.0
+    }
+}
+
+impl PartialEq<&str> for Path {
+    fn eq(&self, other: &&str) -> bool {
+        self.0 == *other
+    }
+}
+
+impl fmt::Display for Path {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.0)
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Limit(u64);
@@ -171,12 +212,12 @@ pub trait Request {
     }
 
     fn request_parts(&self) -> transport::RequestParts {
-        transport::RequestParts::new(
-            self.method(),
-            self.path(),
-            self.parameters(),
-            self.sensitive_parameter_names(),
-        )
+        transport::RequestParts::builder()
+            .method(self.method())
+            .path(Path::new(self.path()))
+            .parameters(self.parameters())
+            .sensitive_parameter_names(self.sensitive_parameter_names())
+            .build()
     }
 }
 

@@ -1,4 +1,4 @@
-use gingr::webhook;
+use gingr::{response, webhook};
 
 const FIXTURE_KEY: &str = "test-webhook-signature-key";
 
@@ -126,19 +126,28 @@ fn verification_reports_unsupported_entity_id_and_malformed_signature_boundaries
 
 #[test]
 fn receiver_ack_semantics_match_gingr_retry_contract() {
-    assert_eq!(webhook::WebhookAck::Processed.http_status(), 200);
-    assert_eq!(webhook::WebhookAck::RejectedPermanently.http_status(), 403);
-    assert_eq!(webhook::WebhookAck::RetryableFailure.http_status(), 500);
     assert_eq!(
-        webhook::WebhookAck::retryable_status(503).http_status(),
-        503
+        webhook::WebhookAck::Processed.http_status(),
+        response::HttpStatus::OK
     );
     assert_eq!(
-        webhook::WebhookAck::retryable_status(200).http_status(),
-        500
+        webhook::WebhookAck::RejectedPermanently.http_status(),
+        response::HttpStatus::FORBIDDEN
     );
     assert_eq!(
-        webhook::WebhookAck::retryable_status(403).http_status(),
-        500
+        webhook::WebhookAck::RetryableFailure.http_status(),
+        response::HttpStatus::INTERNAL_SERVER_ERROR
+    );
+    assert_eq!(
+        webhook::WebhookAck::retryable_status(response::HttpStatus::new(503)).http_status(),
+        response::HttpStatus::new(503)
+    );
+    assert_eq!(
+        webhook::WebhookAck::retryable_status(response::HttpStatus::OK).http_status(),
+        response::HttpStatus::INTERNAL_SERVER_ERROR
+    );
+    assert_eq!(
+        webhook::WebhookAck::retryable_status(response::HttpStatus::FORBIDDEN).http_status(),
+        response::HttpStatus::INTERNAL_SERVER_ERROR
     );
 }
