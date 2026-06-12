@@ -3,15 +3,15 @@ use serde::{Deserialize, Serialize};
 /// Storage shape for a migrated daycare service contract.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct ContractRecord(pub domain::service::daycare::Contract);
+pub struct ContractRecord(pub domain::daycare::Contract);
 
-impl From<domain::service::daycare::Contract> for ContractRecord {
-    fn from(value: domain::service::daycare::Contract) -> Self {
+impl From<domain::daycare::Contract> for ContractRecord {
+    fn from(value: domain::daycare::Contract) -> Self {
         Self(value)
     }
 }
 
-impl From<ContractRecord> for domain::service::daycare::Contract {
+impl From<ContractRecord> for domain::daycare::Contract {
     fn from(record: ContractRecord) -> Self {
         record.0
     }

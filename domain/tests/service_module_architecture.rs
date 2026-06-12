@@ -1,6 +1,6 @@
 use std::{fs, path::Path};
 
-use domain::{entities, money, policy, service};
+use domain::{boarding, daycare, entities, grooming, money, policy, retail, training};
 
 const SERVICE_LINE_NAMES: [&str; 5] = ["boarding", "daycare", "grooming", "training", "retail"];
 
@@ -8,11 +8,11 @@ const SERVICE_LINE_NAMES: [&str; 5] = ["boarding", "daycare", "grooming", "train
 fn petsuites_service_contracts_are_constructed_through_canonical_service_modules() {
     let contracts = domain::operations::CoreServiceContracts::builder()
         .location_id(entities::LocationId(uuid::Uuid::nil()))
-        .boarding(service::boarding::Contract::standard_petsuites())
-        .daycare(service::daycare::Contract::standard_petsuites())
-        .grooming(service::grooming::Contract::standard_petsuites())
-        .training(service::training::Contract::standard_petsuites())
-        .retail(service::retail::Contract::standard_petsuites())
+        .boarding(boarding::Contract::standard_petsuites())
+        .daycare(daycare::Contract::standard_petsuites())
+        .grooming(grooming::Contract::standard_petsuites())
+        .training(training::Contract::standard_petsuites())
+        .retail(retail::Contract::standard_petsuites())
         .build();
 
     assert_eq!(contracts.core_services().len(), SERVICE_LINE_NAMES.len());
@@ -25,40 +25,40 @@ fn petsuites_service_contracts_are_constructed_through_canonical_service_modules
 
 #[test]
 fn service_domain_module_paths_remain_the_owned_home_for_line_specific_policy_types() {
-    let boarding_decision = service::boarding::deposit::Policy::new(
-        service::boarding::DepositRule::Required {
+    let boarding_decision = boarding::deposit::Policy::new(
+        boarding::DepositRule::Required {
             amount: money::Money::new(
                 money::MinorUnits::try_new(2_500).unwrap(),
                 money::Currency::Usd,
             ),
         },
-        service::boarding::PaymentTiming::DueAtBooking,
+        boarding::PaymentTiming::DueAtBooking,
     )
     .readiness_for_confirmation(None);
 
     assert!(matches!(
         boarding_decision,
-        service::boarding::deposit::ConfirmationReadiness::Blocked {
-            blocker: service::boarding::deposit::Blocker::DepositRequired,
+        boarding::deposit::ConfirmationReadiness::Blocked {
+            blocker: boarding::deposit::Blocker::DepositRequired,
             review_gate: policy::ReviewGate::RefundOrDepositException,
         }
     ));
 
-    let daycare_decision = service::daycare::coverage::Policy.evaluate(
-        &service::daycare::coverage::RosterSnapshot::new(
-            service::daycare::StaffCount::try_new(1).unwrap(),
-            service::daycare::PetCount::try_new(13).unwrap(),
+    let daycare_decision = daycare::coverage::Policy.evaluate(
+        &daycare::coverage::RosterSnapshot::new(
+            daycare::StaffCount::try_new(1).unwrap(),
+            daycare::PetCount::try_new(13).unwrap(),
         ),
-        service::daycare::StaffPetRatio::new(
-            service::daycare::StaffCount::try_new(1).unwrap(),
-            service::daycare::PetCount::try_new(12).unwrap(),
+        daycare::StaffPetRatio::new(
+            daycare::StaffCount::try_new(1).unwrap(),
+            daycare::PetCount::try_new(12).unwrap(),
         ),
     );
 
     assert_eq!(
         daycare_decision,
-        service::daycare::coverage::Decision::Insufficient {
-            reason: service::daycare::coverage::InsufficiencyReason::RatioExceeded,
+        daycare::coverage::Decision::Insufficient {
+            reason: daycare::coverage::InsufficiencyReason::RatioExceeded,
             gate: policy::ReviewGate::ManagerApproval,
         }
     );
@@ -83,7 +83,7 @@ fn non_compatibility_tests_do_not_import_service_lines_through_operations_shims(
 
     assert!(
         stale_paths.is_empty(),
-        "service-line tests must use domain::service::<line> paths; stale compatibility imports: {stale_paths:#?}"
+        "service-line tests must use domain::<line> paths; stale compatibility imports: {stale_paths:#?}"
     );
 }
 

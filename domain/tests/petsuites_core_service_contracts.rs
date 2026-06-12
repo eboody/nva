@@ -1,7 +1,4 @@
-use domain::{
-    entities, money, operations,
-    service::{boarding, daycare, grooming, retail, training},
-};
+use domain::{boarding, daycare, entities, grooming, money, operations, retail, training};
 use uuid::Uuid;
 
 #[test]

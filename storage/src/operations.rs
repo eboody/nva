@@ -509,12 +509,12 @@ impl TryFrom<domain::operations::ServiceOffering> for ServiceOfferingRecord {
                 .build(),
             domain::operations::ServiceOffering::Grooming { service, cadence } => {
                 let cadence_weeks = match cadence {
-                    domain::service::grooming::RebookingCadence::EveryWeeks(weeks) => {
+                    domain::grooming::RebookingCadence::EveryWeeks(weeks) => {
                         Some(weeks.try_into()?)
                     }
-                    domain::service::grooming::RebookingCadence::AsNeeded
-                    | domain::service::grooming::RebookingCadence::GroomerRecommended
-                    | domain::service::grooming::RebookingCadence::Unknown => None,
+                    domain::grooming::RebookingCadence::AsNeeded
+                    | domain::grooming::RebookingCadence::GroomerRecommended
+                    | domain::grooming::RebookingCadence::Unknown => None,
                 };
                 let builder = Self::builder()
                     .service_kind(ServiceOfferingKindCode::Grooming)
@@ -595,9 +595,9 @@ impl TryFrom<ServiceOfferingRecord> for domain::operations::ServiceOffering {
                     .into();
                 let cadence = match record.grooming_cadence_weeks {
                     Some(weeks) => {
-                        domain::service::grooming::RebookingCadence::EveryWeeks(weeks.try_into()?)
+                        domain::grooming::RebookingCadence::EveryWeeks(weeks.try_into()?)
                     }
-                    None => domain::service::grooming::RebookingCadence::Unknown,
+                    None => domain::grooming::RebookingCadence::Unknown,
                 };
                 Ok(Self::Grooming { service, cadence })
             }

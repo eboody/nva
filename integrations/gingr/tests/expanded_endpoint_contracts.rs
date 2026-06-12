@@ -1,10 +1,10 @@
-use domain::service::retail;
+use domain::retail;
 use gingr::{config, dto, endpoint, mapping, response, transport};
 
 const SENTINEL_KEY: &str = "gingr_test_api_key_do_not_send";
 
 fn fake_client() -> transport::Client<transport::MockTransport> {
-    let config = config::ClientConfig::new(
+    let config = config::Client::new(
         config::BaseUrl::parse("https://example-pet-resort.gingrapp.com").unwrap(),
         config::ApiKey::from_secret(SENTINEL_KEY),
     );

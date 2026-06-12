@@ -212,18 +212,16 @@ pub enum DaycareEligibilityRule {
     StaffToPetRatioRequired,
 }
 
-pub use crate::service::grooming::RebookingCadence as GroomingCadence;
-pub use crate::service::grooming::Service as GroomingService;
-pub use crate::service::grooming::{CadenceWeeks, GroomingCadenceWeeksError as CadenceWeeksError};
+pub use crate::grooming::RebookingCadence as GroomingCadence;
+pub use crate::grooming::Service as GroomingService;
+pub use crate::grooming::{CadenceWeeks, GroomingCadenceWeeksError as CadenceWeeksError};
 
-pub use crate::service::training::{
+pub use crate::training::{
     DurationWeeks as TrainingProgramDurationWeeks,
     DurationWeeksError as TrainingProgramDurationWeeksError, Program as TrainingProgram,
 };
 
-pub use crate::service::retail::{
-    Partner as RetailPartner, ProductCategory as RetailProductCategory,
-};
+pub use crate::retail::{Partner as RetailPartner, ProductCategory as RetailProductCategory};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 pub struct TechnologyEcosystem {
@@ -404,11 +402,11 @@ pub enum OptimizationOpportunity {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 pub struct CoreServiceContracts {
     pub location_id: LocationId,
-    pub boarding: crate::service::boarding::Contract,
-    pub daycare: crate::service::daycare::Contract,
-    pub grooming: grooming::Contract,
-    pub training: training::Contract,
-    pub retail: retail::Contract,
+    pub boarding: crate::boarding::Contract,
+    pub daycare: crate::daycare::Contract,
+    pub grooming: crate::grooming::Contract,
+    pub training: crate::training::Contract,
+    pub retail: crate::retail::Contract,
 }
 
 impl CoreServiceContracts {
@@ -430,32 +428,4 @@ pub enum CoreServiceLine {
     Grooming,
     Training,
     Retail,
-}
-
-pub mod boarding {
-    // Temporary compatibility shim; canonical path is `crate::service::boarding`.
-    // Remove after storage/app/test call sites migrate off `domain::operations::boarding`.
-    pub use crate::service::boarding::*;
-}
-
-pub mod daycare {
-    // Temporary compatibility shim; canonical path is `crate::service::daycare`.
-    // Remove after storage/app/test call sites migrate off `domain::operations::daycare`.
-    pub use crate::service::daycare::*;
-}
-pub mod grooming {
-    // Temporary compatibility shim; canonical path is `crate::service::grooming`.
-    // Remove after storage/app/test call sites migrate off `domain::operations::grooming`.
-    pub use crate::service::grooming::*;
-}
-
-pub mod training {
-    // Temporary compatibility shim; canonical path is `crate::service::training`.
-    // Remove after storage/app/test call sites migrate off `domain::operations::training`.
-    pub use crate::service::training::*;
-}
-pub mod retail {
-    // Temporary compatibility shim; canonical path is `crate::service::retail`.
-    // Remove after storage/app/test call sites migrate off `domain::operations::retail`.
-    pub use crate::service::retail::*;
 }

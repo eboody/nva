@@ -7,4 +7,4 @@
 pub mod operations;
 pub mod service;
 
-pub use operations::{CodecError, Error, RecordKind, Result};
+pub use operations::{CodecError, RecordKind, Result};

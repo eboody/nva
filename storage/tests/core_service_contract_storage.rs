@@ -2,11 +2,11 @@
 fn core_service_contract_records_roundtrip_between_storage_and_domain() {
     let domain_contracts = domain::operations::CoreServiceContracts::builder()
         .location_id(domain::entities::LocationId(uuid::Uuid::nil()))
-        .boarding(domain::service::boarding::Contract::standard_petsuites())
-        .daycare(domain::service::daycare::Contract::standard_petsuites())
-        .grooming(domain::service::grooming::Contract::standard_petsuites())
-        .training(domain::service::training::Contract::standard_petsuites())
-        .retail(domain::service::retail::Contract::standard_petsuites())
+        .boarding(domain::boarding::Contract::standard_petsuites())
+        .daycare(domain::daycare::Contract::standard_petsuites())
+        .grooming(domain::grooming::Contract::standard_petsuites())
+        .training(domain::training::Contract::standard_petsuites())
+        .retail(domain::retail::Contract::standard_petsuites())
         .build();
 
     let record: storage::operations::CoreServiceContractsRecord = domain_contracts.clone().into();

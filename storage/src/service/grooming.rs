@@ -5,15 +5,15 @@ use crate::operations::{Error, Result, StorageField};
 /// Storage shape for a migrated grooming service contract.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct ContractRecord(pub domain::service::grooming::Contract);
+pub struct ContractRecord(pub domain::grooming::Contract);
 
-impl From<domain::service::grooming::Contract> for ContractRecord {
-    fn from(value: domain::service::grooming::Contract) -> Self {
+impl From<domain::grooming::Contract> for ContractRecord {
+    fn from(value: domain::grooming::Contract) -> Self {
         Self(value)
     }
 }
 
-impl From<ContractRecord> for domain::service::grooming::Contract {
+impl From<ContractRecord> for domain::grooming::Contract {
     fn from(record: ContractRecord) -> Self {
         record.0
     }
@@ -65,10 +65,10 @@ pub enum StoredCadenceWeeksError {
     ZeroWeeks,
 }
 
-impl TryFrom<domain::service::grooming::CadenceWeeks> for StoredCadenceWeeks {
+impl TryFrom<domain::grooming::CadenceWeeks> for StoredCadenceWeeks {
     type Error = Error;
 
-    fn try_from(value: domain::service::grooming::CadenceWeeks) -> Result<Self> {
+    fn try_from(value: domain::grooming::CadenceWeeks) -> Result<Self> {
         Self::try_new(value.get()).map_err(|err| Error::InvalidDomainValue {
             field: StorageField::GroomingCadenceWeeks,
             reason: err.to_string(),
@@ -76,11 +76,11 @@ impl TryFrom<domain::service::grooming::CadenceWeeks> for StoredCadenceWeeks {
     }
 }
 
-impl TryFrom<StoredCadenceWeeks> for domain::service::grooming::CadenceWeeks {
+impl TryFrom<StoredCadenceWeeks> for domain::grooming::CadenceWeeks {
     type Error = Error;
 
     fn try_from(value: StoredCadenceWeeks) -> Result<Self> {
-        domain::service::grooming::CadenceWeeks::try_new(value.get()).map_err(|err| {
+        domain::grooming::CadenceWeeks::try_new(value.get()).map_err(|err| {
             Error::InvalidDomainValue {
                 field: StorageField::GroomingCadenceWeeks,
                 reason: err.to_string(),
@@ -89,7 +89,7 @@ impl TryFrom<StoredCadenceWeeks> for domain::service::grooming::CadenceWeeks {
     }
 }
 
-impl From<ServiceCode> for domain::service::grooming::Service {
+impl From<ServiceCode> for domain::grooming::Service {
     fn from(value: ServiceCode) -> Self {
         match value {
             ServiceCode::MiniGroom => Self::MiniGroom,
@@ -106,23 +106,19 @@ impl From<ServiceCode> for domain::service::grooming::Service {
     }
 }
 
-impl From<domain::service::grooming::Service> for ServiceCode {
-    fn from(value: domain::service::grooming::Service) -> Self {
+impl From<domain::grooming::Service> for ServiceCode {
+    fn from(value: domain::grooming::Service) -> Self {
         match value {
-            domain::service::grooming::Service::MiniGroom => Self::MiniGroom,
-            domain::service::grooming::Service::FullGroom => Self::FullGroom,
-            domain::service::grooming::Service::ExitBath => Self::ExitBath,
-            domain::service::grooming::Service::FullBath => Self::FullBath,
-            domain::service::grooming::Service::PremiumBath => Self::PremiumBath,
-            domain::service::grooming::Service::NailTrim => Self::NailTrim,
-            domain::service::grooming::Service::NailDremel => Self::NailDremel,
-            domain::service::grooming::Service::EarCleaning => Self::EarCleaning,
-            domain::service::grooming::Service::CoatSkinSpecificProduct => {
-                Self::CoatSkinSpecificProduct
-            }
-            domain::service::grooming::Service::FirstTimeGroomingOffer => {
-                Self::FirstTimeGroomingOffer
-            }
+            domain::grooming::Service::MiniGroom => Self::MiniGroom,
+            domain::grooming::Service::FullGroom => Self::FullGroom,
+            domain::grooming::Service::ExitBath => Self::ExitBath,
+            domain::grooming::Service::FullBath => Self::FullBath,
+            domain::grooming::Service::PremiumBath => Self::PremiumBath,
+            domain::grooming::Service::NailTrim => Self::NailTrim,
+            domain::grooming::Service::NailDremel => Self::NailDremel,
+            domain::grooming::Service::EarCleaning => Self::EarCleaning,
+            domain::grooming::Service::CoatSkinSpecificProduct => Self::CoatSkinSpecificProduct,
+            domain::grooming::Service::FirstTimeGroomingOffer => Self::FirstTimeGroomingOffer,
         }
     }
 }
