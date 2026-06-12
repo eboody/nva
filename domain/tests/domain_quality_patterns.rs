@@ -1,6 +1,6 @@
 use domain::{
     agent, care, customer, daily_brief, entities, grooming, lead, location, money, operations,
-    payment, pet, policy, portal, reputation, reservation, staff, temperament, workflow,
+    payment, pet, policy, portal, reputation, reservation, staff, temperament, training, workflow,
 };
 
 #[test]
@@ -753,8 +753,8 @@ fn nva_context_pack_business_services_and_systems_are_typed() {
         ),
     };
     let training = operations::ServiceOffering::Training {
-        program: operations::TrainingProgram::StayAndStudy {
-            duration: operations::TrainingProgramDurationWeeks::try_new(3).unwrap(),
+        program: training::Program::StayAndStudy {
+            duration: training::DurationWeeks::try_new(3).unwrap(),
         },
     };
 
@@ -776,15 +776,15 @@ fn nva_context_pack_business_services_and_systems_are_typed() {
     ));
     assert!(grooming::CadenceWeeks::try_new(0).is_err());
     assert!(matches!(
-        operations::CadenceWeeks::try_new(0),
-        Err(operations::CadenceWeeksError::ZeroWeeks)
+        grooming::CadenceWeeks::try_new(0),
+        Err(grooming::GroomingCadenceWeeksError::ZeroWeeks)
     ));
-    let unknown_cadence = operations::GroomingCadence::Unknown;
+    let unknown_cadence = grooming::RebookingCadence::Unknown;
     assert!(matches!(
         unknown_cadence,
         grooming::RebookingCadence::Unknown
     ));
-    assert!(operations::TrainingProgramDurationWeeks::try_new(0).is_err());
+    assert!(training::DurationWeeks::try_new(0).is_err());
 
     let ecosystem = operations::TechnologyEcosystem::builder()
         .core_portal(operations::CoreOperatingSystem::Gingr)
