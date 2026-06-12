@@ -1,6 +1,6 @@
 use domain::{
     entities, money, operations,
-    service::{boarding, daycare, grooming},
+    service::{boarding, daycare, grooming, training},
 };
 use uuid::Uuid;
 
@@ -562,50 +562,48 @@ fn grooming_history_entry_separates_style_notes_from_care_or_medical_handling_re
 #[test]
 fn training_contract_encodes_program_curriculum_progress_outcomes_availability_packages_and_follow_up()
  {
-    let contract = operations::training::Contract::builder()
-        .program_duration(operations::training::ProgramDuration::Weeks(
-            operations::training::DurationWeeks::try_new(3).unwrap(),
+    let contract = training::Contract::builder()
+        .program_duration(training::ProgramDuration::Weeks(
+            training::DurationWeeks::try_new(3).unwrap(),
         ))
         .curriculum(vec![
-            operations::training::CurriculumUnit::LooseLeashWalking,
-            operations::training::CurriculumUnit::Recall,
+            training::CurriculumUnit::LooseLeashWalking,
+            training::CurriculumUnit::Recall,
         ])
-        .progress(operations::training::ProgressTracking::SessionNotesAndMilestones)
-        .outcomes(vec![
-            operations::training::Outcome::CanineGoodCitizenReadiness,
-        ])
-        .trainer_availability(operations::training::TrainerAvailability::NamedTrainerRequired)
-        .package(operations::training::PackagePolicy::MultiSessionPackage {
-            sessions: operations::training::SessionCount::try_new(6).unwrap(),
+        .progress(training::ProgressTracking::SessionNotesAndMilestones)
+        .outcomes(vec![training::Outcome::CanineGoodCitizenReadiness])
+        .trainer_availability(training::TrainerAvailability::NamedTrainerRequired)
+        .package(training::PackagePolicy::MultiSessionPackage {
+            sessions: training::SessionCount::try_new(6).unwrap(),
         })
-        .follow_up(operations::training::FollowUpCadence::AfterProgramCompletion)
+        .follow_up(training::FollowUpCadence::AfterProgramCompletion)
         .build();
 
     assert!(contract.requires_named_trainer());
-    assert!(contract.has_outcome(&operations::training::Outcome::CanineGoodCitizenReadiness));
-    assert!(operations::training::DurationWeeks::try_new(0).is_err());
-    assert!(operations::training::SessionCount::try_new(0).is_err());
+    assert!(contract.has_outcome(&training::Outcome::CanineGoodCitizenReadiness));
+    assert!(training::DurationWeeks::try_new(0).is_err());
+    assert!(training::SessionCount::try_new(0).is_err());
 }
 
 #[test]
 fn trainer_availability_waitlists_when_named_trainer_has_no_capacity() {
-    let request = operations::training::availability::Request::builder()
-        .enrollment_id(operations::training::EnrollmentId::try_new("enroll-123").unwrap())
+    let request = training::availability::Request::builder()
+        .enrollment_id(training::EnrollmentId::try_new("enroll-123").unwrap())
         .pet_id(entities::PetId(Uuid::nil()))
-        .program(operations::TrainingProgram::PrivateLesson)
-        .requirement(operations::training::TrainerRequirement::NamedTrainer {
+        .program(training::Program::PrivateLesson)
+        .requirement(training::TrainerRequirement::NamedTrainer {
             trainer_id: entities::StaffId::try_new("trainer-7").unwrap(),
         })
-        .capacity(operations::training::availability::CapacityDecision::Unavailable)
-        .readiness(operations::training::EnrollmentReadiness::Ready)
+        .capacity(training::availability::CapacityDecision::Unavailable)
+        .readiness(training::EnrollmentReadiness::Ready)
         .build();
 
-    let decision = operations::training::availability::Policy.evaluate(&request);
+    let decision = training::availability::Policy.evaluate(&request);
 
     assert_eq!(
         decision,
-        operations::training::availability::Decision::Waitlist {
-            reason: operations::training::availability::WaitlistReason::RequestedTrainerUnavailable,
+        training::availability::Decision::Waitlist {
+            reason: training::availability::WaitlistReason::RequestedTrainerUnavailable,
             gate: domain::policy::ReviewGate::ManagerApproval,
         }
     );
@@ -617,26 +615,25 @@ fn trainer_availability_waitlists_when_named_trainer_has_no_capacity() {
 
 #[test]
 fn progress_report_cannot_be_parent_facing_until_approved_even_when_evidence_exists() {
-    let report = operations::training::progress::Report::builder()
-        .report_id(operations::training::ProgressReportId::try_new("progress-1").unwrap())
-        .enrollment_id(operations::training::EnrollmentId::try_new("enroll-123").unwrap())
-        .session_ref(operations::training::SessionRef::try_new("session-4").unwrap())
-        .evidence(vec![operations::training::ProgressEvidence::TrainerNote {
-            evidence_id: operations::training::EvidenceId::try_new("evidence-1").unwrap(),
-            note: operations::training::ProgressNote::try_new(" recall improved with long line ")
-                .unwrap(),
+    let report = training::progress::Report::builder()
+        .report_id(training::ProgressReportId::try_new("progress-1").unwrap())
+        .enrollment_id(training::EnrollmentId::try_new("enroll-123").unwrap())
+        .session_ref(training::SessionRef::try_new("session-4").unwrap())
+        .evidence(vec![training::ProgressEvidence::TrainerNote {
+            evidence_id: training::EvidenceId::try_new("evidence-1").unwrap(),
+            note: training::ProgressNote::try_new(" recall improved with long line ").unwrap(),
         }])
-        .milestones(vec![operations::training::CurriculumProgress::new(
-            operations::training::MilestoneId::try_new("recall").unwrap(),
-            operations::training::MilestoneStatus::Introduced,
+        .milestones(vec![training::CurriculumProgress::new(
+            training::MilestoneId::try_new("recall").unwrap(),
+            training::MilestoneStatus::Introduced,
         )])
-        .approval(operations::training::ApprovalState::Draft)
+        .approval(training::ApprovalState::Draft)
         .build()
         .unwrap();
 
     assert_eq!(
         report.parent_facing_boundary(),
-        operations::training::MemberFacingBoundary::DraftRequiresApproval {
+        training::MemberFacingBoundary::DraftRequiresApproval {
             gate: domain::policy::ReviewGate::CustomerMessageApproval,
         }
     );
@@ -645,34 +642,29 @@ fn progress_report_cannot_be_parent_facing_until_approved_even_when_evidence_exi
 
 #[test]
 fn achieved_outcome_claim_requires_evidence_before_documentation_can_be_member_facing() {
-    let rejected = operations::training::outcome::Claim::new(
-        operations::training::Outcome::CanineGoodCitizenReadiness,
-        operations::training::outcome::ClaimStatus::Achieved,
+    let rejected = training::outcome::Claim::new(
+        training::Outcome::CanineGoodCitizenReadiness,
+        training::outcome::ClaimStatus::Achieved,
         vec![],
-        vec![operations::training::MilestoneId::try_new("cgc-readiness").unwrap()],
+        vec![training::MilestoneId::try_new("cgc-readiness").unwrap()],
     );
 
-    assert_eq!(
-        rejected,
-        Err(operations::training::Error::OutcomeEvidenceRequired)
-    );
+    assert_eq!(rejected, Err(training::Error::OutcomeEvidenceRequired));
 
-    let claim = operations::training::outcome::Claim::new(
-        operations::training::Outcome::CanineGoodCitizenReadiness,
-        operations::training::outcome::ClaimStatus::Readiness,
-        vec![operations::training::EvidenceId::try_new("rubric-1").unwrap()],
-        vec![operations::training::MilestoneId::try_new("cgc-readiness").unwrap()],
+    let claim = training::outcome::Claim::new(
+        training::Outcome::CanineGoodCitizenReadiness,
+        training::outcome::ClaimStatus::Readiness,
+        vec![training::EvidenceId::try_new("rubric-1").unwrap()],
+        vec![training::MilestoneId::try_new("cgc-readiness").unwrap()],
     )
     .unwrap();
-    let documentation = operations::training::outcome::Documentation::builder()
-        .documentation_id(
-            operations::training::OutcomeDocumentationId::try_new("outcome-1").unwrap(),
-        )
-        .enrollment_id(operations::training::EnrollmentId::try_new("enroll-123").unwrap())
+    let documentation = training::outcome::Documentation::builder()
+        .documentation_id(training::OutcomeDocumentationId::try_new("outcome-1").unwrap())
+        .enrollment_id(training::EnrollmentId::try_new("enroll-123").unwrap())
         .pet_id(entities::PetId(Uuid::nil()))
         .location_id(entities::LocationId(Uuid::nil()))
         .claims(vec![claim])
-        .review(operations::training::OutcomeReviewState::TrainerApproved {
+        .review(training::OutcomeReviewState::TrainerApproved {
             trainer_id: entities::StaffId::try_new("trainer-7").unwrap(),
         })
         .build()
@@ -680,7 +672,7 @@ fn achieved_outcome_claim_requires_evidence_before_documentation_can_be_member_f
 
     assert_eq!(
         documentation.member_facing_boundary(),
-        operations::training::MemberFacingBoundary::DraftRequiresApproval {
+        training::MemberFacingBoundary::DraftRequiresApproval {
             gate: domain::policy::ReviewGate::CustomerMessageApproval,
         }
     );
@@ -688,20 +680,20 @@ fn achieved_outcome_claim_requires_evidence_before_documentation_can_be_member_f
 
 #[test]
 fn training_package_ledger_exposes_remaining_sessions_without_callers_recomputing_counts() {
-    let package_id = operations::training::package::Id::try_new("pkg-1").unwrap();
-    let ledger = operations::training::package::Ledger::new(
+    let package_id = training::package::Id::try_new("pkg-1").unwrap();
+    let ledger = training::package::Ledger::new(
         package_id.clone(),
         entities::CustomerId(Uuid::nil()),
         entities::PetId(Uuid::nil()),
-        operations::training::PackagePolicy::MultiSessionPackage {
-            sessions: operations::training::SessionCount::try_new(4).unwrap(),
+        training::PackagePolicy::MultiSessionPackage {
+            sessions: training::SessionCount::try_new(4).unwrap(),
         },
         vec![
-            operations::training::package::LedgerEntry::Reserved {
-                session_id: operations::training::TrainingSessionId::try_new("session-1").unwrap(),
+            training::package::LedgerEntry::Reserved {
+                session_id: training::TrainingSessionId::try_new("session-1").unwrap(),
             },
-            operations::training::package::LedgerEntry::Consumed {
-                session_id: operations::training::TrainingSessionId::try_new("session-2").unwrap(),
+            training::package::LedgerEntry::Consumed {
+                session_id: training::TrainingSessionId::try_new("session-2").unwrap(),
             },
         ],
     )
@@ -709,34 +701,31 @@ fn training_package_ledger_exposes_remaining_sessions_without_callers_recomputin
 
     assert_eq!(ledger.balance().remaining().get(), 2);
     assert_eq!(
-        operations::training::package::Policy.decide_usage(&ledger),
-        operations::training::package::UsageDecision::ReserveNextSession {
+        training::package::Policy.decide_usage(&ledger),
+        training::package::UsageDecision::ReserveNextSession {
             package_id,
-            remaining_after_reservation: operations::training::SessionBalance::new(1),
+            remaining_after_reservation: training::SessionBalance::new(1),
         }
     );
 }
 
 #[test]
 fn follow_up_policy_creates_due_plan_for_after_each_session_with_progress_homework() {
-    let plan = operations::training::follow_up::Policy.plan(
-        operations::training::follow_up::Trigger::SessionCompleted {
-            session_id: operations::training::TrainingSessionId::try_new("session-4").unwrap(),
+    let plan = training::follow_up::Policy.plan(
+        training::follow_up::Trigger::SessionCompleted {
+            session_id: training::TrainingSessionId::try_new("session-4").unwrap(),
         },
-        operations::training::FollowUpCadence::AfterEachSession,
-        operations::training::follow_up::EvidenceReadiness::ProgressAndHomeworkReady,
+        training::FollowUpCadence::AfterEachSession,
+        training::follow_up::EvidenceReadiness::ProgressAndHomeworkReady,
     );
 
     assert_eq!(
         plan.state(),
-        operations::training::follow_up::State::DraftRequiresApproval {
+        training::follow_up::State::DraftRequiresApproval {
             gate: domain::policy::ReviewGate::CustomerMessageApproval,
         }
     );
-    assert_eq!(
-        plan.purpose(),
-        operations::training::follow_up::Purpose::ProgressUpdate
-    );
+    assert_eq!(plan.purpose(), training::follow_up::Purpose::ProgressUpdate);
 }
 
 #[test]
@@ -913,7 +902,7 @@ fn core_service_contract_groups_all_petsuites_lines_without_raw_field_flags() {
         .boarding(boarding::Contract::standard_petsuites())
         .daycare(daycare::Contract::standard_petsuites())
         .grooming(grooming::Contract::standard_petsuites())
-        .training(operations::training::Contract::standard_petsuites())
+        .training(training::Contract::standard_petsuites())
         .retail(operations::retail::Contract::standard_petsuites())
         .build();
 
