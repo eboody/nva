@@ -142,6 +142,6 @@ pub enum StaffTaskSource {
     Pet(PetId),
     Customer(CustomerId),
     DailyBrief(SnapshotId),
-    WorkflowEvent(crate::workflow::WorkflowEventId),
+    WorkflowEvent(crate::workflow::EventId),
     StaffCreated,
 }

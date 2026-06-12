@@ -13,7 +13,7 @@ pub mod prelude {
     pub use crate::agents::{AgentPromptPacket, WorkflowAgent, baseline_agent_specs};
     pub use crate::tools::{
         AvailabilityDecision, AvailabilityDenialReason, AvailabilityRequest, AvailabilityResult,
-        AvailabilityServiceNotes, AvailabilitySuccessReason, CapacitySnapshotId,
-        ReservationUpdateDraft, StatusSuggestionReason, ToolError,
+        AvailabilityServiceNotes, AvailabilitySuccessReason, CapacitySnapshotId, Error,
+        ReservationUpdateDraft, StatusSuggestionReason,
     };
 }

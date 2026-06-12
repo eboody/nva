@@ -2,29 +2,26 @@ use thiserror::Error;
 
 use domain::policy;
 
-pub type Result<T> = std::result::Result<T, ToolError>;
+pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
-pub enum ToolError {
+pub enum Error {
     #[error("not found: {resource} {id}")]
-    NotFound {
-        resource: ToolResource,
-        id: ToolResourceId,
-    },
+    NotFound { resource: Resource, id: ResourceId },
     #[error("policy denied: {reason}")]
     PolicyDenied { reason: policy::denial::Reason },
     #[error("external system error: {failure}")]
     External { failure: ExternalFailure },
 }
 
-impl ToolError {
+impl Error {
     pub fn policy_denied(reason: policy::denial::Reason) -> Self {
         Self::PolicyDenied { reason }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ToolResource {
+pub enum Resource {
     Customer,
     Pet,
     Reservation,
@@ -32,7 +29,7 @@ pub enum ToolResource {
     DraftReservationUpdate,
 }
 
-impl std::fmt::Display for ToolResource {
+impl std::fmt::Display for Resource {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let label = match self {
             Self::Customer => "customer",
@@ -46,7 +43,7 @@ impl std::fmt::Display for ToolResource {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ToolResourceId {
+pub enum ResourceId {
     Customer(domain::entities::CustomerId),
     Pet(domain::entities::PetId),
     Reservation(domain::entities::ReservationId),
@@ -55,7 +52,7 @@ pub enum ToolResourceId {
     External(String),
 }
 
-impl std::fmt::Display for ToolResourceId {
+impl std::fmt::Display for ResourceId {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Customer(id) => write!(formatter, "{}", id.0),

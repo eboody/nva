@@ -55,7 +55,7 @@ fn booking_triage_rule_contract_treats_paid_boarding_deposit_as_ready_service_ev
     );
     let paid = payment::Deposit::paid(
         amount.clone(),
-        payment::PaymentReference::try_new("gingr-payment-123").unwrap(),
+        payment::Reference::try_new("gingr-payment-123").unwrap(),
     );
     let readiness = boarding::deposit::Policy::new(
         boarding::DepositRule::Required { amount },

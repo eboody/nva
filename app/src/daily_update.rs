@@ -3,14 +3,13 @@ use chrono::{DateTime, Utc};
 use nutype::nutype;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use thiserror::Error;
 use uuid::Uuid;
 
 use crate::agents;
 use crate::agents::WorkflowAgent;
 use domain::{agent, audit, customer, entities, message, pet, policy, workflow};
 
-#[derive(Debug, Error, Clone, PartialEq, Eq)]
+#[derive(Debug, thiserror::Error, Clone, PartialEq, Eq)]
 pub enum Error {
     #[error("daily update preview requires a DailyNoteCreated or DailyUpdateNeeded workflow event")]
     UnsupportedWorkflowEvent,
@@ -26,7 +25,7 @@ pub type Result<T> = core::result::Result<T, Error>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 pub struct MvpPreviewRequest {
-    pub event: workflow::WorkflowEvent,
+    pub event: workflow::Event,
     pub pet_name: pet::Name,
     pub owner_display_name: customer::Name,
     pub policy_snapshot_id: policy::Id,
@@ -322,7 +321,7 @@ pub struct DailyCareUpdateAgent;
 
 impl agents::WorkflowAgent<DailyCareUpdateInput, DailyCareUpdateOutput> for DailyCareUpdateAgent {
     fn spec(&self) -> agents::AgentSpec {
-        crate::agents::baseline_agent_specs()
+        agents::baseline_agent_specs()
             .into_iter()
             .find(|spec| spec.name.clone().into_inner() == "daily-care-update")
             .expect("baseline daily-care-update agent spec exists")
@@ -330,7 +329,7 @@ impl agents::WorkflowAgent<DailyCareUpdateInput, DailyCareUpdateOutput> for Dail
 
     fn build_prompt_packet(
         &self,
-        event: &workflow::WorkflowEvent,
+        event: &workflow::Event,
         input: DailyCareUpdateInput,
     ) -> agents::AgentPromptPacket<DailyCareUpdateInput> {
         agents::AgentPromptPacket::builder()
@@ -349,8 +348,8 @@ impl agents::WorkflowAgent<DailyCareUpdateInput, DailyCareUpdateOutput> for Dail
 
     fn validate_output(
         &self,
-        mut output: workflow::WorkflowResult<DailyCareUpdateOutput>,
-    ) -> workflow::WorkflowResult<DailyCareUpdateOutput> {
+        mut output: workflow::Result<DailyCareUpdateOutput>,
+    ) -> workflow::Result<DailyCareUpdateOutput> {
         if let Some(structured_output) = output.structured_output.as_mut() {
             structured_output.should_send = false;
             structured_output.requires_review = true;
@@ -362,8 +361,7 @@ impl agents::WorkflowAgent<DailyCareUpdateInput, DailyCareUpdateOutput> for Dail
 fn validate_request(request: &MvpPreviewRequest) -> Result<()> {
     if !matches!(
         request.event.event_type,
-        workflow::WorkflowEventType::DailyNoteCreated
-            | workflow::WorkflowEventType::DailyUpdateNeeded
+        workflow::EventType::DailyNoteCreated | workflow::EventType::DailyUpdateNeeded
     ) {
         return Err(Error::UnsupportedWorkflowEvent);
     }
@@ -514,7 +512,7 @@ fn review_gate_for(output: &DailyCareUpdateOutput) -> policy::ReviewGate {
 }
 
 fn audit_log(
-    event: &workflow::WorkflowEvent,
+    event: &workflow::Event,
     message_id: entities::MessageId,
     approval_id: entities::ApprovalId,
 ) -> Result<Vec<entities::AuditEvent>> {
@@ -568,9 +566,9 @@ fn audit_event(
     })
 }
 
-fn subject_reservation_id(event: &workflow::WorkflowEvent) -> entities::ReservationId {
+fn subject_reservation_id(event: &workflow::Event) -> entities::ReservationId {
     match event.subject {
-        workflow::WorkflowSubject::Reservation(id) => id,
+        workflow::Subject::Reservation(id) => id,
         _ => entities::ReservationId(Uuid::nil()),
     }
 }

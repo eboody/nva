@@ -1,9 +1,7 @@
 use bon::Builder;
 use serde::{Deserialize, Serialize};
 
-use domain::agent;
-use domain::policy::ReviewGate;
-use domain::workflow::{WorkflowEvent, WorkflowResult};
+use domain::{agent, policy, workflow};
 
 pub use domain::agent::{OutputSchemaName, PolicyInstruction};
 
@@ -11,15 +9,19 @@ pub type AgentSpec = agent::Spec;
 
 pub trait WorkflowAgent<Input, Output> {
     fn spec(&self) -> AgentSpec;
-    fn build_prompt_packet(&self, event: &WorkflowEvent, input: Input) -> AgentPromptPacket<Input>;
-    fn validate_output(&self, output: WorkflowResult<Output>) -> WorkflowResult<Output>;
+    fn build_prompt_packet(
+        &self,
+        event: &workflow::Event,
+        input: Input,
+    ) -> AgentPromptPacket<Input>;
+    fn validate_output(&self, output: workflow::Result<Output>) -> workflow::Result<Output>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 pub struct AgentPromptPacket<T> {
     pub workflow_name: agent::Name,
     pub goal: agent::Purpose,
-    pub event: WorkflowEvent,
+    pub event: workflow::Event,
     pub input: T,
     pub policies: Vec<agent::PolicyInstruction>,
     pub output_schema_name: agent::OutputSchemaName,
@@ -32,7 +34,7 @@ pub fn baseline_agent_specs() -> Vec<AgentSpec> {
             "Extract new customer/pet/service/date details, identify missing info, and draft safe follow-up replies.",
             ["portal-read", "crm-read", "task-create"],
             ["confirm booking", "send sensitive message without approval"],
-            [ReviewGate::CustomerMessageApproval],
+            [policy::ReviewGate::CustomerMessageApproval],
         ),
         spec(
             "booking-triage",
@@ -43,14 +45,14 @@ pub fn baseline_agent_specs() -> Vec<AgentSpec> {
                 "override hard policy",
                 "waive deposit",
             ],
-            [ReviewGate::ManagerApproval],
+            [policy::ReviewGate::ManagerApproval],
         ),
         spec(
             "vaccine-document",
             "Extract vaccine names/dates from uploaded proof and route ambiguity to human review.",
             ["document-read", "ocr", "vaccine-policy-read"],
             ["final approve uncertain medical document"],
-            [ReviewGate::MedicalDocumentReview],
+            [policy::ReviewGate::MedicalDocumentReview],
         ),
         spec(
             "daily-care-update",
@@ -61,7 +63,7 @@ pub fn baseline_agent_specs() -> Vec<AgentSpec> {
                 "hide concerning facts",
                 "auto-send health concern",
             ],
-            [ReviewGate::CustomerMessageApproval],
+            [policy::ReviewGate::CustomerMessageApproval],
         ),
         spec(
             "incident-escalation",
@@ -73,8 +75,8 @@ pub fn baseline_agent_specs() -> Vec<AgentSpec> {
                 "send owner message without manager approval",
             ],
             [
-                ReviewGate::ManagerApproval,
-                ReviewGate::CustomerMessageApproval,
+                policy::ReviewGate::ManagerApproval,
+                policy::ReviewGate::CustomerMessageApproval,
             ],
         ),
         spec(
@@ -91,7 +93,7 @@ pub fn baseline_agent_specs() -> Vec<AgentSpec> {
                 "change schedule",
                 "send customer message without approval",
             ],
-            [ReviewGate::ManagerApproval],
+            [policy::ReviewGate::ManagerApproval],
         ),
         spec(
             "lead-conversion",
@@ -102,7 +104,7 @@ pub fn baseline_agent_specs() -> Vec<AgentSpec> {
                 "promise availability",
                 "override requirements",
             ],
-            [ReviewGate::CustomerMessageApproval],
+            [policy::ReviewGate::CustomerMessageApproval],
         ),
         spec(
             "grooming-rebooking",
@@ -117,7 +119,7 @@ pub fn baseline_agent_specs() -> Vec<AgentSpec> {
                 "apply discount",
                 "send message without approval",
             ],
-            [ReviewGate::CustomerMessageApproval],
+            [policy::ReviewGate::CustomerMessageApproval],
         ),
         spec(
             "reputation-triage",
@@ -129,8 +131,8 @@ pub fn baseline_agent_specs() -> Vec<AgentSpec> {
                 "publish response without approval",
             ],
             [
-                ReviewGate::ManagerApproval,
-                ReviewGate::CustomerMessageApproval,
+                policy::ReviewGate::ManagerApproval,
+                policy::ReviewGate::CustomerMessageApproval,
             ],
         ),
         spec(
@@ -138,7 +140,7 @@ pub fn baseline_agent_specs() -> Vec<AgentSpec> {
             "Answer staff policy questions from approved SOP context and route medical, refund, safety, or incident ambiguity to human review.",
             ["policy-read", "sop-read", "task-create"],
             ["diagnose", "approve refund", "override safety policy"],
-            [ReviewGate::ManagerApproval],
+            [policy::ReviewGate::ManagerApproval],
         ),
     ]
 }
@@ -148,7 +150,7 @@ fn spec<const TOOLS: usize, const FORBIDDEN: usize, const GATES: usize>(
     purpose: &str,
     allowed_tools: [&str; TOOLS],
     forbidden_actions: [&str; FORBIDDEN],
-    default_review_gates: [ReviewGate; GATES],
+    default_review_gates: [policy::ReviewGate; GATES],
 ) -> AgentSpec {
     AgentSpec::builder()
         .name(agent::Name::try_new(name).expect("baseline agent names are non-empty"))

@@ -344,7 +344,7 @@ fn money_deposit_age_and_add_on_contracts_quarantine_raw_primitives() {
     assert_eq!(deposit.amount(), &amount);
     assert!(deposit.requires_collection());
 
-    let paid = deposit.mark_paid(payment::PaymentReference::try_new("  stripe/pi_123  ").unwrap());
+    let paid = deposit.mark_paid(payment::Reference::try_new("  stripe/pi_123  ").unwrap());
     assert_eq!(paid.status(), payment::DepositStatus::Paid);
     assert!(!paid.requires_collection());
 
@@ -370,7 +370,7 @@ fn money_deposit_age_and_add_on_contracts_quarantine_raw_primitives() {
 #[test]
 fn semantic_scalars_reject_invalid_deserialized_primitives() {
     assert!(serde_json::from_str::<money::MinorUnits>("0").is_err());
-    assert!(serde_json::from_str::<payment::PaymentReference>(r#""   ""#).is_err());
+    assert!(serde_json::from_str::<payment::Reference>(r#""   ""#).is_err());
     assert!(serde_json::from_str::<reservation::MinimumAgeWeeks>("0").is_err());
     assert!(serde_json::from_str::<reservation::AddOnLabel>(r#""   ""#).is_err());
 }
@@ -444,21 +444,21 @@ fn policy_surfaces_use_semantic_vaccine_and_play_eligibility_reasons() {
 
 #[test]
 fn workflow_packets_results_and_actions_use_semantic_values() {
-    let external_subject = workflow::WorkflowSubject::External {
+    let external_subject = workflow::Subject::External {
         provider: workflow::external::Provider::try_new("  gingr  ").unwrap(),
         id: workflow::external::Id::try_new("  reservation-123  ").unwrap(),
     };
 
     match external_subject {
-        workflow::WorkflowSubject::External { provider, id } => {
+        workflow::Subject::External { provider, id } => {
             assert_eq!(provider.into_inner(), "gingr");
             assert_eq!(id.into_inner(), "reservation-123");
         }
         _ => panic!("expected external subject"),
     }
 
-    let result = workflow::WorkflowResult::<()> {
-        status: workflow::WorkflowStatus::NeedsHumanReview,
+    let result = workflow::Result::<()> {
+        status: workflow::Status::NeedsHumanReview,
         summary: workflow::Summary::try_new("  Vaccine date needs manager review.  ").unwrap(),
         structured_output: None,
         recommended_actions: vec![
@@ -472,7 +472,7 @@ fn workflow_packets_results_and_actions_use_semantic_values() {
             },
             workflow::RecommendedAction::UpdateStatus {
                 target: workflow::status_update::Target::Reservation(
-                    workflow::status_update::ReservationStatusUpdate {
+                    workflow::status_update::Reservation {
                         status: entities::ReservationStatus::VaccinePending,
                         intent: workflow::status_update::TransitionIntent::RequestMedicalReview,
                         reason: workflow::status_update::Reason::try_new(
@@ -541,7 +541,7 @@ fn workflow_status_update_reasons_are_semantic_transition_contracts() {
     assert!(workflow::status_update::Reason::try_new("   ").is_err());
     assert!(workflow::status_update::Reason::try_new("a".repeat(501)).is_err());
 
-    let update = workflow::status_update::ReservationStatusUpdate {
+    let update = workflow::status_update::Reservation {
         status: entities::ReservationStatus::Waitlisted,
         intent: workflow::status_update::TransitionIntent::ApplyCapacityDecision,
         reason: workflow::status_update::Reason::try_new(

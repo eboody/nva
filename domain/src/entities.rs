@@ -598,7 +598,7 @@ pub enum AuditSubject {
     Incident(IncidentId),
     Message(MessageId),
     Approval(ApprovalId),
-    WorkflowEvent(crate::workflow::WorkflowEventId),
+    WorkflowEvent(crate::workflow::EventId),
     External {
         provider: crate::workflow::external::Provider,
         id: crate::workflow::external::Id,

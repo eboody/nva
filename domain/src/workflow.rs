@@ -4,11 +4,10 @@ use nutype::nutype;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::entities::{ActorRef, CustomerId, LocationId, PetId, ReservationId};
-use crate::policy::{ReviewGate, automation};
+use crate::{entities, policy};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct WorkflowEventId(pub Uuid);
+pub struct EventId(pub Uuid);
 
 #[nutype(
     sanitize(trim),
@@ -199,11 +198,10 @@ pub mod message {
 }
 
 pub mod status_update {
+    use crate::entities;
     use nutype::nutype;
     #[allow(unused_imports)]
     use serde::{Deserialize, Serialize};
-
-    use crate::entities::ReservationStatus;
 
     #[nutype(
         sanitize(trim),
@@ -233,31 +231,31 @@ pub mod status_update {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    pub struct ReservationStatusUpdate {
-        pub status: ReservationStatus,
+    pub struct Reservation {
+        pub status: entities::ReservationStatus,
         pub intent: TransitionIntent,
         pub reason: Reason,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub enum Target {
-        Reservation(ReservationStatusUpdate),
+        Reservation(Reservation),
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct WorkflowEvent {
-    pub event_id: WorkflowEventId,
-    pub event_type: WorkflowEventType,
+pub struct Event {
+    pub event_id: EventId,
+    pub event_type: EventType,
     pub occurred_at: DateTime<Utc>,
-    pub actor: ActorRef,
-    pub location_id: LocationId,
-    pub subject: WorkflowSubject,
+    pub actor: entities::ActorRef,
+    pub location_id: entities::LocationId,
+    pub subject: Subject,
     pub policy_context: PolicyContext,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum WorkflowEventType {
+pub enum EventType {
     InquiryReceived,
     CustomerRegistered,
     PetProfileCreated,
@@ -275,10 +273,10 @@ pub enum WorkflowEventType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum WorkflowSubject {
-    Customer(CustomerId),
-    Pet(PetId),
-    Reservation(ReservationId),
+pub enum Subject {
+    Customer(entities::CustomerId),
+    Pet(entities::PetId),
+    Reservation(entities::ReservationId),
     External {
         provider: external::Provider,
         id: external::Id,
@@ -288,8 +286,8 @@ pub enum WorkflowSubject {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PolicyContext {
     pub allowed_actions: Vec<AllowedAction>,
-    pub automation_level: automation::Level,
-    pub required_reviews: Vec<ReviewGate>,
+    pub automation_level: policy::automation::Level,
+    pub required_reviews: Vec<policy::ReviewGate>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -305,8 +303,8 @@ pub enum AllowedAction {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct WorkflowResult<T> {
-    pub status: WorkflowStatus,
+pub struct Result<T> {
+    pub status: Status,
     pub summary: Summary,
     pub structured_output: Option<T>,
     pub recommended_actions: Vec<RecommendedAction>,
@@ -316,7 +314,7 @@ pub struct WorkflowResult<T> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum WorkflowStatus {
+pub enum Status {
     Completed,
     NeedsHumanReview,
     RejectedByPolicy,
@@ -337,5 +335,5 @@ pub enum RecommendedAction {
     UpdateStatus {
         target: status_update::Target,
     },
-    RequestHumanReview(ReviewGate),
+    RequestHumanReview(policy::ReviewGate),
 }
