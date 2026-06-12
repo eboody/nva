@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 use domain::{entities, operations, workflow};
 
 #[test]

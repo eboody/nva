@@ -559,14 +559,14 @@ fn workflow_status_update_reasons_are_semantic_transition_contracts() {
 
 #[test]
 fn nva_context_expands_daily_brief_contracts_for_resort_operations() {
-    let brief = daily_brief::ResortDailyBrief {
+    let brief = daily_brief::Resort {
         operating_day: daily_brief::ResortOperatingDay {
             location_id: entities::LocationId(uuid::Uuid::nil()),
             date: chrono::NaiveDate::from_ymd_opt(2026, 7, 1).unwrap(),
             snapshot_id: daily_brief::SnapshotId::try_new("  morning-brief-001  ").unwrap(),
         },
         sections: vec![
-            daily_brief::DailyBriefSection::Occupancy(daily_brief::OccupancySnapshot {
+            daily_brief::Section::Occupancy(daily_brief::OccupancySnapshot {
                 boarding_capacity: daily_brief::CapacityMetric::new(
                     daily_brief::CapacityBooked::new(42),
                     daily_brief::CapacityLimit::try_new(50).unwrap(),
@@ -584,22 +584,20 @@ fn nva_context_expands_daily_brief_contracts_for_resort_operations() {
                     daily_brief::CapacityLimit::try_new(4).unwrap(),
                 ),
             }),
-            daily_brief::DailyBriefSection::Labor(daily_brief::LaborSnapshot {
+            daily_brief::Section::Labor(daily_brief::LaborSnapshot {
                 scheduled_staff_count: daily_brief::ScheduledStaffCount::new(7),
                 labor_risk: daily_brief::LaborRisk::OnPlan,
             }),
-            daily_brief::DailyBriefSection::PetCareWatchlist(vec![daily_brief::PetCareWatch {
+            daily_brief::Section::PetCareWatchlist(vec![daily_brief::PetCareWatch {
                 pet_id: entities::PetId(uuid::Uuid::nil()),
                 reason: daily_brief::PetCareWatchReason::MedicationDue,
             }]),
-            daily_brief::DailyBriefSection::RevenueOpportunities(vec![
-                daily_brief::RevenueOpportunity {
-                    customer_id: Some(entities::CustomerId(uuid::Uuid::nil())),
-                    pet_id: Some(entities::PetId(uuid::Uuid::nil())),
-                    service: entities::ServiceKind::Grooming,
-                    opportunity: daily_brief::RevenueOpportunityKind::GroomingRebookingDue,
-                },
-            ]),
+            daily_brief::Section::RevenueOpportunities(vec![daily_brief::RevenueOpportunity {
+                customer_id: Some(entities::CustomerId(uuid::Uuid::nil())),
+                pet_id: Some(entities::PetId(uuid::Uuid::nil())),
+                service: entities::ServiceKind::Grooming,
+                opportunity: daily_brief::RevenueOpportunityKind::GroomingRebookingDue,
+            }]),
         ],
         recommended_actions: vec![daily_brief::Action::SuggestScheduleReview {
             risk: daily_brief::LaborRisk::Understaffed,
@@ -610,7 +608,7 @@ fn nva_context_expands_daily_brief_contracts_for_resort_operations() {
     };
 
     assert!(brief.has_manager_attention_required());
-    let daily_brief::DailyBriefSection::Occupancy(occupancy) = &brief.sections[0] else {
+    let daily_brief::Section::Occupancy(occupancy) = &brief.sections[0] else {
         panic!("expected semantic occupancy section");
     };
     assert_eq!(
@@ -620,7 +618,7 @@ fn nva_context_expands_daily_brief_contracts_for_resort_operations() {
     assert!(daily_brief::CapacityLimit::try_new(0).is_err());
     assert_eq!(occupancy.boarding_capacity.booked().get(), 42);
     assert_eq!(occupancy.boarding_capacity.capacity().get(), 50);
-    let daily_brief::DailyBriefSection::Labor(labor) = &brief.sections[1] else {
+    let daily_brief::Section::Labor(labor) = &brief.sections[1] else {
         panic!("expected semantic labor section");
     };
     assert_eq!(labor.scheduled_staff_count.get(), 7);
@@ -634,79 +632,75 @@ fn nva_context_expands_daily_brief_contracts_for_resort_operations() {
 
 #[test]
 fn nva_context_expands_lead_and_reputation_triage_contracts() {
-    let lead = lead::Lead {
+    let lead = lead::Triage {
         customer_id: None,
-        source: lead::LeadSource::Campaign {
+        source: lead::Source::Campaign {
             name: lead::CampaignName::try_new("  holiday boarding  ").unwrap(),
         },
-        intent: lead::LeadIntent::BoardingQuote,
-        stage: lead::LeadConversionStage::MissingRequirements,
+        intent: lead::Intent::BoardingQuote,
+        stage: lead::ConversionStage::MissingRequirements,
         requested_service: Some(entities::ServiceKind::Boarding),
-        next_action: lead::LeadNextAction::RequestVaccineProof,
+        next_action: lead::NextAction::RequestVaccineProof,
     };
 
-    assert_eq!(lead.intent, lead::LeadIntent::BoardingQuote);
+    assert_eq!(lead.intent, lead::Intent::BoardingQuote);
     match lead.source {
-        lead::LeadSource::Campaign { name } => {
+        lead::Source::Campaign { name } => {
             assert_eq!(name.into_inner(), "holiday boarding");
         }
         _ => panic!("expected campaign lead source"),
     }
 
-    let review = reputation::ReputationSignal {
+    let review = reputation::Signal {
         location_id: entities::LocationId(uuid::Uuid::nil()),
-        platform: reputation::ReviewPlatformName::try_new("  Google  ").unwrap(),
-        review_id: reputation::ReviewId::try_new("  review-123  ").unwrap(),
-        sentiment: reputation::ReviewSentiment::Negative,
-        themes: vec![reputation::ReviewTheme::PetInjuryOrSafety],
-        escalation: reputation::ReviewEscalation::SafetyOrLegalReviewRequired,
+        platform: reputation::PlatformName::try_new("  Google  ").unwrap(),
+        review_id: reputation::Id::try_new("  review-123  ").unwrap(),
+        sentiment: reputation::Sentiment::Negative,
+        themes: vec![reputation::Theme::PetInjuryOrSafety],
+        escalation: reputation::Escalation::SafetyOrLegalReviewRequired,
     };
 
     assert_eq!(review.platform.into_inner(), "Google");
     assert_eq!(review.review_id.into_inner(), "review-123");
     assert_eq!(
         review.escalation,
-        reputation::ReviewEscalation::SafetyOrLegalReviewRequired
+        reputation::Escalation::SafetyOrLegalReviewRequired
     );
     assert!(lead::CampaignName::try_new("   ").is_err());
-    assert!(reputation::ReviewPlatformName::try_new("   ").is_err());
+    assert!(reputation::PlatformName::try_new("   ").is_err());
 }
 
 #[test]
 fn staff_operations_tasks_encode_due_evidence_and_manager_attention() {
-    let task = staff::StaffTask::builder()
+    let task = staff::Task::builder()
         .location_id(entities::LocationId(uuid::Uuid::nil()))
-        .kind(staff::StaffTaskKind::MedicationAdministration {
+        .kind(staff::TaskKind::MedicationAdministration {
             pet_id: entities::PetId(uuid::Uuid::nil()),
         })
         .title(workflow::task::Title::try_new("  Give evening medication  ").unwrap())
-        .status(staff::StaffTaskStatus::Open)
-        .priority(staff::StaffTaskPriority::High)
+        .status(staff::TaskStatus::Open)
+        .priority(staff::TaskPriority::High)
         .due_at(chrono::DateTime::<chrono::Utc>::UNIX_EPOCH)
-        .assignment(staff::StaffTaskAssignment::Role(
-            staff::StaffRole::KennelTechnician,
-        ))
-        .source(staff::StaffTaskSource::Reservation(
-            entities::ReservationId(uuid::Uuid::nil()),
-        ))
+        .assignment(staff::TaskAssignment::Role(staff::Role::KennelTechnician))
+        .source(staff::TaskSource::Reservation(entities::ReservationId(
+            uuid::Uuid::nil(),
+        )))
         .build();
 
     assert!(task.requires_manager_attention());
     assert_eq!(task.title.clone().into_inner(), "Give evening medication");
 
     let completed = task.complete_with(
-        staff::TaskCompletionEvidence::try_new(
-            "  administered by tech and double-checked by lead  ",
-        )
-        .unwrap(),
+        staff::CompletionEvidence::try_new("  administered by tech and double-checked by lead  ")
+            .unwrap(),
     );
 
-    assert_eq!(completed.status, staff::StaffTaskStatus::Completed);
+    assert_eq!(completed.status, staff::TaskStatus::Completed);
     assert_eq!(
         completed.completion_evidence.unwrap().into_inner(),
         "administered by tech and double-checked by lead"
     );
-    assert!(staff::TaskCompletionEvidence::try_new("   ").is_err());
+    assert!(staff::CompletionEvidence::try_new("   ").is_err());
 }
 
 #[test]

@@ -1,6 +1,6 @@
 //! Canonical domain contracts for cross-service resort daily briefs.
 //!
-//! `operations` keeps compatibility aliases, but brief sections, occupancy,
+//! `operations` keeps deprecated compatibility aliases, but brief sections, occupancy,
 //! labor, revenue, watchlists, and recommended manager actions are owned here.
 
 use chrono::{DateTime, NaiveDate, Utc};
@@ -8,8 +8,8 @@ use nutype::nutype;
 #[allow(unused_imports)]
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::entities::{CustomerId, LocationId, PetId, ReservationId, ServiceKind};
-use crate::operations::{OperationalObservation, OperationalRecommendation};
+use crate::entities::{self, CustomerId, LocationId, PetId, ServiceKind};
+use crate::operations;
 
 #[nutype(
     sanitize(trim),
@@ -36,14 +36,14 @@ pub struct ResortOperatingDay {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ResortDailyBrief {
+pub struct Resort {
     pub operating_day: ResortOperatingDay,
-    pub sections: Vec<DailyBriefSection>,
+    pub sections: Vec<Section>,
     pub recommended_actions: Vec<Action>,
     pub risks: Vec<Risk>,
 }
 
-impl ResortDailyBrief {
+impl Resort {
     pub fn has_manager_attention_required(&self) -> bool {
         self.risks.iter().any(Risk::requires_manager_attention)
             || self
@@ -54,7 +54,7 @@ impl ResortDailyBrief {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum DailyBriefSection {
+pub enum Section {
     Occupancy(OccupancySnapshot),
     ArrivalsAndDepartures(ArrivalDepartureSnapshot),
     Labor(LaborSnapshot),
@@ -169,9 +169,9 @@ impl CapacityMetric {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ArrivalDepartureSnapshot {
-    pub check_ins: Vec<ReservationId>,
-    pub check_outs: Vec<ReservationId>,
-    pub late_departure_risk: Vec<ReservationId>,
+    pub check_ins: Vec<entities::ReservationId>,
+    pub check_outs: Vec<entities::ReservationId>,
+    pub late_departure_risk: Vec<entities::ReservationId>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -239,11 +239,21 @@ pub enum RevenueOpportunityKind {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Risk {
-    CapacityConstraint { service: ServiceKind },
-    LaborMismatch { risk: LaborRisk },
-    CustomerExperienceRisk { observation: OperationalObservation },
-    PetSafetyOrCareRisk { observation: OperationalObservation },
-    RevenueLeakage { observation: OperationalObservation },
+    CapacityConstraint {
+        service: ServiceKind,
+    },
+    LaborMismatch {
+        risk: LaborRisk,
+    },
+    CustomerExperienceRisk {
+        observation: operations::OperationalObservation,
+    },
+    PetSafetyOrCareRisk {
+        observation: operations::OperationalObservation,
+    },
+    RevenueLeakage {
+        observation: operations::OperationalObservation,
+    },
 }
 
 impl Risk {
@@ -263,14 +273,14 @@ impl Risk {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Action {
     CreateInternalTask {
-        recommendation: OperationalRecommendation,
+        recommendation: operations::OperationalRecommendation,
     },
     DraftCustomerMessage {
         customer_id: CustomerId,
         reason: FollowUpReason,
     },
     EscalateToManager {
-        reason: OperationalObservation,
+        reason: operations::OperationalObservation,
     },
     SuggestScheduleReview {
         risk: LaborRisk,
