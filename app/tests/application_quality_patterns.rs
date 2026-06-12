@@ -109,8 +109,7 @@ fn tool_and_policy_results_use_semantic_decisions_not_bool_string_pairs() {
         entities::ReservationStatus::Waitlisted
     );
 
-    let tool_denial =
-        tools::Error::policy_denied(policy::denial::Reason::ManagerApprovalRequired);
+    let tool_denial = tools::Error::policy_denied(policy::denial::Reason::ManagerApprovalRequired);
     assert_eq!(
         tool_denial.to_string(),
         "policy denied: manager approval required"
