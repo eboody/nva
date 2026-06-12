@@ -873,7 +873,7 @@ impl TryFrom<TrainingProgramRecord> for domain::operations::TrainingProgram {
 pub struct CoreServiceContractsRecord {
     pub location_id: domain::entities::LocationId,
     pub boarding: domain::service::boarding::Contract,
-    pub daycare: domain::operations::daycare::Contract,
+    pub daycare: domain::service::daycare::Contract,
     pub grooming: domain::operations::grooming::Contract,
     pub training: domain::operations::training::Contract,
     pub retail: domain::operations::retail::Contract,

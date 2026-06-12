@@ -1,4 +1,7 @@
-use domain::{entities, money, operations, service::boarding};
+use domain::{
+    entities, money, operations,
+    service::{boarding, daycare},
+};
 use uuid::Uuid;
 
 #[test]
@@ -171,69 +174,69 @@ fn boarding_upsell_policy_recommends_exit_bath_only_when_eligible_and_not_care_u
 
 #[test]
 fn daycare_contract_encodes_attendance_packages_ratios_groups_incidents_and_eligibility() {
-    let contract = operations::daycare::Contract::builder()
-        .attendance(operations::daycare::AttendancePolicy::ReservationRequired)
-        .package(operations::daycare::PackagePolicy::PrepaidPasses {
-            visits: operations::daycare::PackageVisits::try_new(10).unwrap(),
+    let contract = daycare::Contract::builder()
+        .attendance(daycare::AttendancePolicy::ReservationRequired)
+        .package(daycare::PackagePolicy::PrepaidPasses {
+            visits: daycare::PackageVisits::try_new(10).unwrap(),
         })
-        .ratio(operations::daycare::StaffPetRatio::new(
-            operations::daycare::StaffCount::try_new(1).unwrap(),
-            operations::daycare::PetCount::try_new(12).unwrap(),
+        .ratio(daycare::StaffPetRatio::new(
+            daycare::StaffCount::try_new(1).unwrap(),
+            daycare::PetCount::try_new(12).unwrap(),
         ))
-        .group_assignment(operations::daycare::GroupAssignmentRule::TemperamentAndSizeMatched)
-        .incident(operations::daycare::IncidentPolicy::ManagerReviewAndCustomerNotice)
+        .group_assignment(daycare::GroupAssignmentRule::TemperamentAndSizeMatched)
+        .incident(daycare::IncidentPolicy::ManagerReviewAndCustomerNotice)
         .eligibility(vec![
-            operations::daycare::EligibilityRequirement::TemperamentAssessment,
-            operations::daycare::EligibilityRequirement::VaccinesCurrent,
+            daycare::EligibilityRequirement::TemperamentAssessment,
+            daycare::EligibilityRequirement::VaccinesCurrent,
         ])
         .build();
 
     assert_eq!(contract.ratio.pets_per_staff().get(), 12);
     assert!(contract.requires_staff_review_before_group_play());
-    assert!(operations::daycare::PackageVisits::try_new(0).is_err());
-    assert!(operations::daycare::StaffCount::try_new(0).is_err());
-    assert!(operations::daycare::PetCount::try_new(0).is_err());
+    assert!(daycare::PackageVisits::try_new(0).is_err());
+    assert!(daycare::StaffCount::try_new(0).is_err());
+    assert!(daycare::PetCount::try_new(0).is_err());
 }
 
 #[test]
 fn daycare_service_variants_preserve_group_boarding_plus_room_and_cat_care_modes() {
     assert_eq!(
-        operations::daycare::ServiceVariant::AllDayPlay.care_mode(),
-        operations::daycare::CareMode::DogGroupPlay
+        daycare::ServiceVariant::AllDayPlay.care_mode(),
+        daycare::CareMode::DogGroupPlay
     );
     assert_eq!(
-        operations::daycare::ServiceVariant::DayBoarding.care_mode(),
-        operations::daycare::CareMode::DogIndividualDayBoarding
+        daycare::ServiceVariant::DayBoarding.care_mode(),
+        daycare::CareMode::DogIndividualDayBoarding
     );
     assert_eq!(
-        operations::daycare::ServiceVariant::DayPlayPlusRoom.care_mode(),
-        operations::daycare::CareMode::DogHybridPlayAndRoom
+        daycare::ServiceVariant::DayPlayPlusRoom.care_mode(),
+        daycare::CareMode::DogHybridPlayAndRoom
     );
     assert_eq!(
-        operations::daycare::ServiceVariant::CatIndividualPlaytime.care_mode(),
-        operations::daycare::CareMode::CatIndividualEnrichment
+        daycare::ServiceVariant::CatIndividualPlaytime.care_mode(),
+        daycare::CareMode::CatIndividualEnrichment
     );
 }
 
 #[test]
 fn daycare_group_play_eligibility_routes_intact_dogs_to_behavior_review_not_ready() {
-    let evidence = operations::daycare::eligibility::Evidence::builder()
+    let evidence = daycare::eligibility::Evidence::builder()
         .pet_id(entities::PetId(Uuid::nil()))
         .species(entities::Species::Dog)
-        .service(operations::daycare::ServiceVariant::AllDayPlay)
-        .temperament(operations::daycare::eligibility::TemperamentAssessmentFreshness::Current)
-        .vaccines(operations::daycare::eligibility::VaccineReadiness::Current)
+        .service(daycare::ServiceVariant::AllDayPlay)
+        .temperament(daycare::eligibility::TemperamentAssessmentFreshness::Current)
+        .vaccines(daycare::eligibility::VaccineReadiness::Current)
         .spay_neuter(entities::SpayNeuterStatus::Intact)
-        .incident(operations::daycare::incident::Restriction::None)
-        .staff_coverage(operations::daycare::coverage::Decision::Sufficient)
+        .incident(daycare::incident::Restriction::None)
+        .staff_coverage(daycare::coverage::Decision::Sufficient)
         .build();
 
-    let decision = operations::daycare::eligibility::GroupPlayPolicy.evaluate(&evidence);
+    let decision = daycare::eligibility::GroupPlayPolicy.evaluate(&evidence);
 
     assert!(matches!(
         decision,
-        operations::daycare::eligibility::GroupPlayDecision::NeedsStaffReview {
-            reason: operations::daycare::eligibility::ReviewReason::SpayNeuterStatusRequiresReview,
+        daycare::eligibility::GroupPlayDecision::NeedsStaffReview {
+            reason: daycare::eligibility::ReviewReason::SpayNeuterStatusRequiresReview,
             gate: domain::policy::ReviewGate::BehaviorReview,
         }
     ));
@@ -241,21 +244,21 @@ fn daycare_group_play_eligibility_routes_intact_dogs_to_behavior_review_not_read
 
 #[test]
 fn daycare_staff_coverage_policy_rejects_rosters_that_exceed_contract_ratio() {
-    let contract_ratio = operations::daycare::StaffPetRatio::new(
-        operations::daycare::StaffCount::try_new(1).unwrap(),
-        operations::daycare::PetCount::try_new(8).unwrap(),
+    let contract_ratio = daycare::StaffPetRatio::new(
+        daycare::StaffCount::try_new(1).unwrap(),
+        daycare::PetCount::try_new(8).unwrap(),
     );
-    let roster = operations::daycare::coverage::RosterSnapshot::new(
-        operations::daycare::StaffCount::try_new(2).unwrap(),
-        operations::daycare::PetCount::try_new(17).unwrap(),
+    let roster = daycare::coverage::RosterSnapshot::new(
+        daycare::StaffCount::try_new(2).unwrap(),
+        daycare::PetCount::try_new(17).unwrap(),
     );
 
-    let decision = operations::daycare::coverage::Policy.evaluate(&roster, contract_ratio);
+    let decision = daycare::coverage::Policy.evaluate(&roster, contract_ratio);
 
     assert_eq!(
         decision,
-        operations::daycare::coverage::Decision::Insufficient {
-            reason: operations::daycare::coverage::InsufficiencyReason::RatioExceeded,
+        daycare::coverage::Decision::Insufficient {
+            reason: daycare::coverage::InsufficiencyReason::RatioExceeded,
             gate: domain::policy::ReviewGate::ManagerApproval,
         }
     );
@@ -263,29 +266,25 @@ fn daycare_staff_coverage_policy_rejects_rosters_that_exceed_contract_ratio() {
 
 #[test]
 fn daycare_assignment_requires_group_play_eligibility_and_staff_coverage() {
-    let request = operations::daycare::assignment::Request::builder()
+    let request = daycare::assignment::Request::builder()
         .pet_id(entities::PetId(Uuid::nil()))
-        .service(operations::daycare::ServiceVariant::HalfDayPlay)
-        .eligibility(
-            operations::daycare::eligibility::GroupPlayDecision::Eligible {
-                basis: operations::daycare::eligibility::EligibleBasis::CurrentEvidence,
-            },
-        )
-        .coverage(operations::daycare::coverage::Decision::Insufficient {
-            reason: operations::daycare::coverage::InsufficiencyReason::RatioExceeded,
+        .service(daycare::ServiceVariant::HalfDayPlay)
+        .eligibility(daycare::eligibility::GroupPlayDecision::Eligible {
+            basis: daycare::eligibility::EligibleBasis::CurrentEvidence,
+        })
+        .coverage(daycare::coverage::Decision::Insufficient {
+            reason: daycare::coverage::InsufficiencyReason::RatioExceeded,
             gate: domain::policy::ReviewGate::ManagerApproval,
         })
-        .playgroup(
-            operations::daycare::assignment::PlaygroupId::try_new(" small-dogs-am ").unwrap(),
-        )
+        .playgroup(daycare::assignment::PlaygroupId::try_new(" small-dogs-am ").unwrap())
         .build();
 
-    let decision = operations::daycare::assignment::Service.assign(request);
+    let decision = daycare::assignment::Service.assign(request);
 
     assert_eq!(
         decision,
-        operations::daycare::assignment::Decision::Waitlist {
-            reason: operations::daycare::assignment::WaitlistReason::StaffCoverageInsufficient,
+        daycare::assignment::Decision::Waitlist {
+            reason: daycare::assignment::WaitlistReason::StaffCoverageInsufficient,
             gate: domain::policy::ReviewGate::ManagerApproval,
         }
     );
@@ -293,14 +292,14 @@ fn daycare_assignment_requires_group_play_eligibility_and_staff_coverage() {
 
 #[test]
 fn daycare_incident_policy_suspends_group_play_for_safety_incidents_until_manager_review() {
-    let disposition = operations::daycare::incident::Policy.classify(
+    let disposition = daycare::incident::Policy.classify(
         entities::PetId(Uuid::nil()),
-        operations::daycare::incident::Severity::SuspendGroupPlay,
+        daycare::incident::Severity::SuspendGroupPlay,
     );
 
     assert_eq!(
         disposition.restriction(),
-        operations::daycare::incident::Restriction::SuspendedPendingManagerReview {
+        daycare::incident::Restriction::SuspendedPendingManagerReview {
             pet_id: entities::PetId(Uuid::nil()),
         }
     );
@@ -312,13 +311,13 @@ fn daycare_incident_policy_suspends_group_play_for_safety_incidents_until_manage
 
 #[test]
 fn daycare_recurring_attendance_materializes_only_requested_days_and_preserves_exceptions() {
-    let recurrence = operations::daycare::attendance::Recurrence::new(
-        operations::daycare::attendance::DateRange::new(
+    let recurrence = daycare::attendance::Recurrence::new(
+        daycare::attendance::DateRange::new(
             chrono::NaiveDate::from_ymd_opt(2026, 6, 1).unwrap(),
             chrono::NaiveDate::from_ymd_opt(2026, 6, 7).unwrap(),
         )
         .unwrap(),
-        operations::daycare::attendance::AttendanceDays::try_new(vec![
+        daycare::attendance::AttendanceDays::try_new(vec![
             chrono::Weekday::Mon,
             chrono::Weekday::Wed,
             chrono::Weekday::Fri,
@@ -326,7 +325,7 @@ fn daycare_recurring_attendance_materializes_only_requested_days_and_preserves_e
         .unwrap(),
     );
 
-    let dates = operations::daycare::attendance::Materializer.materialize(
+    let dates = daycare::attendance::Materializer.materialize(
         &recurrence,
         &[chrono::NaiveDate::from_ymd_opt(2026, 6, 3).unwrap()],
     );
@@ -342,23 +341,21 @@ fn daycare_recurring_attendance_materializes_only_requested_days_and_preserves_e
 
 #[test]
 fn daycare_package_opportunity_never_overrides_safety_or_payment_review() {
-    let evidence = operations::daycare::package_opportunity::Evidence::builder()
+    let evidence = daycare::package_opportunity::Evidence::builder()
         .customer_id(entities::CustomerId(Uuid::nil()))
         .pet_id(entities::PetId(Uuid::nil()))
-        .attendance_visits(operations::daycare::package_opportunity::AttendanceVisitCount::new(12))
-        .eligibility(
-            operations::daycare::package_opportunity::CareEligibility::BlockedBySafetyReview,
-        )
-        .package_state(operations::daycare::package_opportunity::PackageState::PayPerVisit)
-        .payment_state(operations::daycare::package_opportunity::PaymentState::Current)
+        .attendance_visits(daycare::package_opportunity::AttendanceVisitCount::new(12))
+        .eligibility(daycare::package_opportunity::CareEligibility::BlockedBySafetyReview)
+        .package_state(daycare::package_opportunity::PackageState::PayPerVisit)
+        .payment_state(daycare::package_opportunity::PaymentState::Current)
         .build();
 
-    let decision = operations::daycare::package_opportunity::Policy.classify(&evidence);
+    let decision = daycare::package_opportunity::Policy.classify(&evidence);
 
     assert_eq!(
         decision,
-        operations::daycare::package_opportunity::Decision::Suppressed {
-            reason: operations::daycare::package_opportunity::SuppressionReason::SafetyOrCareReviewRequired,
+        daycare::package_opportunity::Decision::Suppressed {
+            reason: daycare::package_opportunity::SuppressionReason::SafetyOrCareReviewRequired,
             gate: domain::policy::ReviewGate::BehaviorReview,
         }
     );
@@ -366,38 +363,31 @@ fn daycare_package_opportunity_never_overrides_safety_or_payment_review() {
 
 #[test]
 fn daycare_front_desk_throughput_routes_ready_pets_to_fast_lane_without_customer_send() {
-    let context = operations::daycare::front_desk::ReadinessContext::builder()
+    let context = daycare::front_desk::ReadinessContext::builder()
         .reservation_id(entities::ReservationId(Uuid::nil()))
-        .service(operations::daycare::ServiceVariant::AllDayPlay)
-        .eligibility(
-            operations::daycare::front_desk::EligibilityReadiness::GroupPlay(
-                operations::daycare::eligibility::GroupPlayDecision::Eligible {
-                    basis: operations::daycare::eligibility::EligibleBasis::CurrentEvidence,
-                },
-            ),
-        )
-        .coverage(operations::daycare::coverage::Decision::Sufficient)
-        .care(operations::daycare::front_desk::CareReadiness::Ready)
-        .package(operations::daycare::front_desk::PackageReadiness::Ready)
-        .customer_message(
-            operations::daycare::front_desk::CustomerMessageReadiness::NoMessageNeeded,
-        )
+        .service(daycare::ServiceVariant::AllDayPlay)
+        .eligibility(daycare::front_desk::EligibilityReadiness::GroupPlay(
+            daycare::eligibility::GroupPlayDecision::Eligible {
+                basis: daycare::eligibility::EligibleBasis::CurrentEvidence,
+            },
+        ))
+        .coverage(daycare::coverage::Decision::Sufficient)
+        .care(daycare::front_desk::CareReadiness::Ready)
+        .package(daycare::front_desk::PackageReadiness::Ready)
+        .customer_message(daycare::front_desk::CustomerMessageReadiness::NoMessageNeeded)
         .build();
 
-    let decision = operations::daycare::front_desk::ThroughputPolicy.evaluate(&context);
-    let ticket = operations::daycare::front_desk::QueueTicket::new(
-        operations::daycare::front_desk::QueuePosition::try_new(1).unwrap(),
+    let decision = daycare::front_desk::ThroughputPolicy.evaluate(&context);
+    let ticket = daycare::front_desk::QueueTicket::new(
+        daycare::front_desk::QueuePosition::try_new(1).unwrap(),
         decision.clone(),
     );
 
     assert_eq!(
         decision,
-        operations::daycare::front_desk::ReadinessDecision::ReadyToCheckIn
+        daycare::front_desk::ReadinessDecision::ReadyToCheckIn
     );
-    assert_eq!(
-        ticket.lane(),
-        operations::daycare::front_desk::QueueLane::FastLane
-    );
+    assert_eq!(ticket.lane(), daycare::front_desk::QueueLane::FastLane);
     assert_eq!(decision.customer_message_gate(), None);
 }
 
@@ -939,7 +929,7 @@ fn core_service_contract_groups_all_petsuites_lines_without_raw_field_flags() {
     let service_contracts = operations::CoreServiceContracts::builder()
         .location_id(entities::LocationId(uuid::Uuid::nil()))
         .boarding(boarding::Contract::standard_petsuites())
-        .daycare(operations::daycare::Contract::standard_petsuites())
+        .daycare(daycare::Contract::standard_petsuites())
         .grooming(operations::grooming::Contract::standard_petsuites())
         .training(operations::training::Contract::standard_petsuites())
         .retail(operations::retail::Contract::standard_petsuites())
