@@ -650,11 +650,12 @@ impl TryFrom<domain::operations::ServiceOffering> for ServiceOfferingRecord {
                 .build(),
             domain::operations::ServiceOffering::Grooming { service, cadence } => {
                 let cadence_weeks = match cadence {
-                    domain::operations::GroomingCadence::EveryWeeks(weeks) => {
+                    domain::service::grooming::RebookingCadence::EveryWeeks(weeks) => {
                         Some(weeks.try_into()?)
                     }
-                    domain::operations::GroomingCadence::AsNeeded
-                    | domain::operations::GroomingCadence::Unknown => None,
+                    domain::service::grooming::RebookingCadence::AsNeeded
+                    | domain::service::grooming::RebookingCadence::GroomerRecommended
+                    | domain::service::grooming::RebookingCadence::Unknown => None,
                 };
                 let builder = Self::builder()
                     .service_kind(ServiceOfferingKindCode::Grooming)
@@ -735,9 +736,9 @@ impl TryFrom<ServiceOfferingRecord> for domain::operations::ServiceOffering {
                     .into();
                 let cadence = match record.grooming_cadence_weeks {
                     Some(weeks) => {
-                        domain::operations::GroomingCadence::EveryWeeks(weeks.try_into()?)
+                        domain::service::grooming::RebookingCadence::EveryWeeks(weeks.try_into()?)
                     }
-                    None => domain::operations::GroomingCadence::Unknown,
+                    None => domain::service::grooming::RebookingCadence::Unknown,
                 };
                 Ok(Self::Grooming { service, cadence })
             }
@@ -781,10 +782,10 @@ impl TryFrom<ServiceOfferingRecord> for domain::operations::ServiceOffering {
     }
 }
 
-impl TryFrom<domain::operations::CadenceWeeks> for StoredCadenceWeeks {
+impl TryFrom<domain::service::grooming::CadenceWeeks> for StoredCadenceWeeks {
     type Error = Error;
 
-    fn try_from(value: domain::operations::CadenceWeeks) -> Result<Self> {
+    fn try_from(value: domain::service::grooming::CadenceWeeks) -> Result<Self> {
         Self::try_new(value.get()).map_err(|err| Error::InvalidDomainValue {
             field: StorageField::GroomingCadenceWeeks,
             reason: err.to_string(),
@@ -792,11 +793,11 @@ impl TryFrom<domain::operations::CadenceWeeks> for StoredCadenceWeeks {
     }
 }
 
-impl TryFrom<StoredCadenceWeeks> for domain::operations::CadenceWeeks {
+impl TryFrom<StoredCadenceWeeks> for domain::service::grooming::CadenceWeeks {
     type Error = Error;
 
     fn try_from(value: StoredCadenceWeeks) -> Result<Self> {
-        domain::operations::CadenceWeeks::try_new(value.get()).map_err(|err| {
+        domain::service::grooming::CadenceWeeks::try_new(value.get()).map_err(|err| {
             Error::InvalidDomainValue {
                 field: StorageField::GroomingCadenceWeeks,
                 reason: err.to_string(),
@@ -874,7 +875,7 @@ pub struct CoreServiceContractsRecord {
     pub location_id: domain::entities::LocationId,
     pub boarding: domain::service::boarding::Contract,
     pub daycare: domain::service::daycare::Contract,
-    pub grooming: domain::operations::grooming::Contract,
+    pub grooming: domain::service::grooming::Contract,
     pub training: domain::operations::training::Contract,
     pub retail: domain::operations::retail::Contract,
 }
@@ -1043,7 +1044,7 @@ bidirectional_code_map!(DaycareEligibilityRuleCode, domain::operations::DaycareE
     StaffToPetRatioRequired => StaffToPetRatioRequired,
 });
 
-bidirectional_code_map!(GroomingServiceCode, domain::operations::GroomingService, {
+bidirectional_code_map!(GroomingServiceCode, domain::service::grooming::Service, {
     MiniGroom => MiniGroom,
     FullGroom => FullGroom,
     ExitBath => ExitBath,

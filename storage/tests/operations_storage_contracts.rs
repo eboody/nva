@@ -41,9 +41,9 @@ fn portfolio_records_promote_into_domain_portfolios_and_demote_back_to_storage()
 #[test]
 fn service_offering_records_preserve_variant_contracts_through_codecs() {
     let grooming = domain::operations::ServiceOffering::Grooming {
-        service: domain::operations::GroomingService::FullGroom,
-        cadence: domain::operations::GroomingCadence::EveryWeeks(
-            domain::operations::CadenceWeeks::try_new(6).unwrap(),
+        service: domain::service::grooming::Service::FullGroom,
+        cadence: domain::service::grooming::RebookingCadence::EveryWeeks(
+            domain::service::grooming::CadenceWeeks::try_new(6).unwrap(),
         ),
     };
 

@@ -1,6 +1,6 @@
 use domain::{
     agent, agents, booking_triage, care, customer, entities, location, money, operations, payment,
-    pet, policy, portal, reservation, temperament, workflow,
+    pet, policy, portal, reservation, service::grooming, temperament, workflow,
 };
 
 #[test]
@@ -952,9 +952,9 @@ fn nva_context_pack_business_services_and_systems_are_typed() {
         eligibility_rules: vec![operations::DaycareEligibilityRule::SpayNeuterRequiredForGroupPlay],
     };
     let grooming = operations::ServiceOffering::Grooming {
-        service: operations::GroomingService::NailDremel,
-        cadence: operations::GroomingCadence::EveryWeeks(
-            operations::CadenceWeeks::try_new(6).unwrap(),
+        service: grooming::Service::NailDremel,
+        cadence: grooming::RebookingCadence::EveryWeeks(
+            grooming::CadenceWeeks::try_new(6).unwrap(),
         ),
     };
     let training = operations::ServiceOffering::Training {
@@ -979,7 +979,16 @@ fn nva_context_pack_business_services_and_systems_are_typed() {
         training,
         operations::ServiceOffering::Training { .. }
     ));
-    assert!(operations::CadenceWeeks::try_new(0).is_err());
+    assert!(grooming::CadenceWeeks::try_new(0).is_err());
+    assert!(matches!(
+        operations::CadenceWeeks::try_new(0),
+        Err(operations::CadenceWeeksError::ZeroWeeks)
+    ));
+    let unknown_cadence = operations::GroomingCadence::Unknown;
+    assert!(matches!(
+        unknown_cadence,
+        grooming::RebookingCadence::Unknown
+    ));
     assert!(operations::TrainingProgramDurationWeeks::try_new(0).is_err());
 
     let ecosystem = operations::TechnologyEcosystem::builder()

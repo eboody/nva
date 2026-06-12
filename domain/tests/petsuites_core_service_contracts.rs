@@ -1,6 +1,6 @@
 use domain::{
     entities, money, operations,
-    service::{boarding, daycare},
+    service::{boarding, daycare, grooming},
 };
 use uuid::Uuid;
 
@@ -393,72 +393,66 @@ fn daycare_front_desk_throughput_routes_ready_pets_to_fast_lane_without_customer
 
 #[test]
 fn grooming_contract_encodes_calendar_estimates_no_shows_rebooking_reminders_and_history() {
-    let estimate = operations::grooming::BreedCoatTimeEstimate::new(
-        operations::grooming::BreedCategory::Doodle,
-        operations::grooming::CoatCondition::Matted,
-        operations::grooming::AppointmentMinutes::try_new(180).unwrap(),
+    let estimate = grooming::BreedCoatTimeEstimate::new(
+        grooming::BreedCategory::Doodle,
+        grooming::CoatCondition::Matted,
+        grooming::AppointmentMinutes::try_new(180).unwrap(),
     );
-    let contract = operations::grooming::Contract::builder()
-        .calendar(operations::grooming::CalendarPolicy::GroomerSpecific)
+    let contract = grooming::Contract::builder()
+        .calendar(grooming::CalendarPolicy::GroomerSpecific)
         .time_estimates(vec![estimate])
-        .no_show(operations::grooming::NoShowPolicy::RequireDepositForRebooking)
-        .rebooking(operations::grooming::RebookingCadence::EveryWeeks(
-            operations::grooming::CadenceWeeks::try_new(6).unwrap(),
+        .no_show(grooming::NoShowPolicy::RequireDepositForRebooking)
+        .rebooking(grooming::RebookingCadence::EveryWeeks(
+            grooming::CadenceWeeks::try_new(6).unwrap(),
         ))
         .reminders(vec![
-            operations::grooming::ReminderRule::FortyEightHoursBefore,
-            operations::grooming::ReminderRule::MorningOf,
+            grooming::ReminderRule::FortyEightHoursBefore,
+            grooming::ReminderRule::MorningOf,
         ])
-        .history(operations::grooming::HistoryRequirement::KeepStyleNotesAndPhotos)
+        .history(grooming::HistoryRequirement::KeepStyleNotesAndPhotos)
         .build();
 
     assert_eq!(contract.time_estimates[0].minutes().get(), 180);
     assert!(contract.requires_deposit_after_no_show());
-    assert!(operations::grooming::AppointmentMinutes::try_new(0).is_err());
-    assert!(operations::grooming::CadenceWeeks::try_new(0).is_err());
+    assert!(grooming::AppointmentMinutes::try_new(0).is_err());
+    assert!(grooming::CadenceWeeks::try_new(0).is_err());
 }
 
 #[test]
 fn grooming_duration_estimate_requires_positive_minutes_and_explains_basis() {
-    let estimate = operations::grooming::EstimationPolicy.estimate(
-        operations::grooming::EstimationRequest::builder()
+    let estimate = grooming::EstimationPolicy.estimate(
+        grooming::EstimationRequest::builder()
             .pet_id(entities::PetId(Uuid::nil()))
-            .service(operations::GroomingService::FullGroom)
-            .breed(operations::grooming::BreedCategory::Doodle)
-            .coat(operations::grooming::CoatCondition::Maintained)
+            .service(grooming::Service::FullGroom)
+            .breed(grooming::BreedCategory::Doodle)
+            .coat(grooming::CoatCondition::Maintained)
             .build(),
         &[],
-        &operations::grooming::Contract::standard_petsuites(),
+        &grooming::Contract::standard_petsuites(),
     );
 
     assert_eq!(estimate.minutes().get(), 180);
-    assert_eq!(
-        estimate.basis(),
-        operations::grooming::EstimateBasis::BreedCoatPolicy
-    );
-    assert_eq!(
-        estimate.review(),
-        operations::grooming::ReviewRequirement::None
-    );
+    assert_eq!(estimate.basis(), grooming::EstimateBasis::BreedCoatPolicy);
+    assert_eq!(estimate.review(), grooming::ReviewRequirement::None);
     assert_eq!(estimate.calendar_execution_gate(), None);
 }
 
 #[test]
 fn matted_or_sensitive_coat_estimate_requires_staff_review_before_auto_scheduling() {
-    let estimate = operations::grooming::EstimationPolicy.estimate(
-        operations::grooming::EstimationRequest::builder()
+    let estimate = grooming::EstimationPolicy.estimate(
+        grooming::EstimationRequest::builder()
             .pet_id(entities::PetId(Uuid::nil()))
-            .service(operations::GroomingService::FullGroom)
-            .breed(operations::grooming::BreedCategory::Doodle)
-            .coat(operations::grooming::CoatCondition::Matted)
+            .service(grooming::Service::FullGroom)
+            .breed(grooming::BreedCategory::Doodle)
+            .coat(grooming::CoatCondition::Matted)
             .build(),
         &[],
-        &operations::grooming::Contract::standard_petsuites(),
+        &grooming::Contract::standard_petsuites(),
     );
 
     assert_eq!(
         estimate.review(),
-        operations::grooming::ReviewRequirement::GroomerReview
+        grooming::ReviewRequirement::GroomerReview
     );
     assert_eq!(
         estimate.calendar_execution_gate(),
@@ -468,29 +462,28 @@ fn matted_or_sensitive_coat_estimate_requires_staff_review_before_auto_schedulin
 
 #[test]
 fn grooming_rebooking_cadence_accepts_two_to_eight_week_ordinary_window() {
-    assert!(operations::grooming::OrdinaryCadenceWeeks::try_new(2).is_ok());
-    assert!(operations::grooming::OrdinaryCadenceWeeks::try_new(8).is_ok());
-    assert!(operations::grooming::OrdinaryCadenceWeeks::try_new(1).is_err());
-    assert!(operations::grooming::OrdinaryCadenceWeeks::try_new(9).is_err());
+    assert!(grooming::OrdinaryCadenceWeeks::try_new(2).is_ok());
+    assert!(grooming::OrdinaryCadenceWeeks::try_new(8).is_ok());
+    assert!(grooming::OrdinaryCadenceWeeks::try_new(1).is_err());
+    assert!(grooming::OrdinaryCadenceWeeks::try_new(9).is_err());
 }
 
 #[test]
 fn grooming_no_show_policy_requires_deposit_or_manager_review_for_repeat_no_show() {
-    let decision = operations::grooming::no_show::Policy::new(
-        operations::grooming::NoShowPolicy::RequireDepositForRebooking,
-    )
-    .evaluate(
-        entities::CustomerId(Uuid::nil()),
-        entities::PetId(Uuid::nil()),
-        operations::grooming::no_show::History::new(
-            operations::grooming::no_show::NoShowCount::try_new(2).unwrap(),
-            operations::grooming::no_show::LateCancelCount::try_new(1).unwrap(),
-        ),
-    );
+    let decision =
+        grooming::no_show::Policy::new(grooming::NoShowPolicy::RequireDepositForRebooking)
+            .evaluate(
+                entities::CustomerId(Uuid::nil()),
+                entities::PetId(Uuid::nil()),
+                grooming::no_show::History::new(
+                    grooming::no_show::NoShowCount::try_new(2).unwrap(),
+                    grooming::no_show::LateCancelCount::try_new(1).unwrap(),
+                ),
+            );
 
     assert_eq!(
         decision,
-        operations::grooming::no_show::Decision::DepositRequired {
+        grooming::no_show::Decision::DepositRequired {
             gate: domain::policy::ReviewGate::RefundOrDepositException,
         }
     );
@@ -498,72 +491,61 @@ fn grooming_no_show_policy_requires_deposit_or_manager_review_for_repeat_no_show
 
 #[test]
 fn grooming_rebooking_policy_marks_pet_overdue_from_last_service_history_and_cadence() {
-    let history_entry = operations::grooming::history::ServiceHistoryEntry::builder()
+    let history_entry = grooming::history::ServiceHistoryEntry::builder()
         .pet_id(entities::PetId(Uuid::nil()))
         .location_id(entities::LocationId(Uuid::nil()))
-        .service(operations::GroomingService::FullGroom)
+        .service(grooming::Service::FullGroom)
         .completed_on(chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap())
-        .outcome(operations::grooming::history::ServiceOutcome::Completed)
-        .approval(
-            operations::grooming::history::ApprovalState::ApprovedByGroomer {
-                groomer_id: entities::StaffId::try_new("groomer-1").unwrap(),
-            },
-        )
+        .outcome(grooming::history::ServiceOutcome::Completed)
+        .approval(grooming::history::ApprovalState::ApprovedByGroomer {
+            groomer_id: entities::StaffId::try_new("groomer-1").unwrap(),
+        })
         .build();
 
-    let recommendation = operations::grooming::RebookingPolicy.recommend_from_history(
+    let recommendation = grooming::RebookingPolicy.recommend_from_history(
         entities::PetId(Uuid::nil()),
         &[history_entry],
-        operations::grooming::RebookingCadence::EveryWeeks(
-            operations::grooming::CadenceWeeks::try_new(6).unwrap(),
-        ),
+        grooming::RebookingCadence::EveryWeeks(grooming::CadenceWeeks::try_new(6).unwrap()),
         chrono::NaiveDate::from_ymd_opt(2026, 2, 20).unwrap(),
     );
 
-    assert_eq!(
-        recommendation.status,
-        operations::grooming::RebookingStatus::Overdue
-    );
+    assert_eq!(recommendation.status, grooming::RebookingStatus::Overdue);
     assert_eq!(
         recommendation.rationale,
-        operations::grooming::RebookingRationale::LastCompletedServiceCadence
+        grooming::RebookingRationale::LastCompletedServiceCadence
     );
 }
 
 #[test]
 fn grooming_reminder_plan_requires_customer_consent_before_member_facing_send() {
-    let plan = operations::grooming::ReminderPolicy.plan(
+    let plan = grooming::ReminderPolicy.plan(
         entities::CustomerId(Uuid::nil()),
-        operations::grooming::ReminderKind::RebookingDue,
-        operations::grooming::CommunicationConsent::NotGranted,
+        grooming::ReminderKind::RebookingDue,
+        grooming::CommunicationConsent::NotGranted,
     );
 
     assert_eq!(
         plan.send_boundary(),
-        operations::grooming::ReminderSendBoundary::SuppressedUntilConsent
+        grooming::ReminderSendBoundary::SuppressedUntilConsent
     );
     assert_eq!(plan.customer_message_gate(), None);
 }
 
 #[test]
 fn grooming_history_entry_separates_style_notes_from_care_or_medical_handling_refs() {
-    let entry = operations::grooming::history::ServiceHistoryEntry::builder()
+    let entry = grooming::history::ServiceHistoryEntry::builder()
         .pet_id(entities::PetId(Uuid::nil()))
         .location_id(entities::LocationId(Uuid::nil()))
-        .service(operations::GroomingService::MiniGroom)
+        .service(grooming::Service::MiniGroom)
         .completed_on(chrono::NaiveDate::from_ymd_opt(2026, 3, 1).unwrap())
-        .outcome(operations::grooming::history::ServiceOutcome::Completed)
-        .approval(
-            operations::grooming::history::ApprovalState::ReviewRequired {
-                gate: domain::policy::ReviewGate::MedicalDocumentReview,
-            },
-        )
+        .outcome(grooming::history::ServiceOutcome::Completed)
+        .approval(grooming::history::ApprovalState::ReviewRequired {
+            gate: domain::policy::ReviewGate::MedicalDocumentReview,
+        })
         .style_notes(vec![
-            operations::grooming::history::StyleNote::try_new(" teddy bear face ").unwrap(),
+            grooming::history::StyleNote::try_new(" teddy bear face ").unwrap(),
         ])
-        .care_refs(vec![
-            operations::grooming::history::CareReference::SensitiveSkinProduct,
-        ])
+        .care_refs(vec![grooming::history::CareReference::SensitiveSkinProduct])
         .build();
 
     assert_eq!(
@@ -572,7 +554,7 @@ fn grooming_history_entry_separates_style_notes_from_care_or_medical_handling_re
     );
     assert_eq!(
         entry.care_refs(),
-        &[operations::grooming::history::CareReference::SensitiveSkinProduct]
+        &[grooming::history::CareReference::SensitiveSkinProduct]
     );
     assert!(entry.requires_review());
 }
@@ -930,7 +912,7 @@ fn core_service_contract_groups_all_petsuites_lines_without_raw_field_flags() {
         .location_id(entities::LocationId(uuid::Uuid::nil()))
         .boarding(boarding::Contract::standard_petsuites())
         .daycare(daycare::Contract::standard_petsuites())
-        .grooming(operations::grooming::Contract::standard_petsuites())
+        .grooming(grooming::Contract::standard_petsuites())
         .training(operations::training::Contract::standard_petsuites())
         .retail(operations::retail::Contract::standard_petsuites())
         .build();
