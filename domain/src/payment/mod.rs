@@ -8,16 +8,16 @@ use crate::money::Money;
 pub use error::{Error, Result};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-pub struct PaymentReference(String);
+pub struct Reference(String);
 
-impl PaymentReference {
+impl Reference {
     pub fn try_new(value: impl Into<String>) -> Result<Self> {
         let value = value.into().trim().to_string();
         if value.is_empty() {
-            return Err(Error::EmptyPaymentReference);
+            return Err(Error::EmptyReference);
         }
         if value.chars().count() > 160 {
-            return Err(Error::PaymentReferenceTooLong);
+            return Err(Error::ReferenceTooLong);
         }
         Ok(Self(value))
     }
@@ -27,7 +27,7 @@ impl PaymentReference {
     }
 }
 
-impl<'de> Deserialize<'de> for PaymentReference {
+impl<'de> Deserialize<'de> for Reference {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: Deserializer<'de>,
@@ -51,7 +51,7 @@ pub struct Deposit {
     amount: Money,
     refundable_until: Option<DateTime<Utc>>,
     status: DepositStatus,
-    payment_reference: Option<PaymentReference>,
+    payment_reference: Option<Reference>,
 }
 
 impl Deposit {
@@ -64,7 +64,7 @@ impl Deposit {
         }
     }
 
-    pub fn paid(amount: Money, payment_reference: PaymentReference) -> Self {
+    pub fn paid(amount: Money, payment_reference: Reference) -> Self {
         Self::required(amount).mark_paid(payment_reference)
     }
 
@@ -82,7 +82,7 @@ impl Deposit {
         self
     }
 
-    pub fn mark_paid(mut self, payment_reference: PaymentReference) -> Self {
+    pub fn mark_paid(mut self, payment_reference: Reference) -> Self {
         self.status = DepositStatus::Paid;
         self.payment_reference = Some(payment_reference);
         self
@@ -100,7 +100,7 @@ impl Deposit {
         self.status
     }
 
-    pub const fn payment_reference(&self) -> Option<&PaymentReference> {
+    pub const fn payment_reference(&self) -> Option<&Reference> {
         self.payment_reference.as_ref()
     }
 

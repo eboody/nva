@@ -247,7 +247,7 @@ impl PlayEligibilityPolicy for ConservativePlayEligibilityPolicy {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::entities::{CareProfile, CustomerId, PetId, TemperamentProfile};
+    use crate::entities::{self, CustomerId, PetId, TemperamentProfile};
     use crate::temperament::{BehaviorObservation, GroupPlayObservation, TemperamentRating};
     use uuid::Uuid;
 
@@ -261,7 +261,7 @@ mod tests {
             sex: None,
             spay_neuter_status,
             temperament: TemperamentProfile::default(),
-            care_profile: CareProfile::default(),
+            care_profile: entities::CareProfile::default(),
         }
     }
 

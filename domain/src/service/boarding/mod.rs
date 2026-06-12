@@ -1,7 +1,7 @@
 use bon::Builder;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::entities::{LocationId, PetId, ReservationId};
+use crate::entities::{LocationId, PetId};
 use crate::money;
 
 macro_rules! positive_scalar {

@@ -6,11 +6,11 @@ use domain::entities::{
     Customer, CustomerId, LocationId, Pet, PetId, Reservation, ReservationId, ReservationStatus,
 };
 use domain::money::Money;
-use domain::workflow::{self, WorkflowEvent, WorkflowResult};
+use domain::workflow;
 
 pub mod error;
 
-pub use error::{ExternalFailure, Result, ToolError, ToolResource, ToolResourceId};
+pub use error::{Error, ExternalFailure, Resource, ResourceId, Result};
 
 #[async_trait]
 pub trait CustomerStore: Send + Sync {
@@ -29,9 +29,9 @@ pub trait ReservationSystem: Send + Sync {
 pub trait AgentRuntime: Send + Sync {
     async fn run_structured<TIn, TOut>(
         &self,
-        event: WorkflowEvent,
+        event: workflow::Event,
         input: TIn,
-    ) -> Result<WorkflowResult<TOut>>
+    ) -> Result<workflow::Result<TOut>>
     where
         TIn: Send + Sync + Serialize,
         TOut: Send + Sync + for<'de> Deserialize<'de>;
@@ -153,7 +153,7 @@ pub mod portal {
     use super::*;
 
     #[async_trait]
-    pub trait PortalLookup: Send + Sync {
+    pub trait Lookup: Send + Sync {
         async fn lookup(&self, request: LookupRequest) -> Result<LookupResult>;
     }
 
@@ -273,7 +273,7 @@ pub mod payments {
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct RefundRequest {
-        pub payment_reference: domain::payment::PaymentReference,
+        pub payment_reference: domain::payment::Reference,
         pub amount: Money,
         pub reason: RefundReason,
         pub idempotency_key: IdempotencyKey,
@@ -288,7 +288,7 @@ pub mod payments {
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct DepositRecordRequest {
         pub reservation_id: ReservationId,
-        pub payment_reference: domain::payment::PaymentReference,
+        pub payment_reference: domain::payment::Reference,
         pub amount: Money,
     }
 
@@ -564,24 +564,21 @@ pub mod media {
     use super::*;
 
     #[async_trait]
-    pub trait MediaCapture: Send + Sync {
-        async fn request_snapshot(
-            &self,
-            request: MediaSnapshotRequest,
-        ) -> Result<MediaSnapshotResult>;
+    pub trait Capture: Send + Sync {
+        async fn request_snapshot(&self, request: SnapshotRequest) -> Result<SnapshotResult>;
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    pub struct MediaSnapshotRequest {
+    pub struct SnapshotRequest {
         pub location_id: LocationId,
         pub camera_id: CameraId,
         pub purpose: CapturePurpose,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    pub enum MediaSnapshotResult {
-        Captured { media_ref: MediaRef },
-        Unavailable { reason: MediaUnavailableReason },
+    pub enum SnapshotResult {
+        Captured { media_ref: Ref },
+        Unavailable { reason: UnavailableReason },
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -592,7 +589,7 @@ pub mod media {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    pub enum MediaUnavailableReason {
+    pub enum UnavailableReason {
         CameraOffline,
         PermissionDenied,
         RetentionExpired,
@@ -630,14 +627,14 @@ pub mod media {
             Deserialize
         )
     )]
-    pub struct MediaRef(String);
+    pub struct Ref(String);
 }
 
 pub mod hermes {
     use super::*;
 
     #[async_trait]
-    pub trait HermesAutomationHooks: Send + Sync {
+    pub trait AutomationHooks: Send + Sync {
         async fn draft_task(&self, request: TaskDraftRequest) -> Result<TaskDraftResult>;
         async fn draft_schedule(
             &self,
@@ -655,8 +652,8 @@ pub mod hermes {
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct TaskDraftResult {
-        pub task_id: HermesTaskId,
-        pub status: HermesDraftStatus,
+        pub task_id: TaskId,
+        pub status: DraftStatus,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -668,8 +665,8 @@ pub mod hermes {
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct ScheduleDraftResult {
-        pub schedule_id: HermesScheduleId,
-        pub status: HermesDraftStatus,
+        pub schedule_id: ScheduleId,
+        pub status: DraftStatus,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -680,7 +677,7 @@ pub mod hermes {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    pub enum HermesDraftStatus {
+    pub enum DraftStatus {
         Drafted,
         DraftedRequiresReview,
     }
@@ -741,7 +738,7 @@ pub mod hermes {
             Deserialize
         )
     )]
-    pub struct HermesTaskId(String);
+    pub struct TaskId(String);
 
     #[nutype(
         sanitize(trim),
@@ -758,7 +755,7 @@ pub mod hermes {
             Deserialize
         )
     )]
-    pub struct HermesScheduleId(String);
+    pub struct ScheduleId(String);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

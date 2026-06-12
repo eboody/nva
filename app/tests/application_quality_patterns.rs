@@ -24,15 +24,13 @@ fn agent_prompt_packets_use_domain_event_contracts_from_application_boundary() {
     let packet = agents::AgentPromptPacket::builder()
         .workflow_name(agent::Name::try_new("booking-triage").unwrap())
         .goal(agent::Purpose::try_new("Prepare deterministic booking triage context.").unwrap())
-        .event(workflow::WorkflowEvent {
-            event_id: workflow::WorkflowEventId(uuid::Uuid::nil()),
-            event_type: workflow::WorkflowEventType::BookingTriageNeeded,
+        .event(workflow::Event {
+            event_id: workflow::EventId(uuid::Uuid::nil()),
+            event_type: workflow::EventType::BookingTriageNeeded,
             occurred_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
             actor: entities::ActorRef::System,
             location_id: entities::LocationId(uuid::Uuid::nil()),
-            subject: workflow::WorkflowSubject::Reservation(entities::ReservationId(
-                uuid::Uuid::nil(),
-            )),
+            subject: workflow::Subject::Reservation(entities::ReservationId(uuid::Uuid::nil())),
             policy_context: workflow::PolicyContext {
                 allowed_actions: vec![workflow::AllowedAction::ExtractStructuredData],
                 automation_level: policy::AutomationLevel::DraftOnly,
@@ -112,7 +110,7 @@ fn tool_and_policy_results_use_semantic_decisions_not_bool_string_pairs() {
     );
 
     let tool_denial =
-        tools::ToolError::policy_denied(policy::PolicyDenialReason::ManagerApprovalRequired);
+        tools::Error::policy_denied(policy::PolicyDenialReason::ManagerApprovalRequired);
     assert_eq!(
         tool_denial.to_string(),
         "policy denied: manager approval required"
@@ -167,7 +165,7 @@ fn external_integration_contracts_are_application_tool_port_types() {
     };
     assert_eq!(intake.document.into_inner(), "file/vaccine.pdf");
 
-    let snapshot = tools::media::MediaSnapshotRequest {
+    let snapshot = tools::media::SnapshotRequest {
         location_id: entities::LocationId(uuid::Uuid::nil()),
         camera_id: tools::media::CameraId::try_new("  lobby-cam-1  ").unwrap(),
         purpose: tools::media::CapturePurpose::PetStatusCheck(entities::PetId(uuid::Uuid::nil())),
@@ -218,15 +216,13 @@ fn application_prelude_consolidates_agent_and_tool_boundaries() {
     let spec: api::AgentPromptPacket<()> = api::AgentPromptPacket::builder()
         .workflow_name(agent::Name::try_new("booking-triage").unwrap())
         .goal(agent::Purpose::try_new("Evaluate deterministic booking policy.").unwrap())
-        .event(workflow::WorkflowEvent {
-            event_id: workflow::WorkflowEventId(uuid::Uuid::nil()),
-            event_type: workflow::WorkflowEventType::BookingTriageNeeded,
+        .event(workflow::Event {
+            event_id: workflow::EventId(uuid::Uuid::nil()),
+            event_type: workflow::EventType::BookingTriageNeeded,
             occurred_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
             actor: entities::ActorRef::System,
             location_id: entities::LocationId(uuid::Uuid::nil()),
-            subject: workflow::WorkflowSubject::Reservation(entities::ReservationId(
-                uuid::Uuid::nil(),
-            )),
+            subject: workflow::Subject::Reservation(entities::ReservationId(uuid::Uuid::nil())),
             policy_context: workflow::PolicyContext {
                 allowed_actions: vec![workflow::AllowedAction::ExtractStructuredData],
                 automation_level: policy::AutomationLevel::DraftOnly,

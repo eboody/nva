@@ -1,16 +1,16 @@
 use app::daily_update;
 use domain::{entities, policy, workflow};
 
-fn workflow_event(event_type: workflow::WorkflowEventType) -> workflow::WorkflowEvent {
-    workflow::WorkflowEvent {
-        event_id: workflow::WorkflowEventId(uuid::Uuid::nil()),
+fn workflow_event(event_type: workflow::EventType) -> workflow::Event {
+    workflow::Event {
+        event_id: workflow::EventId(uuid::Uuid::nil()),
         event_type,
         occurred_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
         actor: entities::ActorRef::Staff {
             staff_id: entities::StaffId::try_new("lead-care-1").unwrap(),
         },
         location_id: entities::LocationId(uuid::Uuid::nil()),
-        subject: workflow::WorkflowSubject::Reservation(entities::ReservationId(uuid::Uuid::nil())),
+        subject: workflow::Subject::Reservation(entities::ReservationId(uuid::Uuid::nil())),
         policy_context: workflow::PolicyContext {
             allowed_actions: vec![
                 workflow::AllowedAction::SummarizeCareNotes,
@@ -47,9 +47,7 @@ fn note(
 #[test]
 fn routine_staff_notes_become_review_gated_owner_preview_with_audit_lineage() {
     let request = daily_update::MvpPreviewRequest::builder()
-        .event(workflow_event(
-            workflow::WorkflowEventType::DailyNoteCreated,
-        ))
+        .event(workflow_event(workflow::EventType::DailyNoteCreated))
         .pet_name(domain::pet::Name::try_new("  Juniper  ").unwrap())
         .owner_display_name(domain::customer::Name::try_new("  R. Patel  ").unwrap())
         .policy_snapshot_id(policy::Id::try_new("daily-care-update-mvp-v1").unwrap())
@@ -110,9 +108,7 @@ fn routine_staff_notes_become_review_gated_owner_preview_with_audit_lineage() {
 #[test]
 fn concern_notes_are_suppressed_from_customer_copy_and_route_to_manager_review() {
     let request = daily_update::MvpPreviewRequest::builder()
-        .event(workflow_event(
-            workflow::WorkflowEventType::DailyUpdateNeeded,
-        ))
+        .event(workflow_event(workflow::EventType::DailyUpdateNeeded))
         .pet_name(domain::pet::Name::try_new("Miso").unwrap())
         .owner_display_name(domain::customer::Name::try_new("Avery Chen").unwrap())
         .policy_snapshot_id(policy::Id::try_new("daily-care-update-mvp-v1").unwrap())

@@ -125,7 +125,7 @@ fn boarding_deposit_policy_treats_paid_deposit_with_reference_as_satisfied() {
     };
     let paid = domain::payment::Deposit::paid(
         amount,
-        domain::payment::PaymentReference::try_new("gingr-pay-123").unwrap(),
+        domain::payment::Reference::try_new("gingr-pay-123").unwrap(),
     );
 
     let decision = boarding::deposit::Policy::new(rule, boarding::PaymentTiming::DueAtBooking)

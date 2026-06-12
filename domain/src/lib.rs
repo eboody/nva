@@ -47,8 +47,7 @@ pub mod prelude {
         StaffTaskSource, StaffTaskStatus, TaskCompletionEvidence,
     };
     pub use crate::workflow::{
-        AllowedAction, PolicyContext, RecommendedAction, ReviewReason, RiskFlag, Summary,
-        VerificationNote, WorkflowEvent, WorkflowEventId, WorkflowEventType, WorkflowResult,
-        WorkflowStatus, WorkflowSubject,
+        AllowedAction, Event, EventId, EventType, PolicyContext, RecommendedAction, Result,
+        ReviewReason, RiskFlag, Status, Subject, Summary, VerificationNote,
     };
 }

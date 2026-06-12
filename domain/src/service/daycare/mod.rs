@@ -3,7 +3,7 @@ use chrono::NaiveDate;
 use nutype::nutype;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::entities::{CustomerId, PetId, ReservationId};
+use crate::entities::{CustomerId, PetId};
 
 macro_rules! positive_scalar {
     ($name:ident, $primitive:ty, $error:ident, $message:literal) => {
