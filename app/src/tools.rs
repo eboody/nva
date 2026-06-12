@@ -21,7 +21,10 @@ pub trait CustomerStore: Send + Sync {
 
 #[async_trait]
 pub trait ReservationSystem: Send + Sync {
-    async fn check_availability(&self, request: AvailabilityRequest) -> Result<AvailabilityResult>;
+    async fn check_availability(
+        &self,
+        request: availability::Request,
+    ) -> Result<availability::Outcome>;
     async fn draft_reservation_update(&self, request: ReservationUpdateDraft) -> Result<DraftId>;
 }
 
@@ -37,81 +40,85 @@ pub trait AgentRuntime: Send + Sync {
         TOut: Send + Sync + for<'de> Deserialize<'de>;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AvailabilityRequest {
-    pub location_id: LocationId,
-    pub reservation_id: Option<ReservationId>,
-    pub service_notes: AvailabilityServiceNotes,
-}
+pub mod availability {
+    use super::*;
 
-#[nutype(
-    sanitize(trim),
-    validate(not_empty, len_char_max = 1000),
-    derive(
-        Debug,
-        Clone,
-        PartialEq,
-        Eq,
-        PartialOrd,
-        Ord,
-        Hash,
-        Serialize,
-        Deserialize
-    )
-)]
-pub struct AvailabilityServiceNotes(String);
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AvailabilityResult {
-    pub decision: AvailabilityDecision,
-}
-
-impl AvailabilityResult {
-    pub fn is_available(&self) -> bool {
-        matches!(self.decision, AvailabilityDecision::Available { .. })
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct Request {
+        pub location_id: LocationId,
+        pub reservation_id: Option<ReservationId>,
+        pub service_notes: ServiceNotes,
     }
-}
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AvailabilityDecision {
-    Available {
-        reason: AvailabilitySuccessReason,
-        capacity_snapshot_id: CapacitySnapshotId,
-    },
-    Unavailable {
-        reason: AvailabilityDenialReason,
-    },
-}
+    #[nutype(
+        sanitize(trim),
+        validate(not_empty, len_char_max = 1000),
+        derive(
+            Debug,
+            Clone,
+            PartialEq,
+            Eq,
+            PartialOrd,
+            Ord,
+            Hash,
+            Serialize,
+            Deserialize
+        )
+    )]
+    pub struct ServiceNotes(String);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AvailabilitySuccessReason {
-    CapacityHeld,
-}
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct Outcome {
+        pub decision: Decision,
+    }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AvailabilityDenialReason {
-    CapacityUnavailable,
-    PolicyHardStop,
-    MissingRequiredInformation,
-    RequiresHumanReview,
-}
+    impl Outcome {
+        pub fn is_available(&self) -> bool {
+            matches!(self.decision, Decision::Available { .. })
+        }
+    }
 
-#[nutype(
-    sanitize(trim),
-    validate(not_empty, len_char_max = 120),
-    derive(
-        Debug,
-        Clone,
-        PartialEq,
-        Eq,
-        PartialOrd,
-        Ord,
-        Hash,
-        Serialize,
-        Deserialize
-    )
-)]
-pub struct CapacitySnapshotId(String);
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Decision {
+        Available {
+            reason: SuccessReason,
+            capacity_snapshot_id: CapacitySnapshotId,
+        },
+        Unavailable {
+            reason: DenialReason,
+        },
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum SuccessReason {
+        CapacityHeld,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum DenialReason {
+        CapacityUnavailable,
+        PolicyHardStop,
+        MissingRequiredInformation,
+        RequiresHumanReview,
+    }
+
+    #[nutype(
+        sanitize(trim),
+        validate(not_empty, len_char_max = 120),
+        derive(
+            Debug,
+            Clone,
+            PartialEq,
+            Eq,
+            PartialOrd,
+            Ord,
+            Hash,
+            Serialize,
+            Deserialize
+        )
+    )]
+    pub struct CapacitySnapshotId(String);
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReservationUpdateDraft {
@@ -154,44 +161,48 @@ pub mod portal {
 
     #[async_trait]
     pub trait Lookup: Send + Sync {
-        async fn lookup(&self, request: LookupRequest) -> Result<LookupResult>;
+        async fn lookup(&self, request: lookup::Request) -> Result<lookup::Outcome>;
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    pub struct LookupRequest {
-        pub provider: Provider,
-        pub account: AccountId,
-        pub criteria: LookupCriteria,
-        pub include: Vec<Include>,
-    }
+    pub mod lookup {
+        use super::*;
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    pub struct LookupResult {
-        pub provider: Provider,
-        pub matched: LookupMatch,
-    }
+        #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+        pub struct Request {
+            pub provider: Provider,
+            pub account: AccountId,
+            pub criteria: Criteria,
+            pub include: Vec<Include>,
+        }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    pub enum LookupMatch {
-        Customer(CustomerId),
-        Pet(PetId),
-        Reservation(ReservationId),
-        NotFound,
-        Ambiguous { candidates: Vec<ExternalRecordId> },
+        #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+        pub struct Outcome {
+            pub provider: Provider,
+            pub matched: Match,
+        }
+
+        #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+        pub enum Match {
+            Customer(CustomerId),
+            Pet(PetId),
+            Reservation(ReservationId),
+            NotFound,
+            Ambiguous { candidates: Vec<ExternalRecordId> },
+        }
+
+        #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+        pub enum Criteria {
+            Customer(CustomerId),
+            Pet(PetId),
+            Reservation(ReservationId),
+            External(ExternalRecordId),
+        }
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
     pub enum Provider {
         Gingr,
         Pms,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    pub enum LookupCriteria {
-        Customer(CustomerId),
-        Pet(PetId),
-        Reservation(ReservationId),
-        External(ExternalRecordId),
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

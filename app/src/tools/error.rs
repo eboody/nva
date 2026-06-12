@@ -47,7 +47,7 @@ pub enum ResourceId {
     Customer(domain::entities::CustomerId),
     Pet(domain::entities::PetId),
     Reservation(domain::entities::ReservationId),
-    Snapshot(super::CapacitySnapshotId),
+    Snapshot(super::availability::CapacitySnapshotId),
     Draft(super::DraftId),
     External(String),
 }

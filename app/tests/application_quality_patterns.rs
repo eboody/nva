@@ -69,14 +69,15 @@ fn agent_prompt_packet_semantics_are_reexported_from_application_agent_boundary(
 
 #[test]
 fn tool_and_policy_results_use_semantic_decisions_not_bool_string_pairs() {
-    let availability = tools::AvailabilityResult {
-        decision: tools::AvailabilityDecision::Available {
-            reason: tools::AvailabilitySuccessReason::CapacityHeld,
-            capacity_snapshot_id: tools::CapacitySnapshotId::try_new("  cap-123  ").unwrap(),
+    let availability = tools::availability::Outcome {
+        decision: tools::availability::Decision::Available {
+            reason: tools::availability::SuccessReason::CapacityHeld,
+            capacity_snapshot_id: tools::availability::CapacitySnapshotId::try_new("  cap-123  ")
+                .unwrap(),
         },
     };
     assert!(availability.is_available());
-    let tools::AvailabilityDecision::Available {
+    let tools::availability::Decision::Available {
         capacity_snapshot_id,
         ..
     } = availability.decision
@@ -85,10 +86,10 @@ fn tool_and_policy_results_use_semantic_decisions_not_bool_string_pairs() {
     };
     assert_eq!(capacity_snapshot_id.into_inner(), "cap-123");
 
-    let availability_request = tools::AvailabilityRequest {
+    let availability_request = tools::availability::Request {
         location_id: entities::LocationId(uuid::Uuid::nil()),
         reservation_id: Some(entities::ReservationId(uuid::Uuid::nil())),
-        service_notes: tools::AvailabilityServiceNotes::try_new(
+        service_notes: tools::availability::ServiceNotes::try_new(
             "  boarding suite with medication watch  ",
         )
         .unwrap(),
@@ -97,7 +98,7 @@ fn tool_and_policy_results_use_semantic_decisions_not_bool_string_pairs() {
         availability_request.service_notes.into_inner(),
         "boarding suite with medication watch"
     );
-    assert!(tools::AvailabilityServiceNotes::try_new("   ").is_err());
+    assert!(tools::availability::ServiceNotes::try_new("   ").is_err());
 
     let draft = tools::ReservationUpdateDraft {
         reservation_id: entities::ReservationId(uuid::Uuid::nil()),
@@ -118,10 +119,10 @@ fn tool_and_policy_results_use_semantic_decisions_not_bool_string_pairs() {
 
 #[test]
 fn external_integration_contracts_are_application_tool_port_types() {
-    let lookup = tools::portal::LookupRequest {
+    let lookup = tools::portal::lookup::Request {
         provider: tools::portal::Provider::Gingr,
         account: tools::portal::AccountId::try_new("  gingr-east-1  ").unwrap(),
-        criteria: tools::portal::LookupCriteria::Reservation(entities::ReservationId(
+        criteria: tools::portal::lookup::Criteria::Reservation(entities::ReservationId(
             uuid::Uuid::nil(),
         )),
         include: vec![tools::portal::Include::PetProfile],
@@ -235,9 +236,9 @@ fn application_prelude_consolidates_agent_and_tool_boundaries() {
         .output_schema_name(agent::OutputSchemaName::try_new("BookingTriageOutput").unwrap())
         .build();
 
-    let availability = api::AvailabilityResult {
-        decision: api::AvailabilityDecision::Unavailable {
-            reason: api::AvailabilityDenialReason::RequiresHumanReview,
+    let availability = api::availability::Outcome {
+        decision: api::availability::Decision::Unavailable {
+            reason: api::availability::DenialReason::RequiresHumanReview,
         },
     };
 
