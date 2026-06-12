@@ -5,7 +5,7 @@ fn core_service_contract_records_roundtrip_between_storage_and_domain() {
         .boarding(domain::service::boarding::Contract::standard_petsuites())
         .daycare(domain::service::daycare::Contract::standard_petsuites())
         .grooming(domain::service::grooming::Contract::standard_petsuites())
-        .training(domain::operations::training::Contract::standard_petsuites())
+        .training(domain::service::training::Contract::standard_petsuites())
         .retail(domain::service::retail::Contract::standard_petsuites())
         .build();
 
