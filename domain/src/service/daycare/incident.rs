@@ -2,6 +2,13 @@ use super::*;
 use crate::{entities, policy};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Policy {
+    StaffNoteOnly,
+    ManagerReviewAndCustomerNotice,
+    SuspendGroupPlayPendingReview,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Severity {
     StaffNoteOnly,
     OwnerNotice,
@@ -34,9 +41,9 @@ impl Disposition {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct Policy;
+pub struct Classifier;
 
-impl Policy {
+impl Classifier {
     pub fn classify(&self, pet_id: entities::PetId, severity: Severity) -> Disposition {
         let (restriction, required_gate) = match severity {
             Severity::StaffNoteOnly => (Restriction::None, None),

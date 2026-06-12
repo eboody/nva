@@ -25,13 +25,13 @@ fn boarding_contract_encodes_capacity_stay_payment_housekeeping_handoff_and_upse
             )
             .unwrap(),
         )
-        .minimum_stay(boarding::MinimumStay::new(
+        .minimum_stay(boarding::minimum_stay::Policy::new(
             boarding::StayNights::try_new(2).unwrap(),
-            boarding::MinimumStayReason::HolidayPeak,
+            boarding::minimum_stay::Reason::HolidayPeak,
         ))
-        .cancellation(boarding::CancellationPolicy::new(
+        .cancellation(boarding::cancellation::Policy::new(
             boarding::NoticeHours::try_new(48).unwrap(),
-            boarding::CancellationPenalty::ForfeitDeposit,
+            boarding::cancellation::Penalty::ForfeitDeposit,
         ))
         .deposit(boarding::DepositRule::Required {
             amount: money::Money::new(
@@ -40,8 +40,8 @@ fn boarding_contract_encodes_capacity_stay_payment_housekeeping_handoff_and_upse
             ),
         })
         .payment(boarding::PaymentTiming::DueAtCheckout)
-        .housekeeping(boarding::HousekeepingCadence::DailyRoomReset)
-        .handoff(boarding::HandoffRequirement::ArrivalCareReview)
+        .housekeeping(boarding::housekeeping::Cadence::DailyRoomReset)
+        .handoff(boarding::handoff::Requirement::ArrivalCareReview)
         .upsells(vec![
             boarding::Upsell::ExitBath,
             boarding::Upsell::TrainingSession,
@@ -66,13 +66,16 @@ fn boarding_contract_encodes_capacity_stay_payment_housekeeping_handoff_and_upse
 
 #[test]
 fn boarding_capacity_policy_never_uses_cat_condo_for_dog_request() {
-    let snapshot =
-        boarding::capacity::Snapshot::new(vec![boarding::capacity::NightlySegmentSnapshot::new(
-            boarding::accommodation::Kind::CatCondo,
-            boarding::capacity::RoomCount::try_new(4).unwrap(),
-            boarding::capacity::RoomCount::try_new(0).unwrap(),
-        )])
-        .unwrap();
+    let snapshot = boarding::capacity::Snapshot::new(vec![
+        boarding::capacity::NightlySegmentSnapshot::from_counts(
+            boarding::capacity::SegmentCounts::builder()
+                .accommodation(boarding::accommodation::Kind::CatCondo)
+                .total(boarding::capacity::RoomCount::try_new(4).unwrap())
+                .occupied(boarding::capacity::RoomCount::try_new(0).unwrap())
+                .build(),
+        ),
+    ])
+    .unwrap();
     let request = boarding::capacity::Request::new(
         entities::LocationId(Uuid::nil()),
         entities::Species::Dog,
@@ -184,7 +187,7 @@ fn daycare_contract_encodes_attendance_packages_ratios_groups_incidents_and_elig
             daycare::PetCount::try_new(12).unwrap(),
         ))
         .group_assignment(daycare::GroupAssignmentRule::TemperamentAndSizeMatched)
-        .incident(daycare::IncidentPolicy::ManagerReviewAndCustomerNotice)
+        .incident(daycare::incident::Policy::ManagerReviewAndCustomerNotice)
         .eligibility(vec![
             daycare::EligibilityRequirement::TemperamentAssessment,
             daycare::EligibilityRequirement::VaccinesCurrent,
@@ -292,7 +295,7 @@ fn daycare_assignment_requires_group_play_eligibility_and_staff_coverage() {
 
 #[test]
 fn daycare_incident_policy_suspends_group_play_for_safety_incidents_until_manager_review() {
-    let disposition = daycare::incident::Policy.classify(
+    let disposition = daycare::incident::Classifier.classify(
         entities::PetId(Uuid::nil()),
         daycare::incident::Severity::SuspendGroupPlay,
     );
@@ -317,7 +320,7 @@ fn daycare_recurring_attendance_materializes_only_requested_days_and_preserves_e
             chrono::NaiveDate::from_ymd_opt(2026, 6, 7).unwrap(),
         )
         .unwrap(),
-        daycare::attendance::AttendanceDays::try_new(vec![
+        daycare::attendance::Days::try_new(vec![
             chrono::Weekday::Mon,
             chrono::Weekday::Wed,
             chrono::Weekday::Fri,

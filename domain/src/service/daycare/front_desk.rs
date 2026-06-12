@@ -1,5 +1,5 @@
 use super::*;
-use crate::policy;
+use crate::{entities, policy};
 
 positive_scalar!(
     QueuePosition,
@@ -10,7 +10,7 @@ positive_scalar!(
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 pub struct ReadinessContext {
-    pub reservation_id: ReservationId,
+    pub reservation_id: entities::ReservationId,
     pub service: ServiceVariant,
     pub eligibility: EligibilityReadiness,
     pub coverage: coverage::Decision,

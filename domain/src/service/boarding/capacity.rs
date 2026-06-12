@@ -1,5 +1,6 @@
 use super::*;
 use crate::policy;
+use bon::Builder;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct RoomCount(u16);
@@ -17,6 +18,13 @@ impl RoomCount {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum RoomCountError {}
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Builder)]
+pub struct SegmentCounts {
+    pub accommodation: accommodation::Kind,
+    total: RoomCount,
+    occupied: RoomCount,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NightlySegmentSnapshot {
     pub accommodation: accommodation::Kind,
@@ -25,15 +33,11 @@ pub struct NightlySegmentSnapshot {
 }
 
 impl NightlySegmentSnapshot {
-    pub const fn new(
-        accommodation: accommodation::Kind,
-        total: RoomCount,
-        occupied: RoomCount,
-    ) -> Self {
+    pub const fn from_counts(counts: SegmentCounts) -> Self {
         Self {
-            accommodation,
-            total,
-            occupied,
+            accommodation: counts.accommodation,
+            total: counts.total,
+            occupied: counts.occupied,
         }
     }
 

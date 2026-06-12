@@ -3,7 +3,7 @@ use chrono::NaiveDate;
 use nutype::nutype;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::entities::{CustomerId, PetId, ReservationId};
+use crate::entities::{CustomerId, PetId};
 
 macro_rules! positive_scalar {
     ($name:ident, $primitive:ty, $error:ident, $message:literal) => {
@@ -141,13 +141,6 @@ pub enum GroupAssignmentRule {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum IncidentPolicy {
-    StaffNoteOnly,
-    ManagerReviewAndCustomerNotice,
-    SuspendGroupPlayPendingReview,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EligibilityRequirement {
     TemperamentAssessment,
     VaccinesCurrent,
@@ -161,7 +154,7 @@ pub struct Contract {
     pub package: PackagePolicy,
     pub ratio: StaffPetRatio,
     pub group_assignment: GroupAssignmentRule,
-    pub incident: IncidentPolicy,
+    pub incident: incident::Policy,
     #[builder(default)]
     pub eligibility: Vec<EligibilityRequirement>,
 }
@@ -186,7 +179,7 @@ impl Contract {
                 PetCount::try_new(12).unwrap(),
             ))
             .group_assignment(GroupAssignmentRule::TemperamentAndSizeMatched)
-            .incident(IncidentPolicy::ManagerReviewAndCustomerNotice)
+            .incident(incident::Policy::ManagerReviewAndCustomerNotice)
             .eligibility(vec![
                 EligibilityRequirement::TemperamentAssessment,
                 EligibilityRequirement::VaccinesCurrent,

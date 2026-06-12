@@ -1,7 +1,7 @@
 use bon::Builder;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::entities::{LocationId, PetId, ReservationId};
+use crate::entities::{LocationId, PetId};
 use crate::money;
 
 macro_rules! positive_scalar {
@@ -156,47 +156,6 @@ pub enum ServiceWindowError {
     EndMustFollowStart,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct MinimumStay {
-    nights: StayNights,
-    pub reason: MinimumStayReason,
-}
-
-impl MinimumStay {
-    pub const fn new(nights: StayNights, reason: MinimumStayReason) -> Self {
-        Self { nights, reason }
-    }
-    pub const fn nights(&self) -> StayNights {
-        self.nights
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum MinimumStayReason {
-    StandardPolicy,
-    HolidayPeak,
-    MultiPetOperationalBuffer,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CancellationPolicy {
-    pub notice: NoticeHours,
-    pub penalty: CancellationPenalty,
-}
-
-impl CancellationPolicy {
-    pub const fn new(notice: NoticeHours, penalty: CancellationPenalty) -> Self {
-        Self { notice, penalty }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CancellationPenalty {
-    None,
-    ForfeitDeposit,
-    ManagerReview,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DepositRule {
     NotRequired,
@@ -208,20 +167,6 @@ pub enum PaymentTiming {
     DueAtBooking,
     DueAtCheckIn,
     DueAtCheckout,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum HousekeepingCadence {
-    DailyRoomReset,
-    TwiceDailyForExtendedStay,
-    TurnoverOnly,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum HandoffRequirement {
-    ArrivalCareReview,
-    MedicationDoubleCheck,
-    DepartureBelongingsReview,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -249,12 +194,12 @@ pub struct Contract {
     pub capacity: CapacityPlan,
     pub arrival_window: ServiceWindow,
     pub departure_window: ServiceWindow,
-    pub minimum_stay: MinimumStay,
-    pub cancellation: CancellationPolicy,
+    pub minimum_stay: minimum_stay::Policy,
+    pub cancellation: cancellation::Policy,
     pub deposit: DepositRule,
     pub payment: PaymentTiming,
-    pub housekeeping: HousekeepingCadence,
-    pub handoff: HandoffRequirement,
+    pub housekeeping: housekeeping::Cadence,
+    pub handoff: handoff::Requirement,
     #[builder(default)]
     pub upsells: Vec<Upsell>,
 }
@@ -283,13 +228,13 @@ impl Contract {
                 )
                 .unwrap(),
             )
-            .minimum_stay(MinimumStay::new(
+            .minimum_stay(minimum_stay::Policy::new(
                 StayNights::try_new(1).unwrap(),
-                MinimumStayReason::StandardPolicy,
+                minimum_stay::Reason::StandardPolicy,
             ))
-            .cancellation(CancellationPolicy::new(
+            .cancellation(cancellation::Policy::new(
                 NoticeHours::try_new(24).unwrap(),
-                CancellationPenalty::ForfeitDeposit,
+                cancellation::Penalty::ForfeitDeposit,
             ))
             .deposit(DepositRule::Required {
                 amount: money::Money::new(
@@ -298,8 +243,8 @@ impl Contract {
                 ),
             })
             .payment(PaymentTiming::DueAtCheckout)
-            .housekeeping(HousekeepingCadence::DailyRoomReset)
-            .handoff(HandoffRequirement::ArrivalCareReview)
+            .housekeeping(housekeeping::Cadence::DailyRoomReset)
+            .handoff(handoff::Requirement::ArrivalCareReview)
             .upsells(vec![Upsell::ExitBath, Upsell::TrainingSession])
             .build()
     }
