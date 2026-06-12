@@ -12,13 +12,13 @@ pub enum ToolError {
         id: ToolResourceId,
     },
     #[error("policy denied: {reason}")]
-    PolicyDenied { reason: policy::PolicyDenialReason },
+    PolicyDenied { reason: policy::denial::Reason },
     #[error("external system error: {failure}")]
     External { failure: ExternalFailure },
 }
 
 impl ToolError {
-    pub fn policy_denied(reason: policy::PolicyDenialReason) -> Self {
+    pub fn policy_denied(reason: policy::denial::Reason) -> Self {
         Self::PolicyDenied { reason }
     }
 }

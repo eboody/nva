@@ -35,7 +35,7 @@ fn agent_prompt_packets_use_domain_event_contracts_from_application_boundary() {
             )),
             policy_context: workflow::PolicyContext {
                 allowed_actions: vec![workflow::AllowedAction::ExtractStructuredData],
-                automation_level: policy::AutomationLevel::DraftOnly,
+                automation_level: policy::automation::Level::DraftOnly,
                 required_reviews: vec![policy::ReviewGate::ManagerApproval],
             },
         })
@@ -112,7 +112,7 @@ fn tool_and_policy_results_use_semantic_decisions_not_bool_string_pairs() {
     );
 
     let tool_denial =
-        tools::ToolError::policy_denied(policy::PolicyDenialReason::ManagerApprovalRequired);
+        tools::ToolError::policy_denied(policy::denial::Reason::ManagerApprovalRequired);
     assert_eq!(
         tool_denial.to_string(),
         "policy denied: manager approval required"
@@ -229,7 +229,7 @@ fn application_prelude_consolidates_agent_and_tool_boundaries() {
             )),
             policy_context: workflow::PolicyContext {
                 allowed_actions: vec![workflow::AllowedAction::ExtractStructuredData],
-                automation_level: policy::AutomationLevel::DraftOnly,
+                automation_level: policy::automation::Level::DraftOnly,
                 required_reviews: vec![policy::ReviewGate::ManagerApproval],
             },
         })

@@ -16,7 +16,7 @@ fn workflow_event(event_type: workflow::WorkflowEventType) -> workflow::Workflow
                 workflow::AllowedAction::SummarizeCareNotes,
                 workflow::AllowedAction::DraftCustomerMessage,
             ],
-            automation_level: policy::AutomationLevel::DraftOnly,
+            automation_level: policy::automation::Level::DraftOnly,
             required_reviews: vec![policy::ReviewGate::CustomerMessageApproval],
         },
     }
