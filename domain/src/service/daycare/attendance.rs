@@ -23,12 +23,12 @@ pub enum DateRangeError {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AttendanceDays(Vec<chrono::Weekday>);
+pub struct Days(Vec<chrono::Weekday>);
 
-impl AttendanceDays {
-    pub fn try_new(days: Vec<chrono::Weekday>) -> std::result::Result<Self, AttendanceDaysError> {
+impl Days {
+    pub fn try_new(days: Vec<chrono::Weekday>) -> std::result::Result<Self, DaysError> {
         if days.is_empty() {
-            return Err(AttendanceDaysError::Empty);
+            return Err(DaysError::Empty);
         }
         Ok(Self(days))
     }
@@ -39,7 +39,7 @@ impl AttendanceDays {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-pub enum AttendanceDaysError {
+pub enum DaysError {
     #[error("daycare attendance recurrence requires at least one weekday")]
     Empty,
 }
@@ -47,11 +47,11 @@ pub enum AttendanceDaysError {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Recurrence {
     pub date_range: DateRange,
-    pub days: AttendanceDays,
+    pub days: Days,
 }
 
 impl Recurrence {
-    pub const fn new(date_range: DateRange, days: AttendanceDays) -> Self {
+    pub const fn new(date_range: DateRange, days: Days) -> Self {
         Self { date_range, days }
     }
 }
