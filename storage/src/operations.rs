@@ -877,7 +877,7 @@ pub struct CoreServiceContractsRecord {
     pub daycare: domain::service::daycare::Contract,
     pub grooming: domain::service::grooming::Contract,
     pub training: domain::operations::training::Contract,
-    pub retail: domain::operations::retail::Contract,
+    pub retail: domain::service::retail::Contract,
 }
 
 impl CoreServiceContractsRecord {
@@ -1057,13 +1057,13 @@ bidirectional_code_map!(GroomingServiceCode, domain::service::grooming::Service,
     FirstTimeGroomingOffer => FirstTimeGroomingOffer,
 });
 
-bidirectional_code_map!(RetailPartnerCode, domain::operations::RetailPartner, {
+bidirectional_code_map!(RetailPartnerCode, domain::service::retail::Partner, {
     VirbacCalmCare => VirbacCalmCare,
     PurinaProPlanVeterinarySupplements => PurinaProPlanVeterinarySupplements,
     PurinaEnBoardingDiet => PurinaEnBoardingDiet,
 });
 
-bidirectional_code_map!(RetailProductCategoryCode, domain::operations::RetailProductCategory, {
+bidirectional_code_map!(RetailProductCategoryCode, domain::service::retail::ProductCategory, {
     Supplement => Supplement,
     InHouseDiet => InHouseDiet,
     PersonalizedUpsell => PersonalizedUpsell,

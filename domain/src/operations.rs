@@ -989,42 +989,6 @@ pub enum CoreServiceLine {
     Retail,
 }
 
-macro_rules! positive_scalar {
-    ($name:ident, $primitive:ty, $error:ident, $message:literal) => {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-        pub struct $name($primitive);
-
-        impl $name {
-            pub const fn try_new(value: $primitive) -> std::result::Result<Self, $error> {
-                if value == 0 {
-                    return Err($error::Zero);
-                }
-                Ok(Self(value))
-            }
-
-            pub const fn get(self) -> $primitive {
-                self.0
-            }
-        }
-
-        impl<'de> Deserialize<'de> for $name {
-            fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-            where
-                D: Deserializer<'de>,
-            {
-                Self::try_new(<$primitive>::deserialize(deserializer)?)
-                    .map_err(serde::de::Error::custom)
-            }
-        }
-
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-        pub enum $error {
-            #[error($message)]
-            Zero,
-        }
-    };
-}
-
 pub mod boarding {
     // Temporary compatibility shim; canonical path is `crate::service::boarding`.
     // Remove after storage/app/test call sites migrate off `domain::operations::boarding`.
