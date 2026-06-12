@@ -1,6 +1,5 @@
 use bon::Builder;
 use chrono::NaiveDate;
-use nutype::nutype;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::entities::{CustomerId, LocationId, PetId, StaffId};
@@ -137,12 +136,6 @@ impl BreedCoatTimeEstimate {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum NoShowPolicy {
-    NoteHistoryOnly,
-    RequireDepositForRebooking,
-    ManagerReviewBeforeRebooking,
-}
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RebookingCadence {
     EveryWeeks(CadenceWeeks),
     AsNeeded,
@@ -249,7 +242,7 @@ pub struct DurationEstimate {
 }
 
 impl DurationEstimate {
-    pub const fn new(
+    const fn new(
         minutes: AppointmentMinutes,
         basis: EstimateBasis,
         confidence: EstimateConfidence,
@@ -343,10 +336,17 @@ impl EstimationPolicy {
 pub mod no_show {
     use super::*;
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-    pub struct NoShowCount(u16);
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Rule {
+        NoteHistoryOnly,
+        RequireDepositForRebooking,
+        ManagerReviewBeforeRebooking,
+    }
 
-    impl NoShowCount {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+    pub struct Count(u16);
+
+    impl Count {
         pub const fn try_new(value: u16) -> std::result::Result<Self, std::convert::Infallible> {
             Ok(Self(value))
         }
@@ -371,12 +371,12 @@ pub mod no_show {
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
     pub struct History {
-        pub no_shows: NoShowCount,
+        pub no_shows: Count,
         pub late_cancels: LateCancelCount,
     }
 
     impl History {
-        pub const fn new(no_shows: NoShowCount, late_cancels: LateCancelCount) -> Self {
+        pub const fn new(no_shows: Count, late_cancels: LateCancelCount) -> Self {
             Self {
                 no_shows,
                 late_cancels,
@@ -404,11 +404,11 @@ pub mod no_show {
 
     #[derive(Debug, Clone)]
     pub struct Policy {
-        rule: NoShowPolicy,
+        rule: Rule,
     }
 
     impl Policy {
-        pub const fn new(rule: NoShowPolicy) -> Self {
+        pub const fn new(rule: Rule) -> Self {
             Self { rule }
         }
 
@@ -424,14 +424,14 @@ pub mod no_show {
                 history,
             };
             match self.rule {
-                NoShowPolicy::NoteHistoryOnly => Decision::ClearToRebook,
-                NoShowPolicy::RequireDepositForRebooking if history.repeat_behavior_count() > 0 => {
+                Rule::NoteHistoryOnly => Decision::ClearToRebook,
+                Rule::RequireDepositForRebooking if history.repeat_behavior_count() > 0 => {
                     Decision::DepositRequired {
                         gate: crate::policy::ReviewGate::RefundOrDepositException,
                     }
                 }
-                NoShowPolicy::RequireDepositForRebooking => Decision::ClearToRebook,
-                NoShowPolicy::ManagerReviewBeforeRebooking => Decision::ManagerReviewRequired {
+                Rule::RequireDepositForRebooking => Decision::ClearToRebook,
+                Rule::ManagerReviewBeforeRebooking => Decision::ManagerReviewRequired {
                     gate: crate::policy::ReviewGate::ManagerApproval,
                 },
             }
@@ -442,22 +442,26 @@ pub mod no_show {
 pub mod history {
     use super::*;
 
-    #[nutype(
-        sanitize(trim),
-        validate(not_empty, len_char_max = 500),
-        derive(
-            Debug,
-            Clone,
-            PartialEq,
-            Eq,
-            PartialOrd,
-            Ord,
-            Hash,
-            Serialize,
-            Deserialize
-        )
-    )]
-    pub struct StyleNote(String);
+    pub mod style_note {
+        use nutype::nutype;
+
+        #[nutype(
+            sanitize(trim),
+            validate(not_empty, len_char_max = 500),
+            derive(
+                Debug,
+                Clone,
+                PartialEq,
+                Eq,
+                PartialOrd,
+                Ord,
+                Hash,
+                Serialize,
+                Deserialize
+            )
+        )]
+        pub struct StyleNote(String);
+    }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
     pub enum CareReference {
@@ -497,14 +501,14 @@ pub mod history {
         pub outcome: ServiceOutcome,
         pub approval: ApprovalState,
         #[builder(default)]
-        style_notes: Vec<StyleNote>,
+        style_notes: Vec<style_note::StyleNote>,
         #[builder(default)]
         care_refs: Vec<CareReference>,
         duration: Option<AppointmentMinutes>,
     }
 
     impl ServiceHistoryEntry {
-        pub fn style_notes(&self) -> &[StyleNote] {
+        pub fn style_notes(&self) -> &[style_note::StyleNote] {
             &self.style_notes
         }
 
@@ -672,7 +676,7 @@ pub struct Contract {
     pub calendar: CalendarPolicy,
     #[builder(default)]
     pub time_estimates: Vec<BreedCoatTimeEstimate>,
-    pub no_show: NoShowPolicy,
+    pub no_show: no_show::Rule,
     pub rebooking: RebookingCadence,
     #[builder(default)]
     pub reminders: Vec<ReminderRule>,
@@ -683,7 +687,7 @@ impl Contract {
     pub fn requires_deposit_after_no_show(&self) -> bool {
         matches!(
             self.no_show,
-            NoShowPolicy::RequireDepositForRebooking | NoShowPolicy::ManagerReviewBeforeRebooking
+            no_show::Rule::RequireDepositForRebooking | no_show::Rule::ManagerReviewBeforeRebooking
         )
     }
     pub fn standard_petsuites() -> Self {
@@ -694,7 +698,7 @@ impl Contract {
                 CoatCondition::Matted,
                 AppointmentMinutes::try_new(180).unwrap(),
             )])
-            .no_show(NoShowPolicy::RequireDepositForRebooking)
+            .no_show(no_show::Rule::RequireDepositForRebooking)
             .rebooking(RebookingCadence::EveryWeeks(
                 CadenceWeeks::try_new(6).unwrap(),
             ))

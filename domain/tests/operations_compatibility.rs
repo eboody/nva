@@ -14,10 +14,10 @@ fn operations_reexports_cross_service_shared_contracts_for_legacy_call_sites() {
                 labor_risk: operations::LaborRisk::Understaffed,
             },
         )],
-        recommended_actions: vec![operations::OperationsAction::SuggestScheduleReview {
+        recommended_actions: vec![operations::Action::SuggestScheduleReview {
             risk: operations::LaborRisk::Understaffed,
         }],
-        risks: vec![operations::OperationsRisk::LaborMismatch {
+        risks: vec![operations::Risk::LaborMismatch {
             risk: operations::LaborRisk::Understaffed,
         }],
     };

@@ -111,7 +111,7 @@ pub struct EnrollmentId(String);
         Deserialize
     )
 )]
-pub struct TrainingSessionId(String);
+pub struct SessionId(String);
 
 #[nutype(
     sanitize(trim),
@@ -272,12 +272,6 @@ pub enum TrainerAvailability {
     WaitlistUntilTrainerAvailable,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PackagePolicy {
-    PayPerSession,
-    MultiSessionPackage { sessions: SessionCount },
-    BoardAndTrainBundle,
-}
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FollowUpCadence {
     None,
     AfterEachSession,
@@ -355,7 +349,7 @@ pub enum ProgressEvidence {
     },
     SessionCompleted {
         evidence_id: EvidenceId,
-        session_id: TrainingSessionId,
+        session_id: SessionId,
     },
     OutcomeCandidate {
         evidence_id: EvidenceId,
@@ -625,6 +619,14 @@ pub mod outcome {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct ClaimEvidence {
+        pub outcome: Outcome,
+        pub status: ClaimStatus,
+        pub evidence: Vec<EvidenceId>,
+        pub milestones: Vec<MilestoneId>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct Claim {
         pub outcome: Outcome,
         pub status: ClaimStatus,
@@ -633,22 +635,17 @@ pub mod outcome {
     }
 
     impl Claim {
-        pub fn new(
-            outcome: Outcome,
-            status: ClaimStatus,
-            evidence: Vec<EvidenceId>,
-            milestones: Vec<MilestoneId>,
-        ) -> Result<Self> {
-            if matches!(status, ClaimStatus::Achieved | ClaimStatus::Readiness)
-                && evidence.is_empty()
+        pub fn from_evidence(value: ClaimEvidence) -> Result<Self> {
+            if matches!(value.status, ClaimStatus::Achieved | ClaimStatus::Readiness)
+                && value.evidence.is_empty()
             {
                 return Err(Error::OutcomeEvidenceRequired);
             }
             Ok(Self {
-                outcome,
-                status,
-                evidence,
-                milestones,
+                outcome: value.outcome,
+                status: value.status,
+                evidence: value.evidence,
+                milestones: value.milestones,
             })
         }
         pub fn evidence(&self) -> &[EvidenceId] {
@@ -748,67 +745,81 @@ pub mod outcome {
 pub mod package {
     use super::*;
 
-    #[nutype(
-        sanitize(trim),
-        validate(not_empty, len_char_max = 120),
-        derive(
-            Debug,
-            Clone,
-            PartialEq,
-            Eq,
-            PartialOrd,
-            Ord,
-            Hash,
-            Serialize,
-            Deserialize
-        )
-    )]
-    pub struct Id(String);
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Policy {
+        PayPerSession,
+        MultiSessionPackage { sessions: SessionCount },
+        BoardAndTrainBundle,
+    }
+
+    pub mod id {
+        use nutype::nutype;
+
+        #[nutype(
+            sanitize(trim),
+            validate(not_empty, len_char_max = 120),
+            derive(
+                Debug,
+                Clone,
+                PartialEq,
+                Eq,
+                PartialOrd,
+                Ord,
+                Hash,
+                Serialize,
+                Deserialize
+            )
+        )]
+        pub struct Id(String);
+    }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub enum LedgerEntry {
         Purchased { sessions: SessionCount },
-        Reserved { session_id: TrainingSessionId },
-        Consumed { session_id: TrainingSessionId },
-        Released { session_id: TrainingSessionId },
+        Reserved { session_id: SessionId },
+        Consumed { session_id: SessionId },
+        Released { session_id: SessionId },
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct OpeningLedger {
+        pub package_id: id::Id,
+        pub customer_id: CustomerId,
+        pub pet_id: PetId,
+        pub policy: Policy,
+        pub entries: Vec<LedgerEntry>,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct Ledger {
-        package_id: Id,
+        package_id: id::Id,
         pub customer_id: CustomerId,
         pub pet_id: PetId,
-        policy: PackagePolicy,
+        policy: Policy,
         entries: Vec<LedgerEntry>,
     }
 
     impl Ledger {
-        pub fn new(
-            package_id: Id,
-            customer_id: CustomerId,
-            pet_id: PetId,
-            policy: PackagePolicy,
-            entries: Vec<LedgerEntry>,
-        ) -> Result<Self> {
-            if !matches!(policy, PackagePolicy::MultiSessionPackage { .. }) {
+        pub fn open(opening: OpeningLedger) -> Result<Self> {
+            if !matches!(opening.policy, Policy::MultiSessionPackage { .. }) {
                 return Err(Error::PackageHasNoReusableBalance);
             }
             Ok(Self {
-                package_id,
-                customer_id,
-                pet_id,
-                policy,
-                entries,
+                package_id: opening.package_id,
+                customer_id: opening.customer_id,
+                pet_id: opening.pet_id,
+                policy: opening.policy,
+                entries: opening.entries,
             })
         }
-        pub fn package_id(&self) -> &Id {
+        pub fn package_id(&self) -> &id::Id {
             &self.package_id
         }
         pub fn entries(&self) -> &[LedgerEntry] {
             &self.entries
         }
         pub fn balance(&self) -> SessionBalance {
-            let PackagePolicy::MultiSessionPackage { sessions } = self.policy else {
+            let Policy::MultiSessionPackage { sessions } = self.policy else {
                 return SessionBalance::new(0);
             };
             let used = self.entries.iter().fold(0u16, |used, entry| match entry {
@@ -825,23 +836,23 @@ pub mod package {
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub enum UsageDecision {
         ReserveNextSession {
-            package_id: Id,
+            package_id: id::Id,
             remaining_after_reservation: SessionBalance,
         },
         NoRemainingSessions {
-            package_id: Id,
+            package_id: id::Id,
             gate: policy::ReviewGate,
         },
         ReconciliationRequired {
-            package_id: Id,
+            package_id: id::Id,
             gate: policy::ReviewGate,
         },
     }
 
     #[derive(Debug, Clone, Default)]
-    pub struct Policy;
+    pub struct UsagePolicy;
 
-    impl Policy {
+    impl UsagePolicy {
         pub fn decide_usage(&self, ledger: &Ledger) -> UsageDecision {
             let balance = ledger.balance();
             if balance.get() == 0 {
@@ -864,7 +875,7 @@ pub mod follow_up {
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub enum Trigger {
-        SessionCompleted { session_id: TrainingSessionId },
+        SessionCompleted { session_id: SessionId },
         ProgramCompleted { enrollment_id: EnrollmentId },
         LaterCadenceCheckpoint { enrollment_id: EnrollmentId },
     }
@@ -971,7 +982,7 @@ pub struct Contract {
     #[builder(default)]
     pub outcomes: Vec<Outcome>,
     pub trainer_availability: TrainerAvailability,
-    pub package: PackagePolicy,
+    pub package: package::Policy,
     pub follow_up: FollowUpCadence,
 }
 
@@ -996,7 +1007,7 @@ impl Contract {
             .progress(ProgressTracking::SessionNotesAndMilestones)
             .outcomes(vec![Outcome::CanineGoodCitizenReadiness])
             .trainer_availability(TrainerAvailability::NamedTrainerRequired)
-            .package(PackagePolicy::MultiSessionPackage {
+            .package(package::Policy::MultiSessionPackage {
                 sessions: SessionCount::try_new(6).unwrap(),
             })
             .follow_up(FollowUpCadence::AfterProgramCompletion)
