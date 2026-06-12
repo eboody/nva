@@ -401,7 +401,7 @@ fn grooming_contract_encodes_calendar_estimates_no_shows_rebooking_reminders_and
     let contract = grooming::Contract::builder()
         .calendar(grooming::CalendarPolicy::GroomerSpecific)
         .time_estimates(vec![estimate])
-        .no_show(grooming::NoShowPolicy::RequireDepositForRebooking)
+        .no_show(grooming::no_show::Rule::RequireDepositForRebooking)
         .rebooking(grooming::RebookingCadence::EveryWeeks(
             grooming::CadenceWeeks::try_new(6).unwrap(),
         ))
@@ -471,12 +471,12 @@ fn grooming_rebooking_cadence_accepts_two_to_eight_week_ordinary_window() {
 #[test]
 fn grooming_no_show_policy_requires_deposit_or_manager_review_for_repeat_no_show() {
     let decision =
-        grooming::no_show::Policy::new(grooming::NoShowPolicy::RequireDepositForRebooking)
+        grooming::no_show::Policy::new(grooming::no_show::Rule::RequireDepositForRebooking)
             .evaluate(
                 entities::CustomerId(Uuid::nil()),
                 entities::PetId(Uuid::nil()),
                 grooming::no_show::History::new(
-                    grooming::no_show::NoShowCount::try_new(2).unwrap(),
+                    grooming::no_show::Count::try_new(2).unwrap(),
                     grooming::no_show::LateCancelCount::try_new(1).unwrap(),
                 ),
             );
@@ -543,7 +543,7 @@ fn grooming_history_entry_separates_style_notes_from_care_or_medical_handling_re
             gate: domain::policy::ReviewGate::MedicalDocumentReview,
         })
         .style_notes(vec![
-            grooming::history::StyleNote::try_new(" teddy bear face ").unwrap(),
+            grooming::history::style_note::StyleNote::try_new(" teddy bear face ").unwrap(),
         ])
         .care_refs(vec![grooming::history::CareReference::SensitiveSkinProduct])
         .build();
@@ -573,7 +573,7 @@ fn training_contract_encodes_program_curriculum_progress_outcomes_availability_p
         .progress(training::ProgressTracking::SessionNotesAndMilestones)
         .outcomes(vec![training::Outcome::CanineGoodCitizenReadiness])
         .trainer_availability(training::TrainerAvailability::NamedTrainerRequired)
-        .package(training::PackagePolicy::MultiSessionPackage {
+        .package(training::package::Policy::MultiSessionPackage {
             sessions: training::SessionCount::try_new(6).unwrap(),
         })
         .follow_up(training::FollowUpCadence::AfterProgramCompletion)
@@ -642,21 +642,21 @@ fn progress_report_cannot_be_parent_facing_until_approved_even_when_evidence_exi
 
 #[test]
 fn achieved_outcome_claim_requires_evidence_before_documentation_can_be_member_facing() {
-    let rejected = training::outcome::Claim::new(
-        training::Outcome::CanineGoodCitizenReadiness,
-        training::outcome::ClaimStatus::Achieved,
-        vec![],
-        vec![training::MilestoneId::try_new("cgc-readiness").unwrap()],
-    );
+    let rejected = training::outcome::Claim::from_evidence(training::outcome::ClaimEvidence {
+        outcome: training::Outcome::CanineGoodCitizenReadiness,
+        status: training::outcome::ClaimStatus::Achieved,
+        evidence: vec![],
+        milestones: vec![training::MilestoneId::try_new("cgc-readiness").unwrap()],
+    });
 
     assert_eq!(rejected, Err(training::Error::OutcomeEvidenceRequired));
 
-    let claim = training::outcome::Claim::new(
-        training::Outcome::CanineGoodCitizenReadiness,
-        training::outcome::ClaimStatus::Readiness,
-        vec![training::EvidenceId::try_new("rubric-1").unwrap()],
-        vec![training::MilestoneId::try_new("cgc-readiness").unwrap()],
-    )
+    let claim = training::outcome::Claim::from_evidence(training::outcome::ClaimEvidence {
+        outcome: training::Outcome::CanineGoodCitizenReadiness,
+        status: training::outcome::ClaimStatus::Readiness,
+        evidence: vec![training::EvidenceId::try_new("rubric-1").unwrap()],
+        milestones: vec![training::MilestoneId::try_new("cgc-readiness").unwrap()],
+    })
     .unwrap();
     let documentation = training::outcome::Documentation::builder()
         .documentation_id(training::OutcomeDocumentationId::try_new("outcome-1").unwrap())
@@ -680,28 +680,28 @@ fn achieved_outcome_claim_requires_evidence_before_documentation_can_be_member_f
 
 #[test]
 fn training_package_ledger_exposes_remaining_sessions_without_callers_recomputing_counts() {
-    let package_id = training::package::Id::try_new("pkg-1").unwrap();
-    let ledger = training::package::Ledger::new(
-        package_id.clone(),
-        entities::CustomerId(Uuid::nil()),
-        entities::PetId(Uuid::nil()),
-        training::PackagePolicy::MultiSessionPackage {
+    let package_id = training::package::id::Id::try_new("pkg-1").unwrap();
+    let ledger = training::package::Ledger::open(training::package::OpeningLedger {
+        package_id: package_id.clone(),
+        customer_id: entities::CustomerId(Uuid::nil()),
+        pet_id: entities::PetId(Uuid::nil()),
+        policy: training::package::Policy::MultiSessionPackage {
             sessions: training::SessionCount::try_new(4).unwrap(),
         },
-        vec![
+        entries: vec![
             training::package::LedgerEntry::Reserved {
-                session_id: training::TrainingSessionId::try_new("session-1").unwrap(),
+                session_id: training::SessionId::try_new("session-1").unwrap(),
             },
             training::package::LedgerEntry::Consumed {
-                session_id: training::TrainingSessionId::try_new("session-2").unwrap(),
+                session_id: training::SessionId::try_new("session-2").unwrap(),
             },
         ],
-    )
+    })
     .unwrap();
 
     assert_eq!(ledger.balance().remaining().get(), 2);
     assert_eq!(
-        training::package::Policy.decide_usage(&ledger),
+        training::package::UsagePolicy.decide_usage(&ledger),
         training::package::UsageDecision::ReserveNextSession {
             package_id,
             remaining_after_reservation: training::SessionBalance::new(1),
@@ -713,7 +713,7 @@ fn training_package_ledger_exposes_remaining_sessions_without_callers_recomputin
 fn follow_up_policy_creates_due_plan_for_after_each_session_with_progress_homework() {
     let plan = training::follow_up::Policy.plan(
         training::follow_up::Trigger::SessionCompleted {
-            session_id: training::TrainingSessionId::try_new("session-4").unwrap(),
+            session_id: training::SessionId::try_new("session-4").unwrap(),
         },
         training::FollowUpCadence::AfterEachSession,
         training::follow_up::EvidenceReadiness::ProgressAndHomeworkReady,
@@ -752,24 +752,24 @@ fn retail_contract_encodes_product_pos_inventory_recommendation_and_reorder_rule
 
 #[test]
 fn retail_inventory_position_derives_available_units_and_rejects_over_reserved_stock() {
-    let position = retail::InventoryPosition::new(
-        entities::LocationId(Uuid::nil()),
-        retail::Sku::try_new("CALM-CARE-30").unwrap(),
-        retail::OnHandUnits::new(8),
-        retail::ReservedUnits::new(3),
-        retail::UnitCount::try_new(10).unwrap(),
-    )
+    let position = retail::InventoryPosition::record(retail::StockPosition {
+        location_id: entities::LocationId(Uuid::nil()),
+        sku: retail::Sku::try_new("CALM-CARE-30").unwrap(),
+        on_hand: retail::OnHandUnits::new(8),
+        reserved: retail::ReservedUnits::new(3),
+        reorder_at: retail::UnitCount::try_new(10).unwrap(),
+    })
     .unwrap();
 
     assert_eq!(position.available_units(), retail::AvailableUnits::new(5));
     assert_eq!(
-        retail::InventoryPosition::new(
-            entities::LocationId(Uuid::nil()),
-            retail::Sku::try_new("CALM-CARE-30").unwrap(),
-            retail::OnHandUnits::new(2),
-            retail::ReservedUnits::new(3),
-            retail::UnitCount::try_new(10).unwrap(),
-        ),
+        retail::InventoryPosition::record(retail::StockPosition {
+            location_id: entities::LocationId(Uuid::nil()),
+            sku: retail::Sku::try_new("CALM-CARE-30").unwrap(),
+            on_hand: retail::OnHandUnits::new(2),
+            reserved: retail::ReservedUnits::new(3),
+            reorder_at: retail::UnitCount::try_new(10).unwrap(),
+        }),
         Err(retail::Error::ReservedUnitsExceedOnHand)
     );
 }
@@ -777,13 +777,13 @@ fn retail_inventory_position_derives_available_units_and_rejects_over_reserved_s
 #[test]
 fn retail_reorder_policy_routes_below_threshold_stock_to_reviewable_staff_task() {
     let sku = retail::Sku::try_new("CALM-CARE-30").unwrap();
-    let position = retail::InventoryPosition::new(
-        entities::LocationId(Uuid::nil()),
-        sku.clone(),
-        retail::OnHandUnits::new(4),
-        retail::ReservedUnits::new(0),
-        retail::UnitCount::try_new(10).unwrap(),
-    )
+    let position = retail::InventoryPosition::record(retail::StockPosition {
+        location_id: entities::LocationId(Uuid::nil()),
+        sku: sku.clone(),
+        on_hand: retail::OnHandUnits::new(4),
+        reserved: retail::ReservedUnits::new(0),
+        reorder_at: retail::UnitCount::try_new(10).unwrap(),
+    })
     .unwrap();
 
     let decision = retail::ReorderPolicy::AutoCreateManagerTask.evaluate(&position);

@@ -76,6 +76,15 @@ impl AvailableUnits {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StockPosition {
+    pub location_id: LocationId,
+    pub sku: Sku,
+    pub on_hand: OnHandUnits,
+    pub reserved: ReservedUnits,
+    pub reorder_at: UnitCount,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InventoryPosition {
     pub location_id: LocationId,
     sku: Sku,
@@ -85,22 +94,16 @@ pub struct InventoryPosition {
 }
 
 impl InventoryPosition {
-    pub fn new(
-        location_id: LocationId,
-        sku: Sku,
-        on_hand: OnHandUnits,
-        reserved: ReservedUnits,
-        reorder_at: UnitCount,
-    ) -> Result<Self> {
-        if reserved.get() > on_hand.get() {
+    pub fn record(stock: StockPosition) -> Result<Self> {
+        if stock.reserved.get() > stock.on_hand.get() {
             return Err(Error::ReservedUnitsExceedOnHand);
         }
         Ok(Self {
-            location_id,
-            sku,
-            on_hand,
-            reserved,
-            reorder_at,
+            location_id: stock.location_id,
+            sku: stock.sku,
+            on_hand: stock.on_hand,
+            reserved: stock.reserved,
+            reorder_at: stock.reorder_at,
         })
     }
 

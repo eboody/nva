@@ -5,11 +5,11 @@ use serde::{Deserialize, Deserializer, Serialize};
 use crate::entities::LocationId;
 
 pub use crate::daily_brief::{
-    Action as OperationsAction, ArrivalDepartureSnapshot, CapacityBooked, CapacityLimit,
-    CapacityLimitError, CapacityMetric, CapacitySaturationBasisPoints, CustomerFollowUp,
-    DailyBriefSection, FollowUpReason, LaborRisk, LaborSnapshot, OccupancySnapshot, PetCareWatch,
-    PetCareWatchReason, ResortDailyBrief, ResortOperatingDay, RevenueOpportunity,
-    RevenueOpportunityKind, Risk as OperationsRisk, ScheduledStaffCount, SnapshotId,
+    Action, ArrivalDepartureSnapshot, CapacityBooked, CapacityLimit, CapacityLimitError,
+    CapacityMetric, CapacitySaturationBasisPoints, CustomerFollowUp, DailyBriefSection,
+    FollowUpReason, LaborRisk, LaborSnapshot, OccupancySnapshot, PetCareWatch, PetCareWatchReason,
+    ResortDailyBrief, ResortOperatingDay, RevenueOpportunity, RevenueOpportunityKind, Risk,
+    ScheduledStaffCount, SnapshotId,
 };
 pub use crate::lead::{
     CampaignName, Lead, LeadConversionStage, LeadIntent, LeadNextAction, LeadSource, LeadSourceName,

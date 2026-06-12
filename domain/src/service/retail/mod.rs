@@ -10,7 +10,7 @@ pub mod vendor;
 
 pub use inventory::{
     AvailableUnits, InventoryAvailability, InventoryPolicy, InventoryPosition, OnHandUnits,
-    ReservedUnits, UnitCount, UnitCountError,
+    ReservedUnits, StockPosition, UnitCount, UnitCountError,
 };
 pub use pos::{
     PointOfSalePolicy, PriceAdjustment, PriceExceptionReason, SaleDenialReason, SaleLineDecision,
