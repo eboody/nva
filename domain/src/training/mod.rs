@@ -752,26 +752,22 @@ pub mod package {
         BoardAndTrainBundle,
     }
 
-    pub mod id {
-        use nutype::nutype;
-
-        #[nutype(
-            sanitize(trim),
-            validate(not_empty, len_char_max = 120),
-            derive(
-                Debug,
-                Clone,
-                PartialEq,
-                Eq,
-                PartialOrd,
-                Ord,
-                Hash,
-                Serialize,
-                Deserialize
-            )
-        )]
-        pub struct Id(String);
-    }
+    #[nutype(
+        sanitize(trim),
+        validate(not_empty, len_char_max = 120),
+        derive(
+            Debug,
+            Clone,
+            PartialEq,
+            Eq,
+            PartialOrd,
+            Ord,
+            Hash,
+            Serialize,
+            Deserialize
+        )
+    )]
+    pub struct Id(String);
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub enum LedgerEntry {
@@ -783,7 +779,7 @@ pub mod package {
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct OpeningLedger {
-        pub package_id: id::Id,
+        pub package_id: Id,
         pub customer_id: CustomerId,
         pub pet_id: PetId,
         pub policy: Policy,
@@ -792,7 +788,7 @@ pub mod package {
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct Ledger {
-        package_id: id::Id,
+        package_id: Id,
         pub customer_id: CustomerId,
         pub pet_id: PetId,
         policy: Policy,
@@ -812,7 +808,7 @@ pub mod package {
                 entries: opening.entries,
             })
         }
-        pub fn package_id(&self) -> &id::Id {
+        pub fn package_id(&self) -> &Id {
             &self.package_id
         }
         pub fn entries(&self) -> &[LedgerEntry] {
@@ -836,15 +832,15 @@ pub mod package {
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub enum UsageDecision {
         ReserveNextSession {
-            package_id: id::Id,
+            package_id: Id,
             remaining_after_reservation: SessionBalance,
         },
         NoRemainingSessions {
-            package_id: id::Id,
+            package_id: Id,
             gate: policy::ReviewGate,
         },
         ReconciliationRequired {
-            package_id: id::Id,
+            package_id: Id,
             gate: policy::ReviewGate,
         },
     }
