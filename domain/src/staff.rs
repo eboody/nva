@@ -9,7 +9,7 @@ use nutype::nutype;
 #[allow(unused_imports)]
 use serde::{Deserialize, Serialize};
 
-use crate::daily_brief::{FollowUpReason, SnapshotId};
+use crate::daily_brief::{self, FollowUpReason};
 use crate::entities::{self, CustomerId, LocationId, PetId, StaffId};
 use crate::workflow::task;
 
@@ -139,7 +139,7 @@ pub enum TaskSource {
     Reservation(entities::ReservationId),
     Pet(PetId),
     Customer(CustomerId),
-    DailyBrief(SnapshotId),
+    DailyBrief(daily_brief::SnapshotId),
     WorkflowEvent(crate::workflow::EventId),
     StaffCreated,
 }

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::operations::{Error, Result, StorageField};
+use crate::operations::{self, StorageField};
 
 /// Storage shape for a migrated training service contract.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -64,10 +64,10 @@ pub enum StoredProgramDurationWeeksError {
 }
 
 impl TryFrom<domain::training::DurationWeeks> for StoredProgramDurationWeeks {
-    type Error = Error;
+    type Error = operations::Error;
 
-    fn try_from(value: domain::training::DurationWeeks) -> Result<Self> {
-        Self::try_new(value.get()).map_err(|err| Error::InvalidDomainValue {
+    fn try_from(value: domain::training::DurationWeeks) -> operations::Result<Self> {
+        Self::try_new(value.get()).map_err(|err| operations::Error::InvalidDomainValue {
             field: StorageField::TrainingProgramDurationWeeks,
             reason: err.to_string(),
         })
@@ -75,11 +75,11 @@ impl TryFrom<domain::training::DurationWeeks> for StoredProgramDurationWeeks {
 }
 
 impl TryFrom<StoredProgramDurationWeeks> for domain::training::DurationWeeks {
-    type Error = Error;
+    type Error = operations::Error;
 
-    fn try_from(value: StoredProgramDurationWeeks) -> Result<Self> {
+    fn try_from(value: StoredProgramDurationWeeks) -> operations::Result<Self> {
         domain::training::DurationWeeks::try_new(value.get()).map_err(|err| {
-            Error::InvalidDomainValue {
+            operations::Error::InvalidDomainValue {
                 field: StorageField::TrainingProgramDurationWeeks,
                 reason: err.to_string(),
             }
@@ -88,9 +88,9 @@ impl TryFrom<StoredProgramDurationWeeks> for domain::training::DurationWeeks {
 }
 
 impl TryFrom<domain::training::Program> for ProgramRecord {
-    type Error = Error;
+    type Error = operations::Error;
 
-    fn try_from(value: domain::training::Program) -> Result<Self> {
+    fn try_from(value: domain::training::Program) -> operations::Result<Self> {
         Ok(match value {
             domain::training::Program::StayAndStudy { duration } => Self::StayAndStudy {
                 duration_weeks: duration.try_into()?,
@@ -105,9 +105,9 @@ impl TryFrom<domain::training::Program> for ProgramRecord {
 }
 
 impl TryFrom<ProgramRecord> for domain::training::Program {
-    type Error = Error;
+    type Error = operations::Error;
 
-    fn try_from(value: ProgramRecord) -> Result<Self> {
+    fn try_from(value: ProgramRecord) -> operations::Result<Self> {
         Ok(match value {
             ProgramRecord::StayAndStudy { duration_weeks } => Self::StayAndStudy {
                 duration: duration_weeks.try_into()?,

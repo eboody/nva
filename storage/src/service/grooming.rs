@@ -1,6 +1,6 @@
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::operations::{Error, Result, StorageField};
+use crate::operations::{self, StorageField};
 
 /// Storage shape for a migrated grooming service contract.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -66,10 +66,10 @@ pub enum StoredCadenceWeeksError {
 }
 
 impl TryFrom<domain::grooming::CadenceWeeks> for StoredCadenceWeeks {
-    type Error = Error;
+    type Error = operations::Error;
 
-    fn try_from(value: domain::grooming::CadenceWeeks) -> Result<Self> {
-        Self::try_new(value.get()).map_err(|err| Error::InvalidDomainValue {
+    fn try_from(value: domain::grooming::CadenceWeeks) -> operations::Result<Self> {
+        Self::try_new(value.get()).map_err(|err| operations::Error::InvalidDomainValue {
             field: StorageField::GroomingCadenceWeeks,
             reason: err.to_string(),
         })
@@ -77,11 +77,11 @@ impl TryFrom<domain::grooming::CadenceWeeks> for StoredCadenceWeeks {
 }
 
 impl TryFrom<StoredCadenceWeeks> for domain::grooming::CadenceWeeks {
-    type Error = Error;
+    type Error = operations::Error;
 
-    fn try_from(value: StoredCadenceWeeks) -> Result<Self> {
+    fn try_from(value: StoredCadenceWeeks) -> operations::Result<Self> {
         domain::grooming::CadenceWeeks::try_new(value.get()).map_err(|err| {
-            Error::InvalidDomainValue {
+            operations::Error::InvalidDomainValue {
                 field: StorageField::GroomingCadenceWeeks,
                 reason: err.to_string(),
             }

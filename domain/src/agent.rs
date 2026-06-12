@@ -2,7 +2,7 @@ use bon::Builder;
 use nutype::nutype;
 use serde::{Deserialize, Serialize};
 
-use crate::policy::ReviewGate;
+use crate::policy;
 
 #[nutype(
     sanitize(trim),
@@ -112,5 +112,5 @@ pub struct Spec {
     pub purpose: Purpose,
     pub allowed_tools: Vec<ToolName>,
     pub forbidden_actions: Vec<ForbiddenAction>,
-    pub default_review_gates: Vec<ReviewGate>,
+    pub default_review_gates: Vec<policy::ReviewGate>,
 }

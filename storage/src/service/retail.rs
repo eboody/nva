@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use domain::retail::product;
+
 /// Storage shape for a migrated retail service contract.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -57,7 +59,7 @@ impl From<domain::retail::Partner> for PartnerCode {
     }
 }
 
-impl From<ProductCategoryCode> for domain::retail::product::Category {
+impl From<ProductCategoryCode> for product::Category {
     fn from(value: ProductCategoryCode) -> Self {
         match value {
             ProductCategoryCode::Supplement => Self::Supplement,
@@ -67,12 +69,12 @@ impl From<ProductCategoryCode> for domain::retail::product::Category {
     }
 }
 
-impl From<domain::retail::product::Category> for ProductCategoryCode {
-    fn from(value: domain::retail::product::Category) -> Self {
+impl From<product::Category> for ProductCategoryCode {
+    fn from(value: product::Category) -> Self {
         match value {
-            domain::retail::product::Category::Supplement => Self::Supplement,
-            domain::retail::product::Category::InHouseDiet => Self::InHouseDiet,
-            domain::retail::product::Category::PersonalizedUpsell => Self::PersonalizedUpsell,
+            product::Category::Supplement => Self::Supplement,
+            product::Category::InHouseDiet => Self::InHouseDiet,
+            product::Category::PersonalizedUpsell => Self::PersonalizedUpsell,
         }
     }
 }
