@@ -84,7 +84,7 @@ fn service_offering_records_reject_cross_variant_storage_shapes() {
 }
 
 #[test]
-fn operations_reexports_service_line_storage_compatibility_names() {
+fn operations_reexports_narrow_legacy_storage_compatibility_names() {
     let _: storage::operations::StoredCadenceWeeksError =
         storage::service::grooming::StoredCadenceWeeksError::ZeroWeeks;
     let _: storage::operations::StoredTrainingProgramDurationWeeksError =

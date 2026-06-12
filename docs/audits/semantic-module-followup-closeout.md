@@ -98,3 +98,83 @@ All required fan-in gates passed after integration and before this document was 
 - `modum check --format json` (remaining diagnostics classified above)
 
 The Modum JSON for the verification run was written during closeout to `/tmp/modum-fan-in.json` for local inspection; the durable summary is captured in this document.
+
+---
+
+# Namespace follow-up fan-in closeout
+
+Workspace: `/home/eran/code/pet-resort-agent-foundation-worktrees/pet-resort-semantic-modules-pass/19-namespace-fan-in`
+Branch: `kb/modum-namespace-fan-in-202606121645`
+Base commit: `1132a72` (`kb/semantic-modules-fan-in-20260612144914`)
+
+## Integrated namespace branches
+
+The namespace fan-in cherry-picked all four owner-reviewed follow-up commits without textual conflicts:
+
+- `kb/modum-namespace-callsite-202606121645` (`dc39403`, integrated as `f704f03`) — preserves meaningful `operations`, `policy`, `product`, and `daily_brief` namespaces at call sites.
+- `kb/modum-operations-namespace-202606121645` (`97bbdb7`, integrated as `1be3c4a`) — removes broad `domain::operations` compatibility re-exports/type aliases and moves tests to canonical owner-module call sites.
+- `kb/modum-storage-ops-namespace-202606121645` (`d1e166a`, integrated as `de7dda8`) — removes flat service-line aliases from `storage::operations` in favor of `storage::service::{boarding, daycare, grooming, retail, training}`.
+- `kb/modum-small-public-surfaces-202606121645` (`809a072`, integrated as `1ef8281`) — removes small flattened public surfaces and uses explicit `thiserror::Error` derives.
+
+## Namespace follow-up Modum summary
+
+Command: `modum check --format json`
+
+| metric | prior fan-in | namespace fan-in | delta |
+|---|---:|---:|---:|
+| scanned files | 96 | 96 | 0 |
+| files with violations | 40 | 33 | -7 |
+| diagnostics | 138 | 92 | -46 |
+
+## Remaining diagnostics after namespace fan-in
+
+| lint code | count | closeout reading |
+|---|---:|---|
+| `api_redundant_leaf_context` | 35 | Still valid design pressure in grooming, tools, training, Gingr, and boundary/domain modules; requires owner-surface passes rather than automatic renames. |
+| `api_candidate_semantic_module` | 26 | Remaining public-surface design prompts, mostly grooming/training/Gingr/entities/operations; defer to focused owner-module design lanes. |
+| `api_candidate_semantic_module_unsupported_construct` | 11 | Macro/source-analysis limitation; inspect manually before changing generated scalar/value families. |
+| `api_candidate_child_facet_module` | 7 | Legitimate child-facet pressure, including staff/daily brief style follow-through; needs explicit canonical facet decisions. |
+| `internal_organizational_submodule_flatten` | 3 | Manual-review internal organization prompts. |
+| `namespace_family_unsupported_construct` | 3 | Unsupported macro/source shapes; not automatic namespace cleanup. |
+| `api_catch_all_module` | 1 | `storage::service` remains deferred until storage-boundary architecture is chosen. |
+| `api_missing_parent_surface_export` | 1 | Modum asks to restore `daycare::assignment::PlaygroupId`; intentionally deferred because the accepted doctrine choice is `daycare::assignment::playgroup_id::Id`. |
+| `api_repeated_parameter_cluster` | 1 | Builder/options concern, outside namespace fan-in scope. |
+| `api_weak_module_generic_leaf` | 1 | Boundary design pressure, outside this fan-in scope. |
+| `api_boolean_flag_cluster` | 1 | Domain invariant concern, outside namespace fan-in scope. |
+| `api_raw_id_surface` | 1 | Boundary/domain identity concern, outside namespace fan-in scope. |
+| `namespace_qualified_child_facet_follow_through` | 1 | Remaining `daily_brief::SnapshotId` child-facet follow-through; deferred until a `daily_brief::snapshot_id` facet is intentionally introduced. |
+
+Top remaining files by diagnostic count:
+
+| file | diagnostics |
+|---|---:|
+| `domain/src/grooming/mod.rs` | 14 |
+| `app/src/tools.rs` | 11 |
+| `domain/src/training/mod.rs` | 9 |
+| `integrations/gingr/src/webhook.rs` | 9 |
+| `integrations/gingr/src/endpoint/reservations.rs` | 7 |
+| `domain/src/entities.rs` | 4 |
+| `domain/src/operations.rs` | 4 |
+| `storage/src/lib.rs` | 3 |
+| `domain/src/staff.rs` | 3 |
+| `app/src/booking_triage.rs` | 2 |
+| `app/src/daily_update.rs` | 2 |
+| `domain/src/daily_brief.rs` | 2 |
+| `integrations/gingr/src/endpoint/commerce_retail.rs` | 2 |
+
+## Namespace closeout classification
+
+- Public flat namespace lints targeted by the four follow-up lanes are integrated and no broad `namespace_flat_pub_use`, `namespace_flat_type_alias`, or `namespace_flat_use` diagnostics remain.
+- `domain::operations` now exposes only the smaller semantic pressure that remains after removing compatibility aliases: four `api_candidate_semantic_module` diagnostics for larger owner-surface design.
+- `storage::operations` is down to one macro-scope `api_candidate_semantic_module_unsupported_construct`; service-line record/codes now stay under `storage::service::<line>`.
+- The remaining explicit namespace diagnostic is a child-facet follow-through prompt around `daily_brief::SnapshotId`; this needs a real facet design, not an alias.
+- The daycare `PlaygroupId` parent-surface diagnostic is intentionally not fixed because restoring a flat alias would violate the accepted namespace choice for this pass.
+
+## Namespace fan-in verification
+
+All required gates passed after integrating the namespace follow-up commits and updating this closeout:
+
+- `cargo fmt --check`
+- `cargo test --workspace`
+- `git diff --check HEAD`
+- `modum check --format json` (exit code 2 from remaining classified diagnostics; JSON written locally to `/tmp/modum-namespace-fan-in.json`)
