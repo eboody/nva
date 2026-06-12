@@ -381,7 +381,7 @@ fn reservation_hard_stops_carry_policy_semantics_not_raw_strings() {
         policy::VaccineName::try_new("  Rabies  ").unwrap(),
     );
     let group_play_denial = entities::HardStop::IneligibleForGroupPlay(
-        policy::PlayIneligibilityReason::BehaviorFlagsRequireReview,
+        policy::play::IneligibilityReason::BehaviorFlagsRequireReview,
     );
 
     assert_eq!(
@@ -391,7 +391,7 @@ fn reservation_hard_stops_carry_policy_semantics_not_raw_strings() {
     assert_eq!(
         group_play_denial,
         entities::HardStop::IneligibleForGroupPlay(
-            policy::PlayIneligibilityReason::BehaviorFlagsRequireReview
+            policy::play::IneligibilityReason::BehaviorFlagsRequireReview
         )
     );
 }
@@ -418,27 +418,27 @@ fn policy_surfaces_use_semantic_vaccine_and_play_eligibility_reasons() {
         temperament: entities::TemperamentProfile::default(),
         care_profile: entities::CareProfile::default(),
     };
-    let decision = policy::PlayEligibilityPolicy::decide(
-        &policy::ConservativePlayEligibilityPolicy,
+    let decision = policy::play::Policy::decide(
+        &policy::play::ConservativePolicy,
         &pet,
         &entities::ServiceKind::DayPlay,
     );
     assert_eq!(
         decision.eligibility,
-        policy::PlayEligibility::Ineligible(
-            policy::PlayIneligibilityReason::SpayNeuterStatusRequiresReview
+        policy::play::Eligibility::Ineligible(
+            policy::play::IneligibilityReason::SpayNeuterStatusRequiresReview
         )
     );
 
     pet.spay_neuter_status = entities::SpayNeuterStatus::Neutered;
-    let decision = policy::PlayEligibilityPolicy::decide(
-        &policy::ConservativePlayEligibilityPolicy,
+    let decision = policy::play::Policy::decide(
+        &policy::play::ConservativePolicy,
         &pet,
         &entities::ServiceKind::DayPlay,
     );
     assert_eq!(
         decision.eligibility,
-        policy::PlayEligibility::Eligible(policy::PlayEligibilityReason::NoConservativeHardStop)
+        policy::play::Eligibility::Eligible(policy::play::Reason::NoConservativeHardStop)
     );
 }
 

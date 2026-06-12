@@ -259,7 +259,7 @@ pub enum AddOn {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HardStop {
     MissingRequiredVaccine(policy::VaccineName),
-    IneligibleForGroupPlay(policy::PlayIneligibilityReason),
+    IneligibleForGroupPlay(policy::play::IneligibilityReason),
     InHeat,
     AgeBelowMinimumWeeks(reservation::AgeThreshold),
     MedicalOrMedicationReviewRequired,

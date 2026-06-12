@@ -41,7 +41,7 @@ pub mod prelude {
         ReservationStatus, ServiceKind, Sex, SpayNeuterStatus, Species, StaffId,
         TemperamentProfile,
     };
-    pub use crate::policy::{AutomationLevel, ReviewGate};
+    pub use crate::policy::{ReviewGate, automation};
     pub use crate::staff::{
         StaffRole, StaffTask, StaffTaskAssignment, StaffTaskKind, StaffTaskPriority,
         StaffTaskSource, StaffTaskStatus, TaskCompletionEvidence,

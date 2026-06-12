@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::entities::{ActorRef, CustomerId, LocationId, PetId, ReservationId};
-use crate::policy::{AutomationLevel, ReviewGate};
+use crate::policy::{ReviewGate, automation};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct WorkflowEventId(pub Uuid);
@@ -288,7 +288,7 @@ pub enum WorkflowSubject {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PolicyContext {
     pub allowed_actions: Vec<AllowedAction>,
-    pub automation_level: AutomationLevel,
+    pub automation_level: automation::Level,
     pub required_reviews: Vec<ReviewGate>,
 }
 
