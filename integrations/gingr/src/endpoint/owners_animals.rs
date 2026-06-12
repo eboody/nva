@@ -1,4 +1,4 @@
-use super::{AnimalId, Method, OwnerId, Request, ReservationId, non_empty_text};
+use super::{AnimalId, FormId, Method, OwnerId, Request, ReservationId, non_empty_text};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProviderWhereClause {
@@ -205,10 +205,10 @@ pub enum FormKind {
 }
 
 impl FormKind {
-    pub const fn form_id(self) -> u64 {
+    pub const fn form_id(self) -> FormId {
         match self {
-            Self::Owner => 1,
-            Self::Animal => 2,
+            Self::Owner => FormId::new(1),
+            Self::Animal => FormId::new(2),
         }
     }
 }

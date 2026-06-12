@@ -14,27 +14,14 @@ pub enum Error {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RequestParts {
     method: endpoint::Method,
-    path: String,
+    path: endpoint::Path,
     parameters: Vec<(String, String)>,
     sensitive_parameter_names: Vec<String>,
 }
 
 impl RequestParts {
-    pub fn new(
-        method: endpoint::Method,
-        path: impl Into<String>,
-        parameters: Vec<(String, String)>,
-        sensitive_parameter_names: &'static [&'static str],
-    ) -> Self {
-        Self {
-            method,
-            path: path.into(),
-            parameters,
-            sensitive_parameter_names: sensitive_parameter_names
-                .iter()
-                .map(|name| (*name).to_owned())
-                .collect(),
-        }
+    pub fn builder() -> RequestPartsBuilder {
+        RequestPartsBuilder::default()
     }
 
     pub fn with_api_key(mut self, api_key: &config::ApiKey) -> Self {
@@ -48,8 +35,8 @@ impl RequestParts {
         self.method
     }
 
-    pub fn path(&self) -> &str {
-        &self.path
+    pub fn path(&self) -> endpoint::Path {
+        self.path
     }
 
     pub fn query_pairs(&self) -> &[(String, String)] {
@@ -71,7 +58,7 @@ impl RequestParts {
     pub fn redacted(&self) -> RedactedRequest {
         RedactedRequest {
             method: self.method,
-            path: self.path.clone(),
+            path: self.path,
             parameters: self
                 .parameters
                 .iter()
@@ -92,7 +79,7 @@ impl RequestParts {
     }
 
     fn url(&self, base_url: &config::BaseUrl) -> Result<url::Url> {
-        let mut url = base_url.join_path(&self.path)?;
+        let mut url = base_url.join_path(self.path)?;
         if self.method == endpoint::Method::Get {
             url.query_pairs_mut().extend_pairs(self.parameters.iter());
         }
@@ -100,10 +87,49 @@ impl RequestParts {
     }
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct RequestPartsBuilder {
+    method: Option<endpoint::Method>,
+    path: Option<endpoint::Path>,
+    parameters: Vec<(String, String)>,
+    sensitive_parameter_names: Vec<String>,
+}
+
+impl RequestPartsBuilder {
+    pub fn method(mut self, method: endpoint::Method) -> Self {
+        self.method = Some(method);
+        self
+    }
+
+    pub fn path(mut self, path: endpoint::Path) -> Self {
+        self.path = Some(path);
+        self
+    }
+
+    pub fn parameters(mut self, parameters: Vec<(String, String)>) -> Self {
+        self.parameters = parameters;
+        self
+    }
+
+    pub fn sensitive_parameter_names(mut self, names: &'static [&'static str]) -> Self {
+        self.sensitive_parameter_names = names.iter().map(|name| (*name).to_owned()).collect();
+        self
+    }
+
+    pub fn build(self) -> RequestParts {
+        RequestParts {
+            method: self.method.expect("request method is required"),
+            path: self.path.expect("request path is required"),
+            parameters: self.parameters,
+            sensitive_parameter_names: self.sensitive_parameter_names,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RedactedRequest {
     method: endpoint::Method,
-    path: String,
+    path: endpoint::Path,
     parameters: Vec<(String, String)>,
 }
 
@@ -140,7 +166,10 @@ impl Transport for MockTransport {
         _config: &config::ClientConfig,
         _request: RequestParts,
     ) -> Result<response::Raw> {
-        Ok(response::Raw::new(200, bytes::Bytes::from_static(b"{}")))
+        Ok(response::Raw::new(
+            response::HttpStatus::OK,
+            bytes::Bytes::from_static(b"{}"),
+        ))
     }
 }
 

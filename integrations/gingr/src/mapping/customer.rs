@@ -25,8 +25,8 @@ pub fn contact_candidate(record: &response::OwnerRecord) -> Result<ContactCandid
         })?;
     let email = record
         .email
-        .as_deref()
-        .map(customer::Email::try_new)
+        .as_ref()
+        .map(|email| customer::Email::try_new(email.as_str()))
         .transpose()
         .map_err(|err| Error::InvalidDomainValue {
             field: ProviderField::OwnerName,
@@ -50,7 +50,7 @@ pub fn contact_candidate(record: &response::OwnerRecord) -> Result<ContactCandid
     };
 
     Ok(ContactCandidate {
-        provider_owner_id: endpoint::OwnerId::new(record.id),
+        provider_owner_id: record.id,
         full_name,
         email,
         mobile_phone,

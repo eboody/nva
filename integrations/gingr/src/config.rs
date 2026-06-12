@@ -1,3 +1,4 @@
+use crate::endpoint;
 use secrecy::SecretString;
 use std::fmt;
 use url::Url;
@@ -84,8 +85,11 @@ impl BaseUrl {
         self.0.as_str().trim_end_matches('/')
     }
 
-    pub(crate) fn join_path(&self, path: &str) -> core::result::Result<Url, url::ParseError> {
-        self.0.join(path.trim_start_matches('/'))
+    pub(crate) fn join_path(
+        &self,
+        path: endpoint::Path,
+    ) -> core::result::Result<Url, url::ParseError> {
+        self.0.join(path.as_str().trim_start_matches('/'))
     }
 }
 
