@@ -1,4 +1,5 @@
 pub mod config;
+pub mod dto;
 pub mod endpoint;
 pub mod mapping;
 pub mod response;

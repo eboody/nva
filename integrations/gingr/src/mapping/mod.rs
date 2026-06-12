@@ -1,5 +1,6 @@
 pub mod customer;
 pub mod pet;
+pub mod retail;
 
 use std::fmt;
 
@@ -9,6 +10,9 @@ pub type Result<T> = core::result::Result<T, Error>;
 pub enum ProviderField {
     OwnerName,
     AnimalName,
+    RetailItemName,
+    RetailItemSku,
+    RetailItemCategory,
 }
 
 impl fmt::Display for ProviderField {
@@ -16,6 +20,9 @@ impl fmt::Display for ProviderField {
         match self {
             Self::OwnerName => formatter.write_str("owner name"),
             Self::AnimalName => formatter.write_str("animal name"),
+            Self::RetailItemName => formatter.write_str("retail item name"),
+            Self::RetailItemSku => formatter.write_str("retail item sku"),
+            Self::RetailItemCategory => formatter.write_str("retail item category"),
         }
     }
 }

@@ -1,4 +1,5 @@
-use gingr::{config, endpoint, mapping, response, transport};
+use domain::service::retail;
+use gingr::{config, dto, endpoint, mapping, response, transport};
 
 const SENTINEL_KEY: &str = "gingr_test_api_key_do_not_send";
 
@@ -274,4 +275,48 @@ fn provider_dtos_preserve_unknown_fields_and_mappers_promote_only_existing_domai
     assert_eq!(pet.provider_animal_id, endpoint::AnimalId::new(9));
     assert!(owner.unknown.contains_key("password"));
     assert!(animal.unknown.contains_key("custom_provider_blob"));
+}
+
+#[test]
+fn retail_item_dto_promotes_documented_provider_surface_into_retail_product_candidate() {
+    let item: dto::retail::Item = serde_json::from_value(serde_json::json!({
+        "id": 41,
+        "name": " Calming Chew ",
+        "sku": " CALM-CHEW ",
+        "category": "supplement",
+        "active": true,
+        "quantity_on_hand": 7,
+        "provider_only_shape": {"kept": true}
+    }))
+    .unwrap();
+
+    let candidate = mapping::retail::product_candidate(&item).unwrap();
+
+    assert_eq!(candidate.provider_item_id, dto::retail::ItemId::new(41));
+    assert_eq!(candidate.name.into_inner(), "Calming Chew");
+    assert_eq!(candidate.product.sku().as_str(), "CALM-CHEW");
+    assert_eq!(
+        candidate.product.category,
+        retail::ProductCategory::Supplement
+    );
+    assert_eq!(candidate.status, retail::OfferingStatus::Active);
+    assert!(item.unknown.contains_key("provider_only_shape"));
+}
+
+#[test]
+fn grooming_and_training_surfaces_remain_explicit_provider_gaps_without_fake_dtos() {
+    assert_eq!(
+        dto::grooming::provider_surface(),
+        dto::ProviderSurface::NoDocumentedServiceDto {
+            endpoint: "get_services_by_type"
+        }
+    );
+    assert_eq!(
+        dto::training::provider_surface(),
+        dto::ProviderSurface::NoDocumentedServiceDto {
+            endpoint: "get_services_by_type"
+        }
+    );
+    assert!(endpoint::catalog::semantic_mapping_gaps().contains(&"grooming"));
+    assert!(endpoint::catalog::semantic_mapping_gaps().contains(&"training"));
 }
