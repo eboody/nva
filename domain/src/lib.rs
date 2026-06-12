@@ -9,10 +9,12 @@ pub mod audit;
 pub mod booking_triage;
 pub mod care;
 pub mod customer;
+pub mod daily_brief;
 pub mod daily_update;
 pub mod document;
 pub mod entities;
 pub mod incident;
+pub mod lead;
 pub mod location;
 pub mod message;
 pub mod money;
@@ -21,8 +23,10 @@ pub mod payment;
 pub mod pet;
 pub mod policy;
 pub mod portal;
+pub mod reputation;
 pub mod reservation;
 pub mod service;
+pub mod staff;
 pub mod temperament;
 pub mod tools;
 pub mod vaccine;
@@ -42,11 +46,11 @@ pub mod prelude {
         ReservationStatus, ServiceKind, Sex, SpayNeuterStatus, Species, StaffId,
         TemperamentProfile,
     };
-    pub use crate::operations::{
+    pub use crate::policy::{AutomationLevel, ReviewGate};
+    pub use crate::staff::{
         StaffRole, StaffTask, StaffTaskAssignment, StaffTaskKind, StaffTaskPriority,
         StaffTaskSource, StaffTaskStatus, TaskCompletionEvidence,
     };
-    pub use crate::policy::{AutomationLevel, ReviewGate};
     pub use crate::tools::{
         AvailabilityDecision, AvailabilityDenialReason, AvailabilityRequest, AvailabilityResult,
         AvailabilityServiceNotes, AvailabilitySuccessReason, CapacitySnapshotId,
