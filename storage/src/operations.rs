@@ -1,6 +1,21 @@
 use bon::Builder;
 use serde::{Deserialize, Deserializer, Serialize};
 
+pub use crate::service::{
+    boarding::{
+        AccommodationCode as BoardingAccommodationCode, AddOnCode as BoardingAddOnCode,
+        CareFeatureCode as BoardingCareFeatureCode,
+    },
+    daycare::{EligibilityRuleCode as DaycareEligibilityRuleCode, FormatCode as DaycareFormatCode},
+    grooming::{ServiceCode as GroomingServiceCode, StoredCadenceWeeks, StoredCadenceWeeksError},
+    retail::{PartnerCode as RetailPartnerCode, ProductCategoryCode as RetailProductCategoryCode},
+    training::{
+        ProgramRecord as TrainingProgramRecord, StoredProgramDurationWeeks,
+        StoredProgramDurationWeeks as StoredTrainingProgramDurationWeeks,
+        StoredProgramDurationWeeksError as StoredTrainingProgramDurationWeeksError,
+    },
+};
+
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, thiserror::Error)]
@@ -469,162 +484,6 @@ pub enum ServiceOfferingKindCode {
     RetailPartnerProduct,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum BoardingAccommodationCode {
-    ClassicSuite,
-    LuxurySuite,
-    CatCondo,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum BoardingCareFeatureCode {
-    DailyHousekeeping,
-    PottyWalks,
-    Bedding,
-    PawgressReport,
-    FeedingSupport,
-    MedicationSupport,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum BoardingAddOnCode {
-    Playtime,
-    ExitBath,
-    PremiumSuite,
-    Grooming,
-    TrainingSession,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum DaycareFormatCode {
-    AllDayPlay,
-    HalfDayPlay,
-    DayBoarding,
-    DayPlayPlusRoom,
-    CatIndividualPlaytime,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum DaycareEligibilityRuleCode {
-    TemperamentReviewRequired,
-    SpayNeuterRequiredForGroupPlay,
-    VaccineProofRequired,
-    StaffToPetRatioRequired,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum GroomingServiceCode {
-    MiniGroom,
-    FullGroom,
-    ExitBath,
-    FullBath,
-    PremiumBath,
-    NailTrim,
-    NailDremel,
-    EarCleaning,
-    CoatSkinSpecificProduct,
-    FirstTimeGroomingOffer,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum TrainingProgramRecord {
-    StayAndStudy {
-        duration_weeks: StoredTrainingProgramDurationWeeks,
-    },
-    TutorSession,
-    GroupClass,
-    PuppyKindergarten,
-    PrivateLesson,
-    AkcCanineGoodCitizenPrep,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum RetailPartnerCode {
-    VirbacCalmCare,
-    PurinaProPlanVeterinarySupplements,
-    PurinaEnBoardingDiet,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum RetailProductCategoryCode {
-    Supplement,
-    InHouseDiet,
-    PersonalizedUpsell,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-pub struct StoredCadenceWeeks(u8);
-
-impl StoredCadenceWeeks {
-    pub const fn try_new(value: u8) -> std::result::Result<Self, StoredCadenceWeeksError> {
-        if value == 0 {
-            return Err(StoredCadenceWeeksError::ZeroWeeks);
-        }
-        Ok(Self(value))
-    }
-
-    pub const fn get(self) -> u8 {
-        self.0
-    }
-}
-
-impl<'de> Deserialize<'de> for StoredCadenceWeeks {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        Self::try_new(u8::deserialize(deserializer)?).map_err(serde::de::Error::custom)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-pub enum StoredCadenceWeeksError {
-    #[error("stored grooming cadence requires at least one week")]
-    ZeroWeeks,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-pub struct StoredTrainingProgramDurationWeeks(u8);
-
-impl StoredTrainingProgramDurationWeeks {
-    pub const fn try_new(
-        value: u8,
-    ) -> std::result::Result<Self, StoredTrainingProgramDurationWeeksError> {
-        if value == 0 {
-            return Err(StoredTrainingProgramDurationWeeksError::ZeroWeeks);
-        }
-        Ok(Self(value))
-    }
-
-    pub const fn get(self) -> u8 {
-        self.0
-    }
-}
-
-impl<'de> Deserialize<'de> for StoredTrainingProgramDurationWeeks {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        Self::try_new(u8::deserialize(deserializer)?).map_err(serde::de::Error::custom)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-pub enum StoredTrainingProgramDurationWeeksError {
-    #[error("stored training program duration requires at least one week")]
-    ZeroWeeks,
-}
-
 impl TryFrom<domain::operations::ServiceOffering> for ServiceOfferingRecord {
     type Error = Error;
 
@@ -782,102 +641,14 @@ impl TryFrom<ServiceOfferingRecord> for domain::operations::ServiceOffering {
     }
 }
 
-impl TryFrom<domain::service::grooming::CadenceWeeks> for StoredCadenceWeeks {
-    type Error = Error;
-
-    fn try_from(value: domain::service::grooming::CadenceWeeks) -> Result<Self> {
-        Self::try_new(value.get()).map_err(|err| Error::InvalidDomainValue {
-            field: StorageField::GroomingCadenceWeeks,
-            reason: err.to_string(),
-        })
-    }
-}
-
-impl TryFrom<StoredCadenceWeeks> for domain::service::grooming::CadenceWeeks {
-    type Error = Error;
-
-    fn try_from(value: StoredCadenceWeeks) -> Result<Self> {
-        domain::service::grooming::CadenceWeeks::try_new(value.get()).map_err(|err| {
-            Error::InvalidDomainValue {
-                field: StorageField::GroomingCadenceWeeks,
-                reason: err.to_string(),
-            }
-        })
-    }
-}
-
-impl TryFrom<domain::operations::TrainingProgramDurationWeeks>
-    for StoredTrainingProgramDurationWeeks
-{
-    type Error = Error;
-
-    fn try_from(value: domain::operations::TrainingProgramDurationWeeks) -> Result<Self> {
-        Self::try_new(value.get()).map_err(|err| Error::InvalidDomainValue {
-            field: StorageField::TrainingProgramDurationWeeks,
-            reason: err.to_string(),
-        })
-    }
-}
-
-impl TryFrom<StoredTrainingProgramDurationWeeks>
-    for domain::operations::TrainingProgramDurationWeeks
-{
-    type Error = Error;
-
-    fn try_from(value: StoredTrainingProgramDurationWeeks) -> Result<Self> {
-        domain::operations::TrainingProgramDurationWeeks::try_new(value.get()).map_err(|err| {
-            Error::InvalidDomainValue {
-                field: StorageField::TrainingProgramDurationWeeks,
-                reason: err.to_string(),
-            }
-        })
-    }
-}
-
-impl TryFrom<domain::operations::TrainingProgram> for TrainingProgramRecord {
-    type Error = Error;
-
-    fn try_from(value: domain::operations::TrainingProgram) -> Result<Self> {
-        Ok(match value {
-            domain::operations::TrainingProgram::StayAndStudy { duration } => Self::StayAndStudy {
-                duration_weeks: duration.try_into()?,
-            },
-            domain::operations::TrainingProgram::TutorSession => Self::TutorSession,
-            domain::operations::TrainingProgram::GroupClass => Self::GroupClass,
-            domain::operations::TrainingProgram::PuppyKindergarten => Self::PuppyKindergarten,
-            domain::operations::TrainingProgram::PrivateLesson => Self::PrivateLesson,
-            domain::operations::TrainingProgram::AkcCanineGoodCitizenPrep => {
-                Self::AkcCanineGoodCitizenPrep
-            }
-        })
-    }
-}
-
-impl TryFrom<TrainingProgramRecord> for domain::operations::TrainingProgram {
-    type Error = Error;
-
-    fn try_from(value: TrainingProgramRecord) -> Result<Self> {
-        Ok(match value {
-            TrainingProgramRecord::StayAndStudy { duration_weeks } => Self::StayAndStudy {
-                duration: duration_weeks.try_into()?,
-            },
-            TrainingProgramRecord::TutorSession => Self::TutorSession,
-            TrainingProgramRecord::GroupClass => Self::GroupClass,
-            TrainingProgramRecord::PuppyKindergarten => Self::PuppyKindergarten,
-            TrainingProgramRecord::PrivateLesson => Self::PrivateLesson,
-            TrainingProgramRecord::AkcCanineGoodCitizenPrep => Self::AkcCanineGoodCitizenPrep,
-        })
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CoreServiceContractsRecord {
     pub location_id: domain::entities::LocationId,
-    pub boarding: domain::service::boarding::Contract,
-    pub daycare: domain::service::daycare::Contract,
-    pub grooming: domain::service::grooming::Contract,
-    pub training: domain::operations::training::Contract,
-    pub retail: domain::service::retail::Contract,
+    pub boarding: crate::service::boarding::ContractRecord,
+    pub daycare: crate::service::daycare::ContractRecord,
+    pub grooming: crate::service::grooming::ContractRecord,
+    pub training: crate::service::training::ContractRecord,
+    pub retail: crate::service::retail::ContractRecord,
 }
 
 impl CoreServiceContractsRecord {
@@ -899,11 +670,11 @@ impl From<domain::operations::CoreServiceContracts> for CoreServiceContractsReco
     fn from(contracts: domain::operations::CoreServiceContracts) -> Self {
         Self {
             location_id: contracts.location_id,
-            boarding: contracts.boarding,
-            daycare: contracts.daycare,
-            grooming: contracts.grooming,
-            training: contracts.training,
-            retail: contracts.retail,
+            boarding: contracts.boarding.into(),
+            daycare: contracts.daycare.into(),
+            grooming: contracts.grooming.into(),
+            training: contracts.training.into(),
+            retail: contracts.retail.into(),
         }
     }
 }
@@ -912,11 +683,11 @@ impl From<CoreServiceContractsRecord> for domain::operations::CoreServiceContrac
     fn from(record: CoreServiceContractsRecord) -> Self {
         Self::builder()
             .location_id(record.location_id)
-            .boarding(record.boarding)
-            .daycare(record.daycare)
-            .grooming(record.grooming)
-            .training(record.training)
-            .retail(record.retail)
+            .boarding(record.boarding.into())
+            .daycare(record.daycare.into())
+            .grooming(record.grooming.into())
+            .training(record.training.into())
+            .retail(record.retail.into())
             .build()
     }
 }
@@ -1006,68 +777,6 @@ macro_rules! bidirectional_code_map {
     };
 }
 
-bidirectional_code_map!(BoardingAccommodationCode, domain::operations::BoardingAccommodation, {
-    ClassicSuite => ClassicSuite,
-    LuxurySuite => LuxurySuite,
-    CatCondo => CatCondo,
-});
-
-bidirectional_code_map!(BoardingCareFeatureCode, domain::operations::BoardingCareFeature, {
-    DailyHousekeeping => DailyHousekeeping,
-    PottyWalks => PottyWalks,
-    Bedding => Bedding,
-    PawgressReport => PawgressReport,
-    FeedingSupport => FeedingSupport,
-    MedicationSupport => MedicationSupport,
-});
-
-bidirectional_code_map!(BoardingAddOnCode, domain::operations::BoardingAddOn, {
-    Playtime => Playtime,
-    ExitBath => ExitBath,
-    PremiumSuite => PremiumSuite,
-    Grooming => Grooming,
-    TrainingSession => TrainingSession,
-});
-
-bidirectional_code_map!(DaycareFormatCode, domain::operations::DaycareFormat, {
-    AllDayPlay => AllDayPlay,
-    HalfDayPlay => HalfDayPlay,
-    DayBoarding => DayBoarding,
-    DayPlayPlusRoom => DayPlayPlusRoom,
-    CatIndividualPlaytime => CatIndividualPlaytime,
-});
-
-bidirectional_code_map!(DaycareEligibilityRuleCode, domain::operations::DaycareEligibilityRule, {
-    TemperamentReviewRequired => TemperamentReviewRequired,
-    SpayNeuterRequiredForGroupPlay => SpayNeuterRequiredForGroupPlay,
-    VaccineProofRequired => VaccineProofRequired,
-    StaffToPetRatioRequired => StaffToPetRatioRequired,
-});
-
-bidirectional_code_map!(GroomingServiceCode, domain::service::grooming::Service, {
-    MiniGroom => MiniGroom,
-    FullGroom => FullGroom,
-    ExitBath => ExitBath,
-    FullBath => FullBath,
-    PremiumBath => PremiumBath,
-    NailTrim => NailTrim,
-    NailDremel => NailDremel,
-    EarCleaning => EarCleaning,
-    CoatSkinSpecificProduct => CoatSkinSpecificProduct,
-    FirstTimeGroomingOffer => FirstTimeGroomingOffer,
-});
-
-bidirectional_code_map!(RetailPartnerCode, domain::service::retail::Partner, {
-    VirbacCalmCare => VirbacCalmCare,
-    PurinaProPlanVeterinarySupplements => PurinaProPlanVeterinarySupplements,
-    PurinaEnBoardingDiet => PurinaEnBoardingDiet,
-});
-
-bidirectional_code_map!(RetailProductCategoryCode, domain::service::retail::ProductCategory, {
-    Supplement => Supplement,
-    InHouseDiet => InHouseDiet,
-    PersonalizedUpsell => PersonalizedUpsell,
-});
 bidirectional_code_map!(CoreOperatingSystemCode, domain::operations::CoreOperatingSystem, {
     Gingr => Gingr,
     MixedSystems => MixedSystems,

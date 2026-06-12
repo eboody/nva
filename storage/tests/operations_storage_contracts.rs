@@ -53,6 +53,10 @@ fn service_offering_records_preserve_variant_contracts_through_codecs() {
         record.service_kind,
         storage::operations::ServiceOfferingKindCode::Grooming
     );
+    assert_eq!(
+        record.grooming_service,
+        Some(storage::service::grooming::ServiceCode::FullGroom)
+    );
     assert_eq!(record.grooming_cadence_weeks.unwrap().get(), 6);
     assert!(record.boarding_accommodation.is_none());
     assert!(record.daycare_format.is_none());
@@ -77,6 +81,51 @@ fn service_offering_records_reject_cross_variant_storage_shapes() {
             ..
         }
     ));
+}
+
+#[test]
+fn operations_reexports_service_line_storage_compatibility_names() {
+    let _: storage::operations::StoredCadenceWeeksError =
+        storage::service::grooming::StoredCadenceWeeksError::ZeroWeeks;
+    let _: storage::operations::StoredTrainingProgramDurationWeeksError =
+        storage::service::training::StoredProgramDurationWeeksError::ZeroWeeks;
+    let duration: storage::operations::StoredTrainingProgramDurationWeeks =
+        storage::service::training::StoredProgramDurationWeeks::try_new(4).unwrap();
+
+    assert_eq!(duration.get(), 4);
+}
+
+#[test]
+fn service_line_records_promote_domain_service_values_at_storage_boundary() {
+    let training_record = storage::service::training::ProgramRecord::try_from(
+        domain::service::training::Program::StayAndStudy {
+            duration: domain::service::training::DurationWeeks::try_new(4).unwrap(),
+        },
+    )
+    .unwrap();
+
+    assert_eq!(
+        training_record,
+        storage::service::training::ProgramRecord::StayAndStudy {
+            duration_weeks: storage::service::training::StoredProgramDurationWeeks::try_new(4)
+                .unwrap(),
+        }
+    );
+
+    let domain_program: domain::service::training::Program = training_record.try_into().unwrap();
+    assert_eq!(
+        domain_program,
+        domain::service::training::Program::StayAndStudy {
+            duration: domain::service::training::DurationWeeks::try_new(4).unwrap(),
+        }
+    );
+
+    let retail_partner: domain::service::retail::Partner =
+        storage::service::retail::PartnerCode::PurinaEnBoardingDiet.into();
+    assert_eq!(
+        storage::service::retail::PartnerCode::from(retail_partner),
+        storage::service::retail::PartnerCode::PurinaEnBoardingDiet
+    );
 }
 
 #[test]
