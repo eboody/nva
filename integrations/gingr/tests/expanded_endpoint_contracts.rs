@@ -301,7 +301,7 @@ fn retail_item_dto_promotes_documented_provider_surface_into_retail_product_cand
     assert_eq!(candidate.product.sku().as_str(), "CALM-CHEW");
     assert_eq!(
         candidate.product.category,
-        retail::ProductCategory::Supplement
+        retail::product::Category::Supplement
     );
     assert_eq!(candidate.status, retail::OfferingStatus::Active);
     assert!(item.unknown.contains_key("provider_only_shape"));

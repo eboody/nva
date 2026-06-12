@@ -57,7 +57,7 @@ impl From<domain::retail::Partner> for PartnerCode {
     }
 }
 
-impl From<ProductCategoryCode> for domain::retail::ProductCategory {
+impl From<ProductCategoryCode> for domain::retail::product::Category {
     fn from(value: ProductCategoryCode) -> Self {
         match value {
             ProductCategoryCode::Supplement => Self::Supplement,
@@ -67,12 +67,12 @@ impl From<ProductCategoryCode> for domain::retail::ProductCategory {
     }
 }
 
-impl From<domain::retail::ProductCategory> for ProductCategoryCode {
-    fn from(value: domain::retail::ProductCategory) -> Self {
+impl From<domain::retail::product::Category> for ProductCategoryCode {
+    fn from(value: domain::retail::product::Category) -> Self {
         match value {
-            domain::retail::ProductCategory::Supplement => Self::Supplement,
-            domain::retail::ProductCategory::InHouseDiet => Self::InHouseDiet,
-            domain::retail::ProductCategory::PersonalizedUpsell => Self::PersonalizedUpsell,
+            domain::retail::product::Category::Supplement => Self::Supplement,
+            domain::retail::product::Category::InHouseDiet => Self::InHouseDiet,
+            domain::retail::product::Category::PersonalizedUpsell => Self::PersonalizedUpsell,
         }
     }
 }

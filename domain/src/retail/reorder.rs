@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::entities::LocationId;
 use crate::policy;
 
-use super::inventory::InventoryPosition;
+use super::inventory::Position;
 use super::product::Sku;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -14,7 +14,7 @@ pub enum Policy {
 }
 
 impl Policy {
-    pub fn evaluate(&self, position: &InventoryPosition) -> Decision {
+    pub fn evaluate(&self, position: &Position) -> Decision {
         if !position.is_at_or_below_reorder_threshold() {
             return Decision::NoAction;
         }

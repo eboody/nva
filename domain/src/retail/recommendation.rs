@@ -1,46 +1,34 @@
 use bon::Builder;
-use nutype::nutype;
 use serde::{Deserialize, Serialize};
 
 use crate::entities::{CustomerId, LocationId, PetId};
 use crate::policy;
 
-use super::inventory::InventoryAvailability;
+use super::inventory::Availability;
 use super::product::Product;
 
-#[nutype(
-    sanitize(trim),
-    validate(not_empty, len_char_max = 500),
-    derive(
-        Debug,
-        Clone,
-        PartialEq,
-        Eq,
-        PartialOrd,
-        Ord,
-        Hash,
-        Serialize,
-        Deserialize
-    )
-)]
-pub struct RecommendationRationale(String);
+pub mod rationale {
+    use nutype::nutype;
+    #[allow(unused_imports)]
+    use serde::{Deserialize, Serialize};
 
-#[nutype(
-    sanitize(trim),
-    validate(not_empty, len_char_max = 500),
-    derive(
-        Debug,
-        Clone,
-        PartialEq,
-        Eq,
-        PartialOrd,
-        Ord,
-        Hash,
-        Serialize,
-        Deserialize
-    )
-)]
-pub struct CustomerSafeCopy(String);
+    #[nutype(
+        sanitize(trim),
+        validate(not_empty, len_char_max = 500),
+        derive(
+            Debug,
+            Clone,
+            PartialEq,
+            Eq,
+            PartialOrd,
+            Ord,
+            Hash,
+            Serialize,
+            Deserialize
+        )
+    )]
+    pub struct Text(String);
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Rule {
@@ -57,10 +45,10 @@ pub struct Candidate {
     pub location_id: LocationId,
     pub product: Product,
     pub reason: Reason,
-    pub rationale: RecommendationRationale,
+    pub rationale: rationale::Text,
     pub care_sensitivity: CareSensitivity,
-    pub inventory: InventoryAvailability,
-    pub customer_preference: CustomerRetailPreference,
+    pub inventory: Availability,
+    pub customer_preference: Preference,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -79,7 +67,7 @@ pub enum CareSensitivity {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CustomerRetailPreference {
+pub enum Preference {
     AllowsRetailRecommendations,
     OptedOut,
     UnknownRequiresReview,
@@ -90,15 +78,12 @@ pub struct Policy;
 
 impl Policy {
     pub fn evaluate(&self, candidate: &Candidate) -> Decision {
-        if matches!(
-            candidate.customer_preference,
-            CustomerRetailPreference::OptedOut
-        ) {
+        if matches!(candidate.customer_preference, Preference::OptedOut) {
             return Decision::Suppressed {
                 reason: SuppressionReason::CustomerOptedOut,
             };
         }
-        if !matches!(candidate.inventory, InventoryAvailability::Available) {
+        if !matches!(candidate.inventory, Availability::Available) {
             return Decision::Suppressed {
                 reason: SuppressionReason::InventoryUnavailable,
             };
@@ -146,41 +131,65 @@ pub enum SuppressionReason {
     InventoryUnavailable,
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct CustomerCopyPolicy;
+pub mod customer_copy {
+    use nutype::nutype;
+    use serde::{Deserialize, Serialize};
 
-impl CustomerCopyPolicy {
-    pub fn evaluate(&self, copy: &CustomerSafeCopy) -> CustomerCopyDecision {
-        let normalized = copy.clone().into_inner().to_lowercase();
-        if ["treat", "diagnos", "cure", "prescrib", "medical"]
-            .iter()
-            .any(|term| normalized.contains(term))
-        {
-            CustomerCopyDecision::Rejected {
-                reason: CustomerCopyRejectionReason::MedicalClaim,
-                gate: policy::ReviewGate::CustomerMessageApproval,
-            }
-        } else {
-            CustomerCopyDecision::DraftRequiresApproval {
-                gate: policy::ReviewGate::CustomerMessageApproval,
+    use crate::policy;
+
+    #[nutype(
+        sanitize(trim),
+        validate(not_empty, len_char_max = 500),
+        derive(
+            Debug,
+            Clone,
+            PartialEq,
+            Eq,
+            PartialOrd,
+            Ord,
+            Hash,
+            Serialize,
+            Deserialize
+        )
+    )]
+    pub struct SafeCopy(String);
+
+    #[derive(Debug, Clone, Default)]
+    pub struct Policy;
+
+    impl Policy {
+        pub fn evaluate(&self, copy: &SafeCopy) -> Decision {
+            let normalized = copy.clone().into_inner().to_lowercase();
+            if ["treat", "diagnos", "cure", "prescrib", "medical"]
+                .iter()
+                .any(|term| normalized.contains(term))
+            {
+                Decision::Rejected {
+                    reason: RejectionReason::MedicalClaim,
+                    gate: policy::ReviewGate::CustomerMessageApproval,
+                }
+            } else {
+                Decision::DraftRequiresApproval {
+                    gate: policy::ReviewGate::CustomerMessageApproval,
+                }
             }
         }
     }
-}
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CustomerCopyDecision {
-    DraftRequiresApproval {
-        gate: policy::ReviewGate,
-    },
-    Rejected {
-        reason: CustomerCopyRejectionReason,
-        gate: policy::ReviewGate,
-    },
-}
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Decision {
+        DraftRequiresApproval {
+            gate: policy::ReviewGate,
+        },
+        Rejected {
+            reason: RejectionReason,
+            gate: policy::ReviewGate,
+        },
+    }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CustomerCopyRejectionReason {
-    MedicalClaim,
-    UnsupportedPromise,
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum RejectionReason {
+        MedicalClaim,
+        UnsupportedPromise,
+    }
 }

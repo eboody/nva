@@ -1,18 +1,17 @@
 use bon::Builder;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::entities::{ReservationId, StaffId};
-use crate::policy;
+use crate::{entities, policy};
 
 use super::product::LocationOffering;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-pub struct SaleQuantity(u32);
+pub struct Quantity(u32);
 
-impl SaleQuantity {
-    pub const fn try_new(value: u32) -> std::result::Result<Self, SaleQuantityError> {
+impl Quantity {
+    pub const fn try_new(value: u32) -> std::result::Result<Self, QuantityError> {
         if value == 0 {
-            return Err(SaleQuantityError::Zero);
+            return Err(QuantityError::Zero);
         }
         Ok(Self(value))
     }
@@ -22,7 +21,7 @@ impl SaleQuantity {
     }
 }
 
-impl<'de> Deserialize<'de> for SaleQuantity {
+impl<'de> Deserialize<'de> for Quantity {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: Deserializer<'de>,
@@ -32,67 +31,69 @@ impl<'de> Deserialize<'de> for SaleQuantity {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-pub enum SaleQuantityError {
+pub enum QuantityError {
     #[error("retail sale quantity requires at least one unit")]
     Zero,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PointOfSalePolicy {
+pub enum Policy {
     StandaloneSale,
     IntegratedWithReservationCheckout,
     ManagerOnlyComp,
 }
 
-impl PointOfSalePolicy {
-    pub fn evaluate(&self, request: &SaleRequest) -> SaleLineDecision {
+impl Policy {
+    pub fn evaluate(&self, request: &Request) -> Decision {
         if !request.offering.can_be_sold_to_customer() {
-            return SaleLineDecision::Denied {
-                reason: SaleDenialReason::OfferingNotSellable,
+            return Decision::Denied {
+                reason: DenialReason::OfferingNotSellable,
             };
         }
         if !request.offering.has_available_sale_units(request.quantity) {
-            return SaleLineDecision::Denied {
-                reason: SaleDenialReason::InventoryUnavailable,
+            return Decision::Denied {
+                reason: DenialReason::InventoryUnavailable,
             };
         }
         if request.price_adjustment.requires_manager_approval()
             || matches!(self, Self::ManagerOnlyComp)
         {
-            return SaleLineDecision::ReviewRequired {
-                reason: SaleReviewReason::PriceException,
+            return Decision::ReviewRequired {
+                reason: ReviewReason::PriceException,
                 gate: policy::ReviewGate::ManagerApproval,
             };
         }
         match (self, &request.source) {
-            (Self::StandaloneSale, SaleSource::StandaloneStaffSale { .. }) => {
-                SaleLineDecision::DraftAllowed
-            }
-            (Self::IntegratedWithReservationCheckout, SaleSource::ReservationCheckout { .. }) => {
-                SaleLineDecision::ReviewRequired {
-                    reason: SaleReviewReason::ReservationCheckoutAttachment,
+            (Self::StandaloneSale, Source::StandaloneStaffSale { .. }) => Decision::DraftAllowed,
+            (Self::IntegratedWithReservationCheckout, Source::ReservationCheckout { .. }) => {
+                Decision::ReviewRequired {
+                    reason: ReviewReason::ReservationCheckoutAttachment,
                     gate: policy::ReviewGate::CustomerMessageApproval,
                 }
             }
-            _ => SaleLineDecision::Denied {
-                reason: SaleDenialReason::SourceNotAllowed,
+            _ => Decision::Denied {
+                reason: DenialReason::SourceNotAllowed,
             },
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-pub struct SaleRequest {
+pub struct Request {
     pub offering: LocationOffering,
-    pub quantity: SaleQuantity,
-    pub source: SaleSource,
+    pub quantity: Quantity,
+    pub source: Source,
     pub price_adjustment: PriceAdjustment,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SaleSource {
-    StandaloneStaffSale { staff_id: StaffId },
-    ReservationCheckout { reservation_id: ReservationId },
+pub enum Source {
+    StandaloneStaffSale {
+        staff_id: entities::StaffId,
+    },
+    ReservationCheckout {
+        reservation_id: entities::ReservationId,
+    },
     ExternalPosReconciliation,
 }
 
@@ -119,25 +120,25 @@ pub enum PriceExceptionReason {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SaleLineDecision {
+pub enum Decision {
     DraftAllowed,
     ReviewRequired {
-        reason: SaleReviewReason,
+        reason: ReviewReason,
         gate: policy::ReviewGate,
     },
     Denied {
-        reason: SaleDenialReason,
+        reason: DenialReason,
     },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SaleReviewReason {
+pub enum ReviewReason {
     PriceException,
     ReservationCheckoutAttachment,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SaleDenialReason {
+pub enum DenialReason {
     OfferingNotSellable,
     InventoryUnavailable,
     SourceNotAllowed,
