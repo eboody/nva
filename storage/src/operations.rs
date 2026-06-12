@@ -1,16 +1,11 @@
 use bon::Builder;
 use serde::{Deserialize, Deserializer, Serialize};
 
+use crate::service::{boarding, daycare, grooming, retail, training};
+
 pub use crate::service::{
-    boarding::{
-        AccommodationCode as BoardingAccommodationCode, AddOnCode as BoardingAddOnCode,
-        CareFeatureCode as BoardingCareFeatureCode,
-    },
-    daycare::{EligibilityRuleCode as DaycareEligibilityRuleCode, FormatCode as DaycareFormatCode},
-    grooming::{ServiceCode as GroomingServiceCode, StoredCadenceWeeks, StoredCadenceWeeksError},
-    retail::{PartnerCode as RetailPartnerCode, ProductCategoryCode as RetailProductCategoryCode},
+    grooming::StoredCadenceWeeksError,
     training::{
-        ProgramRecord as TrainingProgramRecord, StoredProgramDurationWeeks,
         StoredProgramDurationWeeks as StoredTrainingProgramDurationWeeks,
         StoredProgramDurationWeeksError as StoredTrainingProgramDurationWeeksError,
     },
@@ -379,19 +374,19 @@ impl From<PetResortBrandCode> for domain::operations::PetResortBrand {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 pub struct ServiceOfferingRecord {
     pub service_kind: ServiceOfferingKindCode,
-    pub boarding_accommodation: Option<BoardingAccommodationCode>,
+    pub boarding_accommodation: Option<boarding::AccommodationCode>,
     #[builder(default)]
-    pub boarding_included_care: Vec<BoardingCareFeatureCode>,
+    pub boarding_included_care: Vec<boarding::CareFeatureCode>,
     #[builder(default)]
-    pub boarding_add_ons: Vec<BoardingAddOnCode>,
-    pub daycare_format: Option<DaycareFormatCode>,
+    pub boarding_add_ons: Vec<boarding::AddOnCode>,
+    pub daycare_format: Option<daycare::FormatCode>,
     #[builder(default)]
-    pub daycare_eligibility_rules: Vec<DaycareEligibilityRuleCode>,
-    pub grooming_service: Option<GroomingServiceCode>,
-    pub grooming_cadence_weeks: Option<StoredCadenceWeeks>,
-    pub training_program: Option<TrainingProgramRecord>,
-    pub retail_partner: Option<RetailPartnerCode>,
-    pub retail_product_category: Option<RetailProductCategoryCode>,
+    pub daycare_eligibility_rules: Vec<daycare::EligibilityRuleCode>,
+    pub grooming_service: Option<grooming::ServiceCode>,
+    pub grooming_cadence_weeks: Option<grooming::StoredCadenceWeeks>,
+    pub training_program: Option<training::ProgramRecord>,
+    pub retail_partner: Option<retail::PartnerCode>,
+    pub retail_product_category: Option<retail::ProductCategoryCode>,
 }
 
 impl ServiceOfferingRecord {
@@ -644,11 +639,11 @@ impl TryFrom<ServiceOfferingRecord> for domain::operations::ServiceOffering {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CoreServiceContractsRecord {
     pub location_id: domain::entities::LocationId,
-    pub boarding: crate::service::boarding::ContractRecord,
-    pub daycare: crate::service::daycare::ContractRecord,
-    pub grooming: crate::service::grooming::ContractRecord,
-    pub training: crate::service::training::ContractRecord,
-    pub retail: crate::service::retail::ContractRecord,
+    pub boarding: boarding::ContractRecord,
+    pub daycare: daycare::ContractRecord,
+    pub grooming: grooming::ContractRecord,
+    pub training: training::ContractRecord,
+    pub retail: retail::ContractRecord,
 }
 
 impl CoreServiceContractsRecord {

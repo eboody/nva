@@ -69,7 +69,7 @@ fn service_offering_records_preserve_variant_contracts_through_codecs() {
 fn service_offering_records_reject_cross_variant_storage_shapes() {
     let invalid = storage::operations::ServiceOfferingRecord::builder()
         .service_kind(storage::operations::ServiceOfferingKindCode::Grooming)
-        .boarding_accommodation(storage::operations::BoardingAccommodationCode::LuxurySuite)
+        .boarding_accommodation(storage::service::boarding::AccommodationCode::LuxurySuite)
         .build();
 
     let err = domain::operations::ServiceOffering::try_from(invalid).unwrap_err();
