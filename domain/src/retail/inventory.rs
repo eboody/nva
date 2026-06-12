@@ -76,7 +76,7 @@ impl AvailableUnits {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct StockPosition {
+pub struct Stock {
     pub location_id: LocationId,
     pub sku: Sku,
     pub on_hand: OnHandUnits,
@@ -85,7 +85,7 @@ pub struct StockPosition {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct InventoryPosition {
+pub struct Position {
     pub location_id: LocationId,
     sku: Sku,
     on_hand: OnHandUnits,
@@ -93,8 +93,8 @@ pub struct InventoryPosition {
     reorder_at: UnitCount,
 }
 
-impl InventoryPosition {
-    pub fn record(stock: StockPosition) -> Result<Self> {
+impl Position {
+    pub fn record(stock: Stock) -> Result<Self> {
         if stock.reserved.get() > stock.on_hand.get() {
             return Err(Error::ReservedUnitsExceedOnHand);
         }
@@ -133,7 +133,7 @@ impl InventoryPosition {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum InventoryPolicy {
+pub enum Policy {
     NotTracked,
     Tracked {
         on_hand: UnitCount,
@@ -142,7 +142,7 @@ pub enum InventoryPolicy {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum InventoryAvailability {
+pub enum Availability {
     Available,
     OutOfStock,
     Backordered,

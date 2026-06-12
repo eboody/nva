@@ -4,9 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::entities::LocationId;
 
-use super::inventory::InventoryPolicy;
-use super::pos::{PointOfSalePolicy, SaleQuantity};
-use super::reorder::Policy as ReorderPolicy;
+use super::{inventory, pos, reorder};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Category {
@@ -66,7 +64,7 @@ pub enum SkuError {
         Deserialize
     )
 )]
-pub struct ProductName(String);
+pub struct Name(String);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Product {
@@ -92,7 +90,7 @@ pub enum OfferingStatus {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ProductUsage {
+pub enum Usage {
     CustomerSellable,
     InHouseConsumable,
     SellableAndInHouseConsumable,
@@ -103,10 +101,10 @@ pub struct LocationOffering {
     pub location_id: LocationId,
     pub product: Product,
     pub status: OfferingStatus,
-    pub usage: ProductUsage,
-    pub pos: PointOfSalePolicy,
-    pub inventory: InventoryPolicy,
-    pub reorder: ReorderPolicy,
+    pub usage: Usage,
+    pub pos: pos::Policy,
+    pub inventory: inventory::Policy,
+    pub reorder: reorder::Policy,
 }
 
 impl LocationOffering {
@@ -114,14 +112,14 @@ impl LocationOffering {
         matches!(self.status, OfferingStatus::Active)
             && matches!(
                 self.usage,
-                ProductUsage::CustomerSellable | ProductUsage::SellableAndInHouseConsumable
+                Usage::CustomerSellable | Usage::SellableAndInHouseConsumable
             )
     }
 
-    pub fn has_available_sale_units(&self, quantity: SaleQuantity) -> bool {
+    pub fn has_available_sale_units(&self, quantity: pos::Quantity) -> bool {
         match self.inventory {
-            InventoryPolicy::NotTracked => true,
-            InventoryPolicy::Tracked { on_hand, .. } => on_hand.get() >= quantity.get(),
+            inventory::Policy::NotTracked => true,
+            inventory::Policy::Tracked { on_hand, .. } => on_hand.get() >= quantity.get(),
         }
     }
 }

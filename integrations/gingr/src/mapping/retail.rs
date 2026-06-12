@@ -6,7 +6,7 @@ use super::{Error, ProviderField, Result};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProductCandidate {
     pub provider_item_id: dto::retail::ItemId,
-    pub name: retail::ProductName,
+    pub name: retail::product::Name,
     pub product: retail::Product,
     pub status: retail::OfferingStatus,
 }
@@ -18,7 +18,7 @@ pub fn product_candidate(item: &dto::retail::Item) -> Result<ProductCandidate> {
         .ok_or(Error::MissingRequiredProviderField {
             field: ProviderField::RetailItemName,
         })?;
-    let name = retail::ProductName::try_new(name).map_err(|err| Error::InvalidDomainValue {
+    let name = retail::product::Name::try_new(name).map_err(|err| Error::InvalidDomainValue {
         field: ProviderField::RetailItemName,
         reason: err.to_string(),
     })?;
@@ -39,7 +39,7 @@ pub fn product_candidate(item: &dto::retail::Item) -> Result<ProductCandidate> {
         .as_deref()
         .map(promote_category)
         .transpose()?
-        .unwrap_or(retail::ProductCategory::PersonalizedUpsell);
+        .unwrap_or(retail::product::Category::PersonalizedUpsell);
     let status = if item.active.unwrap_or(true) {
         retail::OfferingStatus::Active
     } else {
@@ -54,14 +54,14 @@ pub fn product_candidate(item: &dto::retail::Item) -> Result<ProductCandidate> {
     })
 }
 
-fn promote_category(value: &str) -> Result<retail::ProductCategory> {
+fn promote_category(value: &str) -> Result<retail::product::Category> {
     match value.trim().to_ascii_lowercase().as_str() {
-        "supplement" | "supplements" => Ok(retail::ProductCategory::Supplement),
+        "supplement" | "supplements" => Ok(retail::product::Category::Supplement),
         "in_house_diet" | "in-house diet" | "in house diet" | "food" | "diet" => {
-            Ok(retail::ProductCategory::InHouseDiet)
+            Ok(retail::product::Category::InHouseDiet)
         }
         "personalized_upsell" | "personalized upsell" | "upsell" | "retail" => {
-            Ok(retail::ProductCategory::PersonalizedUpsell)
+            Ok(retail::product::Category::PersonalizedUpsell)
         }
         _ => Err(Error::InvalidDomainValue {
             field: ProviderField::RetailItemCategory,

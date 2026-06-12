@@ -221,7 +221,8 @@ pub use crate::training::{
     DurationWeeksError as TrainingProgramDurationWeeksError, Program as TrainingProgram,
 };
 
-pub use crate::retail::{Partner as RetailPartner, ProductCategory as RetailProductCategory};
+pub use crate::retail::Partner as RetailPartner;
+pub use crate::retail::product::Category as RetailProductCategory;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 pub struct TechnologyEcosystem {

@@ -733,42 +733,45 @@ fn retail_contract_encodes_product_pos_inventory_recommendation_and_reorder_rule
     let contract = retail::Contract::builder()
         .product(retail::Product::new(
             retail::Sku::try_new("  CALM-CARE-30  ").unwrap(),
-            retail::ProductCategory::Supplement,
+            retail::product::Category::Supplement,
         ))
-        .pos(retail::PointOfSalePolicy::IntegratedWithReservationCheckout)
-        .inventory(retail::InventoryPolicy::Tracked {
-            on_hand: retail::UnitCount::try_new(8).unwrap(),
-            reorder_at: retail::UnitCount::try_new(10).unwrap(),
+        .pos(retail::pos::Policy::IntegratedWithReservationCheckout)
+        .inventory(retail::inventory::Policy::Tracked {
+            on_hand: retail::inventory::UnitCount::try_new(8).unwrap(),
+            reorder_at: retail::inventory::UnitCount::try_new(10).unwrap(),
         })
-        .recommendation(retail::RecommendationRule::AnxietySupportAfterBoarding)
-        .reorder(retail::ReorderPolicy::AutoCreateManagerTask)
+        .recommendation(retail::recommendation::Rule::AnxietySupportAfterBoarding)
+        .reorder(retail::reorder::Policy::AutoCreateManagerTask)
         .build();
 
     assert_eq!(contract.product.sku().clone().into_inner(), "CALM-CARE-30");
     assert!(contract.should_reorder());
     assert!(retail::Sku::try_new("   ").is_err());
-    assert!(retail::UnitCount::try_new(0).is_err());
+    assert!(retail::inventory::UnitCount::try_new(0).is_err());
 }
 
 #[test]
 fn retail_inventory_position_derives_available_units_and_rejects_over_reserved_stock() {
-    let position = retail::InventoryPosition::record(retail::StockPosition {
+    let position = retail::inventory::Position::record(retail::inventory::Stock {
         location_id: entities::LocationId(Uuid::nil()),
         sku: retail::Sku::try_new("CALM-CARE-30").unwrap(),
-        on_hand: retail::OnHandUnits::new(8),
-        reserved: retail::ReservedUnits::new(3),
-        reorder_at: retail::UnitCount::try_new(10).unwrap(),
+        on_hand: retail::inventory::OnHandUnits::new(8),
+        reserved: retail::inventory::ReservedUnits::new(3),
+        reorder_at: retail::inventory::UnitCount::try_new(10).unwrap(),
     })
     .unwrap();
 
-    assert_eq!(position.available_units(), retail::AvailableUnits::new(5));
     assert_eq!(
-        retail::InventoryPosition::record(retail::StockPosition {
+        position.available_units(),
+        retail::inventory::AvailableUnits::new(5)
+    );
+    assert_eq!(
+        retail::inventory::Position::record(retail::inventory::Stock {
             location_id: entities::LocationId(Uuid::nil()),
             sku: retail::Sku::try_new("CALM-CARE-30").unwrap(),
-            on_hand: retail::OnHandUnits::new(2),
-            reserved: retail::ReservedUnits::new(3),
-            reorder_at: retail::UnitCount::try_new(10).unwrap(),
+            on_hand: retail::inventory::OnHandUnits::new(2),
+            reserved: retail::inventory::ReservedUnits::new(3),
+            reorder_at: retail::inventory::UnitCount::try_new(10).unwrap(),
         }),
         Err(retail::Error::ReservedUnitsExceedOnHand)
     );
@@ -777,23 +780,23 @@ fn retail_inventory_position_derives_available_units_and_rejects_over_reserved_s
 #[test]
 fn retail_reorder_policy_routes_below_threshold_stock_to_reviewable_staff_task() {
     let sku = retail::Sku::try_new("CALM-CARE-30").unwrap();
-    let position = retail::InventoryPosition::record(retail::StockPosition {
+    let position = retail::inventory::Position::record(retail::inventory::Stock {
         location_id: entities::LocationId(Uuid::nil()),
         sku: sku.clone(),
-        on_hand: retail::OnHandUnits::new(4),
-        reserved: retail::ReservedUnits::new(0),
-        reorder_at: retail::UnitCount::try_new(10).unwrap(),
+        on_hand: retail::inventory::OnHandUnits::new(4),
+        reserved: retail::inventory::ReservedUnits::new(0),
+        reorder_at: retail::inventory::UnitCount::try_new(10).unwrap(),
     })
     .unwrap();
 
-    let decision = retail::ReorderPolicy::AutoCreateManagerTask.evaluate(&position);
+    let decision = retail::reorder::Policy::AutoCreateManagerTask.evaluate(&position);
 
     assert_eq!(
         decision,
-        retail::ReorderDecision::CreateStaffTask {
+        retail::reorder::Decision::CreateStaffTask {
             location_id: entities::LocationId(Uuid::nil()),
             sku,
-            reason: retail::ReorderReason::AtOrBelowThreshold,
+            reason: retail::reorder::Reason::AtOrBelowThreshold,
             gate: domain::policy::ReviewGate::ManagerApproval,
         }
     );
@@ -805,34 +808,34 @@ fn retail_pos_policy_requires_manager_approval_for_comps_discounts_and_refunds()
         .location_id(entities::LocationId(Uuid::nil()))
         .product(retail::Product::new(
             retail::Sku::try_new("CALM-CARE-30").unwrap(),
-            retail::ProductCategory::Supplement,
+            retail::product::Category::Supplement,
         ))
         .status(retail::OfferingStatus::Active)
-        .usage(retail::ProductUsage::CustomerSellable)
-        .pos(retail::PointOfSalePolicy::IntegratedWithReservationCheckout)
-        .inventory(retail::InventoryPolicy::Tracked {
-            on_hand: retail::UnitCount::try_new(5).unwrap(),
-            reorder_at: retail::UnitCount::try_new(2).unwrap(),
+        .usage(retail::product::Usage::CustomerSellable)
+        .pos(retail::pos::Policy::IntegratedWithReservationCheckout)
+        .inventory(retail::inventory::Policy::Tracked {
+            on_hand: retail::inventory::UnitCount::try_new(5).unwrap(),
+            reorder_at: retail::inventory::UnitCount::try_new(2).unwrap(),
         })
-        .reorder(retail::ReorderPolicy::ManualReview)
+        .reorder(retail::reorder::Policy::ManualReview)
         .build();
-    let request = retail::SaleRequest::builder()
+    let request = retail::pos::Request::builder()
         .offering(offering)
-        .quantity(retail::SaleQuantity::try_new(1).unwrap())
-        .source(retail::SaleSource::ReservationCheckout {
+        .quantity(retail::pos::Quantity::try_new(1).unwrap())
+        .source(retail::pos::Source::ReservationCheckout {
             reservation_id: entities::ReservationId(Uuid::nil()),
         })
-        .price_adjustment(retail::PriceAdjustment::ManagerComp {
-            reason: retail::PriceExceptionReason::ComplaintRecovery,
+        .price_adjustment(retail::pos::PriceAdjustment::ManagerComp {
+            reason: retail::pos::PriceExceptionReason::ComplaintRecovery,
         })
         .build();
 
-    let decision = retail::PointOfSalePolicy::IntegratedWithReservationCheckout.evaluate(&request);
+    let decision = retail::pos::Policy::IntegratedWithReservationCheckout.evaluate(&request);
 
     assert_eq!(
         decision,
-        retail::SaleLineDecision::ReviewRequired {
-            reason: retail::SaleReviewReason::PriceException,
+        retail::pos::Decision::ReviewRequired {
+            reason: retail::pos::ReviewReason::PriceException,
             gate: domain::policy::ReviewGate::ManagerApproval,
         }
     );
@@ -840,30 +843,32 @@ fn retail_pos_policy_requires_manager_approval_for_comps_discounts_and_refunds()
 
 #[test]
 fn retail_recommendation_policy_routes_care_sensitive_supplement_candidates_to_staff_review() {
-    let candidate = retail::RecommendationCandidate::builder()
+    let candidate = retail::recommendation::Candidate::builder()
         .customer_id(entities::CustomerId(Uuid::nil()))
         .pet_id(entities::PetId(Uuid::nil()))
         .location_id(entities::LocationId(Uuid::nil()))
         .product(retail::Product::new(
             retail::Sku::try_new("CALM-CARE-30").unwrap(),
-            retail::ProductCategory::Supplement,
+            retail::product::Category::Supplement,
         ))
-        .reason(retail::RecommendationReason::AnxietyOrStressSupport)
+        .reason(retail::recommendation::Reason::AnxietyOrStressSupport)
         .rationale(
-            retail::RecommendationRationale::try_new("staff noted anxious boarding transition")
-                .unwrap(),
+            retail::recommendation::rationale::Text::try_new(
+                "staff noted anxious boarding transition",
+            )
+            .unwrap(),
         )
-        .care_sensitivity(retail::CareSensitivity::SupplementOrDietReviewRequired)
-        .inventory(retail::InventoryAvailability::Available)
-        .customer_preference(retail::CustomerRetailPreference::AllowsRetailRecommendations)
+        .care_sensitivity(retail::recommendation::CareSensitivity::SupplementOrDietReviewRequired)
+        .inventory(retail::inventory::Availability::Available)
+        .customer_preference(retail::recommendation::Preference::AllowsRetailRecommendations)
         .build();
 
-    let decision = retail::RecommendationPolicy.evaluate(&candidate);
+    let decision = retail::recommendation::Policy.evaluate(&candidate);
 
     assert_eq!(
         decision,
-        retail::RecommendationDecision::StaffReviewRequired {
-            reason: retail::RecommendationReviewReason::CareSensitiveProduct,
+        retail::recommendation::Decision::StaffReviewRequired {
+            reason: retail::recommendation::ReviewReason::CareSensitiveProduct,
             gate: domain::policy::ReviewGate::MedicalDocumentReview,
         }
     );
@@ -871,16 +876,17 @@ fn retail_recommendation_policy_routes_care_sensitive_supplement_candidates_to_s
 
 #[test]
 fn retail_customer_copy_policy_forbids_medical_claims_in_customer_drafts() {
-    let copy =
-        retail::CustomerSafeCopy::try_new("Virbac CalmCare treats anxiety for boarding dogs")
-            .unwrap();
+    let copy = retail::recommendation::customer_copy::SafeCopy::try_new(
+        "Virbac CalmCare treats anxiety for boarding dogs",
+    )
+    .unwrap();
 
-    let decision = retail::CustomerCopyPolicy.evaluate(&copy);
+    let decision = retail::recommendation::customer_copy::Policy.evaluate(&copy);
 
     assert_eq!(
         decision,
-        retail::CustomerCopyDecision::Rejected {
-            reason: retail::CustomerCopyRejectionReason::MedicalClaim,
+        retail::recommendation::customer_copy::Decision::Rejected {
+            reason: retail::recommendation::customer_copy::RejectionReason::MedicalClaim,
             gate: domain::policy::ReviewGate::CustomerMessageApproval,
         }
     );
