@@ -1,6 +1,6 @@
 use domain::{
-    agent, care, customer, daily_brief, entities, lead, location, money, operations, payment, pet,
-    policy, portal, reputation, reservation, service::grooming, staff, temperament, workflow,
+    agent, care, customer, daily_brief, entities, grooming, lead, location, money, operations,
+    payment, pet, policy, portal, reputation, reservation, staff, temperament, workflow,
 };
 
 #[test]

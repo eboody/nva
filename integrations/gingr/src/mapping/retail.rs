@@ -1,5 +1,5 @@
 use crate::dto;
-use domain::service::retail;
+use domain::retail;
 
 use super::{Error, ProviderField, Result};
 

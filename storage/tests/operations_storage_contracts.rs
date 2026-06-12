@@ -41,9 +41,9 @@ fn portfolio_records_promote_into_domain_portfolios_and_demote_back_to_storage()
 #[test]
 fn service_offering_records_preserve_variant_contracts_through_codecs() {
     let grooming = domain::operations::ServiceOffering::Grooming {
-        service: domain::service::grooming::Service::FullGroom,
-        cadence: domain::service::grooming::RebookingCadence::EveryWeeks(
-            domain::service::grooming::CadenceWeeks::try_new(6).unwrap(),
+        service: domain::grooming::Service::FullGroom,
+        cadence: domain::grooming::RebookingCadence::EveryWeeks(
+            domain::grooming::CadenceWeeks::try_new(6).unwrap(),
         ),
     };
 
@@ -98,8 +98,8 @@ fn operations_reexports_service_line_storage_compatibility_names() {
 #[test]
 fn service_line_records_promote_domain_service_values_at_storage_boundary() {
     let training_record = storage::service::training::ProgramRecord::try_from(
-        domain::service::training::Program::StayAndStudy {
-            duration: domain::service::training::DurationWeeks::try_new(4).unwrap(),
+        domain::training::Program::StayAndStudy {
+            duration: domain::training::DurationWeeks::try_new(4).unwrap(),
         },
     )
     .unwrap();
@@ -112,15 +112,15 @@ fn service_line_records_promote_domain_service_values_at_storage_boundary() {
         }
     );
 
-    let domain_program: domain::service::training::Program = training_record.try_into().unwrap();
+    let domain_program: domain::training::Program = training_record.try_into().unwrap();
     assert_eq!(
         domain_program,
-        domain::service::training::Program::StayAndStudy {
-            duration: domain::service::training::DurationWeeks::try_new(4).unwrap(),
+        domain::training::Program::StayAndStudy {
+            duration: domain::training::DurationWeeks::try_new(4).unwrap(),
         }
     );
 
-    let retail_partner: domain::service::retail::Partner =
+    let retail_partner: domain::retail::Partner =
         storage::service::retail::PartnerCode::PurinaEnBoardingDiet.into();
     assert_eq!(
         storage::service::retail::PartnerCode::from(retail_partner),

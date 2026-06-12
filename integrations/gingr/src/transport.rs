@@ -154,18 +154,14 @@ impl fmt::Display for RedactedRequest {
 }
 
 pub trait Transport {
-    fn send(&self, config: &config::ClientConfig, request: RequestParts) -> Result<response::Raw>;
+    fn send(&self, config: &config::Client, request: RequestParts) -> Result<response::Raw>;
 }
 
 #[derive(Clone, Debug, Default)]
 pub struct MockTransport;
 
 impl Transport for MockTransport {
-    fn send(
-        &self,
-        _config: &config::ClientConfig,
-        _request: RequestParts,
-    ) -> Result<response::Raw> {
+    fn send(&self, _config: &config::Client, _request: RequestParts) -> Result<response::Raw> {
         Ok(response::Raw::new(
             response::HttpStatus::OK,
             bytes::Bytes::from_static(b"{}"),
@@ -177,23 +173,19 @@ impl Transport for MockTransport {
 pub struct HttpTransport;
 
 impl Transport for HttpTransport {
-    fn send(
-        &self,
-        _config: &config::ClientConfig,
-        _request: RequestParts,
-    ) -> Result<response::Raw> {
+    fn send(&self, _config: &config::Client, _request: RequestParts) -> Result<response::Raw> {
         Err(Error::HttpNotImplemented)
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct Client<T = HttpTransport> {
-    config: config::ClientConfig,
+    config: config::Client,
     transport: T,
 }
 
 impl Client<HttpTransport> {
-    pub fn new(config: config::ClientConfig) -> Self {
+    pub fn new(config: config::Client) -> Self {
         Self {
             config,
             transport: HttpTransport,
@@ -202,11 +194,11 @@ impl Client<HttpTransport> {
 }
 
 impl<T> Client<T> {
-    pub fn with_transport(config: config::ClientConfig, transport: T) -> Self {
+    pub fn with_transport(config: config::Client, transport: T) -> Self {
         Self { config, transport }
     }
 
-    pub fn config(&self) -> &config::ClientConfig {
+    pub fn config(&self) -> &config::Client {
         &self.config
     }
 

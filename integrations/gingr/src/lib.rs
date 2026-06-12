@@ -6,5 +6,4 @@ pub mod response;
 pub mod transport;
 pub mod webhook;
 
-pub use config::{ApiKey, BaseUrl, ClientConfig, Provider, Subdomain};
-pub use transport::Client;
+pub use config::{ApiKey, BaseUrl, Provider, Subdomain};

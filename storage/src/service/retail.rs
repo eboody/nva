@@ -3,15 +3,15 @@ use serde::{Deserialize, Serialize};
 /// Storage shape for a migrated retail service contract.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct ContractRecord(pub domain::service::retail::Contract);
+pub struct ContractRecord(pub domain::retail::Contract);
 
-impl From<domain::service::retail::Contract> for ContractRecord {
-    fn from(value: domain::service::retail::Contract) -> Self {
+impl From<domain::retail::Contract> for ContractRecord {
+    fn from(value: domain::retail::Contract) -> Self {
         Self(value)
     }
 }
 
-impl From<ContractRecord> for domain::service::retail::Contract {
+impl From<ContractRecord> for domain::retail::Contract {
     fn from(record: ContractRecord) -> Self {
         record.0
     }
@@ -33,7 +33,7 @@ pub enum ProductCategoryCode {
     PersonalizedUpsell,
 }
 
-impl From<PartnerCode> for domain::service::retail::Partner {
+impl From<PartnerCode> for domain::retail::Partner {
     fn from(value: PartnerCode) -> Self {
         match value {
             PartnerCode::VirbacCalmCare => Self::VirbacCalmCare,
@@ -45,19 +45,19 @@ impl From<PartnerCode> for domain::service::retail::Partner {
     }
 }
 
-impl From<domain::service::retail::Partner> for PartnerCode {
-    fn from(value: domain::service::retail::Partner) -> Self {
+impl From<domain::retail::Partner> for PartnerCode {
+    fn from(value: domain::retail::Partner) -> Self {
         match value {
-            domain::service::retail::Partner::VirbacCalmCare => Self::VirbacCalmCare,
-            domain::service::retail::Partner::PurinaProPlanVeterinarySupplements => {
+            domain::retail::Partner::VirbacCalmCare => Self::VirbacCalmCare,
+            domain::retail::Partner::PurinaProPlanVeterinarySupplements => {
                 Self::PurinaProPlanVeterinarySupplements
             }
-            domain::service::retail::Partner::PurinaEnBoardingDiet => Self::PurinaEnBoardingDiet,
+            domain::retail::Partner::PurinaEnBoardingDiet => Self::PurinaEnBoardingDiet,
         }
     }
 }
 
-impl From<ProductCategoryCode> for domain::service::retail::ProductCategory {
+impl From<ProductCategoryCode> for domain::retail::ProductCategory {
     fn from(value: ProductCategoryCode) -> Self {
         match value {
             ProductCategoryCode::Supplement => Self::Supplement,
@@ -67,14 +67,12 @@ impl From<ProductCategoryCode> for domain::service::retail::ProductCategory {
     }
 }
 
-impl From<domain::service::retail::ProductCategory> for ProductCategoryCode {
-    fn from(value: domain::service::retail::ProductCategory) -> Self {
+impl From<domain::retail::ProductCategory> for ProductCategoryCode {
+    fn from(value: domain::retail::ProductCategory) -> Self {
         match value {
-            domain::service::retail::ProductCategory::Supplement => Self::Supplement,
-            domain::service::retail::ProductCategory::InHouseDiet => Self::InHouseDiet,
-            domain::service::retail::ProductCategory::PersonalizedUpsell => {
-                Self::PersonalizedUpsell
-            }
+            domain::retail::ProductCategory::Supplement => Self::Supplement,
+            domain::retail::ProductCategory::InHouseDiet => Self::InHouseDiet,
+            domain::retail::ProductCategory::PersonalizedUpsell => Self::PersonalizedUpsell,
         }
     }
 }

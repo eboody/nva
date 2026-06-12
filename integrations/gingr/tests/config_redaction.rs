@@ -1,4 +1,4 @@
-use gingr::config::{ApiKey, BaseUrl, ClientConfig, Subdomain};
+use gingr::config::{ApiKey, BaseUrl, Client, Subdomain};
 
 const SENTINEL_KEY: &str = "gingr_test_api_key_do_not_send";
 
@@ -45,7 +45,7 @@ fn base_url_rejects_non_https_and_non_gingr_hosts() {
 
 #[test]
 fn client_config_debug_and_display_never_expose_api_key() {
-    let config = ClientConfig::new(
+    let config = Client::new(
         BaseUrl::parse("https://example-pet-resort.gingrapp.com").unwrap(),
         ApiKey::from_secret(SENTINEL_KEY),
     );

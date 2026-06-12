@@ -5,11 +5,14 @@
 
 pub mod agent;
 pub mod audit;
+pub mod boarding;
 pub mod care;
 pub mod customer;
 pub mod daily_brief;
+pub mod daycare;
 pub mod document;
 pub mod entities;
+pub mod grooming;
 pub mod incident;
 pub mod lead;
 pub mod location;
@@ -22,33 +25,9 @@ pub mod policy;
 pub mod portal;
 pub mod reputation;
 pub mod reservation;
-pub mod service;
+pub mod retail;
 pub mod staff;
 pub mod temperament;
+pub mod training;
 pub mod vaccine;
 pub mod workflow;
-
-pub mod prelude {
-    pub use crate::agent::{
-        ForbiddenAction, Name as AgentName, OutputSchemaName, PolicyInstruction,
-        Purpose as AgentPurpose, Spec as AgentSpec, ToolName,
-    };
-    pub use crate::entities::{
-        ActorRef, AddOn, AuditAction, AuditEvent, AuditMetadataKey, AuditMetadataValue,
-        AuditSubject, Brand, CareProfile, ContactChannel, Customer, CustomerId, Deposit, HardStop,
-        Location, LocationId, LocationPolicyRefs, ManagerId, PaymentStatus, Pet, PetId,
-        PortalAccountRef, PortalProvider, Reservation, ReservationId, ReservationSource,
-        ReservationStatus, ServiceKind, Sex, SpayNeuterStatus, Species, StaffId,
-        TemperamentProfile,
-    };
-    pub use crate::policy::{ReviewGate, automation};
-    pub use crate::staff::{
-        StaffRole, StaffTask, StaffTaskAssignment, StaffTaskKind, StaffTaskPriority,
-        StaffTaskSource, StaffTaskStatus, TaskCompletionEvidence,
-    };
-    pub use crate::workflow::{
-        AllowedAction, PolicyContext, RecommendedAction, ReviewReason, RiskFlag, Summary,
-        VerificationNote, WorkflowEvent, WorkflowEventId, WorkflowEventType, WorkflowResult,
-        WorkflowStatus, WorkflowSubject,
-    };
-}

@@ -5,15 +5,15 @@ use crate::operations::{Error, Result, StorageField};
 /// Storage shape for a migrated training service contract.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct ContractRecord(pub domain::service::training::Contract);
+pub struct ContractRecord(pub domain::training::Contract);
 
-impl From<domain::service::training::Contract> for ContractRecord {
-    fn from(value: domain::service::training::Contract) -> Self {
+impl From<domain::training::Contract> for ContractRecord {
+    fn from(value: domain::training::Contract) -> Self {
         Self(value)
     }
 }
 
-impl From<ContractRecord> for domain::service::training::Contract {
+impl From<ContractRecord> for domain::training::Contract {
     fn from(record: ContractRecord) -> Self {
         record.0
     }
@@ -63,10 +63,10 @@ pub enum StoredProgramDurationWeeksError {
     ZeroWeeks,
 }
 
-impl TryFrom<domain::service::training::DurationWeeks> for StoredProgramDurationWeeks {
+impl TryFrom<domain::training::DurationWeeks> for StoredProgramDurationWeeks {
     type Error = Error;
 
-    fn try_from(value: domain::service::training::DurationWeeks) -> Result<Self> {
+    fn try_from(value: domain::training::DurationWeeks) -> Result<Self> {
         Self::try_new(value.get()).map_err(|err| Error::InvalidDomainValue {
             field: StorageField::TrainingProgramDurationWeeks,
             reason: err.to_string(),
@@ -74,11 +74,11 @@ impl TryFrom<domain::service::training::DurationWeeks> for StoredProgramDuration
     }
 }
 
-impl TryFrom<StoredProgramDurationWeeks> for domain::service::training::DurationWeeks {
+impl TryFrom<StoredProgramDurationWeeks> for domain::training::DurationWeeks {
     type Error = Error;
 
     fn try_from(value: StoredProgramDurationWeeks) -> Result<Self> {
-        domain::service::training::DurationWeeks::try_new(value.get()).map_err(|err| {
+        domain::training::DurationWeeks::try_new(value.get()).map_err(|err| {
             Error::InvalidDomainValue {
                 field: StorageField::TrainingProgramDurationWeeks,
                 reason: err.to_string(),
@@ -87,26 +87,24 @@ impl TryFrom<StoredProgramDurationWeeks> for domain::service::training::Duration
     }
 }
 
-impl TryFrom<domain::service::training::Program> for ProgramRecord {
+impl TryFrom<domain::training::Program> for ProgramRecord {
     type Error = Error;
 
-    fn try_from(value: domain::service::training::Program) -> Result<Self> {
+    fn try_from(value: domain::training::Program) -> Result<Self> {
         Ok(match value {
-            domain::service::training::Program::StayAndStudy { duration } => Self::StayAndStudy {
+            domain::training::Program::StayAndStudy { duration } => Self::StayAndStudy {
                 duration_weeks: duration.try_into()?,
             },
-            domain::service::training::Program::TutorSession => Self::TutorSession,
-            domain::service::training::Program::GroupClass => Self::GroupClass,
-            domain::service::training::Program::PuppyKindergarten => Self::PuppyKindergarten,
-            domain::service::training::Program::PrivateLesson => Self::PrivateLesson,
-            domain::service::training::Program::AkcCanineGoodCitizenPrep => {
-                Self::AkcCanineGoodCitizenPrep
-            }
+            domain::training::Program::TutorSession => Self::TutorSession,
+            domain::training::Program::GroupClass => Self::GroupClass,
+            domain::training::Program::PuppyKindergarten => Self::PuppyKindergarten,
+            domain::training::Program::PrivateLesson => Self::PrivateLesson,
+            domain::training::Program::AkcCanineGoodCitizenPrep => Self::AkcCanineGoodCitizenPrep,
         })
     }
 }
 
-impl TryFrom<ProgramRecord> for domain::service::training::Program {
+impl TryFrom<ProgramRecord> for domain::training::Program {
     type Error = Error;
 
     fn try_from(value: ProgramRecord) -> Result<Self> {

@@ -161,13 +161,13 @@ impl fmt::Display for Provider {
 }
 
 #[derive(Clone)]
-pub struct ClientConfig {
+pub struct Client {
     base_url: BaseUrl,
     api_key: ApiKey,
     provider: Provider,
 }
 
-impl ClientConfig {
+impl Client {
     pub fn new(base_url: BaseUrl, api_key: ApiKey) -> Self {
         Self {
             base_url,
@@ -189,10 +189,10 @@ impl ClientConfig {
     }
 }
 
-impl fmt::Debug for ClientConfig {
+impl fmt::Debug for Client {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("ClientConfig")
+            .debug_struct("Client")
             .field("base_url", &self.base_url)
             .field("api_key", &"<redacted>")
             .field("provider", &self.provider)
@@ -200,7 +200,7 @@ impl fmt::Debug for ClientConfig {
     }
 }
 
-impl fmt::Display for ClientConfig {
+impl fmt::Display for Client {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             formatter,
