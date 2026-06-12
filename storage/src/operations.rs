@@ -872,7 +872,7 @@ impl TryFrom<TrainingProgramRecord> for domain::operations::TrainingProgram {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CoreServiceContractsRecord {
     pub location_id: domain::entities::LocationId,
-    pub boarding: domain::operations::boarding::Contract,
+    pub boarding: domain::service::boarding::Contract,
     pub daycare: domain::operations::daycare::Contract,
     pub grooming: domain::operations::grooming::Contract,
     pub training: domain::operations::training::Contract,

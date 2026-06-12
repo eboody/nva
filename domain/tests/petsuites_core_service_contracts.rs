@@ -1,61 +1,61 @@
-use domain::{entities, money, operations};
+use domain::{entities, money, operations, service::boarding};
 use uuid::Uuid;
 
 #[test]
 fn boarding_contract_encodes_capacity_stay_payment_housekeeping_handoff_and_upsell_rules() {
-    let contract = operations::boarding::Contract::builder()
-        .capacity(operations::boarding::CapacityPlan::new(
-            operations::boarding::RoomInventory::try_new(48).unwrap(),
-            operations::boarding::RoomAvailability::Limited,
+    let contract = boarding::Contract::builder()
+        .capacity(boarding::CapacityPlan::new(
+            boarding::RoomInventory::try_new(48).unwrap(),
+            boarding::RoomAvailability::Limited,
         ))
         .arrival_window(
-            operations::boarding::ServiceWindow::new(
-                operations::boarding::HourOfDay::try_new(7).unwrap(),
-                operations::boarding::HourOfDay::try_new(18).unwrap(),
+            boarding::ServiceWindow::new(
+                boarding::HourOfDay::try_new(7).unwrap(),
+                boarding::HourOfDay::try_new(18).unwrap(),
             )
             .unwrap(),
         )
         .departure_window(
-            operations::boarding::ServiceWindow::new(
-                operations::boarding::HourOfDay::try_new(7).unwrap(),
-                operations::boarding::HourOfDay::try_new(12).unwrap(),
+            boarding::ServiceWindow::new(
+                boarding::HourOfDay::try_new(7).unwrap(),
+                boarding::HourOfDay::try_new(12).unwrap(),
             )
             .unwrap(),
         )
-        .minimum_stay(operations::boarding::MinimumStay::new(
-            operations::boarding::StayNights::try_new(2).unwrap(),
-            operations::boarding::MinimumStayReason::HolidayPeak,
+        .minimum_stay(boarding::MinimumStay::new(
+            boarding::StayNights::try_new(2).unwrap(),
+            boarding::MinimumStayReason::HolidayPeak,
         ))
-        .cancellation(operations::boarding::CancellationPolicy::new(
-            operations::boarding::NoticeHours::try_new(48).unwrap(),
-            operations::boarding::CancellationPenalty::ForfeitDeposit,
+        .cancellation(boarding::CancellationPolicy::new(
+            boarding::NoticeHours::try_new(48).unwrap(),
+            boarding::CancellationPenalty::ForfeitDeposit,
         ))
-        .deposit(operations::boarding::DepositRule::Required {
+        .deposit(boarding::DepositRule::Required {
             amount: money::Money::new(
                 money::MinorUnits::try_new(5_000).unwrap(),
                 money::Currency::Usd,
             ),
         })
-        .payment(operations::boarding::PaymentTiming::DueAtCheckout)
-        .housekeeping(operations::boarding::HousekeepingCadence::DailyRoomReset)
-        .handoff(operations::boarding::HandoffRequirement::ArrivalCareReview)
+        .payment(boarding::PaymentTiming::DueAtCheckout)
+        .housekeeping(boarding::HousekeepingCadence::DailyRoomReset)
+        .handoff(boarding::HandoffRequirement::ArrivalCareReview)
         .upsells(vec![
-            operations::boarding::Upsell::ExitBath,
-            operations::boarding::Upsell::TrainingSession,
+            boarding::Upsell::ExitBath,
+            boarding::Upsell::TrainingSession,
         ])
         .build();
 
     assert_eq!(contract.capacity.room_inventory().get(), 48);
     assert!(contract.requires_deposit_collection());
     assert_eq!(contract.minimum_stay.nights().get(), 2);
-    assert!(operations::boarding::RoomInventory::try_new(0).is_err());
-    assert!(operations::boarding::StayNights::try_new(0).is_err());
-    assert!(operations::boarding::NoticeHours::try_new(0).is_err());
-    assert!(operations::boarding::HourOfDay::try_new(24).is_err());
+    assert!(boarding::RoomInventory::try_new(0).is_err());
+    assert!(boarding::StayNights::try_new(0).is_err());
+    assert!(boarding::NoticeHours::try_new(0).is_err());
+    assert!(boarding::HourOfDay::try_new(24).is_err());
     assert!(
-        operations::boarding::ServiceWindow::new(
-            operations::boarding::HourOfDay::try_new(18).unwrap(),
-            operations::boarding::HourOfDay::try_new(7).unwrap(),
+        boarding::ServiceWindow::new(
+            boarding::HourOfDay::try_new(18).unwrap(),
+            boarding::HourOfDay::try_new(7).unwrap(),
         )
         .is_err()
     );
@@ -63,28 +63,25 @@ fn boarding_contract_encodes_capacity_stay_payment_housekeeping_handoff_and_upse
 
 #[test]
 fn boarding_capacity_policy_never_uses_cat_condo_for_dog_request() {
-    let snapshot = operations::boarding::capacity::Snapshot::new(vec![
-        operations::boarding::capacity::NightlySegmentSnapshot::new(
-            operations::boarding::accommodation::Kind::CatCondo,
-            operations::boarding::capacity::RoomCount::try_new(4).unwrap(),
-            operations::boarding::capacity::RoomCount::try_new(0).unwrap(),
-        ),
-    ])
-    .unwrap();
-    let request = operations::boarding::capacity::Request::new(
+    let snapshot =
+        boarding::capacity::Snapshot::new(vec![boarding::capacity::NightlySegmentSnapshot::new(
+            boarding::accommodation::Kind::CatCondo,
+            boarding::capacity::RoomCount::try_new(4).unwrap(),
+            boarding::capacity::RoomCount::try_new(0).unwrap(),
+        )])
+        .unwrap();
+    let request = boarding::capacity::Request::new(
         entities::LocationId(Uuid::nil()),
         entities::Species::Dog,
-        operations::boarding::accommodation::Preference::Specific(
-            operations::boarding::accommodation::Kind::CatCondo,
-        ),
+        boarding::accommodation::Preference::Specific(boarding::accommodation::Kind::CatCondo),
     );
 
-    let decision = operations::boarding::capacity::Policy.evaluate(&request, &snapshot);
+    let decision = boarding::capacity::Policy.evaluate(&request, &snapshot);
 
     assert!(matches!(
         decision,
-        operations::boarding::capacity::Decision::Deny {
-            reason: operations::boarding::capacity::DenialReason::SpeciesAccommodationMismatch,
+        boarding::capacity::Decision::Deny {
+            reason: boarding::capacity::DenialReason::SpeciesAccommodationMismatch,
             ..
         }
     ));
@@ -96,22 +93,19 @@ fn boarding_capacity_policy_never_uses_cat_condo_for_dog_request() {
 
 #[test]
 fn boarding_deposit_policy_requires_due_at_booking_collection_before_confirmation() {
-    let rule = operations::boarding::DepositRule::Required {
+    let rule = boarding::DepositRule::Required {
         amount: money::Money::new(
             money::MinorUnits::try_new(2_500).unwrap(),
             money::Currency::Usd,
         ),
     };
-    let decision = operations::boarding::deposit::Policy::new(
-        rule,
-        operations::boarding::PaymentTiming::DueAtBooking,
-    )
-    .readiness_for_confirmation(None);
+    let decision = boarding::deposit::Policy::new(rule, boarding::PaymentTiming::DueAtBooking)
+        .readiness_for_confirmation(None);
 
     assert!(matches!(
         decision,
-        operations::boarding::deposit::ConfirmationReadiness::Blocked {
-            blocker: operations::boarding::deposit::Blocker::DepositRequired,
+        boarding::deposit::ConfirmationReadiness::Blocked {
+            blocker: boarding::deposit::Blocker::DepositRequired,
             review_gate: domain::policy::ReviewGate::RefundOrDepositException,
         }
     ));
@@ -123,7 +117,7 @@ fn boarding_deposit_policy_treats_paid_deposit_with_reference_as_satisfied() {
         money::MinorUnits::try_new(2_500).unwrap(),
         money::Currency::Usd,
     );
-    let rule = operations::boarding::DepositRule::Required {
+    let rule = boarding::DepositRule::Required {
         amount: amount.clone(),
     };
     let paid = domain::payment::Deposit::paid(
@@ -131,35 +125,22 @@ fn boarding_deposit_policy_treats_paid_deposit_with_reference_as_satisfied() {
         domain::payment::PaymentReference::try_new("gingr-pay-123").unwrap(),
     );
 
-    let decision = operations::boarding::deposit::Policy::new(
-        rule,
-        operations::boarding::PaymentTiming::DueAtBooking,
-    )
-    .readiness_for_confirmation(Some(&paid));
+    let decision = boarding::deposit::Policy::new(rule, boarding::PaymentTiming::DueAtBooking)
+        .readiness_for_confirmation(Some(&paid));
 
-    assert_eq!(
-        decision,
-        operations::boarding::deposit::ConfirmationReadiness::Ready
-    );
+    assert_eq!(decision, boarding::deposit::ConfirmationReadiness::Ready);
 }
 
 #[test]
 fn boarding_care_policy_flags_missing_feeding_instruction_for_staff_review() {
     let care_profile = entities::CareProfile::default();
-    let plan = operations::boarding::care::Policy
-        .plan_for_pet(entities::PetId(Uuid::nil()), &care_profile);
+    let plan = boarding::care::Policy.plan_for_pet(entities::PetId(Uuid::nil()), &care_profile);
 
-    assert_eq!(
-        plan.readiness(),
-        operations::boarding::care::Readiness::Blocked
-    );
-    assert!(
-        plan.gates()
-            .contains(&operations::boarding::care::ReviewGate::new(
-                operations::boarding::care::GateReason::MissingFeedingInstruction,
-                domain::policy::ReviewGate::MedicalDocumentReview,
-            ))
-    );
+    assert_eq!(plan.readiness(), boarding::care::Readiness::Blocked);
+    assert!(plan.gates().contains(&boarding::care::ReviewGate::new(
+        boarding::care::GateReason::MissingFeedingInstruction,
+        domain::policy::ReviewGate::MedicalDocumentReview,
+    )));
 }
 
 #[test]
@@ -169,7 +150,7 @@ fn boarding_upsell_policy_recommends_exit_bath_only_when_eligible_and_not_care_u
         .allergies
         .push(domain::care::AllergyName::try_new("sensitive shampoo").unwrap());
 
-    let recommendation = operations::boarding::upsell::Policy.evaluate_exit_bath(
+    let recommendation = boarding::upsell::Policy.evaluate_exit_bath(
         entities::ReservationId(Uuid::nil()),
         entities::PetId(Uuid::nil()),
         &care_profile,
@@ -177,9 +158,9 @@ fn boarding_upsell_policy_recommends_exit_bath_only_when_eligible_and_not_care_u
 
     assert!(matches!(
         recommendation.eligibility,
-        operations::boarding::upsell::Eligibility::NeedsStaffReview {
+        boarding::upsell::Eligibility::NeedsStaffReview {
             gate: domain::policy::ReviewGate::MedicalDocumentReview,
-            reason: operations::boarding::upsell::ReviewReason::CareSafetyAmbiguity,
+            reason: boarding::upsell::ReviewReason::CareSafetyAmbiguity,
         }
     ));
     assert_eq!(
@@ -957,7 +938,7 @@ fn retail_customer_copy_policy_forbids_medical_claims_in_customer_drafts() {
 fn core_service_contract_groups_all_petsuites_lines_without_raw_field_flags() {
     let service_contracts = operations::CoreServiceContracts::builder()
         .location_id(entities::LocationId(uuid::Uuid::nil()))
-        .boarding(operations::boarding::Contract::standard_petsuites())
+        .boarding(boarding::Contract::standard_petsuites())
         .daycare(operations::daycare::Contract::standard_petsuites())
         .grooming(operations::grooming::Contract::standard_petsuites())
         .training(operations::training::Contract::standard_petsuites())

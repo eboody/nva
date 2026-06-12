@@ -22,6 +22,7 @@ pub mod pet;
 pub mod policy;
 pub mod portal;
 pub mod reservation;
+pub mod service;
 pub mod temperament;
 pub mod tools;
 pub mod vaccine;
