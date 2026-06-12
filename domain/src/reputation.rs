@@ -1,14 +1,14 @@
 //! Canonical domain contracts for reputation-review triage.
 //!
 //! Review signals and escalation decisions cut across service lines;
-//! `operations` retains legacy compatibility re-exports.
+//! `operations` retains deprecated legacy compatibility re-exports.
 
 use nutype::nutype;
 #[allow(unused_imports)]
 use serde::{Deserialize, Serialize};
 
 use crate::entities::LocationId;
-use crate::operations::OperationalObservation;
+use crate::operations;
 
 #[nutype(
     sanitize(trim),
@@ -25,7 +25,7 @@ use crate::operations::OperationalObservation;
         Deserialize
     )
 )]
-pub struct ReviewPlatformName(String);
+pub struct PlatformName(String);
 
 #[nutype(
     sanitize(trim),
@@ -42,20 +42,20 @@ pub struct ReviewPlatformName(String);
         Deserialize
     )
 )]
-pub struct ReviewId(String);
+pub struct Id(String);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ReputationSignal {
+pub struct Signal {
     pub location_id: LocationId,
-    pub platform: ReviewPlatformName,
-    pub review_id: ReviewId,
-    pub sentiment: ReviewSentiment,
-    pub themes: Vec<ReviewTheme>,
-    pub escalation: ReviewEscalation,
+    pub platform: PlatformName,
+    pub review_id: Id,
+    pub sentiment: Sentiment,
+    pub themes: Vec<Theme>,
+    pub escalation: Escalation,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ReviewSentiment {
+pub enum Sentiment {
     Positive,
     Neutral,
     Negative,
@@ -63,7 +63,7 @@ pub enum ReviewSentiment {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ReviewTheme {
+pub enum Theme {
     StaffExperience,
     Cleanliness,
     PricingOrBilling,
@@ -72,11 +72,11 @@ pub enum ReviewTheme {
     PetInjuryOrSafety,
     Communication,
     WaitTime,
-    Other(OperationalObservation),
+    Other(operations::OperationalObservation),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ReviewEscalation {
+pub enum Escalation {
     None,
     DraftPublicResponse,
     ManagerReviewRequired,

@@ -1,14 +1,14 @@
 //! Canonical domain contracts for cross-service lead conversion triage.
 //!
 //! These types describe resort sales/intake state independent of any one
-//! service line; `operations` retains legacy compatibility re-exports.
+//! service line; `operations` retains deprecated legacy compatibility re-exports.
 
 use nutype::nutype;
 #[allow(unused_imports)]
 use serde::{Deserialize, Serialize};
 
 use crate::entities::{CustomerId, ServiceKind};
-use crate::operations::OperationalObservation;
+use crate::operations;
 
 #[nutype(
     sanitize(trim),
@@ -25,7 +25,7 @@ use crate::operations::OperationalObservation;
         Deserialize
     )
 )]
-pub struct LeadSourceName(String);
+pub struct SourceName(String);
 
 #[nutype(
     sanitize(trim),
@@ -45,28 +45,28 @@ pub struct LeadSourceName(String);
 pub struct CampaignName(String);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Lead {
+pub struct Triage {
     pub customer_id: Option<CustomerId>,
-    pub source: LeadSource,
-    pub intent: LeadIntent,
-    pub stage: LeadConversionStage,
+    pub source: Source,
+    pub intent: Intent,
+    pub stage: ConversionStage,
     pub requested_service: Option<ServiceKind>,
-    pub next_action: LeadNextAction,
+    pub next_action: NextAction,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum LeadSource {
+pub enum Source {
     WebsiteForm,
     Phone,
     Sms,
     Email,
     SocialMedia,
-    LocalReferral { source_name: LeadSourceName },
+    LocalReferral { source_name: SourceName },
     Campaign { name: CampaignName },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum LeadIntent {
+pub enum Intent {
     NewCustomerIntake,
     BoardingQuote,
     DaycareTrial,
@@ -77,7 +77,7 @@ pub enum LeadIntent {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum LeadConversionStage {
+pub enum ConversionStage {
     New,
     ContactAttempted,
     WaitingOnCustomer,
@@ -88,11 +88,13 @@ pub enum LeadConversionStage {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum LeadNextAction {
+pub enum NextAction {
     DraftReply,
     RequestMissingPetProfile,
     RequestVaccineProof,
     OfferReservationTimes,
-    RouteToHuman { reason: OperationalObservation },
+    RouteToHuman {
+        reason: operations::OperationalObservation,
+    },
     NoAction,
 }
