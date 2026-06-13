@@ -11,5 +11,5 @@ pub mod tools;
 
 pub mod prelude {
     pub use crate::agents::{AgentPromptPacket, WorkflowAgent, baseline_agent_specs};
-    pub use crate::tools::{ReservationUpdateDraft, StatusSuggestionReason, availability};
+    pub use crate::tools::{availability, draft_update};
 }

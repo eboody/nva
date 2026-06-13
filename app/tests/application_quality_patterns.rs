@@ -100,10 +100,10 @@ fn tool_and_policy_results_use_semantic_decisions_not_bool_string_pairs() {
     );
     assert!(tools::availability::ServiceNotes::try_new("   ").is_err());
 
-    let draft = tools::ReservationUpdateDraft {
+    let draft = tools::draft_update::Request {
         reservation_id: entities::ReservationId(uuid::Uuid::nil()),
         proposed_status: entities::ReservationStatus::Waitlisted,
-        rationale: tools::StatusSuggestionReason::CapacityUnavailable,
+        rationale: tools::draft_update::Rationale::CapacityUnavailable,
     };
     assert_eq!(
         draft.proposed_status,
@@ -129,16 +129,16 @@ fn external_integration_contracts_are_application_tool_port_types() {
     };
     assert_eq!(lookup.account.into_inner(), "gingr-east-1");
 
-    let authorization = tools::payments::AuthorizationRequest {
-        subject: tools::payments::PaymentSubject::ReservationDeposit(entities::ReservationId(
+    let authorization = tools::payment::authorization::Request {
+        subject: tools::payment::Subject::ReservationDeposit(entities::ReservationId(
             uuid::Uuid::nil(),
         )),
         amount: money::Money::new(
             money::MinorUnits::try_new(5_000).unwrap(),
             money::Currency::Usd,
         ),
-        capture_policy: tools::payments::CapturePolicy::AuthorizeOnly,
-        idempotency_key: tools::payments::IdempotencyKey::try_new("  reservation-deposit-123  ")
+        capture_policy: tools::payment::CapturePolicy::AuthorizeOnly,
+        idempotency_key: tools::payment::IdempotencyKey::try_new("  reservation-deposit-123  ")
             .unwrap(),
     };
     assert_eq!(
@@ -146,12 +146,14 @@ fn external_integration_contracts_are_application_tool_port_types() {
         "reservation-deposit-123"
     );
 
-    let message = tools::messaging::DraftMessageRequest {
+    let message = tools::messaging::draft::Request {
         channel: tools::messaging::DeliveryChannel::Email,
         recipient: tools::messaging::Recipient::Customer(entities::CustomerId(uuid::Uuid::nil())),
-        body: tools::messaging::MessageBody::try_new("  Please upload updated rabies records.  ")
-            .unwrap(),
-        review: tools::messaging::MessageReviewPolicy::ManagerApprovalRequired,
+        body: tools::messaging::message_body::Body::try_new(
+            "  Please upload updated rabies records.  ",
+        )
+        .unwrap(),
+        review: tools::messaging::ReviewPolicy::ManagerApprovalRequired,
     };
     assert_eq!(
         message.body.into_inner(),
@@ -181,8 +183,8 @@ fn external_integration_contracts_are_application_tool_port_types() {
     assert_eq!(task.queue.into_inner(), "manager-review");
 
     assert!(tools::portal::AccountId::try_new("   ").is_err());
-    assert!(tools::payments::IdempotencyKey::try_new("   ").is_err());
-    assert!(tools::messaging::MessageBody::try_new("   ").is_err());
+    assert!(tools::payment::IdempotencyKey::try_new("   ").is_err());
+    assert!(tools::messaging::message_body::Body::try_new("   ").is_err());
     assert!(tools::documents::DocumentRef::try_new("   ").is_err());
     assert!(tools::media::CameraId::try_new("   ").is_err());
     assert!(tools::hermes::QueueName::try_new("   ").is_err());

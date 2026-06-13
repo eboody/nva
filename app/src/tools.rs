@@ -25,7 +25,10 @@ pub trait ReservationSystem: Send + Sync {
         &self,
         request: availability::Request,
     ) -> Result<availability::Outcome>;
-    async fn draft_reservation_update(&self, request: ReservationUpdateDraft) -> Result<DraftId>;
+    async fn draft_reservation_update(
+        &self,
+        request: draft_update::Request,
+    ) -> Result<draft_update::DraftId>;
 }
 
 #[async_trait]
@@ -120,42 +123,45 @@ pub mod availability {
     pub struct CapacitySnapshotId(String);
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ReservationUpdateDraft {
-    pub reservation_id: ReservationId,
-    pub proposed_status: ReservationStatus,
-    pub rationale: StatusSuggestionReason,
+pub mod draft_update {
+    use super::*;
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct Request {
+        pub reservation_id: ReservationId,
+        pub proposed_status: ReservationStatus,
+        pub rationale: Rationale,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Rationale {
+        CapacityUnavailable,
+        PolicyHardStop,
+        MissingRequiredInformation,
+        ManagerReviewRequired,
+        CustomerAcceptedOffer,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct DraftId(pub Id);
+
+    #[nutype(
+        sanitize(trim),
+        validate(not_empty, len_char_max = 120),
+        derive(
+            Debug,
+            Clone,
+            PartialEq,
+            Eq,
+            PartialOrd,
+            Ord,
+            Hash,
+            Serialize,
+            Deserialize
+        )
+    )]
+    pub struct Id(String);
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum StatusSuggestionReason {
-    CapacityUnavailable,
-    PolicyHardStop,
-    MissingRequiredInformation,
-    ManagerReviewRequired,
-    CustomerAcceptedOffer,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct DraftId(pub DraftUpdateId);
-
-#[nutype(
-    sanitize(trim),
-    validate(not_empty, len_char_max = 120),
-    derive(
-        Debug,
-        Clone,
-        PartialEq,
-        Eq,
-        PartialOrd,
-        Ord,
-        Hash,
-        Serialize,
-        Deserialize
-    )
-)]
-pub struct DraftUpdateId(String);
-
 pub mod portal {
     use super::*;
 
@@ -247,70 +253,22 @@ pub mod portal {
     pub struct ExternalRecordId(String);
 }
 
-pub mod payments {
+pub mod payment {
     use super::*;
 
     #[async_trait]
-    pub trait PaymentGateway: Send + Sync {
-        async fn authorize(&self, request: AuthorizationRequest) -> Result<AuthorizationResult>;
-        async fn refund(&self, request: RefundRequest) -> Result<RefundResult>;
+    pub trait Gateway: Send + Sync {
+        async fn authorize(&self, request: authorization::Request)
+        -> Result<authorization::Result>;
+        async fn refund(&self, request: refund::Request) -> Result<refund::Result>;
         async fn record_deposit(
             &self,
-            request: DepositRecordRequest,
-        ) -> Result<DepositRecordResult>;
+            request: deposit::RecordRequest,
+        ) -> Result<deposit::RecordResult>;
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    pub struct AuthorizationRequest {
-        pub subject: PaymentSubject,
-        pub amount: Money,
-        pub capture_policy: CapturePolicy,
-        pub idempotency_key: IdempotencyKey,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    pub enum AuthorizationResult {
-        Authorized {
-            authorization_id: AuthorizationId,
-            amount: Money,
-        },
-        Declined {
-            reason: DeclineReason,
-        },
-        RequiresHumanReview {
-            reason: PaymentReviewReason,
-        },
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    pub struct RefundRequest {
-        pub payment_reference: domain::payment::Reference,
-        pub amount: Money,
-        pub reason: RefundReason,
-        pub idempotency_key: IdempotencyKey,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    pub enum RefundResult {
-        Accepted { refund_id: RefundId },
-        Rejected { reason: RefundRejectionReason },
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    pub struct DepositRecordRequest {
-        pub reservation_id: ReservationId,
-        pub payment_reference: domain::payment::Reference,
-        pub amount: Money,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    pub struct DepositRecordResult {
-        pub reservation_id: ReservationId,
-        pub deposit_status: domain::payment::DepositStatus,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    pub enum PaymentSubject {
+    pub enum Subject {
         ReservationDeposit(ReservationId),
         ReservationBalance(ReservationId),
         CustomerAccount(CustomerId),
@@ -323,30 +281,7 @@ pub mod payments {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    pub enum DeclineReason {
-        CardDeclined,
-        InsufficientFunds,
-        ProviderUnavailable,
-        RequiresCustomerAction,
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    pub enum RefundReason {
-        ReservationCanceled,
-        ServiceNotRendered,
-        ManagerApprovedAdjustment,
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    pub enum RefundRejectionReason {
-        PaymentNotFound,
-        AlreadyRefunded,
-        OutsideRefundWindow,
-        ProviderRejected,
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    pub enum PaymentReviewReason {
+    pub enum ReviewReason {
         AmountMismatch,
         DuplicateRisk,
         ProviderAmbiguity,
@@ -369,61 +304,124 @@ pub mod payments {
     )]
     pub struct IdempotencyKey(String);
 
-    #[nutype(
-        sanitize(trim),
-        validate(not_empty, len_char_max = 160),
-        derive(
-            Debug,
-            Clone,
-            PartialEq,
-            Eq,
-            PartialOrd,
-            Ord,
-            Hash,
-            Serialize,
-            Deserialize
-        )
-    )]
-    pub struct AuthorizationId(String);
+    pub mod authorization {
+        use super::*;
 
-    #[nutype(
-        sanitize(trim),
-        validate(not_empty, len_char_max = 160),
-        derive(
-            Debug,
-            Clone,
-            PartialEq,
-            Eq,
-            PartialOrd,
-            Ord,
-            Hash,
-            Serialize,
-            Deserialize
-        )
-    )]
-    pub struct RefundId(String);
+        #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+        pub struct Request {
+            pub subject: Subject,
+            pub amount: Money,
+            pub capture_policy: CapturePolicy,
+            pub idempotency_key: IdempotencyKey,
+        }
+
+        #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+        pub enum Result {
+            Authorized { authorization_id: Id, amount: Money },
+            Declined { reason: DeclineReason },
+            RequiresHumanReview { reason: ReviewReason },
+        }
+
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+        pub enum DeclineReason {
+            CardDeclined,
+            InsufficientFunds,
+            ProviderUnavailable,
+            RequiresCustomerAction,
+        }
+
+        #[nutype(
+            sanitize(trim),
+            validate(not_empty, len_char_max = 160),
+            derive(
+                Debug,
+                Clone,
+                PartialEq,
+                Eq,
+                PartialOrd,
+                Ord,
+                Hash,
+                Serialize,
+                Deserialize
+            )
+        )]
+        pub struct Id(String);
+    }
+
+    pub mod refund {
+        use super::*;
+
+        #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+        pub struct Request {
+            pub payment_reference: domain::payment::Reference,
+            pub amount: Money,
+            pub reason: Reason,
+            pub idempotency_key: IdempotencyKey,
+        }
+
+        #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+        pub enum Result {
+            Accepted { refund_id: Id },
+            Rejected { reason: RejectionReason },
+        }
+
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+        pub enum Reason {
+            ReservationCanceled,
+            ServiceNotRendered,
+            ManagerApprovedAdjustment,
+        }
+
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+        pub enum RejectionReason {
+            PaymentNotFound,
+            AlreadyRefunded,
+            OutsideRefundWindow,
+            ProviderRejected,
+        }
+
+        #[nutype(
+            sanitize(trim),
+            validate(not_empty, len_char_max = 160),
+            derive(
+                Debug,
+                Clone,
+                PartialEq,
+                Eq,
+                PartialOrd,
+                Ord,
+                Hash,
+                Serialize,
+                Deserialize
+            )
+        )]
+        pub struct Id(String);
+    }
+
+    pub mod deposit {
+        use super::*;
+
+        #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+        pub struct RecordRequest {
+            pub reservation_id: ReservationId,
+            pub payment_reference: domain::payment::Reference,
+            pub amount: Money,
+        }
+
+        #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+        pub struct RecordResult {
+            pub reservation_id: ReservationId,
+            pub deposit_status: domain::payment::DepositStatus,
+        }
+    }
 }
 
 pub mod messaging {
     use super::*;
 
     #[async_trait]
-    pub trait MessageDrafting: Send + Sync {
-        async fn draft_message(&self, request: DraftMessageRequest) -> Result<DraftMessageResult>;
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    pub struct DraftMessageRequest {
-        pub channel: DeliveryChannel,
-        pub recipient: Recipient,
-        pub body: MessageBody,
-        pub review: MessageReviewPolicy,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    pub struct DraftMessageResult {
-        pub draft_id: DraftId,
-        pub status: DraftMessageStatus,
+    pub trait Drafting: Send + Sync {
+        async fn draft_message(&self, request: draft::Request) -> Result<draft::Result>;
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -441,35 +439,56 @@ pub mod messaging {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    pub enum MessageReviewPolicy {
+    pub enum ReviewPolicy {
         DraftOnly,
         ManagerApprovalRequired,
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    pub enum DraftMessageStatus {
-        Drafted,
-        DraftedRequiresReview,
+    pub mod draft {
+        use super::*;
+
+        #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+        pub struct Request {
+            pub channel: DeliveryChannel,
+            pub recipient: Recipient,
+            pub body: message_body::Body,
+            pub review: ReviewPolicy,
+        }
+
+        #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+        pub struct Result {
+            pub draft_id: draft_update::DraftId,
+            pub status: Status,
+        }
+
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+        pub enum Status {
+            Drafted,
+            DraftedRequiresReview,
+        }
     }
 
-    #[nutype(
-        sanitize(trim),
-        validate(not_empty, len_char_max = 4000),
-        derive(
-            Debug,
-            Clone,
-            PartialEq,
-            Eq,
-            PartialOrd,
-            Ord,
-            Hash,
-            Serialize,
-            Deserialize
-        )
-    )]
-    pub struct MessageBody(String);
-}
+    pub mod message_body {
+        use super::*;
 
+        #[nutype(
+            sanitize(trim),
+            validate(not_empty, len_char_max = 4000),
+            derive(
+                Debug,
+                Clone,
+                PartialEq,
+                Eq,
+                PartialOrd,
+                Ord,
+                Hash,
+                Serialize,
+                Deserialize
+            )
+        )]
+        pub struct Body(String);
+    }
+}
 pub mod documents {
     use super::*;
 
