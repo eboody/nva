@@ -145,7 +145,7 @@ pub enum ServiceOffering {
     },
     Grooming {
         service: crate::grooming::Service,
-        cadence: crate::grooming::RebookingCadence,
+        cadence: crate::grooming::rebooking::Cadence,
     },
     Training {
         program: crate::training::Program,

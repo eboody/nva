@@ -748,8 +748,8 @@ fn nva_context_pack_business_services_and_systems_are_typed() {
     };
     let grooming = operations::ServiceOffering::Grooming {
         service: grooming::Service::NailDremel,
-        cadence: grooming::RebookingCadence::EveryWeeks(
-            grooming::CadenceWeeks::try_new(6).unwrap(),
+        cadence: grooming::rebooking::Cadence::EveryWeeks(
+            grooming::rebooking::CadenceWeeks::try_new(6).unwrap(),
         ),
     };
     let training = operations::ServiceOffering::Training {
@@ -774,15 +774,15 @@ fn nva_context_pack_business_services_and_systems_are_typed() {
         training,
         operations::ServiceOffering::Training { .. }
     ));
-    assert!(grooming::CadenceWeeks::try_new(0).is_err());
+    assert!(grooming::rebooking::CadenceWeeks::try_new(0).is_err());
     assert!(matches!(
-        grooming::CadenceWeeks::try_new(0),
-        Err(grooming::GroomingCadenceWeeksError::ZeroWeeks)
+        grooming::rebooking::CadenceWeeks::try_new(0),
+        Err(grooming::rebooking::CadenceWeeksError::ZeroWeeks)
     ));
-    let unknown_cadence = grooming::RebookingCadence::Unknown;
+    let unknown_cadence = grooming::rebooking::Cadence::Unknown;
     assert!(matches!(
         unknown_cadence,
-        grooming::RebookingCadence::Unknown
+        grooming::rebooking::Cadence::Unknown
     ));
     assert!(training::DurationWeeks::try_new(0).is_err());
 

@@ -61,92 +61,58 @@ positive_scalar!(
     "grooming appointment estimate requires at least one minute"
 );
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-pub struct CadenceWeeks(u8);
+pub mod calendar {
+    use super::*;
 
-impl CadenceWeeks {
-    pub const fn try_new(value: u8) -> std::result::Result<Self, GroomingCadenceWeeksError> {
-        if value == 0 {
-            return Err(GroomingCadenceWeeksError::ZeroWeeks);
-        }
-        Ok(Self(value))
-    }
-
-    pub const fn get(self) -> u8 {
-        self.0
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Policy {
+        AnyQualifiedGroomer,
+        GroomerSpecific,
+        FirstAvailableWithManagerOverride,
     }
 }
+pub mod breed_coat {
+    use super::*;
 
-impl<'de> Deserialize<'de> for CadenceWeeks {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        Self::try_new(u8::deserialize(deserializer)?).map_err(serde::de::Error::custom)
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum BreedCategory {
+        ShortCoat,
+        DoubleCoat,
+        Doodle,
+        Cat,
     }
-}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-pub enum GroomingCadenceWeeksError {
-    #[error("grooming cadence requires at least one week")]
-    ZeroWeeks,
-}
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum CoatCondition {
+        Maintained,
+        ThickUndercoat,
+        Matted,
+    }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CalendarPolicy {
-    AnyQualifiedGroomer,
-    GroomerSpecific,
-    FirstAvailableWithManagerOverride,
-}
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum BreedCategory {
-    ShortCoat,
-    DoubleCoat,
-    Doodle,
-    Cat,
-}
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CoatCondition {
-    Maintained,
-    ThickUndercoat,
-    Matted,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct BreedCoatTimeEstimate {
-    pub breed: BreedCategory,
-    pub coat: CoatCondition,
-    minutes: AppointmentMinutes,
-}
-impl BreedCoatTimeEstimate {
-    pub const fn new(
-        breed: BreedCategory,
-        coat: CoatCondition,
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct TimeEstimate {
+        pub breed: BreedCategory,
+        pub coat: CoatCondition,
         minutes: AppointmentMinutes,
-    ) -> Self {
-        Self {
-            breed,
-            coat,
-            minutes,
+    }
+
+    impl TimeEstimate {
+        pub const fn new(
+            breed: BreedCategory,
+            coat: CoatCondition,
+            minutes: AppointmentMinutes,
+        ) -> Self {
+            Self {
+                breed,
+                coat,
+                minutes,
+            }
+        }
+
+        pub const fn minutes(&self) -> AppointmentMinutes {
+            self.minutes
         }
     }
-    pub const fn minutes(&self) -> AppointmentMinutes {
-        self.minutes
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum RebookingCadence {
-    EveryWeeks(CadenceWeeks),
-    AsNeeded,
-    GroomerRecommended,
-    Unknown,
-}
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ReminderRule {
-    OneWeekBefore,
-    FortyEightHoursBefore,
-    MorningOf,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HistoryRequirement {
@@ -155,43 +121,12 @@ pub enum HistoryRequirement {
     KeepMedicalHandlingNotes,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-pub struct OrdinaryCadenceWeeks(u8);
-
-impl OrdinaryCadenceWeeks {
-    pub const fn try_new(value: u8) -> std::result::Result<Self, OrdinaryCadenceWeeksError> {
-        if value < 2 || value > 8 {
-            return Err(OrdinaryCadenceWeeksError::OutsideOrdinaryGroomingBand);
-        }
-        Ok(Self(value))
-    }
-
-    pub const fn get(self) -> u8 {
-        self.0
-    }
-}
-
-impl<'de> Deserialize<'de> for OrdinaryCadenceWeeks {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        Self::try_new(u8::deserialize(deserializer)?).map_err(serde::de::Error::custom)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-pub enum OrdinaryCadenceWeeksError {
-    #[error("ordinary grooming rebooking cadence must be between 2 and 8 weeks")]
-    OutsideOrdinaryGroomingBand,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 pub struct EstimationRequest {
     pub pet_id: PetId,
     pub service: Service,
-    pub breed: BreedCategory,
-    pub coat: CoatCondition,
+    pub breed: breed_coat::BreedCategory,
+    pub coat: breed_coat::CoatCondition,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -314,14 +249,16 @@ impl EstimationPolicy {
                     .iter()
                     .find(|estimate| estimate.breed == request.breed)
             })
-            .map(BreedCoatTimeEstimate::minutes)
+            .map(breed_coat::TimeEstimate::minutes)
             .unwrap_or_else(|| {
                 AppointmentMinutes::try_new(60).expect("default estimate is positive")
             });
 
         let review = match request.coat {
-            CoatCondition::Matted => ReviewRequirement::GroomerReview,
-            CoatCondition::Maintained | CoatCondition::ThickUndercoat => ReviewRequirement::None,
+            breed_coat::CoatCondition::Matted => ReviewRequirement::GroomerReview,
+            breed_coat::CoatCondition::Maintained | breed_coat::CoatCondition::ThickUndercoat => {
+                ReviewRequirement::None
+            }
         };
         let confidence = if matches!(review, ReviewRequirement::None) {
             EstimateConfidence::High
@@ -526,160 +463,239 @@ pub mod history {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum RebookingStatus {
-    DueLater,
-    DueNow,
-    Overdue,
-    NeedsGroomerRecommendation,
-}
+pub mod rebooking {
+    use super::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum RebookingRationale {
-    LastCompletedServiceCadence,
-    NoCompletedHistory,
-    GroomerRecommendedCadenceRequired,
-}
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+    pub struct CadenceWeeks(u8);
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RebookingRecommendation {
-    pub pet_id: PetId,
-    pub due_on: Option<NaiveDate>,
-    pub status: RebookingStatus,
-    pub rationale: RebookingRationale,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct RebookingPolicy;
-
-impl RebookingPolicy {
-    pub fn recommend_from_history(
-        &self,
-        pet_id: PetId,
-        history: &[history::ServiceHistoryEntry],
-        cadence: RebookingCadence,
-        today: NaiveDate,
-    ) -> RebookingRecommendation {
-        let Some(last_completed) = history
-            .iter()
-            .filter(|entry| entry.pet_id == pet_id)
-            .filter(|entry| matches!(entry.outcome, history::ServiceOutcome::Completed))
-            .max_by_key(|entry| entry.completed_on)
-        else {
-            return RebookingRecommendation {
-                pet_id,
-                due_on: None,
-                status: RebookingStatus::NeedsGroomerRecommendation,
-                rationale: RebookingRationale::NoCompletedHistory,
-            };
-        };
-
-        let RebookingCadence::EveryWeeks(weeks) = cadence else {
-            return RebookingRecommendation {
-                pet_id,
-                due_on: None,
-                status: RebookingStatus::NeedsGroomerRecommendation,
-                rationale: RebookingRationale::GroomerRecommendedCadenceRequired,
-            };
-        };
-
-        let due_on = last_completed
-            .completed_on
-            .checked_add_days(chrono::Days::new(u64::from(weeks.get()) * 7))
-            .expect("bounded grooming cadence should fit chrono date range");
-        let status = if today > due_on {
-            RebookingStatus::Overdue
-        } else if today == due_on {
-            RebookingStatus::DueNow
-        } else {
-            RebookingStatus::DueLater
-        };
-
-        RebookingRecommendation {
-            pet_id,
-            due_on: Some(due_on),
-            status,
-            rationale: RebookingRationale::LastCompletedServiceCadence,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ReminderKind {
-    AppointmentConfirmation,
-    PrepInstructions,
-    MorningOf,
-    RebookingDue,
-    LapsedCadenceWinback,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CommunicationConsent {
-    Granted,
-    NotGranted,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ReminderSendBoundary {
-    DraftRequiresApproval,
-    ReadyForApprovedSend,
-    SuppressedUntilConsent,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ReminderPlan {
-    pub customer_id: CustomerId,
-    pub kind: ReminderKind,
-    boundary: ReminderSendBoundary,
-}
-
-impl ReminderPlan {
-    pub const fn send_boundary(&self) -> ReminderSendBoundary {
-        self.boundary
-    }
-
-    pub const fn customer_message_gate(&self) -> Option<crate::policy::ReviewGate> {
-        match self.boundary {
-            ReminderSendBoundary::DraftRequiresApproval => {
-                Some(crate::policy::ReviewGate::CustomerMessageApproval)
+    impl CadenceWeeks {
+        pub const fn try_new(value: u8) -> std::result::Result<Self, CadenceWeeksError> {
+            if value == 0 {
+                return Err(CadenceWeeksError::ZeroWeeks);
             }
-            ReminderSendBoundary::ReadyForApprovedSend
-            | ReminderSendBoundary::SuppressedUntilConsent => None,
+            Ok(Self(value))
+        }
+
+        pub const fn get(self) -> u8 {
+            self.0
+        }
+    }
+
+    impl<'de> Deserialize<'de> for CadenceWeeks {
+        fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            Self::try_new(u8::deserialize(deserializer)?).map_err(serde::de::Error::custom)
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+    pub enum CadenceWeeksError {
+        #[error("grooming cadence requires at least one week")]
+        ZeroWeeks,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+    pub struct OrdinaryCadenceWeeks(u8);
+
+    impl OrdinaryCadenceWeeks {
+        pub const fn try_new(value: u8) -> std::result::Result<Self, OrdinaryCadenceWeeksError> {
+            if value < 2 || value > 8 {
+                return Err(OrdinaryCadenceWeeksError::OutsideOrdinaryGroomingBand);
+            }
+            Ok(Self(value))
+        }
+
+        pub const fn get(self) -> u8 {
+            self.0
+        }
+    }
+
+    impl<'de> Deserialize<'de> for OrdinaryCadenceWeeks {
+        fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            Self::try_new(u8::deserialize(deserializer)?).map_err(serde::de::Error::custom)
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+    pub enum OrdinaryCadenceWeeksError {
+        #[error("ordinary grooming rebooking cadence must be between 2 and 8 weeks")]
+        OutsideOrdinaryGroomingBand,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Cadence {
+        EveryWeeks(CadenceWeeks),
+        AsNeeded,
+        GroomerRecommended,
+        Unknown,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Status {
+        DueLater,
+        DueNow,
+        Overdue,
+        NeedsGroomerRecommendation,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Rationale {
+        LastCompletedServiceCadence,
+        NoCompletedHistory,
+        GroomerRecommendedCadenceRequired,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct Recommendation {
+        pub pet_id: PetId,
+        pub due_on: Option<NaiveDate>,
+        pub status: Status,
+        pub rationale: Rationale,
+    }
+
+    #[derive(Debug, Clone, Default)]
+    pub struct Policy;
+
+    impl Policy {
+        pub fn recommend_from_history(
+            &self,
+            pet_id: PetId,
+            history: &[history::ServiceHistoryEntry],
+            cadence: Cadence,
+            today: NaiveDate,
+        ) -> Recommendation {
+            let Some(last_completed) = history
+                .iter()
+                .filter(|entry| entry.pet_id == pet_id)
+                .filter(|entry| matches!(entry.outcome, history::ServiceOutcome::Completed))
+                .max_by_key(|entry| entry.completed_on)
+            else {
+                return Recommendation {
+                    pet_id,
+                    due_on: None,
+                    status: Status::NeedsGroomerRecommendation,
+                    rationale: Rationale::NoCompletedHistory,
+                };
+            };
+
+            let Cadence::EveryWeeks(weeks) = cadence else {
+                return Recommendation {
+                    pet_id,
+                    due_on: None,
+                    status: Status::NeedsGroomerRecommendation,
+                    rationale: Rationale::GroomerRecommendedCadenceRequired,
+                };
+            };
+
+            let due_on = last_completed
+                .completed_on
+                .checked_add_days(chrono::Days::new(u64::from(weeks.get()) * 7))
+                .expect("bounded grooming cadence should fit chrono date range");
+            let status = if today > due_on {
+                Status::Overdue
+            } else if today == due_on {
+                Status::DueNow
+            } else {
+                Status::DueLater
+            };
+
+            Recommendation {
+                pet_id,
+                due_on: Some(due_on),
+                status,
+                rationale: Rationale::LastCompletedServiceCadence,
+            }
         }
     }
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct ReminderPolicy;
+pub mod reminder {
+    use super::*;
 
-impl ReminderPolicy {
-    pub const fn plan(
-        &self,
-        customer_id: CustomerId,
-        kind: ReminderKind,
-        consent: CommunicationConsent,
-    ) -> ReminderPlan {
-        let boundary = match consent {
-            CommunicationConsent::Granted => ReminderSendBoundary::DraftRequiresApproval,
-            CommunicationConsent::NotGranted => ReminderSendBoundary::SuppressedUntilConsent,
-        };
-        ReminderPlan {
-            customer_id,
-            kind,
-            boundary,
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Rule {
+        OneWeekBefore,
+        FortyEightHoursBefore,
+        MorningOf,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Kind {
+        AppointmentConfirmation,
+        PrepInstructions,
+        MorningOf,
+        RebookingDue,
+        LapsedCadenceWinback,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Consent {
+        Granted,
+        NotGranted,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum SendBoundary {
+        DraftRequiresApproval,
+        ReadyForApprovedSend,
+        SuppressedUntilConsent,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct Plan {
+        pub customer_id: CustomerId,
+        pub kind: Kind,
+        boundary: SendBoundary,
+    }
+
+    impl Plan {
+        pub const fn send_boundary(&self) -> SendBoundary {
+            self.boundary
+        }
+
+        pub const fn customer_message_gate(&self) -> Option<crate::policy::ReviewGate> {
+            match self.boundary {
+                SendBoundary::DraftRequiresApproval => {
+                    Some(crate::policy::ReviewGate::CustomerMessageApproval)
+                }
+                SendBoundary::ReadyForApprovedSend | SendBoundary::SuppressedUntilConsent => None,
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, Default)]
+    pub struct Policy;
+
+    impl Policy {
+        pub const fn plan(&self, customer_id: CustomerId, kind: Kind, consent: Consent) -> Plan {
+            let boundary = match consent {
+                Consent::Granted => SendBoundary::DraftRequiresApproval,
+                Consent::NotGranted => SendBoundary::SuppressedUntilConsent,
+            };
+            Plan {
+                customer_id,
+                kind,
+                boundary,
+            }
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 pub struct Contract {
-    pub calendar: CalendarPolicy,
+    pub calendar: calendar::Policy,
     #[builder(default)]
-    pub time_estimates: Vec<BreedCoatTimeEstimate>,
+    pub time_estimates: Vec<breed_coat::TimeEstimate>,
     pub no_show: no_show::Rule,
-    pub rebooking: RebookingCadence,
+    pub rebooking: rebooking::Cadence,
     #[builder(default)]
-    pub reminders: Vec<ReminderRule>,
+    pub reminders: Vec<reminder::Rule>,
     pub history: HistoryRequirement,
 }
 
@@ -692,28 +708,23 @@ impl Contract {
     }
     pub fn standard_petsuites() -> Self {
         Self::builder()
-            .calendar(CalendarPolicy::GroomerSpecific)
-            .time_estimates(vec![BreedCoatTimeEstimate::new(
-                BreedCategory::Doodle,
-                CoatCondition::Matted,
+            .calendar(calendar::Policy::GroomerSpecific)
+            .time_estimates(vec![breed_coat::TimeEstimate::new(
+                breed_coat::BreedCategory::Doodle,
+                breed_coat::CoatCondition::Matted,
                 AppointmentMinutes::try_new(180).unwrap(),
             )])
             .no_show(no_show::Rule::RequireDepositForRebooking)
-            .rebooking(RebookingCadence::EveryWeeks(
-                CadenceWeeks::try_new(6).unwrap(),
+            .rebooking(rebooking::Cadence::EveryWeeks(
+                rebooking::CadenceWeeks::try_new(6).unwrap(),
             ))
             .reminders(vec![
-                ReminderRule::FortyEightHoursBefore,
-                ReminderRule::MorningOf,
+                reminder::Rule::FortyEightHoursBefore,
+                reminder::Rule::MorningOf,
             ])
             .history(HistoryRequirement::KeepStyleNotesAndPhotos)
             .build()
     }
-}
-
-/// Calendar-owned public vocabulary for grooming appointment placement.
-pub mod calendar {
-    pub use super::CalendarPolicy as Policy;
 }
 
 /// Appointment-owned public vocabulary for grooming service requests.
@@ -721,33 +732,10 @@ pub mod appointment {
     pub use super::{EstimationRequest as Request, Service};
 }
 
-/// Breed/coat vocabulary and duration estimate inputs.
-pub mod breed_coat {
-    pub use super::{BreedCategory, BreedCoatTimeEstimate, CoatCondition};
-}
-
 /// Duration-estimate decision vocabulary.
 pub mod duration_estimate {
     pub use super::{
         AppointmentMinutes, AppointmentMinutesError, DurationEstimate, EstimateBasis,
         EstimateConfidence, EstimationPolicy as Policy, ReviewRequirement,
-    };
-}
-
-/// Rebooking cadence and recommendation vocabulary.
-pub mod rebooking {
-    pub use super::{
-        CadenceWeeks, GroomingCadenceWeeksError as CadenceWeeksError, OrdinaryCadenceWeeks,
-        OrdinaryCadenceWeeksError, RebookingCadence as Cadence, RebookingPolicy as Policy,
-        RebookingRationale as Rationale, RebookingRecommendation as Recommendation,
-        RebookingStatus as Status,
-    };
-}
-
-/// Reminder consent and send-boundary vocabulary.
-pub mod reminder {
-    pub use super::{
-        CommunicationConsent as Consent, ReminderKind as Kind, ReminderPlan as Plan,
-        ReminderPolicy as Policy, ReminderRule as Rule, ReminderSendBoundary as SendBoundary,
     };
 }
