@@ -65,7 +65,7 @@ fn reservations_range_post_uses_form_body_and_rejects_ranges_longer_than_30_days
 #[test]
 fn reservations_by_pet_and_owner_encode_restrict_to_and_location_scope_caveat_filters() {
     let client = fake_client();
-    let animal_request = endpoint::reservations::ReservationsByAnimal::builder()
+    let animal_request = endpoint::reservations::by::Animal::builder()
         .animal_id(endpoint::AnimalId::new(23))
         .restrict_to(endpoint::reservations::RestrictTo::Future)
         .filter(
@@ -79,7 +79,7 @@ fn reservations_by_pet_and_owner_encode_restrict_to_and_location_scope_caveat_fi
                 .build(),
         )
         .build();
-    let owner_request = endpoint::reservations::ReservationsByOwner::builder()
+    let owner_request = endpoint::reservations::by::Owner::builder()
         .owner_id(endpoint::OwnerId::new(99))
         .restrict_to(endpoint::reservations::RestrictTo::CurrentlyCheckedIn)
         .build();
@@ -140,8 +140,7 @@ fn reservations_by_pet_and_owner_encode_restrict_to_and_location_scope_caveat_fi
             .contains(&("restrict_to".into(), "currently_checked_in".into()))
     );
     assert!(
-        endpoint::reservations::ReservationsByAnimal::LOCATION_SCOPE_CAVEAT
-            .contains("currently logged into")
+        endpoint::reservations::by::Animal::LOCATION_SCOPE_CAVEAT.contains("currently logged into")
     );
 }
 

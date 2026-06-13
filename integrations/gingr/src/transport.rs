@@ -1,10 +1,10 @@
 use crate::{config, endpoint, response};
 use std::fmt;
 
-pub type Result<T> = core::result::Result<T, Error>;
+pub type Result<T> = core::result::Result<T, TransportError>;
 
 #[derive(Debug, thiserror::Error)]
-pub enum Error {
+pub enum TransportError {
     #[error("failed to construct Gingr URL: {0}")]
     Url(#[from] url::ParseError),
     #[error("HTTP transport is not implemented for this SDK slice")]
@@ -174,7 +174,7 @@ pub struct HttpTransport;
 
 impl Transport for HttpTransport {
     fn send(&self, _config: &config::Client, _request: RequestParts) -> Result<response::Raw> {
-        Err(Error::HttpNotImplemented)
+        Err(TransportError::HttpNotImplemented)
     }
 }
 

@@ -126,16 +126,16 @@ pub struct Reservations {
 }
 
 impl Reservations {
-    pub fn checked_in() -> ReservationsBuilder {
-        ReservationsBuilder {
+    pub fn checked_in() -> Builder {
+        Builder {
             checked_in: true,
             range: None,
             location: None,
         }
     }
 
-    pub fn for_range(range: DateRange) -> ReservationsBuilder {
-        ReservationsBuilder {
+    pub fn for_range(range: DateRange) -> Builder {
+        Builder {
             checked_in: false,
             range: Some(range),
             location: None,
@@ -144,13 +144,13 @@ impl Reservations {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ReservationsBuilder {
+pub struct Builder {
     checked_in: bool,
     range: Option<DateRange>,
     location: Option<LocationId>,
 }
 
-impl ReservationsBuilder {
+impl Builder {
     pub fn location(mut self, location: LocationId) -> Self {
         self.location = Some(location);
         self
@@ -307,143 +307,143 @@ impl ReservationSearchFiltersBuilder {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ReservationsByAnimal {
-    animal_id: AnimalId,
-    restrict_to: Option<RestrictTo>,
-    filters: Option<ReservationSearchFilters>,
-}
+pub mod by {
+    use super::*;
 
-impl ReservationsByAnimal {
-    pub const LOCATION_SCOPE_CAVEAT: &'static str = "Reservation data for this endpoint is only pulled for the location the API user is currently logged into.";
-
-    pub fn builder() -> ReservationsByAnimalBuilder {
-        ReservationsByAnimalBuilder::default()
-    }
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct ReservationsByAnimalBuilder {
-    animal_id: Option<AnimalId>,
-    restrict_to: Option<RestrictTo>,
-    filters: Option<ReservationSearchFilters>,
-}
-
-impl ReservationsByAnimalBuilder {
-    pub fn animal_id(mut self, id: AnimalId) -> Self {
-        self.animal_id = Some(id);
-        self
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Animal {
+        animal_id: AnimalId,
+        restrict_to: Option<RestrictTo>,
+        filters: Option<ReservationSearchFilters>,
     }
 
-    pub fn restrict_to(mut self, restrict_to: RestrictTo) -> Self {
-        self.restrict_to = Some(restrict_to);
-        self
-    }
+    impl Animal {
+        pub const LOCATION_SCOPE_CAVEAT: &'static str = "Reservation data for this endpoint is only pulled for the location the API user is currently logged into.";
 
-    pub fn filter(mut self, filters: ReservationSearchFilters) -> Self {
-        self.filters = Some(filters);
-        self
-    }
-
-    pub fn build(self) -> ReservationsByAnimal {
-        ReservationsByAnimal {
-            animal_id: self
-                .animal_id
-                .expect("ReservationsByAnimal requires animal_id"),
-            restrict_to: self.restrict_to,
-            filters: self.filters,
+        pub fn builder() -> AnimalBuilder {
+            AnimalBuilder::default()
         }
     }
-}
 
-impl Request for ReservationsByAnimal {
-    fn method(&self) -> Method {
-        Method::Post
+    #[derive(Clone, Debug, Default)]
+    pub struct AnimalBuilder {
+        animal_id: Option<AnimalId>,
+        restrict_to: Option<RestrictTo>,
+        filters: Option<ReservationSearchFilters>,
     }
 
-    fn path(&self) -> &'static str {
-        "/api/v1/reservations_by_animal"
-    }
-
-    fn parameters(&self) -> Vec<(String, String)> {
-        let mut params = vec![("id".to_owned(), self.animal_id.to_string())];
-        if let Some(restrict_to) = self.restrict_to {
-            params.push(("restrict_to".to_owned(), restrict_to.to_string()));
+    impl AnimalBuilder {
+        pub fn animal_id(mut self, id: AnimalId) -> Self {
+            self.animal_id = Some(id);
+            self
         }
-        if let Some(filters) = &self.filters {
-            params.extend(filters.parameters());
+
+        pub fn restrict_to(mut self, restrict_to: RestrictTo) -> Self {
+            self.restrict_to = Some(restrict_to);
+            self
         }
-        params
-    }
-}
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ReservationsByOwner {
-    owner_id: OwnerId,
-    restrict_to: Option<RestrictTo>,
-    filters: Option<ReservationSearchFilters>,
-}
+        pub fn filter(mut self, filters: ReservationSearchFilters) -> Self {
+            self.filters = Some(filters);
+            self
+        }
 
-impl ReservationsByOwner {
-    pub const LOCATION_SCOPE_CAVEAT: &'static str = ReservationsByAnimal::LOCATION_SCOPE_CAVEAT;
-
-    pub fn builder() -> ReservationsByOwnerBuilder {
-        ReservationsByOwnerBuilder::default()
-    }
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct ReservationsByOwnerBuilder {
-    owner_id: Option<OwnerId>,
-    restrict_to: Option<RestrictTo>,
-    filters: Option<ReservationSearchFilters>,
-}
-
-impl ReservationsByOwnerBuilder {
-    pub fn owner_id(mut self, id: OwnerId) -> Self {
-        self.owner_id = Some(id);
-        self
-    }
-
-    pub fn restrict_to(mut self, restrict_to: RestrictTo) -> Self {
-        self.restrict_to = Some(restrict_to);
-        self
-    }
-
-    pub fn filter(mut self, filters: ReservationSearchFilters) -> Self {
-        self.filters = Some(filters);
-        self
-    }
-
-    pub fn build(self) -> ReservationsByOwner {
-        ReservationsByOwner {
-            owner_id: self
-                .owner_id
-                .expect("ReservationsByOwner requires owner_id"),
-            restrict_to: self.restrict_to,
-            filters: self.filters,
+        pub fn build(self) -> Animal {
+            Animal {
+                animal_id: self.animal_id.expect("Animal requires animal_id"),
+                restrict_to: self.restrict_to,
+                filters: self.filters,
+            }
         }
     }
-}
 
-impl Request for ReservationsByOwner {
-    fn method(&self) -> Method {
-        Method::Post
+    impl Request for Animal {
+        fn method(&self) -> Method {
+            Method::Post
+        }
+
+        fn path(&self) -> &'static str {
+            "/api/v1/reservations_by_animal"
+        }
+
+        fn parameters(&self) -> Vec<(String, String)> {
+            let mut params = vec![("id".to_owned(), self.animal_id.to_string())];
+            if let Some(restrict_to) = self.restrict_to {
+                params.push(("restrict_to".to_owned(), restrict_to.to_string()));
+            }
+            if let Some(filters) = &self.filters {
+                params.extend(filters.parameters());
+            }
+            params
+        }
     }
 
-    fn path(&self) -> &'static str {
-        "/api/v1/reservations_by_owner"
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Owner {
+        owner_id: OwnerId,
+        restrict_to: Option<RestrictTo>,
+        filters: Option<ReservationSearchFilters>,
     }
 
-    fn parameters(&self) -> Vec<(String, String)> {
-        let mut params = vec![("id".to_owned(), self.owner_id.to_string())];
-        if let Some(restrict_to) = self.restrict_to {
-            params.push(("restrict_to".to_owned(), restrict_to.to_string()));
+    impl Owner {
+        pub const LOCATION_SCOPE_CAVEAT: &'static str = Animal::LOCATION_SCOPE_CAVEAT;
+
+        pub fn builder() -> OwnerBuilder {
+            OwnerBuilder::default()
         }
-        if let Some(filters) = &self.filters {
-            params.extend(filters.parameters());
+    }
+
+    #[derive(Clone, Debug, Default)]
+    pub struct OwnerBuilder {
+        owner_id: Option<OwnerId>,
+        restrict_to: Option<RestrictTo>,
+        filters: Option<ReservationSearchFilters>,
+    }
+
+    impl OwnerBuilder {
+        pub fn owner_id(mut self, id: OwnerId) -> Self {
+            self.owner_id = Some(id);
+            self
         }
-        params
+
+        pub fn restrict_to(mut self, restrict_to: RestrictTo) -> Self {
+            self.restrict_to = Some(restrict_to);
+            self
+        }
+
+        pub fn filter(mut self, filters: ReservationSearchFilters) -> Self {
+            self.filters = Some(filters);
+            self
+        }
+
+        pub fn build(self) -> Owner {
+            Owner {
+                owner_id: self.owner_id.expect("Owner requires owner_id"),
+                restrict_to: self.restrict_to,
+                filters: self.filters,
+            }
+        }
+    }
+
+    impl Request for Owner {
+        fn method(&self) -> Method {
+            Method::Post
+        }
+
+        fn path(&self) -> &'static str {
+            "/api/v1/reservations_by_owner"
+        }
+
+        fn parameters(&self) -> Vec<(String, String)> {
+            let mut params = vec![("id".to_owned(), self.owner_id.to_string())];
+            if let Some(restrict_to) = self.restrict_to {
+                params.push(("restrict_to".to_owned(), restrict_to.to_string()));
+            }
+            if let Some(filters) = &self.filters {
+                params.extend(filters.parameters());
+            }
+            params
+        }
     }
 }
 

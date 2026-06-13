@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Deserialize, serde::Serialize,
 )]
+#[serde(transparent)]
 pub struct ItemId(u64);
 
 impl ItemId {
@@ -17,7 +18,7 @@ impl ItemId {
 
 #[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct Item {
-    pub id: u64,
+    pub id: ItemId,
     #[serde(default)]
     pub name: Option<String>,
     #[serde(default)]

@@ -47,7 +47,7 @@ pub fn product_candidate(item: &dto::retail::Item) -> Result<ProductCandidate> {
     };
 
     Ok(ProductCandidate {
-        provider_item_id: dto::retail::ItemId::new(item.id),
+        provider_item_id: item.id,
         name,
         product: retail::Product::new(sku, category),
         status,

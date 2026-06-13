@@ -5,15 +5,15 @@ use sha2::Sha256;
 use std::fmt;
 use subtle::ConstantTimeEq;
 
-pub type VerificationResult<T> = core::result::Result<T, WebhookVerificationError>;
-pub type ParseResult<T> = core::result::Result<T, WebhookParseError>;
+pub type VerificationResult<T> = core::result::Result<T, VerificationError>;
+pub type ParseResult<T> = core::result::Result<T, ParseError>;
 
 type HmacSha256 = Hmac<Sha256>;
 
 #[derive(Clone)]
-pub struct WebhookSignatureKey(SecretString);
+pub struct SignatureKey(SecretString);
 
-impl WebhookSignatureKey {
+impl SignatureKey {
     pub fn from_secret(raw: impl Into<String>) -> Self {
         Self(SecretString::new(raw.into()))
     }
@@ -24,20 +24,20 @@ impl WebhookSignatureKey {
     }
 }
 
-impl fmt::Debug for WebhookSignatureKey {
+impl fmt::Debug for SignatureKey {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("WebhookSignatureKey(<redacted>)")
+        formatter.write_str("SignatureKey(<redacted>)")
     }
 }
 
-impl fmt::Display for WebhookSignatureKey {
+impl fmt::Display for SignatureKey {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str("<redacted>")
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum WebhookEventType {
+pub enum EventType {
     CheckIn,
     CheckOut,
     CheckingIn,
@@ -53,7 +53,7 @@ pub enum WebhookEventType {
     Unknown(String),
 }
 
-impl WebhookEventType {
+impl EventType {
     pub fn parse(raw: impl AsRef<str>) -> Self {
         match raw.as_ref() {
             "check_in" => Self::CheckIn,
@@ -92,7 +92,7 @@ impl WebhookEventType {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum WebhookEntityType {
+pub enum EntityType {
     Reservation,
     Owner,
     Animal,
@@ -101,7 +101,7 @@ pub enum WebhookEntityType {
     Unknown(String),
 }
 
-impl WebhookEntityType {
+impl EntityType {
     pub fn parse(raw: impl AsRef<str>) -> Self {
         match raw.as_ref() {
             "reservation" => Self::Reservation,
@@ -126,16 +126,16 @@ impl WebhookEntityType {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct WebhookEntityId(String);
+pub struct EntityId(String);
 
-impl WebhookEntityId {
+impl EntityId {
     fn normalize(value: &serde_json::Value) -> VerificationResult<Self> {
         match value {
             serde_json::Value::String(raw) if !raw.is_empty() => Ok(Self(raw.clone())),
             serde_json::Value::Number(number) if number.is_i64() || number.is_u64() => {
                 Ok(Self(number.to_string()))
             }
-            other => Err(WebhookVerificationError::UnsupportedEntityId {
+            other => Err(VerificationError::UnsupportedEntityId {
                 observed_type: json_type_name(other).to_owned(),
             }),
         }
@@ -146,21 +146,21 @@ impl WebhookEntityId {
     }
 }
 
-impl fmt::Display for WebhookEntityId {
+impl fmt::Display for EntityId {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(&self.0)
     }
 }
 
 #[derive(Clone, PartialEq)]
-pub struct WebhookEnvelope {
-    wire: WireWebhookEnvelope,
+pub struct Envelope {
+    wire: WireEnvelope,
 }
 
-impl fmt::Debug for WebhookEnvelope {
+impl fmt::Debug for Envelope {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("WebhookEnvelope")
+            .debug_struct("Envelope")
             .field("webhook_type", &self.wire.webhook_type)
             .field(
                 "entity_id_type",
@@ -172,7 +172,7 @@ impl fmt::Debug for WebhookEnvelope {
     }
 }
 
-impl WebhookEnvelope {
+impl Envelope {
     pub fn from_json(raw: impl AsRef<str>) -> ParseResult<Self> {
         let wire = serde_json::from_str(raw.as_ref())?;
         Ok(Self { wire })
@@ -190,32 +190,32 @@ impl WebhookEnvelope {
         self.wire.signature.as_deref()
     }
 
-    pub fn verify(self, key: &WebhookSignatureKey) -> VerificationResult<VerifiedWebhook> {
+    pub fn verify(self, key: &SignatureKey) -> VerificationResult<Verified> {
         let webhook_type =
             self.wire
                 .webhook_type
                 .as_deref()
-                .ok_or(WebhookVerificationError::MissingField {
+                .ok_or(VerificationError::MissingField {
                     field: "webhook_type",
                 })?;
         let entity_id_value = self
             .wire
             .entity_id
             .as_ref()
-            .ok_or(WebhookVerificationError::MissingField { field: "entity_id" })?;
-        let entity_id = WebhookEntityId::normalize(entity_id_value)?;
+            .ok_or(VerificationError::MissingField { field: "entity_id" })?;
+        let entity_id = EntityId::normalize(entity_id_value)?;
         let entity_type =
             self.wire
                 .entity_type
                 .as_deref()
-                .ok_or(WebhookVerificationError::MissingField {
+                .ok_or(VerificationError::MissingField {
                     field: "entity_type",
                 })?;
         let supplied_signature = self
             .wire
             .signature
             .as_deref()
-            .ok_or(WebhookVerificationError::MissingField { field: "signature" })?;
+            .ok_or(VerificationError::MissingField { field: "signature" })?;
 
         verify_signature(
             key,
@@ -225,50 +225,50 @@ impl WebhookEnvelope {
             supplied_signature,
         )?;
 
-        Ok(VerifiedWebhook {
-            event_type: WebhookEventType::parse(webhook_type),
+        Ok(Verified {
+            event_type: EventType::parse(webhook_type),
             entity_id,
-            entity_type: WebhookEntityType::parse(entity_type),
-            payload: VerifiedWebhookPayload { wire: self.wire },
+            entity_type: EntityType::parse(entity_type),
+            payload: Payload { wire: self.wire },
         })
     }
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct VerifiedWebhook {
-    event_type: WebhookEventType,
-    entity_id: WebhookEntityId,
-    entity_type: WebhookEntityType,
-    payload: VerifiedWebhookPayload,
+pub struct Verified {
+    event_type: EventType,
+    entity_id: EntityId,
+    entity_type: EntityType,
+    payload: Payload,
 }
 
-impl VerifiedWebhook {
-    pub fn event_type(&self) -> WebhookEventType {
+impl Verified {
+    pub fn event_type(&self) -> EventType {
         self.event_type.clone()
     }
 
-    pub fn entity_id(&self) -> &WebhookEntityId {
+    pub fn entity_id(&self) -> &EntityId {
         &self.entity_id
     }
 
-    pub fn entity_type(&self) -> WebhookEntityType {
+    pub fn entity_type(&self) -> EntityType {
         self.entity_type.clone()
     }
 
-    pub fn payload(&self) -> &VerifiedWebhookPayload {
+    pub fn payload(&self) -> &Payload {
         &self.payload
     }
 }
 
 #[derive(Clone, PartialEq)]
-pub struct VerifiedWebhookPayload {
-    wire: WireWebhookEnvelope,
+pub struct Payload {
+    wire: WireEnvelope,
 }
 
-impl fmt::Debug for VerifiedWebhookPayload {
+impl fmt::Debug for Payload {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("VerifiedWebhookPayload")
+            .debug_struct("Payload")
             .field("provider_url", &self.wire.webhook_url)
             .field("has_entity_data", &!self.wire.entity_data.is_null())
             .field("has_email_data", &self.wire.email_data.is_some())
@@ -280,7 +280,7 @@ impl fmt::Debug for VerifiedWebhookPayload {
     }
 }
 
-impl VerifiedWebhookPayload {
+impl Payload {
     pub fn entity_data(&self) -> &serde_json::Value {
         &self.wire.entity_data
     }
@@ -299,7 +299,7 @@ impl VerifiedWebhookPayload {
 }
 
 #[derive(Clone, PartialEq, serde::Deserialize)]
-struct WireWebhookEnvelope {
+struct WireEnvelope {
     webhook_url: Option<String>,
     webhook_type: Option<String>,
     entity_id: Option<serde_json::Value>,
@@ -314,13 +314,13 @@ struct WireWebhookEnvelope {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum WebhookParseError {
+pub enum ParseError {
     #[error("invalid Gingr webhook JSON: {0}")]
     Json(#[from] serde_json::Error),
 }
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
-pub enum WebhookVerificationError {
+pub enum VerificationError {
     #[error("Gingr webhook is missing required field {field}")]
     MissingField { field: &'static str },
     #[error("unsupported Gingr webhook entity_id representation: {observed_type}")]
@@ -332,14 +332,14 @@ pub enum WebhookVerificationError {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum WebhookAck {
+pub enum Ack {
     Processed,
     RejectedPermanently,
     RetryableFailure,
     RetryableStatus(response::HttpStatus),
 }
 
-impl WebhookAck {
+impl Ack {
     pub fn retryable_status(status: response::HttpStatus) -> Self {
         if status.is_gingr_retry_override_allowed() {
             Self::RetryableStatus(status)
@@ -359,7 +359,7 @@ impl WebhookAck {
 }
 
 fn verify_signature(
-    key: &WebhookSignatureKey,
+    key: &SignatureKey,
     webhook_type: &str,
     entity_id: &str,
     entity_type: &str,
@@ -376,13 +376,13 @@ fn verify_signature(
     if expected.as_slice().ct_eq(&supplied).into() {
         Ok(())
     } else {
-        Err(WebhookVerificationError::SignatureMismatch)
+        Err(VerificationError::SignatureMismatch)
     }
 }
 
 fn decode_lower_hex_sha256(raw: &str) -> VerificationResult<[u8; 32]> {
     if raw.len() != 64 {
-        return Err(WebhookVerificationError::MalformedSignature {
+        return Err(VerificationError::MalformedSignature {
             reason: "expected 64 lowercase hex characters".to_owned(),
         });
     }
@@ -400,7 +400,7 @@ fn decode_lower_hex_nibble(byte: u8) -> VerificationResult<u8> {
     match byte {
         b'0'..=b'9' => Ok(byte - b'0'),
         b'a'..=b'f' => Ok(byte - b'a' + 10),
-        _ => Err(WebhookVerificationError::MalformedSignature {
+        _ => Err(VerificationError::MalformedSignature {
             reason: "signature must be lowercase hex".to_owned(),
         }),
     }
