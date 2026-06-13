@@ -565,16 +565,16 @@ fn grooming_history_entry_separates_style_notes_from_care_or_medical_handling_re
 fn training_contract_encodes_program_curriculum_progress_outcomes_availability_packages_and_follow_up()
  {
     let contract = training::Contract::builder()
-        .program_duration(training::ProgramDuration::Weeks(
-            training::DurationWeeks::try_new(3).unwrap(),
+        .program_duration(training::program::Duration::Weeks(
+            training::program::DurationWeeks::try_new(3).unwrap(),
         ))
         .curriculum(vec![
-            training::CurriculumUnit::LooseLeashWalking,
-            training::CurriculumUnit::Recall,
+            training::curriculum::Unit::LooseLeashWalking,
+            training::curriculum::Unit::Recall,
         ])
         .progress(training::ProgressTracking::SessionNotesAndMilestones)
         .outcomes(vec![training::Outcome::CanineGoodCitizenReadiness])
-        .trainer_availability(training::TrainerAvailability::NamedTrainerRequired)
+        .trainer_availability(training::trainer::Availability::NamedTrainerRequired)
         .package(training::package::Policy::MultiSessionPackage {
             sessions: training::SessionCount::try_new(6).unwrap(),
         })
@@ -583,21 +583,21 @@ fn training_contract_encodes_program_curriculum_progress_outcomes_availability_p
 
     assert!(contract.requires_named_trainer());
     assert!(contract.has_outcome(&training::Outcome::CanineGoodCitizenReadiness));
-    assert!(training::DurationWeeks::try_new(0).is_err());
+    assert!(training::program::DurationWeeks::try_new(0).is_err());
     assert!(training::SessionCount::try_new(0).is_err());
 }
 
 #[test]
 fn trainer_availability_waitlists_when_named_trainer_has_no_capacity() {
     let request = training::availability::Request::builder()
-        .enrollment_id(training::EnrollmentId::try_new("enroll-123").unwrap())
+        .enrollment_id(training::enrollment::Id::try_new("enroll-123").unwrap())
         .pet_id(entities::PetId(Uuid::nil()))
         .program(training::Program::PrivateLesson)
-        .requirement(training::TrainerRequirement::NamedTrainer {
+        .requirement(training::trainer::Requirement::NamedTrainer {
             trainer_id: entities::StaffId::try_new("trainer-7").unwrap(),
         })
         .capacity(training::availability::CapacityDecision::Unavailable)
-        .readiness(training::EnrollmentReadiness::Ready)
+        .readiness(training::enrollment::Readiness::Ready)
         .build();
 
     let decision = training::availability::Policy.evaluate(&request);
@@ -619,15 +619,15 @@ fn trainer_availability_waitlists_when_named_trainer_has_no_capacity() {
 fn progress_report_cannot_be_parent_facing_until_approved_even_when_evidence_exists() {
     let report = training::progress::Report::builder()
         .report_id(training::ProgressReportId::try_new("progress-1").unwrap())
-        .enrollment_id(training::EnrollmentId::try_new("enroll-123").unwrap())
+        .enrollment_id(training::enrollment::Id::try_new("enroll-123").unwrap())
         .session_ref(training::SessionRef::try_new("session-4").unwrap())
         .evidence(vec![training::ProgressEvidence::TrainerNote {
             evidence_id: training::EvidenceId::try_new("evidence-1").unwrap(),
             note: training::ProgressNote::try_new(" recall improved with long line ").unwrap(),
         }])
-        .milestones(vec![training::CurriculumProgress::new(
-            training::MilestoneId::try_new("recall").unwrap(),
-            training::MilestoneStatus::Introduced,
+        .milestones(vec![training::curriculum::Progress::new(
+            training::curriculum::milestone::Id::try_new("recall").unwrap(),
+            training::curriculum::milestone::Status::Introduced,
         )])
         .approval(training::ApprovalState::Draft)
         .build()
@@ -648,7 +648,7 @@ fn achieved_outcome_claim_requires_evidence_before_documentation_can_be_member_f
         outcome: training::Outcome::CanineGoodCitizenReadiness,
         status: training::outcome::ClaimStatus::Achieved,
         evidence: vec![],
-        milestones: vec![training::MilestoneId::try_new("cgc-readiness").unwrap()],
+        milestones: vec![training::curriculum::milestone::Id::try_new("cgc-readiness").unwrap()],
     });
 
     assert_eq!(rejected, Err(training::Error::OutcomeEvidenceRequired));
@@ -657,12 +657,12 @@ fn achieved_outcome_claim_requires_evidence_before_documentation_can_be_member_f
         outcome: training::Outcome::CanineGoodCitizenReadiness,
         status: training::outcome::ClaimStatus::Readiness,
         evidence: vec![training::EvidenceId::try_new("rubric-1").unwrap()],
-        milestones: vec![training::MilestoneId::try_new("cgc-readiness").unwrap()],
+        milestones: vec![training::curriculum::milestone::Id::try_new("cgc-readiness").unwrap()],
     })
     .unwrap();
     let documentation = training::outcome::Documentation::builder()
         .documentation_id(training::OutcomeDocumentationId::try_new("outcome-1").unwrap())
-        .enrollment_id(training::EnrollmentId::try_new("enroll-123").unwrap())
+        .enrollment_id(training::enrollment::Id::try_new("enroll-123").unwrap())
         .pet_id(entities::PetId(Uuid::nil()))
         .location_id(entities::LocationId(Uuid::nil()))
         .claims(vec![claim])

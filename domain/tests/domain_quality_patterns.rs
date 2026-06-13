@@ -754,7 +754,7 @@ fn nva_context_pack_business_services_and_systems_are_typed() {
     };
     let training = operations::ServiceOffering::Training {
         program: training::Program::StayAndStudy {
-            duration: training::DurationWeeks::try_new(3).unwrap(),
+            duration: training::program::DurationWeeks::try_new(3).unwrap(),
         },
     };
 
@@ -784,7 +784,7 @@ fn nva_context_pack_business_services_and_systems_are_typed() {
         unknown_cadence,
         grooming::rebooking::Cadence::Unknown
     ));
-    assert!(training::DurationWeeks::try_new(0).is_err());
+    assert!(training::program::DurationWeeks::try_new(0).is_err());
 
     let ecosystem = operations::TechnologyEcosystem::builder()
         .core_portal(operations::CoreOperatingSystem::Gingr)

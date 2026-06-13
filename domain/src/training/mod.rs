@@ -41,37 +41,6 @@ macro_rules! positive_scalar {
     };
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-pub struct DurationWeeks(u8);
-
-impl DurationWeeks {
-    pub const fn try_new(value: u8) -> std::result::Result<Self, DurationWeeksError> {
-        if value == 0 {
-            return Err(DurationWeeksError::ZeroWeeks);
-        }
-        Ok(Self(value))
-    }
-
-    pub const fn get(self) -> u8 {
-        self.0
-    }
-}
-
-impl<'de> Deserialize<'de> for DurationWeeks {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        Self::try_new(u8::deserialize(deserializer)?).map_err(serde::de::Error::custom)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-pub enum DurationWeeksError {
-    #[error("training program duration requires at least one week")]
-    ZeroWeeks,
-}
-
 positive_scalar!(
     SessionCount,
     u16,
@@ -79,22 +48,176 @@ positive_scalar!(
     "training package requires at least one session"
 );
 
-#[nutype(
-    sanitize(trim),
-    validate(not_empty, len_char_max = 120),
-    derive(
-        Debug,
-        Clone,
-        PartialEq,
-        Eq,
-        PartialOrd,
-        Ord,
-        Hash,
-        Serialize,
-        Deserialize
-    )
-)]
-pub struct EnrollmentId(String);
+pub mod program {
+    use super::*;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+    pub struct DurationWeeks(u8);
+
+    impl DurationWeeks {
+        pub const fn try_new(value: u8) -> std::result::Result<Self, DurationWeeksError> {
+            if value == 0 {
+                return Err(DurationWeeksError::ZeroWeeks);
+            }
+            Ok(Self(value))
+        }
+
+        pub const fn get(self) -> u8 {
+            self.0
+        }
+    }
+
+    impl<'de> Deserialize<'de> for DurationWeeks {
+        fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            Self::try_new(u8::deserialize(deserializer)?).map_err(serde::de::Error::custom)
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+    pub enum DurationWeeksError {
+        #[error("training program duration requires at least one week")]
+        ZeroWeeks,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Duration {
+        SingleSession,
+        Weeks(DurationWeeks),
+    }
+}
+
+pub mod enrollment {
+    use super::*;
+
+    #[nutype(
+        sanitize(trim),
+        validate(not_empty, len_char_max = 120),
+        derive(
+            Debug,
+            Clone,
+            PartialEq,
+            Eq,
+            PartialOrd,
+            Ord,
+            Hash,
+            Serialize,
+            Deserialize
+        )
+    )]
+    pub struct Id(String);
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Readiness {
+        Ready,
+        TrainerReviewRequired { gate: policy::ReviewGate },
+        BehaviorOrCareReviewRequired { gate: policy::ReviewGate },
+        PackageOrPaymentReviewRequired { gate: policy::ReviewGate },
+    }
+
+    impl Readiness {
+        pub fn blocking_gate(&self) -> Option<policy::ReviewGate> {
+            match self {
+                Self::Ready => None,
+                Self::TrainerReviewRequired { gate }
+                | Self::BehaviorOrCareReviewRequired { gate }
+                | Self::PackageOrPaymentReviewRequired { gate } => Some(gate.clone()),
+            }
+        }
+    }
+}
+
+pub mod curriculum {
+    use super::*;
+
+    pub mod milestone {
+        use super::*;
+
+        #[nutype(
+            sanitize(trim),
+            validate(not_empty, len_char_max = 120),
+            derive(
+                Debug,
+                Clone,
+                PartialEq,
+                Eq,
+                PartialOrd,
+                Ord,
+                Hash,
+                Serialize,
+                Deserialize
+            )
+        )]
+        pub struct Id(String);
+
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+        pub enum Status {
+            NotStarted,
+            Introduced,
+            Practicing,
+            Generalized,
+            Completed,
+            DeferredNeedsTrainerNote,
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Unit {
+        PuppyManners,
+        LooseLeashWalking,
+        Recall,
+        ConfidenceBuilding,
+        CanineGoodCitizenPrep,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct Progress {
+        pub milestone_id: milestone::Id,
+        pub status: milestone::Status,
+    }
+
+    impl Progress {
+        pub const fn new(milestone_id: milestone::Id, status: milestone::Status) -> Self {
+            Self {
+                milestone_id,
+                status,
+            }
+        }
+    }
+}
+
+pub mod trainer {
+    use super::*;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Availability {
+        AnyCertifiedTrainer,
+        NamedTrainerRequired,
+        WaitlistUntilTrainerAvailable,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Requirement {
+        AnyCertifiedTrainer,
+        NamedTrainer { trainer_id: StaffId },
+        ProgramQualified { program: Program },
+    }
+
+    impl Requirement {
+        pub const fn requires_named_trainer(&self) -> bool {
+            matches!(self, Self::NamedTrainer { .. })
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Qualification {
+        CertifiedTrainer,
+        ProgramSpecialist,
+        ManagerApprovedException,
+    }
+}
 
 #[nutype(
     sanitize(trim),
@@ -179,23 +302,6 @@ pub struct EvidenceId(String);
         Deserialize
     )
 )]
-pub struct MilestoneId(String);
-
-#[nutype(
-    sanitize(trim),
-    validate(not_empty, len_char_max = 120),
-    derive(
-        Debug,
-        Clone,
-        PartialEq,
-        Eq,
-        PartialOrd,
-        Ord,
-        Hash,
-        Serialize,
-        Deserialize
-    )
-)]
 pub struct OutcomeDocumentationId(String);
 
 #[nutype(
@@ -231,7 +337,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Program {
-    StayAndStudy { duration: DurationWeeks },
+    StayAndStudy { duration: program::DurationWeeks },
     TutorSession,
     GroupClass,
     PuppyKindergarten,
@@ -239,19 +345,6 @@ pub enum Program {
     AkcCanineGoodCitizenPrep,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ProgramDuration {
-    SingleSession,
-    Weeks(DurationWeeks),
-}
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CurriculumUnit {
-    PuppyManners,
-    LooseLeashWalking,
-    Recall,
-    ConfidenceBuilding,
-    CanineGoodCitizenPrep,
-}
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProgressTracking {
     AttendanceOnly,
@@ -266,74 +359,11 @@ pub enum Outcome {
     OwnerHandlingPlan,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TrainerAvailability {
-    AnyCertifiedTrainer,
-    NamedTrainerRequired,
-    WaitlistUntilTrainerAvailable,
-}
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FollowUpCadence {
     None,
     AfterEachSession,
     AfterProgramCompletion,
     ThirtyDaysAfterCompletion,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum EnrollmentReadiness {
-    Ready,
-    TrainerReviewRequired { gate: policy::ReviewGate },
-    BehaviorOrCareReviewRequired { gate: policy::ReviewGate },
-    PackageOrPaymentReviewRequired { gate: policy::ReviewGate },
-}
-
-impl EnrollmentReadiness {
-    pub fn blocking_gate(&self) -> Option<policy::ReviewGate> {
-        match self {
-            Self::Ready => None,
-            Self::TrainerReviewRequired { gate }
-            | Self::BehaviorOrCareReviewRequired { gate }
-            | Self::PackageOrPaymentReviewRequired { gate } => Some(gate.clone()),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TrainerRequirement {
-    AnyCertifiedTrainer,
-    NamedTrainer { trainer_id: StaffId },
-    ProgramQualified { program: Program },
-}
-
-impl TrainerRequirement {
-    pub const fn requires_named_trainer(&self) -> bool {
-        matches!(self, Self::NamedTrainer { .. })
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum MilestoneStatus {
-    NotStarted,
-    Introduced,
-    Practicing,
-    Generalized,
-    Completed,
-    DeferredNeedsTrainerNote,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CurriculumProgress {
-    pub milestone_id: MilestoneId,
-    pub status: MilestoneStatus,
-}
-
-impl CurriculumProgress {
-    pub const fn new(milestone_id: MilestoneId, status: MilestoneStatus) -> Self {
-        Self {
-            milestone_id,
-            status,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -344,8 +374,8 @@ pub enum ProgressEvidence {
     },
     MilestoneObserved {
         evidence_id: EvidenceId,
-        milestone_id: MilestoneId,
-        status: MilestoneStatus,
+        milestone_id: curriculum::milestone::Id,
+        status: curriculum::milestone::Status,
     },
     SessionCompleted {
         evidence_id: EvidenceId,
@@ -389,31 +419,6 @@ pub enum MemberFacingBoundary {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct SessionBalance(u16);
 
-pub mod enrollment {
-    pub use super::{EnrollmentId as Id, EnrollmentReadiness as Readiness};
-}
-
-pub mod program {
-    pub use super::{DurationWeeks, DurationWeeksError, Program, ProgramDuration};
-}
-
-pub mod curriculum {
-    pub use super::{
-        CurriculumProgress as Progress, CurriculumUnit as Unit, MilestoneId, MilestoneStatus,
-    };
-}
-
-pub mod trainer {
-    pub use super::{TrainerAvailability as Availability, TrainerRequirement as Requirement};
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-    pub enum Qualification {
-        CertifiedTrainer,
-        ProgramSpecialist,
-        ManagerApprovedException,
-    }
-}
-
 impl SessionBalance {
     pub const fn new(value: u16) -> Self {
         Self(value)
@@ -441,12 +446,12 @@ pub mod availability {
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
     pub struct Request {
-        pub enrollment_id: EnrollmentId,
+        pub enrollment_id: enrollment::Id,
         pub pet_id: PetId,
         pub program: Program,
-        pub requirement: TrainerRequirement,
+        pub requirement: trainer::Requirement,
         pub capacity: CapacityDecision,
-        pub readiness: EnrollmentReadiness,
+        pub readiness: enrollment::Readiness,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -521,10 +526,10 @@ pub mod progress {
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct Report {
         pub report_id: ProgressReportId,
-        pub enrollment_id: EnrollmentId,
+        pub enrollment_id: enrollment::Id,
         pub session_ref: SessionRef,
         evidence: Vec<ProgressEvidence>,
-        milestones: Vec<CurriculumProgress>,
+        milestones: Vec<curriculum::Progress>,
         approval: ApprovalState,
     }
 
@@ -535,7 +540,7 @@ pub mod progress {
         pub fn has_evidence(&self) -> bool {
             !self.evidence.is_empty()
         }
-        pub fn milestones(&self) -> &[CurriculumProgress] {
+        pub fn milestones(&self) -> &[curriculum::Progress] {
             &self.milestones
         }
         pub fn approval(&self) -> &ApprovalState {
@@ -559,10 +564,10 @@ pub mod progress {
     #[derive(Default)]
     pub struct ReportBuilder {
         report_id: Option<ProgressReportId>,
-        enrollment_id: Option<EnrollmentId>,
+        enrollment_id: Option<enrollment::Id>,
         session_ref: Option<SessionRef>,
         evidence: Vec<ProgressEvidence>,
-        milestones: Vec<CurriculumProgress>,
+        milestones: Vec<curriculum::Progress>,
         approval: Option<ApprovalState>,
     }
 
@@ -571,7 +576,7 @@ pub mod progress {
             self.report_id = Some(value);
             self
         }
-        pub fn enrollment_id(mut self, value: EnrollmentId) -> Self {
+        pub fn enrollment_id(mut self, value: enrollment::Id) -> Self {
             self.enrollment_id = Some(value);
             self
         }
@@ -583,7 +588,7 @@ pub mod progress {
             self.evidence = value;
             self
         }
-        pub fn milestones(mut self, value: Vec<CurriculumProgress>) -> Self {
+        pub fn milestones(mut self, value: Vec<curriculum::Progress>) -> Self {
             self.milestones = value;
             self
         }
@@ -623,7 +628,7 @@ pub mod outcome {
         pub outcome: Outcome,
         pub status: ClaimStatus,
         pub evidence: Vec<EvidenceId>,
-        pub milestones: Vec<MilestoneId>,
+        pub milestones: Vec<curriculum::milestone::Id>,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -631,7 +636,7 @@ pub mod outcome {
         pub outcome: Outcome,
         pub status: ClaimStatus,
         evidence: Vec<EvidenceId>,
-        milestones: Vec<MilestoneId>,
+        milestones: Vec<curriculum::milestone::Id>,
     }
 
     impl Claim {
@@ -651,7 +656,7 @@ pub mod outcome {
         pub fn evidence(&self) -> &[EvidenceId] {
             &self.evidence
         }
-        pub fn milestones(&self) -> &[MilestoneId] {
+        pub fn milestones(&self) -> &[curriculum::milestone::Id] {
             &self.milestones
         }
     }
@@ -659,7 +664,7 @@ pub mod outcome {
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct Documentation {
         pub documentation_id: OutcomeDocumentationId,
-        pub enrollment_id: EnrollmentId,
+        pub enrollment_id: enrollment::Id,
         pub pet_id: PetId,
         pub location_id: LocationId,
         claims: Vec<Claim>,
@@ -694,7 +699,7 @@ pub mod outcome {
     #[derive(Default)]
     pub struct DocumentationBuilder {
         documentation_id: Option<OutcomeDocumentationId>,
-        enrollment_id: Option<EnrollmentId>,
+        enrollment_id: Option<enrollment::Id>,
         pet_id: Option<PetId>,
         location_id: Option<LocationId>,
         claims: Vec<Claim>,
@@ -706,7 +711,7 @@ pub mod outcome {
             self.documentation_id = Some(value);
             self
         }
-        pub fn enrollment_id(mut self, value: EnrollmentId) -> Self {
+        pub fn enrollment_id(mut self, value: enrollment::Id) -> Self {
             self.enrollment_id = Some(value);
             self
         }
@@ -872,8 +877,8 @@ pub mod follow_up {
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub enum Trigger {
         SessionCompleted { session_id: SessionId },
-        ProgramCompleted { enrollment_id: EnrollmentId },
-        LaterCadenceCheckpoint { enrollment_id: EnrollmentId },
+        ProgramCompleted { enrollment_id: enrollment::Id },
+        LaterCadenceCheckpoint { enrollment_id: enrollment::Id },
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -971,13 +976,13 @@ pub mod follow_up {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 pub struct Contract {
-    pub program_duration: ProgramDuration,
+    pub program_duration: program::Duration,
     #[builder(default)]
-    pub curriculum: Vec<CurriculumUnit>,
+    pub curriculum: Vec<curriculum::Unit>,
     pub progress: ProgressTracking,
     #[builder(default)]
     pub outcomes: Vec<Outcome>,
-    pub trainer_availability: TrainerAvailability,
+    pub trainer_availability: trainer::Availability,
     pub package: package::Policy,
     pub follow_up: FollowUpCadence,
 }
@@ -986,8 +991,8 @@ impl Contract {
     pub fn requires_named_trainer(&self) -> bool {
         matches!(
             self.trainer_availability,
-            TrainerAvailability::NamedTrainerRequired
-                | TrainerAvailability::WaitlistUntilTrainerAvailable
+            trainer::Availability::NamedTrainerRequired
+                | trainer::Availability::WaitlistUntilTrainerAvailable
         )
     }
     pub fn has_outcome(&self, outcome: &Outcome) -> bool {
@@ -995,14 +1000,16 @@ impl Contract {
     }
     pub fn standard_petsuites() -> Self {
         Self::builder()
-            .program_duration(ProgramDuration::Weeks(DurationWeeks::try_new(3).unwrap()))
+            .program_duration(program::Duration::Weeks(
+                program::DurationWeeks::try_new(3).unwrap(),
+            ))
             .curriculum(vec![
-                CurriculumUnit::LooseLeashWalking,
-                CurriculumUnit::Recall,
+                curriculum::Unit::LooseLeashWalking,
+                curriculum::Unit::Recall,
             ])
             .progress(ProgressTracking::SessionNotesAndMilestones)
             .outcomes(vec![Outcome::CanineGoodCitizenReadiness])
-            .trainer_availability(TrainerAvailability::NamedTrainerRequired)
+            .trainer_availability(trainer::Availability::NamedTrainerRequired)
             .package(package::Policy::MultiSessionPackage {
                 sessions: SessionCount::try_new(6).unwrap(),
             })

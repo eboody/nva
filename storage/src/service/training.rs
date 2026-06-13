@@ -1,5 +1,7 @@
 use serde::{Deserialize, Deserializer, Serialize};
 
+use domain::training::program;
+
 use crate::operations::{self, StorageField};
 
 /// Storage shape for a migrated training service contract.
@@ -63,10 +65,10 @@ pub enum StoredProgramDurationWeeksError {
     ZeroWeeks,
 }
 
-impl TryFrom<domain::training::DurationWeeks> for StoredProgramDurationWeeks {
+impl TryFrom<program::DurationWeeks> for StoredProgramDurationWeeks {
     type Error = operations::Error;
 
-    fn try_from(value: domain::training::DurationWeeks) -> operations::Result<Self> {
+    fn try_from(value: program::DurationWeeks) -> operations::Result<Self> {
         Self::try_new(value.get()).map_err(|err| operations::Error::InvalidDomainValue {
             field: StorageField::TrainingProgramDurationWeeks,
             reason: err.to_string(),
@@ -74,11 +76,11 @@ impl TryFrom<domain::training::DurationWeeks> for StoredProgramDurationWeeks {
     }
 }
 
-impl TryFrom<StoredProgramDurationWeeks> for domain::training::DurationWeeks {
+impl TryFrom<StoredProgramDurationWeeks> for program::DurationWeeks {
     type Error = operations::Error;
 
     fn try_from(value: StoredProgramDurationWeeks) -> operations::Result<Self> {
-        domain::training::DurationWeeks::try_new(value.get()).map_err(|err| {
+        program::DurationWeeks::try_new(value.get()).map_err(|err| {
             operations::Error::InvalidDomainValue {
                 field: StorageField::TrainingProgramDurationWeeks,
                 reason: err.to_string(),

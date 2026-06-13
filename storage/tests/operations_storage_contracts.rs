@@ -99,7 +99,7 @@ fn operations_reexports_narrow_legacy_storage_compatibility_names() {
 fn service_line_records_promote_domain_service_values_at_storage_boundary() {
     let training_record = storage::service::training::ProgramRecord::try_from(
         domain::training::Program::StayAndStudy {
-            duration: domain::training::DurationWeeks::try_new(4).unwrap(),
+            duration: domain::training::program::DurationWeeks::try_new(4).unwrap(),
         },
     )
     .unwrap();
@@ -116,7 +116,7 @@ fn service_line_records_promote_domain_service_values_at_storage_boundary() {
     assert_eq!(
         domain_program,
         domain::training::Program::StayAndStudy {
-            duration: domain::training::DurationWeeks::try_new(4).unwrap(),
+            duration: domain::training::program::DurationWeeks::try_new(4).unwrap(),
         }
     );
 
