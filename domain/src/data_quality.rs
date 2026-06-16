@@ -4,18 +4,26 @@ use crate::source;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SourceField {
-    OwnerProviderId,
-    AnimalProviderId,
-    LocationProviderId,
-    ServiceTypeProviderId,
+    CustomerRecordId,
+    PetRecordId,
+    LocationRecordId,
+    ServiceTypeRecordId,
+    ReservationStatus,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Kind {
-    MissingRequiredField { field: SourceField },
-    UnknownProviderStatus,
+    MissingRequiredField {
+        field: SourceField,
+    },
+    AssumptionInForce {
+        assumption: source::reservation::Assumption,
+    },
+    UnknownSourceStatus {
+        observed: source::ObservedStatus,
+    },
     ConflictingTimestamps,
-    DuplicateProviderRecord,
+    DuplicateSourceRecord,
     AmbiguousOwnerPetRelationship,
     UnmappedServiceType,
     LocationScopeAmbiguity,
@@ -48,7 +56,7 @@ pub enum ResolutionStatus {
 pub struct Issue {
     kind: Kind,
     severity: Severity,
-    provenance: source::gingr::Provenance,
+    provenance: source::Provenance,
     detected_at: source::Timestamp,
     resolution_status: ResolutionStatus,
     visible_to_bi: bool,
@@ -59,7 +67,7 @@ impl Issue {
     pub fn new(
         kind: Kind,
         severity: Severity,
-        provenance: source::gingr::Provenance,
+        provenance: source::Provenance,
         detected_at: source::Timestamp,
         workflow_blocking: bool,
     ) -> Self {
@@ -74,8 +82,8 @@ impl Issue {
         }
     }
 
-    pub const fn kind(&self) -> Kind {
-        self.kind
+    pub fn kind(&self) -> Kind {
+        self.kind.clone()
     }
 
     pub const fn severity(&self) -> Severity {
@@ -86,7 +94,7 @@ impl Issue {
         self.provenance.source_system()
     }
 
-    pub const fn provenance(&self) -> &source::gingr::Provenance {
+    pub const fn provenance(&self) -> &source::Provenance {
         &self.provenance
     }
 

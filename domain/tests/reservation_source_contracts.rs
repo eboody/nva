@@ -1,6 +1,6 @@
 use domain::{analytics, data_quality, source};
 
-fn provenance() -> source::gingr::Provenance {
+fn gingr_provenance() -> source::gingr::Provenance {
     source::gingr::Provenance::builder()
         .endpoint(source::gingr::Endpoint::try_new("GET /reservations").unwrap())
         .provider_record_id(source::gingr::ProviderRecordId::try_new("reservation-42").unwrap())
@@ -30,25 +30,28 @@ fn provenance() -> source::gingr::Provenance {
         .build()
 }
 
-#[test]
-fn gingr_reservation_snapshot_preserves_provider_provenance() {
-    let snapshot = source::gingr::reservation::Snapshot::builder()
-        .provenance(provenance())
-        .owner_provider_id(source::gingr::ProviderRecordId::try_new("owner-7").unwrap())
-        .animal_provider_id(source::gingr::ProviderRecordId::try_new("animal-9").unwrap())
-        .location_provider_id(source::gingr::ProviderRecordId::try_new("location-3").unwrap())
-        .service_type_provider_id(
-            source::gingr::ProviderRecordId::try_new("boarding-suite").unwrap(),
-        )
-        .provider_status(source::gingr::ProviderStatus::try_new("checked_in").unwrap())
-        .relationship(source::gingr::reservation::OwnerPetRelationship::Resolved)
-        .build();
+fn source_provenance() -> source::Provenance {
+    gingr_provenance().promote()
+}
 
-    assert_eq!(snapshot.provenance().source_system(), source::System::Gingr);
-    assert_eq!(
-        snapshot.provenance().provider_record_id().as_str(),
-        "reservation-42"
-    );
+fn complete_source_snapshot() -> source::reservation::Snapshot {
+    source::reservation::Snapshot::builder()
+        .provenance(source_provenance())
+        .customer_record_id(source::record::Id::try_new("owner-7").unwrap())
+        .pet_record_id(source::record::Id::try_new("animal-9").unwrap())
+        .location_record_id(source::record::Id::try_new("location-3").unwrap())
+        .service_type_record_id(source::record::Id::try_new("boarding-suite").unwrap())
+        .status(source::reservation::Status::CheckedIn)
+        .relationship(source::reservation::OwnerPetRelationship::Resolved)
+        .build()
+}
+
+#[test]
+fn source_agnostic_reservation_snapshot_preserves_provenance_without_gingr_paths() {
+    let snapshot = complete_source_snapshot();
+
+    assert_eq!(snapshot.provenance().system(), source::System::Gingr);
+    assert_eq!(snapshot.provenance().record_id().as_str(), "reservation-42");
     assert_eq!(
         snapshot.provenance().endpoint().as_str(),
         "GET /reservations"
@@ -57,24 +60,74 @@ fn gingr_reservation_snapshot_preserves_provider_provenance() {
         snapshot.provenance().raw_payload_ref().as_str(),
         "restricted://gingr/reservations/42.json"
     );
-    assert_eq!(snapshot.owner_provider_id().unwrap().as_str(), "owner-7");
-    assert_eq!(snapshot.provider_status().unwrap().as_str(), "checked_in");
+    assert_eq!(snapshot.customer_record_id().unwrap().as_str(), "owner-7");
+    assert_eq!(
+        snapshot.status(),
+        Some(source::reservation::Status::CheckedIn)
+    );
+}
+
+#[test]
+fn gingr_reservation_snapshot_promotes_to_source_agnostic_snapshot_with_assumptions() {
+    let snapshot = source::gingr::reservation::Snapshot::builder()
+        .provenance(gingr_provenance())
+        .owner_provider_id(source::gingr::ProviderRecordId::try_new("owner-7").unwrap())
+        .animal_provider_id(source::gingr::ProviderRecordId::try_new("animal-9").unwrap())
+        .location_provider_id(source::gingr::ProviderRecordId::try_new("location-3").unwrap())
+        .service_type_provider_id(
+            source::gingr::ProviderRecordId::try_new("boarding-suite").unwrap(),
+        )
+        .provider_status(source::gingr::ProviderStatus::try_new("checked_in").unwrap())
+        .relationship(source::gingr::reservation::OwnerPetRelationship::Resolved)
+        .build()
+        .promote();
+
+    assert_eq!(snapshot.provenance().system(), source::System::Gingr);
+    assert_eq!(snapshot.provenance().record_id().as_str(), "reservation-42");
+    assert_eq!(snapshot.customer_record_id().unwrap().as_str(), "owner-7");
+    assert_eq!(snapshot.pet_record_id().unwrap().as_str(), "animal-9");
+    assert_eq!(
+        snapshot.status(),
+        Some(source::reservation::Status::CheckedIn)
+    );
+    assert!(
+        snapshot
+            .assumptions()
+            .contains(&source::reservation::Assumption::GrainTreatedAsReservation)
+    );
+    assert!(
+        snapshot
+            .assumptions()
+            .contains(&source::reservation::Assumption::ProviderStatusMappingIsProvisional)
+    );
+}
+
+#[test]
+fn data_quality_issues_do_not_depend_on_gingr_provenance() {
+    let issue = data_quality::Issue::new(
+        data_quality::Kind::MissingRequiredField {
+            field: data_quality::SourceField::CustomerRecordId,
+        },
+        data_quality::Severity::Blocking,
+        source_provenance(),
+        source::Timestamp::try_new("2026-06-16T20:05:00Z").unwrap(),
+        true,
+    );
+
+    assert_eq!(issue.source_system(), source::System::Gingr);
+    assert_eq!(issue.provenance().record_id().as_str(), "reservation-42");
 }
 
 #[test]
 fn missing_and_ambiguous_source_facts_emit_typed_data_quality_issues() {
-    let snapshot = source::gingr::reservation::Snapshot::builder()
-        .provenance(provenance())
-        .owner_provider_id(None)
-        .animal_provider_id(source::gingr::ProviderRecordId::try_new("animal-9").unwrap())
-        .location_provider_id(None)
-        .service_type_provider_id(
-            source::gingr::ProviderRecordId::try_new("boarding-suite").unwrap(),
-        )
-        .provider_status(None)
-        .relationship(
-            source::gingr::reservation::OwnerPetRelationship::Ambiguous { candidate_count: 3 },
-        )
+    let snapshot = source::reservation::Snapshot::builder()
+        .provenance(source_provenance())
+        .customer_record_id(None)
+        .pet_record_id(source::record::Id::try_new("animal-9").unwrap())
+        .location_record_id(None)
+        .service_type_record_id(source::record::Id::try_new("boarding-suite").unwrap())
+        .status(None)
+        .relationship(source::reservation::OwnerPetRelationship::Ambiguous { candidate_count: 3 })
         .build();
 
     let issues =
@@ -82,17 +135,16 @@ fn missing_and_ambiguous_source_facts_emit_typed_data_quality_issues() {
 
     assert!(issues.iter().any(|issue| issue.kind()
         == data_quality::Kind::MissingRequiredField {
-            field: data_quality::SourceField::OwnerProviderId,
+            field: data_quality::SourceField::CustomerRecordId,
         }));
     assert!(issues.iter().any(|issue| issue.kind()
         == data_quality::Kind::MissingRequiredField {
-            field: data_quality::SourceField::LocationProviderId,
+            field: data_quality::SourceField::LocationRecordId,
         }));
-    assert!(
-        issues
-            .iter()
-            .any(|issue| issue.kind() == data_quality::Kind::UnknownProviderStatus)
-    );
+    assert!(issues.iter().any(|issue| issue.kind()
+        == data_quality::Kind::AssumptionInForce {
+            assumption: source::reservation::Assumption::RefreshMutationPolicyUnknown,
+        }));
     assert!(
         issues
             .iter()
@@ -107,31 +159,21 @@ fn missing_and_ambiguous_source_facts_emit_typed_data_quality_issues() {
 }
 
 #[test]
-fn complete_gingr_reservation_snapshot_projects_to_bi_stay_fact() {
-    let snapshot = source::gingr::reservation::Snapshot::builder()
-        .provenance(provenance())
-        .owner_provider_id(source::gingr::ProviderRecordId::try_new("owner-7").unwrap())
-        .animal_provider_id(source::gingr::ProviderRecordId::try_new("animal-9").unwrap())
-        .location_provider_id(source::gingr::ProviderRecordId::try_new("location-3").unwrap())
-        .service_type_provider_id(
-            source::gingr::ProviderRecordId::try_new("boarding-suite").unwrap(),
-        )
-        .provider_status(source::gingr::ProviderStatus::try_new("checked_in").unwrap())
-        .relationship(source::gingr::reservation::OwnerPetRelationship::Resolved)
-        .build();
+fn complete_source_reservation_snapshot_projects_to_stay_fact() {
+    let snapshot = complete_source_snapshot();
 
-    let fact = analytics::stay::Fact::project_from_gingr_reservation(
+    let fact = analytics::stay::Fact::project_from_reservation_snapshot(
         analytics::stay::Id::try_new("stay-fact-42").unwrap(),
         &snapshot,
         analytics::ProjectionVersion::try_new("stay-v1").unwrap(),
     )
-    .expect("complete snapshot can project to stay fact");
+    .expect("complete source snapshot can project to stay fact");
 
     assert_eq!(fact.id().as_str(), "stay-fact-42");
     assert_eq!(fact.source_system(), source::System::Gingr);
-    assert_eq!(fact.reservation_provider_id().as_str(), "reservation-42");
-    assert_eq!(fact.pet_provider_id().as_str(), "animal-9");
-    assert_eq!(fact.location_provider_id().as_str(), "location-3");
+    assert_eq!(fact.reservation_record_id().as_str(), "reservation-42");
+    assert_eq!(fact.pet_record_id().as_str(), "animal-9");
+    assert_eq!(fact.location_record_id().as_str(), "location-3");
     assert_eq!(fact.projection_version().as_str(), "stay-v1");
     assert_eq!(
         fact.data_quality_status(),

@@ -41,52 +41,52 @@ pub mod stay {
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct Fact {
         id: Id,
-        provenance: source::gingr::Provenance,
-        reservation_provider_id: source::gingr::ProviderRecordId,
-        customer_provider_id: source::gingr::ProviderRecordId,
-        pet_provider_id: source::gingr::ProviderRecordId,
-        location_provider_id: source::gingr::ProviderRecordId,
-        service_type_provider_id: source::gingr::ProviderRecordId,
+        provenance: source::Provenance,
+        reservation_record_id: source::record::Id,
+        customer_record_id: source::record::Id,
+        pet_record_id: source::record::Id,
+        location_record_id: source::record::Id,
+        service_type_record_id: source::record::Id,
         projection_version: analytics::ProjectionVersion,
         data_quality_status: DataQualityStatus,
     }
 
     impl Fact {
-        pub fn project_from_gingr_reservation(
+        pub fn project_from_reservation_snapshot(
             id: Id,
-            snapshot: &source::gingr::reservation::Snapshot,
+            snapshot: &source::reservation::Snapshot,
             projection_version: analytics::ProjectionVersion,
         ) -> std::result::Result<Self, Vec<data_quality::Issue>> {
             let issues = snapshot.data_quality_issues(snapshot.provenance().pulled_at().clone());
-            if !issues.is_empty() {
+            if issues.iter().any(data_quality::Issue::workflow_blocking) {
                 return Err(issues);
             }
 
-            let owner_provider_id = snapshot
-                .owner_provider_id()
-                .expect("data_quality_issues guards owner presence")
+            let customer_record_id = snapshot
+                .customer_record_id()
+                .expect("data_quality_issues guards customer presence")
                 .clone();
-            let animal_provider_id = snapshot
-                .animal_provider_id()
-                .expect("data_quality_issues guards animal presence")
+            let pet_record_id = snapshot
+                .pet_record_id()
+                .expect("data_quality_issues guards pet presence")
                 .clone();
-            let location_provider_id = snapshot
-                .location_provider_id()
+            let location_record_id = snapshot
+                .location_record_id()
                 .expect("data_quality_issues guards location presence")
                 .clone();
-            let service_type_provider_id = snapshot
-                .service_type_provider_id()
+            let service_type_record_id = snapshot
+                .service_type_record_id()
                 .expect("data_quality_issues guards service type presence")
                 .clone();
 
             Ok(Self {
                 id,
                 provenance: snapshot.provenance().clone(),
-                reservation_provider_id: snapshot.provenance().provider_record_id().clone(),
-                customer_provider_id: owner_provider_id,
-                pet_provider_id: animal_provider_id,
-                location_provider_id,
-                service_type_provider_id,
+                reservation_record_id: snapshot.provenance().record_id().clone(),
+                customer_record_id,
+                pet_record_id,
+                location_record_id,
+                service_type_record_id,
                 projection_version,
                 data_quality_status: DataQualityStatus::Complete,
             })
@@ -100,24 +100,28 @@ pub mod stay {
             self.provenance.source_system()
         }
 
-        pub const fn reservation_provider_id(&self) -> &source::gingr::ProviderRecordId {
-            &self.reservation_provider_id
+        pub const fn provenance(&self) -> &source::Provenance {
+            &self.provenance
         }
 
-        pub const fn customer_provider_id(&self) -> &source::gingr::ProviderRecordId {
-            &self.customer_provider_id
+        pub const fn reservation_record_id(&self) -> &source::record::Id {
+            &self.reservation_record_id
         }
 
-        pub const fn pet_provider_id(&self) -> &source::gingr::ProviderRecordId {
-            &self.pet_provider_id
+        pub const fn customer_record_id(&self) -> &source::record::Id {
+            &self.customer_record_id
         }
 
-        pub const fn location_provider_id(&self) -> &source::gingr::ProviderRecordId {
-            &self.location_provider_id
+        pub const fn pet_record_id(&self) -> &source::record::Id {
+            &self.pet_record_id
         }
 
-        pub const fn service_type_provider_id(&self) -> &source::gingr::ProviderRecordId {
-            &self.service_type_provider_id
+        pub const fn location_record_id(&self) -> &source::record::Id {
+            &self.location_record_id
+        }
+
+        pub const fn service_type_record_id(&self) -> &source::record::Id {
+            &self.service_type_record_id
         }
 
         pub const fn projection_version(&self) -> &analytics::ProjectionVersion {
