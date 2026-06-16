@@ -324,7 +324,7 @@ pub mod payment {
             #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
             pub enum Result {
                 Authorized {
-                    authorization_id: AuthorizationId,
+                    authorization_id: authorization_id::Id,
                     amount: Money,
                 },
                 Declined {
@@ -342,8 +342,6 @@ pub mod payment {
                 ProviderUnavailable,
                 RequiresCustomerAction,
             }
-
-            pub use authorization_id::Id as AuthorizationId;
 
             pub mod authorization_id {
                 use super::*;
@@ -391,7 +389,7 @@ pub mod payment {
 
             #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
             pub enum Result {
-                Accepted { refund_id: RefundId },
+                Accepted { refund_id: refund_id::Id },
                 Rejected { reason: RejectionReason },
             }
 
@@ -402,8 +400,6 @@ pub mod payment {
                 OutsideRefundWindow,
                 ProviderRejected,
             }
-
-            pub use refund_id::Id as RefundId;
 
             pub mod refund_id {
                 use super::*;
@@ -735,11 +731,9 @@ pub mod hermes {
 
             #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
             pub struct DraftResult {
-                pub task_id: TaskId,
+                pub task_id: task_id::Id,
                 pub status: DraftStatus,
             }
-
-            pub use task_id::Id as TaskId;
 
             pub mod task_id {
                 use super::*;
