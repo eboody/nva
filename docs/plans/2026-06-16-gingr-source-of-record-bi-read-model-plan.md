@@ -6,7 +6,11 @@ Date: 2026-06-16
 
 Tyler reported that Gingr is being used as a de facto database, and that the existing team already has code that pulls data from Gingr and constructs various types for BI consumption. That code is messy, but it means this is not hypothetical: Gingr-derived operational data is already being transformed into analytical/business-facing shapes.
 
-For NVA, this means Gingr should not be treated as a simple integration or a clean source of truth. It should be treated as a messy upstream operational source whose facts must be extracted, preserved, normalized, quality-checked, and projected into downstream models.
+The repository-wide business objective is labor-cost reduction. NVA needs high-resolution operational insight so it can build schedule optimization, staffing tools, automations, reports, and workflow controls that reduce avoidable labor spend without degrading care quality or customer experience.
+
+Gingr is only one source in that larger operating picture. NVA should expect additional sources such as labor/timeclock data, staff schedules, payroll or wage-cost exports, capacity/room inventory, POS/payment data, customer communications, task/work-order systems, and manager-entered operational notes.
+
+For NVA, this means Gingr should not be treated as the whole product, a simple integration, or a clean source of truth. It should be treated as one messy upstream operational source whose facts must be extracted, preserved, normalized, quality-checked, joined with other source facts, and projected into downstream models.
 
 ## Architectural posture
 
