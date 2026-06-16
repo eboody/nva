@@ -160,10 +160,11 @@ fn external_integration_contracts_are_application_tool_port_types() {
         "Please upload updated rabies records."
     );
 
-    let intake = tools::documents::DocumentIntakeRequest {
-        document: tools::documents::DocumentRef::try_new("  file/vaccine.pdf  ").unwrap(),
-        source: tools::documents::DocumentSource::CustomerUpload,
-        expected_content: tools::documents::ExpectedContent::VaccineProof,
+    let intake = tools::documents::document::IntakeRequest {
+        document: tools::documents::document::reference::Ref::try_new("  file/vaccine.pdf  ")
+            .unwrap(),
+        source: tools::documents::document::Source::CustomerUpload,
+        expected_content: tools::documents::document::ExpectedContent::VaccineProof,
     };
     assert_eq!(intake.document.into_inner(), "file/vaccine.pdf");
 
@@ -174,7 +175,7 @@ fn external_integration_contracts_are_application_tool_port_types() {
     };
     assert_eq!(snapshot.camera_id.into_inner(), "lobby-cam-1");
 
-    let task = tools::hermes::TaskDraftRequest {
+    let task = tools::hermes::task::DraftRequest {
         title: workflow::task::Title::try_new("  Review vaccine proof  ").unwrap(),
         body: workflow::task::Body::try_new("Confirm rabies expiration date.").unwrap(),
         queue: tools::hermes::QueueName::try_new("  manager-review  ").unwrap(),
@@ -185,7 +186,7 @@ fn external_integration_contracts_are_application_tool_port_types() {
     assert!(tools::portal::AccountId::try_new("   ").is_err());
     assert!(tools::payment::IdempotencyKey::try_new("   ").is_err());
     assert!(tools::messaging::message_body::Body::try_new("   ").is_err());
-    assert!(tools::documents::DocumentRef::try_new("   ").is_err());
+    assert!(tools::documents::document::reference::Ref::try_new("   ").is_err());
     assert!(tools::media::CameraId::try_new("   ").is_err());
     assert!(tools::hermes::QueueName::try_new("   ").is_err());
 }

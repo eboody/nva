@@ -18,19 +18,19 @@ fn portfolio_records_promote_into_domain_portfolios_and_demote_back_to_storage()
         ])
         .build();
 
-    let domain_portfolio: domain::operations::PetResortPortfolio =
+    let domain_portfolio: domain::operations::pet_resort::Portfolio =
         record.clone().try_into().unwrap();
 
     assert_eq!(domain_portfolio.resort_count.get(), 170);
     assert!(
         domain_portfolio
             .business_lines
-            .contains(&domain::operations::BusinessLine::PetResorts)
+            .contains(&domain::operations::pet_resort::BusinessLine::PetResorts)
     );
     assert!(
         domain_portfolio
             .brands
-            .contains(&domain::operations::PetResortBrand::PetSuites)
+            .contains(&domain::operations::pet_resort::Brand::PetSuites)
     );
 
     let stored_again: storage::operations::PetResortPortfolioRecord =
@@ -55,7 +55,7 @@ fn service_offering_records_preserve_variant_contracts_through_codecs() {
     );
     assert_eq!(
         record.grooming_service,
-        Some(storage::service::grooming::ServiceCode::FullGroom)
+        Some(storage::service_line::grooming::ServiceCode::FullGroom)
     );
     assert_eq!(record.grooming_cadence_weeks.unwrap().get(), 6);
     assert!(record.boarding_accommodation.is_none());
@@ -69,7 +69,7 @@ fn service_offering_records_preserve_variant_contracts_through_codecs() {
 fn service_offering_records_reject_cross_variant_storage_shapes() {
     let invalid = storage::operations::ServiceOfferingRecord::builder()
         .service_kind(storage::operations::ServiceOfferingKindCode::Grooming)
-        .boarding_accommodation(storage::service::boarding::AccommodationCode::LuxurySuite)
+        .boarding_accommodation(storage::service_line::boarding::AccommodationCode::LuxurySuite)
         .build();
 
     let err = domain::operations::ServiceOffering::try_from(invalid).unwrap_err();
@@ -86,18 +86,18 @@ fn service_offering_records_reject_cross_variant_storage_shapes() {
 #[test]
 fn operations_reexports_narrow_legacy_storage_compatibility_names() {
     let _: storage::operations::StoredCadenceWeeksError =
-        storage::service::grooming::StoredCadenceWeeksError::ZeroWeeks;
+        storage::service_line::grooming::StoredCadenceWeeksError::ZeroWeeks;
     let _: storage::operations::StoredTrainingProgramDurationWeeksError =
-        storage::service::training::StoredProgramDurationWeeksError::ZeroWeeks;
+        storage::service_line::training::StoredProgramDurationWeeksError::ZeroWeeks;
     let duration: storage::operations::StoredTrainingProgramDurationWeeks =
-        storage::service::training::StoredProgramDurationWeeks::try_new(4).unwrap();
+        storage::service_line::training::StoredProgramDurationWeeks::try_new(4).unwrap();
 
     assert_eq!(duration.get(), 4);
 }
 
 #[test]
 fn service_line_records_promote_domain_service_values_at_storage_boundary() {
-    let training_record = storage::service::training::ProgramRecord::try_from(
+    let training_record = storage::service_line::training::ProgramRecord::try_from(
         domain::training::Program::StayAndStudy {
             duration: domain::training::program::DurationWeeks::try_new(4).unwrap(),
         },
@@ -106,8 +106,8 @@ fn service_line_records_promote_domain_service_values_at_storage_boundary() {
 
     assert_eq!(
         training_record,
-        storage::service::training::ProgramRecord::StayAndStudy {
-            duration_weeks: storage::service::training::StoredProgramDurationWeeks::try_new(4)
+        storage::service_line::training::ProgramRecord::StayAndStudy {
+            duration_weeks: storage::service_line::training::StoredProgramDurationWeeks::try_new(4)
                 .unwrap(),
         }
     );
@@ -121,17 +121,17 @@ fn service_line_records_promote_domain_service_values_at_storage_boundary() {
     );
 
     let retail_partner: domain::retail::Partner =
-        storage::service::retail::PartnerCode::PurinaEnBoardingDiet.into();
+        storage::service_line::retail::PartnerCode::PurinaEnBoardingDiet.into();
     assert_eq!(
-        storage::service::retail::PartnerCode::from(retail_partner),
-        storage::service::retail::PartnerCode::PurinaEnBoardingDiet
+        storage::service_line::retail::PartnerCode::from(retail_partner),
+        storage::service_line::retail::PartnerCode::PurinaEnBoardingDiet
     );
 }
 
 #[test]
 fn technology_ecosystem_records_roundtrip_between_storage_and_domain() {
     let domain_ecosystem = domain::operations::TechnologyEcosystem::builder()
-        .core_portal(domain::operations::CoreOperatingSystem::Gingr)
+        .core_portal(domain::operations::service_core::OperatingSystem::Gingr)
         .data_access(vec![
             domain::operations::DataAccessPattern::Api,
             domain::operations::DataAccessPattern::Webhook,

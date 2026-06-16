@@ -11,117 +11,137 @@ use serde::{Deserialize, Serialize};
 
 use crate::daily_brief::{self, FollowUpReason};
 use crate::entities::{self, CustomerId, LocationId, PetId, StaffId};
-use crate::workflow::task;
+use crate::workflow::task as workflow_task;
 
-#[nutype(
-    sanitize(trim),
-    validate(not_empty, len_char_max = 500),
-    derive(
-        Debug,
-        Clone,
-        PartialEq,
-        Eq,
-        PartialOrd,
-        Ord,
-        Hash,
-        Serialize,
-        Deserialize
-    )
-)]
-pub struct CompletionEvidence(String);
+pub mod completion_evidence {
+    use super::*;
+
+    #[nutype(
+        sanitize(trim),
+        validate(not_empty, len_char_max = 500),
+        derive(
+            Debug,
+            Clone,
+            PartialEq,
+            Eq,
+            PartialOrd,
+            Ord,
+            Hash,
+            Serialize,
+            Deserialize
+        )
+    )]
+    pub struct Evidence(String);
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 pub struct Task {
     pub location_id: LocationId,
-    pub kind: TaskKind,
-    pub title: task::Title,
-    pub status: TaskStatus,
-    pub priority: TaskPriority,
+    pub kind: task::Kind,
+    pub title: workflow_task::Title,
+    pub status: task::Status,
+    pub priority: task::Priority,
     pub due_at: DateTime<Utc>,
-    pub assignment: TaskAssignment,
-    pub source: TaskSource,
-    pub completion_evidence: Option<CompletionEvidence>,
+    pub assignment: task::Assignment,
+    pub source: task::Source,
+    pub completion_evidence: Option<completion_evidence::Evidence>,
 }
 
 impl Task {
     pub fn requires_manager_attention(&self) -> bool {
         matches!(
             self.status,
-            TaskStatus::Blocked | TaskStatus::NeedsManagerReview
-        ) || matches!(self.priority, TaskPriority::High | TaskPriority::Critical)
-            || matches!(
-                self.kind,
-                TaskKind::IncidentFollowUp { .. }
-                    | TaskKind::MedicationAdministration { .. }
-                    | TaskKind::DocumentReview { .. }
-            )
+            task::Status::Blocked | task::Status::NeedsManagerReview
+        ) || matches!(
+            self.priority,
+            task::Priority::High | task::Priority::Critical
+        ) || matches!(
+            self.kind,
+            task::Kind::IncidentFollowUp { .. }
+                | task::Kind::MedicationAdministration { .. }
+                | task::Kind::DocumentReview { .. }
+        )
     }
 
-    pub fn complete_with(mut self, evidence: CompletionEvidence) -> Self {
-        self.status = TaskStatus::Completed;
+    pub fn complete_with(mut self, evidence: completion_evidence::Evidence) -> Self {
+        self.status = task::Status::Completed;
         self.completion_evidence = Some(evidence);
         self
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TaskKind {
-    CheckInPrep {
-        reservation_id: entities::ReservationId,
-    },
-    CheckOutPrep {
-        reservation_id: entities::ReservationId,
-    },
-    Feeding {
-        pet_id: PetId,
-    },
-    MedicationAdministration {
-        pet_id: PetId,
-    },
-    PlaygroupAssessment {
-        pet_id: PetId,
-    },
-    CleaningTurnover {
-        reservation_id: entities::ReservationId,
-    },
-    DailyUpdateDraft {
-        reservation_id: entities::ReservationId,
-    },
-    DocumentReview {
-        pet_id: PetId,
-    },
-    IncidentFollowUp {
-        pet_id: PetId,
-    },
-    CustomerFollowUp {
-        customer_id: CustomerId,
-        reason: FollowUpReason,
-    },
-}
+pub mod task {
+    use super::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TaskStatus {
-    Open,
-    InProgress,
-    Blocked,
-    NeedsManagerReview,
-    Completed,
-    Cancelled,
-}
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Kind {
+        CheckInPrep {
+            reservation_id: entities::ReservationId,
+        },
+        CheckOutPrep {
+            reservation_id: entities::ReservationId,
+        },
+        Feeding {
+            pet_id: PetId,
+        },
+        MedicationAdministration {
+            pet_id: PetId,
+        },
+        PlaygroupAssessment {
+            pet_id: PetId,
+        },
+        CleaningTurnover {
+            reservation_id: entities::ReservationId,
+        },
+        DailyUpdateDraft {
+            reservation_id: entities::ReservationId,
+        },
+        DocumentReview {
+            pet_id: PetId,
+        },
+        IncidentFollowUp {
+            pet_id: PetId,
+        },
+        CustomerFollowUp {
+            customer_id: CustomerId,
+            reason: FollowUpReason,
+        },
+    }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub enum TaskPriority {
-    Low,
-    Normal,
-    High,
-    Critical,
-}
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Status {
+        Open,
+        InProgress,
+        Blocked,
+        NeedsManagerReview,
+        Completed,
+        Cancelled,
+    }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TaskAssignment {
-    Unassigned,
-    Staff(StaffId),
-    Role(Role),
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+    pub enum Priority {
+        Low,
+        Normal,
+        High,
+        Critical,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Assignment {
+        Unassigned,
+        Staff(StaffId),
+        Role(super::Role),
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Source {
+        Reservation(entities::ReservationId),
+        Pet(PetId),
+        Customer(CustomerId),
+        DailyBrief(daily_brief::snapshot::Id),
+        WorkflowEvent(crate::workflow::EventId),
+        StaffCreated,
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -132,14 +152,4 @@ pub enum Role {
     Trainer,
     LeadStaff,
     Manager,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TaskSource {
-    Reservation(entities::ReservationId),
-    Pet(PetId),
-    Customer(CustomerId),
-    DailyBrief(daily_brief::SnapshotId),
-    WorkflowEvent(crate::workflow::EventId),
-    StaffCreated,
 }

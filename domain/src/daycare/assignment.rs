@@ -22,20 +22,22 @@ pub mod playgroup_id {
     pub struct Id(String);
 }
 
+pub use playgroup_id::Id as PlaygroupId;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 pub struct Request {
     pub pet_id: PetId,
     pub service: ServiceVariant,
     pub eligibility: eligibility::GroupPlayDecision,
     pub coverage: coverage::Decision,
-    pub playgroup: playgroup_id::Id,
+    pub playgroup: PlaygroupId,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Decision {
     Assigned {
         pet_id: PetId,
-        playgroup: playgroup_id::Id,
+        playgroup: PlaygroupId,
     },
     Waitlist {
         reason: WaitlistReason,

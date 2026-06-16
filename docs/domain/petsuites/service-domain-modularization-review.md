@@ -78,8 +78,8 @@ Status: pass for storage; partial for provider DTO coverage.
 
 Storage evidence:
 
-- `storage/src/service/mod.rs` declares service-owned storage modules for `boarding`, `daycare`, `grooming`, `retail`, and `training`.
-- `storage/src/operations.rs` now stores `CoreServiceContractsRecord` fields as `crate::service::<line>::ContractRecord` values.
+- `storage/src/service_line/mod.rs` declares service-line storage modules for `boarding`, `daycare`, `grooming`, `retail`, and `training`.
+- `storage/src/operations.rs` now stores `CoreServiceContractsRecord` fields as `crate::service_line::<line>::ContractRecord` values.
 - `storage/tests/core_service_contract_storage.rs` round-trips `CoreServiceContractsRecord` through JSON and rejects invalid validated scalars.
 - `storage/tests/operations_storage_contracts.rs` exercises service-domain paths such as `domain::service::grooming::*`, `domain::service::training::*`, and `domain::service::retail::*`.
 
@@ -95,7 +95,7 @@ Provider mapping remains intentionally thin: retail has meaningful promotion log
 
 Status: pass.
 
-Repository search found no new `common`, `util`, `utils`, `helpers`, or `types` junk-drawer modules in Rust source. The service work uses semantic module names (`service`, `boarding`, `daycare`, `retail`, `storage::service`, `mapping`) rather than vague catch-alls.
+Repository search found no new `common`, `util`, `utils`, `helpers`, or `types` junk-drawer modules in Rust source. The service work uses semantic module names (`service`, `boarding`, `daycare`, `retail`, `storage::service_line`, `mapping`) rather than vague catch-alls.
 
 ### 6. Canonical tests use `domain::service::*` paths
 

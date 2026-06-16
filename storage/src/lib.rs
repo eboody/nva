@@ -5,6 +5,6 @@
 //! between storage records and core domain types.
 
 pub mod operations;
-pub mod service;
+pub mod service_line;
 
 pub use operations::{CodecError, RecordKind, Result};

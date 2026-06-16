@@ -757,22 +757,28 @@ pub mod package {
         BoardAndTrainBundle,
     }
 
-    #[nutype(
-        sanitize(trim),
-        validate(not_empty, len_char_max = 120),
-        derive(
-            Debug,
-            Clone,
-            PartialEq,
-            Eq,
-            PartialOrd,
-            Ord,
-            Hash,
-            Serialize,
-            Deserialize
-        )
-    )]
-    pub struct Id(String);
+    pub mod package_id {
+        use super::*;
+
+        #[nutype(
+            sanitize(trim),
+            validate(not_empty, len_char_max = 120),
+            derive(
+                Debug,
+                Clone,
+                PartialEq,
+                Eq,
+                PartialOrd,
+                Ord,
+                Hash,
+                Serialize,
+                Deserialize
+            )
+        )]
+        pub struct Id(String);
+    }
+
+    pub use package_id::Id as PackageId;
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub enum LedgerEntry {
@@ -784,7 +790,7 @@ pub mod package {
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct OpeningLedger {
-        pub package_id: Id,
+        pub package_id: PackageId,
         pub customer_id: CustomerId,
         pub pet_id: PetId,
         pub policy: Policy,
@@ -793,7 +799,7 @@ pub mod package {
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct Ledger {
-        package_id: Id,
+        package_id: PackageId,
         pub customer_id: CustomerId,
         pub pet_id: PetId,
         policy: Policy,
@@ -813,7 +819,7 @@ pub mod package {
                 entries: opening.entries,
             })
         }
-        pub fn package_id(&self) -> &Id {
+        pub fn package_id(&self) -> &PackageId {
             &self.package_id
         }
         pub fn entries(&self) -> &[LedgerEntry] {
@@ -837,15 +843,15 @@ pub mod package {
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub enum UsageDecision {
         ReserveNextSession {
-            package_id: Id,
+            package_id: PackageId,
             remaining_after_reservation: SessionBalance,
         },
         NoRemainingSessions {
-            package_id: Id,
+            package_id: PackageId,
             gate: policy::ReviewGate,
         },
         ReconciliationRequired {
-            package_id: Id,
+            package_id: PackageId,
             gate: policy::ReviewGate,
         },
     }

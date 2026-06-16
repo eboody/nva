@@ -55,27 +55,32 @@ pub struct VaccineName(String);
 pub struct WorkflowName(String);
 
 pub mod automation {
-    use nutype::nutype;
     use serde::{Deserialize, Serialize};
 
     use super::WorkflowName;
 
-    #[nutype(
-        sanitize(trim),
-        validate(not_empty, len_char_max = 400),
-        derive(
-            Debug,
-            Clone,
-            PartialEq,
-            Eq,
-            PartialOrd,
-            Ord,
-            Hash,
-            Serialize,
-            Deserialize
-        )
-    )]
-    pub struct Rationale(String);
+    pub mod rationale {
+        use nutype::nutype;
+
+        #[nutype(
+            sanitize(trim),
+            validate(not_empty, len_char_max = 400),
+            derive(
+                Debug,
+                Clone,
+                PartialEq,
+                Eq,
+                PartialOrd,
+                Ord,
+                Hash,
+                Serialize,
+                Deserialize
+            )
+        )]
+        pub struct Rationale(String);
+    }
+
+    pub use rationale::Rationale;
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub enum Level {
@@ -206,7 +211,7 @@ pub mod play {
                         | crate::temperament::GroupPlayObservation::NeedsIntroAssessment
                 ) || matches!(
                     pet.temperament.rating,
-                    crate::temperament::TemperamentRating::ReviewRequired
+                    crate::temperament::Rating::ReviewRequired
                 ) || pet.temperament.behavior_observations.iter().any(
                     crate::temperament::BehaviorObservation::indicates_behavior_review_evidence,
                 ) {
@@ -273,7 +278,7 @@ mod tests {
     use super::*;
     use crate::entities::{self, CustomerId, Pet, PetId, SpayNeuterStatus, TemperamentProfile};
     use crate::policy::play::Policy;
-    use crate::temperament::{BehaviorObservation, GroupPlayObservation, TemperamentRating};
+    use crate::temperament::{BehaviorObservation, GroupPlayObservation, Rating};
     use uuid::Uuid;
 
     fn dog(spay_neuter_status: SpayNeuterStatus) -> Pet {
@@ -407,7 +412,7 @@ mod tests {
     #[test]
     fn review_required_temperament_rating_requires_behavior_review() {
         let mut pet = dog(SpayNeuterStatus::Neutered);
-        pet.temperament.rating = TemperamentRating::ReviewRequired;
+        pet.temperament.rating = Rating::ReviewRequired;
 
         let decision = play::ConservativePolicy.decide(&pet, &ServiceKind::DayPlay);
 

@@ -203,22 +203,28 @@ pub mod status_update {
     #[allow(unused_imports)]
     use serde::{Deserialize, Serialize};
 
-    #[nutype(
-        sanitize(trim),
-        validate(not_empty, len_char_max = 500),
-        derive(
-            Debug,
-            Clone,
-            PartialEq,
-            Eq,
-            PartialOrd,
-            Ord,
-            Hash,
-            Serialize,
-            Deserialize
-        )
-    )]
-    pub struct Reason(String);
+    pub mod reason {
+        use super::*;
+
+        #[nutype(
+            sanitize(trim),
+            validate(not_empty, len_char_max = 500),
+            derive(
+                Debug,
+                Clone,
+                PartialEq,
+                Eq,
+                PartialOrd,
+                Ord,
+                Hash,
+                Serialize,
+                Deserialize
+            )
+        )]
+        pub struct Reason(String);
+    }
+
+    pub use reason::Reason;
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub enum TransitionIntent {

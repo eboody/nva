@@ -72,7 +72,7 @@ pub enum Theme {
     PetInjuryOrSafety,
     Communication,
     WaitTime,
-    Other(operations::OperationalObservation),
+    Other(operations::operational::Observation),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

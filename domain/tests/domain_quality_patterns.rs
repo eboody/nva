@@ -142,7 +142,7 @@ fn temperament_profile_uses_semantic_observation_contracts() {
     let profile = entities::TemperamentProfile::builder()
         .group_play_observation(temperament::GroupPlayObservation::NeedsIntroAssessment)
         .people_orientation(temperament::PeopleOrientation::PeopleSeeking)
-        .rating(temperament::TemperamentRating::NeedsStructure)
+        .rating(temperament::Rating::NeedsStructure)
         .behavior_observations(vec![
             temperament::BehaviorObservation::BiteHistory,
             temperament::BehaviorObservation::Extension(
@@ -337,7 +337,10 @@ fn money_deposit_age_and_add_on_contracts_quarantine_raw_primitives() {
     );
     assert_eq!(amount.minor_units().get(), 12_500);
     assert_eq!(amount.currency(), money::Currency::Usd);
-    assert!(money::MinorUnits::try_new(0).is_err());
+    assert_eq!(
+        money::MinorUnits::try_new(0),
+        Err(money::Error::EmptyAmount),
+    );
 
     let deposit = payment::Deposit::required(amount.clone());
     assert_eq!(deposit.status(), payment::DepositStatus::Required);
@@ -563,25 +566,25 @@ fn nva_context_expands_daily_brief_contracts_for_resort_operations() {
         operating_day: daily_brief::ResortOperatingDay {
             location_id: entities::LocationId(uuid::Uuid::nil()),
             date: chrono::NaiveDate::from_ymd_opt(2026, 7, 1).unwrap(),
-            snapshot_id: daily_brief::SnapshotId::try_new("  morning-brief-001  ").unwrap(),
+            snapshot_id: daily_brief::snapshot::Id::try_new("  morning-brief-001  ").unwrap(),
         },
         sections: vec![
             daily_brief::Section::Occupancy(daily_brief::OccupancySnapshot {
-                boarding_capacity: daily_brief::CapacityMetric::new(
-                    daily_brief::CapacityBooked::new(42),
-                    daily_brief::CapacityLimit::try_new(50).unwrap(),
+                boarding_capacity: daily_brief::capacity::Metric::new(
+                    daily_brief::capacity::Booked::new(42),
+                    daily_brief::capacity::Limit::try_new(50).unwrap(),
                 ),
-                daycare_capacity: daily_brief::CapacityMetric::new(
-                    daily_brief::CapacityBooked::new(31),
-                    daily_brief::CapacityLimit::try_new(40).unwrap(),
+                daycare_capacity: daily_brief::capacity::Metric::new(
+                    daily_brief::capacity::Booked::new(31),
+                    daily_brief::capacity::Limit::try_new(40).unwrap(),
                 ),
-                grooming_utilization: daily_brief::CapacityMetric::new(
-                    daily_brief::CapacityBooked::new(6),
-                    daily_brief::CapacityLimit::try_new(8).unwrap(),
+                grooming_utilization: daily_brief::capacity::Metric::new(
+                    daily_brief::capacity::Booked::new(6),
+                    daily_brief::capacity::Limit::try_new(8).unwrap(),
                 ),
-                training_utilization: daily_brief::CapacityMetric::new(
-                    daily_brief::CapacityBooked::new(2),
-                    daily_brief::CapacityLimit::try_new(4).unwrap(),
+                training_utilization: daily_brief::capacity::Metric::new(
+                    daily_brief::capacity::Booked::new(2),
+                    daily_brief::capacity::Limit::try_new(4).unwrap(),
                 ),
             }),
             daily_brief::Section::Labor(daily_brief::LaborSnapshot {
@@ -615,7 +618,7 @@ fn nva_context_expands_daily_brief_contracts_for_resort_operations() {
         occupancy.boarding_capacity.saturation_basis_points().get(),
         8400
     );
-    assert!(daily_brief::CapacityLimit::try_new(0).is_err());
+    assert!(daily_brief::capacity::Limit::try_new(0).is_err());
     assert_eq!(occupancy.boarding_capacity.booked().get(), 42);
     assert_eq!(occupancy.boarding_capacity.capacity().get(), 50);
     let daily_brief::Section::Labor(labor) = &brief.sections[1] else {
@@ -626,8 +629,8 @@ fn nva_context_expands_daily_brief_contracts_for_resort_operations() {
         brief.operating_day.snapshot_id.into_inner(),
         "morning-brief-001"
     );
-    assert!(daily_brief::SnapshotId::try_new("   ").is_err());
-    assert!(operations::OperationalObservation::try_new("   ").is_err());
+    assert!(daily_brief::snapshot::Id::try_new("   ").is_err());
+    assert!(operations::operational::Observation::try_new("   ").is_err());
 }
 
 #[test]
@@ -674,15 +677,15 @@ fn nva_context_expands_lead_and_reputation_triage_contracts() {
 fn staff_operations_tasks_encode_due_evidence_and_manager_attention() {
     let task = staff::Task::builder()
         .location_id(entities::LocationId(uuid::Uuid::nil()))
-        .kind(staff::TaskKind::MedicationAdministration {
+        .kind(staff::task::Kind::MedicationAdministration {
             pet_id: entities::PetId(uuid::Uuid::nil()),
         })
         .title(workflow::task::Title::try_new("  Give evening medication  ").unwrap())
-        .status(staff::TaskStatus::Open)
-        .priority(staff::TaskPriority::High)
+        .status(staff::task::Status::Open)
+        .priority(staff::task::Priority::High)
         .due_at(chrono::DateTime::<chrono::Utc>::UNIX_EPOCH)
-        .assignment(staff::TaskAssignment::Role(staff::Role::KennelTechnician))
-        .source(staff::TaskSource::Reservation(entities::ReservationId(
+        .assignment(staff::task::Assignment::Role(staff::Role::KennelTechnician))
+        .source(staff::task::Source::Reservation(entities::ReservationId(
             uuid::Uuid::nil(),
         )))
         .build();
@@ -691,32 +694,34 @@ fn staff_operations_tasks_encode_due_evidence_and_manager_attention() {
     assert_eq!(task.title.clone().into_inner(), "Give evening medication");
 
     let completed = task.complete_with(
-        staff::CompletionEvidence::try_new("  administered by tech and double-checked by lead  ")
-            .unwrap(),
+        staff::completion_evidence::Evidence::try_new(
+            "  administered by tech and double-checked by lead  ",
+        )
+        .unwrap(),
     );
 
-    assert_eq!(completed.status, staff::TaskStatus::Completed);
+    assert_eq!(completed.status, staff::task::Status::Completed);
     assert_eq!(
         completed.completion_evidence.unwrap().into_inner(),
         "administered by tech and double-checked by lead"
     );
-    assert!(staff::CompletionEvidence::try_new("   ").is_err());
+    assert!(staff::completion_evidence::Evidence::try_new("   ").is_err());
 }
 
 #[test]
 fn nva_context_pack_business_services_and_systems_are_typed() {
-    let portfolio = operations::PetResortPortfolio::builder()
-        .operator(operations::Operator::NationalVeterinaryAssociates)
+    let portfolio = operations::pet_resort::Portfolio::builder()
+        .operator(operations::pet_resort::Operator::NationalVeterinaryAssociates)
         .resort_count(operations::ResortCount::try_new(170).unwrap())
-        .structure(operations::PortfolioStructure::FederatedMultiBrand)
-        .business_lines(vec![operations::BusinessLine::PetResorts])
+        .structure(operations::pet_resort::PortfolioStructure::FederatedMultiBrand)
+        .business_lines(vec![operations::pet_resort::BusinessLine::PetResorts])
         .brands(vec![
-            operations::PetResortBrand::PetSuites,
-            operations::PetResortBrand::PoochHotel,
-            operations::PetResortBrand::EliteSuites,
-            operations::PetResortBrand::TheBarkSide,
-            operations::PetResortBrand::WoofdorfAstoria,
-            operations::PetResortBrand::DoggieDistrict,
+            operations::pet_resort::Brand::PetSuites,
+            operations::pet_resort::Brand::PoochHotel,
+            operations::pet_resort::Brand::EliteSuites,
+            operations::pet_resort::Brand::TheBarkSide,
+            operations::pet_resort::Brand::WoofdorfAstoria,
+            operations::pet_resort::Brand::DoggieDistrict,
         ])
         .build();
 
@@ -725,21 +730,21 @@ fn nva_context_pack_business_services_and_systems_are_typed() {
     assert!(
         portfolio
             .brands
-            .contains(&operations::PetResortBrand::PetSuites)
+            .contains(&operations::pet_resort::Brand::PetSuites)
     );
 
     let boarding = operations::ServiceOffering::Boarding {
-        accommodation: operations::BoardingAccommodation::LuxurySuite,
+        accommodation: operations::lodging_offer::Accommodation::LuxurySuite,
         included_care: vec![
-            operations::BoardingCareFeature::DailyHousekeeping,
-            operations::BoardingCareFeature::PottyWalks,
-            operations::BoardingCareFeature::Bedding,
-            operations::BoardingCareFeature::PawgressReport,
+            operations::lodging_offer::CareFeature::DailyHousekeeping,
+            operations::lodging_offer::CareFeature::PottyWalks,
+            operations::lodging_offer::CareFeature::Bedding,
+            operations::lodging_offer::CareFeature::PawgressReport,
         ],
         add_ons: vec![
-            operations::BoardingAddOn::ExitBath,
-            operations::BoardingAddOn::PremiumSuite,
-            operations::BoardingAddOn::TrainingSession,
+            operations::lodging_offer::AddOn::ExitBath,
+            operations::lodging_offer::AddOn::PremiumSuite,
+            operations::lodging_offer::AddOn::TrainingSession,
         ],
     };
     let daycare = operations::ServiceOffering::Daycare {
@@ -787,7 +792,7 @@ fn nva_context_pack_business_services_and_systems_are_typed() {
     assert!(training::program::DurationWeeks::try_new(0).is_err());
 
     let ecosystem = operations::TechnologyEcosystem::builder()
-        .core_portal(operations::CoreOperatingSystem::Gingr)
+        .core_portal(operations::service_core::OperatingSystem::Gingr)
         .data_access(vec![
             operations::DataAccessPattern::Api,
             operations::DataAccessPattern::Webhook,
@@ -803,7 +808,7 @@ fn nva_context_pack_business_services_and_systems_are_typed() {
 
     assert_eq!(
         ecosystem.core_portal,
-        operations::CoreOperatingSystem::Gingr
+        operations::service_core::OperatingSystem::Gingr
     );
     assert!(
         ecosystem
@@ -839,14 +844,14 @@ fn nva_context_pack_operational_workflows_are_typed() {
 #[test]
 fn nva_context_pack_operating_vocabulary_and_data_hygiene_are_typed() {
     let resort_terms = [
-        operations::PetResortOperatingTerm::PawgressReports,
-        operations::PetResortOperatingTerm::PetPointsRewards,
-        operations::PetResortOperatingTerm::LeadCaptureAndConversion,
-        operations::PetResortOperatingTerm::ResortLevelEbitdaProfitability,
-        operations::PetResortOperatingTerm::DaycareEligibilityRules,
-        operations::PetResortOperatingTerm::GuestExperience,
+        operations::pet_resort::OperatingTerm::PawgressReports,
+        operations::pet_resort::OperatingTerm::PetPointsRewards,
+        operations::pet_resort::OperatingTerm::LeadCaptureAndConversion,
+        operations::pet_resort::OperatingTerm::ResortLevelEbitdaProfitability,
+        operations::pet_resort::OperatingTerm::DaycareEligibilityRules,
+        operations::pet_resort::OperatingTerm::GuestExperience,
     ];
-    assert!(resort_terms.contains(&operations::PetResortOperatingTerm::PawgressReports));
+    assert!(resort_terms.contains(&operations::pet_resort::OperatingTerm::PawgressReports));
 
     let hygiene = [
         operations::DataQualityIssue::MissingPetVaccinationRecords,

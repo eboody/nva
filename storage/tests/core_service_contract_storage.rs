@@ -1,6 +1,6 @@
 #[test]
 fn core_service_contract_records_roundtrip_between_storage_and_domain() {
-    let domain_contracts = domain::operations::CoreServiceContracts::builder()
+    let domain_contracts = domain::operations::service_core::ServiceContracts::builder()
         .location_id(domain::entities::LocationId(uuid::Uuid::nil()))
         .boarding(domain::boarding::Contract::standard_petsuites())
         .daycare(domain::daycare::Contract::standard_petsuites())
@@ -13,7 +13,7 @@ fn core_service_contract_records_roundtrip_between_storage_and_domain() {
     let encoded = record.encode_json().unwrap();
     let decoded_record =
         storage::operations::CoreServiceContractsRecord::decode_json(&encoded).unwrap();
-    let decoded_domain: domain::operations::CoreServiceContracts = decoded_record.into();
+    let decoded_domain: domain::operations::service_core::ServiceContracts = decoded_record.into();
 
     assert_eq!(decoded_domain, domain_contracts);
     assert!(decoded_domain.boarding.requires_deposit_collection());

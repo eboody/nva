@@ -94,7 +94,7 @@ pub enum NextAction {
     RequestVaccineProof,
     OfferReservationTimes,
     RouteToHuman {
-        reason: operations::OperationalObservation,
+        reason: operations::operational::Observation,
     },
     NoAction,
 }

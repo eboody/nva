@@ -1,9 +1,10 @@
 use bon::Builder;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::service::{boarding, daycare, grooming, retail, training};
+use crate::service_line::{boarding, daycare, grooming, retail, training};
+use domain::operations::{pet_resort, service_core};
 
-pub use crate::service::{
+pub use crate::service_line::{
     grooming::StoredCadenceWeeksError,
     training::{
         StoredProgramDurationWeeks as StoredTrainingProgramDurationWeeks,
@@ -168,7 +169,7 @@ impl StoredBrandName {
     }
 }
 
-impl TryFrom<PetResortPortfolioRecord> for domain::operations::PetResortPortfolio {
+impl TryFrom<PetResortPortfolioRecord> for pet_resort::Portfolio {
     type Error = Error;
 
     fn try_from(record: PetResortPortfolioRecord) -> Result<Self> {
@@ -188,10 +189,10 @@ impl TryFrom<PetResortPortfolioRecord> for domain::operations::PetResortPortfoli
     }
 }
 
-impl TryFrom<domain::operations::PetResortPortfolio> for PetResortPortfolioRecord {
+impl TryFrom<pet_resort::Portfolio> for PetResortPortfolioRecord {
     type Error = Error;
 
-    fn try_from(domain_portfolio: domain::operations::PetResortPortfolio) -> Result<Self> {
+    fn try_from(domain_portfolio: pet_resort::Portfolio) -> Result<Self> {
         Ok(Self::builder()
             .operator(domain_portfolio.operator.into())
             .resort_count(domain_portfolio.resort_count.try_into()?)
@@ -214,7 +215,7 @@ impl TryFrom<domain::operations::PetResortPortfolio> for PetResortPortfolioRecor
     }
 }
 
-impl From<OperatorCode> for domain::operations::Operator {
+impl From<OperatorCode> for pet_resort::Operator {
     fn from(value: OperatorCode) -> Self {
         match value {
             OperatorCode::NationalVeterinaryAssociates => Self::NationalVeterinaryAssociates,
@@ -222,17 +223,17 @@ impl From<OperatorCode> for domain::operations::Operator {
     }
 }
 
-impl From<domain::operations::Operator> for OperatorCode {
-    fn from(value: domain::operations::Operator) -> Self {
+impl From<pet_resort::Operator> for OperatorCode {
+    fn from(value: pet_resort::Operator) -> Self {
         match value {
-            domain::operations::Operator::NationalVeterinaryAssociates => {
+            pet_resort::Operator::NationalVeterinaryAssociates => {
                 Self::NationalVeterinaryAssociates
             }
         }
     }
 }
 
-impl From<PortfolioStructureCode> for domain::operations::PortfolioStructure {
+impl From<PortfolioStructureCode> for pet_resort::PortfolioStructure {
     fn from(value: PortfolioStructureCode) -> Self {
         match value {
             PortfolioStructureCode::FederatedMultiBrand => Self::FederatedMultiBrand,
@@ -242,19 +243,17 @@ impl From<PortfolioStructureCode> for domain::operations::PortfolioStructure {
     }
 }
 
-impl From<domain::operations::PortfolioStructure> for PortfolioStructureCode {
-    fn from(value: domain::operations::PortfolioStructure) -> Self {
+impl From<pet_resort::PortfolioStructure> for PortfolioStructureCode {
+    fn from(value: pet_resort::PortfolioStructure) -> Self {
         match value {
-            domain::operations::PortfolioStructure::FederatedMultiBrand => {
-                Self::FederatedMultiBrand
-            }
-            domain::operations::PortfolioStructure::SingleBrand => Self::SingleBrand,
-            domain::operations::PortfolioStructure::Unknown => Self::Unknown,
+            pet_resort::PortfolioStructure::FederatedMultiBrand => Self::FederatedMultiBrand,
+            pet_resort::PortfolioStructure::SingleBrand => Self::SingleBrand,
+            pet_resort::PortfolioStructure::Unknown => Self::Unknown,
         }
     }
 }
 
-impl From<BusinessLineCode> for domain::operations::BusinessLine {
+impl From<BusinessLineCode> for pet_resort::BusinessLine {
     fn from(value: BusinessLineCode) -> Self {
         match value {
             BusinessLineCode::GeneralPracticeVeterinaryHospitals => {
@@ -267,15 +266,15 @@ impl From<BusinessLineCode> for domain::operations::BusinessLine {
     }
 }
 
-impl From<domain::operations::BusinessLine> for BusinessLineCode {
-    fn from(value: domain::operations::BusinessLine) -> Self {
+impl From<pet_resort::BusinessLine> for BusinessLineCode {
+    fn from(value: pet_resort::BusinessLine) -> Self {
         match value {
-            domain::operations::BusinessLine::GeneralPracticeVeterinaryHospitals => {
+            pet_resort::BusinessLine::GeneralPracticeVeterinaryHospitals => {
                 Self::GeneralPracticeVeterinaryHospitals
             }
-            domain::operations::BusinessLine::PetResorts => Self::PetResorts,
-            domain::operations::BusinessLine::Equine => Self::Equine,
-            domain::operations::BusinessLine::SpecialtyEmergencyHospitals => {
+            pet_resort::BusinessLine::PetResorts => Self::PetResorts,
+            pet_resort::BusinessLine::Equine => Self::Equine,
+            pet_resort::BusinessLine::SpecialtyEmergencyHospitals => {
                 Self::SpecialtyEmergencyHospitals
             }
         }
@@ -306,7 +305,7 @@ impl TryFrom<domain::operations::ResortCount> for StoredResortCount {
     }
 }
 
-impl TryFrom<PetResortBrandRecord> for domain::operations::PetResortBrand {
+impl TryFrom<PetResortBrandRecord> for pet_resort::Brand {
     type Error = Error;
 
     fn try_from(value: PetResortBrandRecord) -> Result<Self> {
@@ -324,40 +323,40 @@ impl TryFrom<PetResortBrandRecord> for domain::operations::PetResortBrand {
     }
 }
 
-impl TryFrom<domain::operations::PetResortBrand> for PetResortBrandRecord {
+impl TryFrom<pet_resort::Brand> for PetResortBrandRecord {
     type Error = Error;
 
-    fn try_from(value: domain::operations::PetResortBrand) -> Result<Self> {
+    fn try_from(value: pet_resort::Brand) -> Result<Self> {
         Ok(match value {
-            domain::operations::PetResortBrand::NvaPetResorts => Self::Known {
+            pet_resort::Brand::NvaPetResorts => Self::Known {
                 code: PetResortBrandCode::NvaPetResorts,
             },
-            domain::operations::PetResortBrand::PetSuites => Self::Known {
+            pet_resort::Brand::PetSuites => Self::Known {
                 code: PetResortBrandCode::PetSuites,
             },
-            domain::operations::PetResortBrand::PoochHotel => Self::Known {
+            pet_resort::Brand::PoochHotel => Self::Known {
                 code: PetResortBrandCode::PoochHotel,
             },
-            domain::operations::PetResortBrand::EliteSuites => Self::Known {
+            pet_resort::Brand::EliteSuites => Self::Known {
                 code: PetResortBrandCode::EliteSuites,
             },
-            domain::operations::PetResortBrand::TheBarkSide => Self::Known {
+            pet_resort::Brand::TheBarkSide => Self::Known {
                 code: PetResortBrandCode::TheBarkSide,
             },
-            domain::operations::PetResortBrand::WoofdorfAstoria => Self::Known {
+            pet_resort::Brand::WoofdorfAstoria => Self::Known {
                 code: PetResortBrandCode::WoofdorfAstoria,
             },
-            domain::operations::PetResortBrand::DoggieDistrict => Self::Known {
+            pet_resort::Brand::DoggieDistrict => Self::Known {
                 code: PetResortBrandCode::DoggieDistrict,
             },
-            domain::operations::PetResortBrand::Other { name } => Self::Other {
+            pet_resort::Brand::Other { name } => Self::Other {
                 name: StoredBrandName::try_new(name.into_inner())?,
             },
         })
     }
 }
 
-impl From<PetResortBrandCode> for domain::operations::PetResortBrand {
+impl From<PetResortBrandCode> for pet_resort::Brand {
     fn from(value: PetResortBrandCode) -> Self {
         match value {
             PetResortBrandCode::NvaPetResorts => Self::NvaPetResorts,
@@ -661,8 +660,8 @@ impl CoreServiceContractsRecord {
     }
 }
 
-impl From<domain::operations::CoreServiceContracts> for CoreServiceContractsRecord {
-    fn from(contracts: domain::operations::CoreServiceContracts) -> Self {
+impl From<service_core::ServiceContracts> for CoreServiceContractsRecord {
+    fn from(contracts: service_core::ServiceContracts) -> Self {
         Self {
             location_id: contracts.location_id,
             boarding: contracts.boarding.into(),
@@ -674,7 +673,7 @@ impl From<domain::operations::CoreServiceContracts> for CoreServiceContractsReco
     }
 }
 
-impl From<CoreServiceContractsRecord> for domain::operations::CoreServiceContracts {
+impl From<CoreServiceContractsRecord> for service_core::ServiceContracts {
     fn from(record: CoreServiceContractsRecord) -> Self {
         Self::builder()
             .location_id(record.location_id)
@@ -772,7 +771,7 @@ macro_rules! bidirectional_code_map {
     };
 }
 
-bidirectional_code_map!(CoreOperatingSystemCode, domain::operations::CoreOperatingSystem, {
+bidirectional_code_map!(CoreOperatingSystemCode, service_core::OperatingSystem, {
     Gingr => Gingr,
     MixedSystems => MixedSystems,
     Unknown => Unknown,

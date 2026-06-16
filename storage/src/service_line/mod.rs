@@ -1,4 +1,4 @@
-//! Service-owned storage records and code tables.
+//! Service-line-owned storage records and code tables.
 //!
 //! The `domain::<service-line>` modules own service-line concepts. These modules own the
 //! persistence-facing shapes and explicit promotion/demotion at the storage

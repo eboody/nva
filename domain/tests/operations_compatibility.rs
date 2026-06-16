@@ -6,7 +6,7 @@ fn operations_call_sites_keep_service_owner_modules_visible() {
         operating_day: daily_brief::ResortOperatingDay {
             location_id: entities::LocationId(uuid::Uuid::nil()),
             date: chrono::NaiveDate::from_ymd_opt(2026, 7, 1).unwrap(),
-            snapshot_id: daily_brief::SnapshotId::try_new("owner-brief").unwrap(),
+            snapshot_id: daily_brief::snapshot::Id::try_new("owner-brief").unwrap(),
         },
         sections: vec![daily_brief::Section::Labor(daily_brief::LaborSnapshot {
             scheduled_staff_count: daily_brief::ScheduledStaffCount::new(6),
@@ -24,16 +24,16 @@ fn operations_call_sites_keep_service_owner_modules_visible() {
 
     let task = staff::Task::builder()
         .location_id(entities::LocationId(uuid::Uuid::nil()))
-        .kind(staff::TaskKind::CustomerFollowUp {
+        .kind(staff::task::Kind::CustomerFollowUp {
             customer_id: entities::CustomerId(uuid::Uuid::nil()),
             reason: daily_brief::FollowUpReason::LeadNeedsResponse,
         })
         .title(workflow::task::Title::try_new("Call lead").unwrap())
-        .status(staff::TaskStatus::Open)
-        .priority(staff::TaskPriority::Normal)
+        .status(staff::task::Status::Open)
+        .priority(staff::task::Priority::Normal)
         .due_at(chrono::DateTime::<chrono::Utc>::UNIX_EPOCH)
-        .assignment(staff::TaskAssignment::Role(staff::Role::FrontDesk))
-        .source(staff::TaskSource::Customer(entities::CustomerId(
+        .assignment(staff::task::Assignment::Role(staff::Role::FrontDesk))
+        .source(staff::task::Source::Customer(entities::CustomerId(
             uuid::Uuid::nil(),
         )))
         .build();
@@ -64,7 +64,7 @@ fn operations_call_sites_keep_service_owner_modules_visible() {
     );
 
     let _operations_contract = operations::TechnologyEcosystem::builder()
-        .core_portal(operations::CoreOperatingSystem::Gingr)
+        .core_portal(operations::service_core::OperatingSystem::Gingr)
         .data_access(vec![operations::DataAccessPattern::Api])
         .adjacent_systems(vec![operations::AdjacentSystem::Reviews])
         .build();

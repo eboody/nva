@@ -156,7 +156,7 @@ pub struct TemperamentProfile {
     #[builder(default)]
     pub people_orientation: temperament::PeopleOrientation,
     #[builder(default)]
-    pub rating: temperament::TemperamentRating,
+    pub rating: temperament::Rating,
     #[builder(default)]
     pub behavior_observations: Vec<temperament::BehaviorObservation>,
     #[builder(default)]

@@ -46,7 +46,7 @@ pub enum ResourceId {
     Pet(domain::entities::PetId),
     Reservation(domain::entities::ReservationId),
     Snapshot(super::availability::CapacitySnapshotId),
-    Draft(super::draft_update::DraftId),
+    Draft(super::draft_update::draft::Id),
     External(String),
 }
 
@@ -57,7 +57,7 @@ impl std::fmt::Display for ResourceId {
             Self::Pet(id) => write!(formatter, "{}", id.0),
             Self::Reservation(id) => write!(formatter, "{}", id.0),
             Self::Snapshot(id) => formatter.write_str(id.clone().into_inner().as_str()),
-            Self::Draft(id) => formatter.write_str(id.0.clone().into_inner().as_str()),
+            Self::Draft(id) => formatter.write_str(id.clone().into_inner().as_str()),
             Self::External(id) => formatter.write_str(id),
         }
     }

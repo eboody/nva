@@ -2,15 +2,15 @@
 
 ## Decision
 
-`storage::service` is an honest persistence boundary for service-line storage records, not a catch-all module to flatten away.
+`storage::service_line` is the canonical persistence boundary for service-line storage records.
 
-The module is technical, so it should not expose context-free leaves such as `storage::service::Repository` or `storage::service::Record`. Its current shape keeps the service-line namespace visible (`storage::service::{boarding, daycare, grooming, retail, training}`) and each child module owns only boundary records, stable storage codes, and promotion/demotion conversions for the corresponding domain service line. That is a truthful storage facet parallel to the domain service-line modules.
+The module is technical, so it should not expose context-free leaves such as `storage::service_line::Repository` or `storage::service_line::Record`. Its current shape keeps the service-line namespace visible (`storage::service_line::{boarding, daycare, grooming, retail, training}`) and each child module owns only boundary records, stable storage codes, and promotion/demotion conversions for the corresponding domain service line. That is a truthful storage facet parallel to the domain service-line modules.
 
-The follow-up pressure is not to rename `storage::service`; it is to keep splitting each service-line child by real persisted facets only when the child becomes too broad. Examples:
+The earlier `storage::service` decision is superseded. The follow-up pressure is now to keep splitting each service-line child by real persisted facets only when the child becomes too broad. Examples:
 
-- `storage::service::training::program::Record` if training program storage grows beyond the current `ProgramRecord` and duration value.
-- `storage::service::grooming::cadence::Weeks` if cadence storage gains a richer error/conversion surface.
-- no `storage::service::common`, `types`, or generic record module unless a real cross-service persistence concept appears.
+- `storage::service_line::training::program::Record` if training program storage grows beyond the current `ProgramRecord` and duration value.
+- `storage::service_line::grooming::cadence::Weeks` if cadence storage gains a richer error/conversion surface.
+- no `storage::service_line::common`, `types`, or generic record module unless a real cross-service persistence concept appears.
 
 ## Training package identity
 
@@ -28,7 +28,7 @@ The package ledger and usage APIs accept and return `training::package::Id` dire
 ## Modum classification
 
 - `training::package::id::Id` contradiction: good lint / resolved by choosing `training::package::Id` as the single canonical public surface.
-- `storage::service` catch-all pressure: directionally right prompt, but the better solution is documentation plus service-line facet discipline rather than a mechanical rename. The current boundary is acceptable while it contains only service-line storage records/codecs/conversions.
+- `storage::service` catch-all pressure: good lint / resolved by choosing `storage::service_line` as the single canonical persistence boundary for service-line storage records/codecs/conversions.
 - Remaining broad service-line modules: manual-review/deferred; split only when a concrete persisted facet has enough behavior or failure surface to own a child module.
 
 ## Follow-up recommendation

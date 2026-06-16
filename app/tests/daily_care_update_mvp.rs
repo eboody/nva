@@ -69,15 +69,16 @@ fn routine_staff_notes_become_review_gated_owner_preview_with_audit_lineage() {
         preview.owner_message_draft.body_ref.clone().into_inner(),
         "Hi R. Patel — Juniper enjoyed supervised play and is resting after lunch."
     );
-    assert!(!preview.output.should_send);
-    assert!(preview.output.requires_review);
+    assert!(!preview.output.disposition.allows_live_send());
+    assert!(preview.output.disposition.requires_human_review());
     assert_eq!(
         preview
             .output
-            .review_reason
-            .as_ref()
-            .map(|reason| reason.clone().into_inner()),
-        Some("customer_message_approval_not_configured".to_owned())
+            .disposition
+            .review_reason()
+            .clone()
+            .into_inner(),
+        "customer_message_approval_not_configured"
     );
     assert!(
         preview
@@ -103,6 +104,22 @@ fn routine_staff_notes_become_review_gated_owner_preview_with_audit_lineage() {
             .iter()
             .any(|event| event.action == entities::AuditAction::MessageApprovalRequested)
     );
+
+    let output_json = serde_json::to_value(&preview.output).expect("output serializes");
+    assert_eq!(output_json["should_send"], serde_json::json!(false));
+    assert_eq!(output_json["requires_review"], serde_json::json!(true));
+    assert_eq!(
+        output_json["review_reason"],
+        serde_json::json!("customer_message_approval_not_configured")
+    );
+    assert!(
+        output_json.get("disposition").is_none(),
+        "DailyCareUpdateOutput.v1 keeps the flat review-gate wire contract"
+    );
+
+    let roundtrip: daily_update::daily_care_update::Output =
+        serde_json::from_value(output_json).expect("v1 output shape deserializes");
+    assert_eq!(roundtrip.disposition, preview.output.disposition);
 }
 
 #[test]
@@ -154,15 +171,16 @@ fn concern_notes_are_suppressed_from_customer_copy_and_route_to_manager_review()
             .into_inner()
             .contains("staff debate")
     );
-    assert!(!preview.output.should_send);
-    assert!(preview.output.requires_review);
+    assert!(!preview.output.disposition.allows_live_send());
+    assert!(preview.output.disposition.requires_human_review());
     assert_eq!(
         preview
             .output
-            .review_reason
-            .as_ref()
-            .map(|reason| reason.clone().into_inner()),
-        Some("behavior_review_required".to_owned())
+            .disposition
+            .review_reason()
+            .clone()
+            .into_inner(),
+        "behavior_review_required"
     );
     assert!(
         preview

@@ -5,20 +5,36 @@ fn evidence(label: &str) -> booking_triage::EvidenceRef {
     booking_triage::EvidenceRef::try_new(label).unwrap()
 }
 
+fn finding(
+    rule_id: booking_triage::rule::Id,
+    failure_code: booking_triage::FailureCode,
+    readiness_bucket: booking_triage::ReadinessBucket,
+    human_approval_required: booking_triage::ApprovalGate,
+    evidence_refs: Vec<booking_triage::EvidenceRef>,
+) -> booking_triage::rule::ReviewFinding {
+    booking_triage::rule::ReviewFinding::builder()
+        .rule_id(rule_id)
+        .failure_code(failure_code)
+        .readiness_bucket(readiness_bucket)
+        .human_approval_required(human_approval_required)
+        .evidence_refs(evidence_refs)
+        .build()
+}
+
 #[test]
 fn deterministic_gates_block_confirmation_when_vaccine_review_is_pending() {
     let evaluation = booking_triage::DeterministicResult::evaluate(vec![
-        booking_triage::RuleEvaluation::pass(
-            booking_triage::RuleId::AccommodationAvailability,
+        booking_triage::rule::Evaluation::pass(
+            booking_triage::rule::Id::AccommodationAvailability,
             vec![evidence("availability:snapshot:cap-123")],
         ),
-        booking_triage::RuleEvaluation::unknown(
-            booking_triage::RuleId::VaccineRequirements,
+        booking_triage::rule::Evaluation::unknown(finding(
+            booking_triage::rule::Id::VaccineRequirements,
             booking_triage::FailureCode::MissingOrUnverifiedVaccine,
             booking_triage::ReadinessBucket::VaccinePending,
             booking_triage::ApprovalGate::MedicalDocumentReview,
             vec![evidence("document:rabies-upload-77")],
-        ),
+        )),
     ]);
 
     assert_eq!(
@@ -42,16 +58,16 @@ fn deterministic_gates_block_confirmation_when_vaccine_review_is_pending() {
 #[test]
 fn ready_request_produces_staff_bounded_ai_recommendation_confirmation_draft_and_audit_events() {
     let evaluation = booking_triage::DeterministicResult::evaluate(vec![
-        booking_triage::RuleEvaluation::pass(
-            booking_triage::RuleId::DateRangeAndServiceSupported,
+        booking_triage::rule::Evaluation::pass(
+            booking_triage::rule::Id::DateRangeAndServiceSupported,
             vec![evidence("policy:service-catalog:v1")],
         ),
-        booking_triage::RuleEvaluation::pass(
-            booking_triage::RuleId::AccommodationAvailability,
+        booking_triage::rule::Evaluation::pass(
+            booking_triage::rule::Id::AccommodationAvailability,
             vec![evidence("availability:snapshot:cap-123")],
         ),
-        booking_triage::RuleEvaluation::pass(
-            booking_triage::RuleId::DepositAndPricingRequirements,
+        booking_triage::rule::Evaluation::pass(
+            booking_triage::rule::Id::DepositAndPricingRequirements,
             vec![evidence("deposit:paid:dep-9")],
         ),
     ]);
@@ -104,13 +120,13 @@ fn ready_request_produces_staff_bounded_ai_recommendation_confirmation_draft_and
 #[test]
 fn behavior_exception_routes_to_special_review_and_keeps_decline_human_gated() {
     let evaluation = booking_triage::DeterministicResult::evaluate(vec![
-        booking_triage::RuleEvaluation::needs_human_approval(
-            booking_triage::RuleId::BehaviorRestrictions,
+        booking_triage::rule::Evaluation::needs_human_approval(finding(
+            booking_triage::rule::Id::BehaviorRestrictions,
             booking_triage::FailureCode::BehaviorExceptionRequiresReview,
             booking_triage::ReadinessBucket::SpecialReview,
             booking_triage::ApprovalGate::BehaviorReview,
             vec![evidence("incident:restriction-15")],
-        ),
+        )),
     ]);
 
     assert_eq!(
@@ -132,20 +148,20 @@ fn behavior_exception_routes_to_special_review_and_keeps_decline_human_gated() {
 #[test]
 fn hard_rejections_dominate_review_buckets_but_only_suggest_special_review() {
     let evaluation = booking_triage::DeterministicResult::evaluate(vec![
-        booking_triage::RuleEvaluation::unknown(
-            booking_triage::RuleId::VaccineRequirements,
+        booking_triage::rule::Evaluation::unknown(finding(
+            booking_triage::rule::Id::VaccineRequirements,
             booking_triage::FailureCode::MissingOrUnverifiedVaccine,
             booking_triage::ReadinessBucket::VaccinePending,
             booking_triage::ApprovalGate::MedicalDocumentReview,
             vec![evidence("document:rabies-upload-77")],
-        ),
-        booking_triage::RuleEvaluation::hard_block(
-            booking_triage::RuleId::HolidayBlackoutMinimumStay,
+        )),
+        booking_triage::rule::Evaluation::hard_block(finding(
+            booking_triage::rule::Id::HolidayBlackoutMinimumStay,
             booking_triage::FailureCode::PolicyHardStop,
             booking_triage::ReadinessBucket::Rejected,
             booking_triage::ApprovalGate::RejectionApproval,
             vec![evidence("policy:blackout:min-stay")],
-        ),
+        )),
     ]);
 
     let packet = booking_triage::StaffEvaluationPacket::new(
@@ -172,13 +188,13 @@ fn hard_rejections_dominate_review_buckets_but_only_suggest_special_review() {
 #[test]
 fn confirmation_draft_cannot_attach_until_deterministic_result_is_ready() {
     let evaluation = booking_triage::DeterministicResult::evaluate(vec![
-        booking_triage::RuleEvaluation::needs_human_approval(
-            booking_triage::RuleId::MedicationSpecialCareLimits,
+        booking_triage::rule::Evaluation::needs_human_approval(finding(
+            booking_triage::rule::Id::MedicationSpecialCareLimits,
             booking_triage::FailureCode::SpecialCareRequiresReview,
             booking_triage::ReadinessBucket::SpecialReview,
             booking_triage::ApprovalGate::CareTeamApproval,
             vec![evidence("care-plan:medication-review")],
-        ),
+        )),
     ]);
 
     let packet = booking_triage::StaffEvaluationPacket::new(

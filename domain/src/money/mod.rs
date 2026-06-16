@@ -1,8 +1,12 @@
-mod error;
-
 use serde::{Deserialize, Deserializer, Serialize};
 
-pub use error::{Error, Result};
+pub type Result<T> = std::result::Result<T, Error>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum Error {
+    #[error("money amount must contain at least one minor unit")]
+    EmptyAmount,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub struct MinorUnits(u32);

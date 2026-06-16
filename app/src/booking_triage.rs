@@ -162,33 +162,6 @@ pub struct RecommendationText(String);
 pub struct CustomerMessageDraft(String);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub enum RuleId {
-    DateRangeAndServiceSupported,
-    AccommodationAvailability,
-    SizeCapacityRoomOrGroupFit,
-    ServiceCapacityAndAddons,
-    VaccineRequirements,
-    VaccinePendingHandling,
-    DepositAndPricingRequirements,
-    HolidayBlackoutMinimumStay,
-    StaffCoverageConstraints,
-    BehaviorRestrictions,
-    AnxietyAggressionExceptionHandling,
-    MedicationSpecialCareLimits,
-    MultiPetConstraints,
-    LatePickupCheckoutImpact,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub enum RuleDecision {
-    Pass,
-    HardBlock,
-    NeedsHumanApproval,
-    Unknown,
-    NotApplicable,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum ReadinessBucket {
     ReadyForStaffApproval,
     MissingInfo,
@@ -277,115 +250,113 @@ pub enum ConfirmationDraftError {
     DeterministicGateNotReadyForDraft,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RuleEvaluation {
-    pub rule_id: RuleId,
-    pub decision: RuleDecision,
-    pub readiness_bucket: ReadinessBucket,
-    pub evidence_refs: Vec<EvidenceRef>,
-    pub failure_code: Option<FailureCode>,
-    pub human_approval_required: ApprovalGate,
-    pub safe_agent_actions: Vec<SafeAgentAction>,
-}
+pub mod rule {
+    use bon::Builder;
+    use serde::{Deserialize, Serialize};
 
-impl RuleEvaluation {
-    pub fn pass(rule_id: RuleId, evidence_refs: Vec<EvidenceRef>) -> Self {
-        Self {
-            rule_id,
-            decision: RuleDecision::Pass,
-            readiness_bucket: ReadinessBucket::ReadyForStaffApproval,
-            evidence_refs,
-            failure_code: None,
-            human_approval_required: ApprovalGate::None,
-            safe_agent_actions: vec![SafeAgentAction::EvidenceSummary],
+    use super::{ApprovalGate, EvidenceRef, FailureCode, ReadinessBucket, SafeAgentAction};
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+    pub enum Id {
+        DateRangeAndServiceSupported,
+        AccommodationAvailability,
+        SizeCapacityRoomOrGroupFit,
+        ServiceCapacityAndAddons,
+        VaccineRequirements,
+        VaccinePendingHandling,
+        DepositAndPricingRequirements,
+        HolidayBlackoutMinimumStay,
+        StaffCoverageConstraints,
+        BehaviorRestrictions,
+        AnxietyAggressionExceptionHandling,
+        MedicationSpecialCareLimits,
+        MultiPetConstraints,
+        LatePickupCheckoutImpact,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+    pub enum Decision {
+        Pass,
+        HardBlock,
+        NeedsHumanApproval,
+        Unknown,
+        NotApplicable,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+    pub struct ReviewFinding {
+        pub rule_id: Id,
+        pub failure_code: FailureCode,
+        pub readiness_bucket: ReadinessBucket,
+        pub human_approval_required: ApprovalGate,
+        #[builder(default)]
+        pub evidence_refs: Vec<EvidenceRef>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct Evaluation {
+        pub rule_id: Id,
+        pub decision: Decision,
+        pub readiness_bucket: ReadinessBucket,
+        pub evidence_refs: Vec<EvidenceRef>,
+        pub failure_code: Option<FailureCode>,
+        pub human_approval_required: ApprovalGate,
+        pub safe_agent_actions: Vec<SafeAgentAction>,
+    }
+
+    impl Evaluation {
+        pub fn pass(rule_id: Id, evidence_refs: Vec<EvidenceRef>) -> Self {
+            Self {
+                rule_id,
+                decision: Decision::Pass,
+                readiness_bucket: ReadinessBucket::ReadyForStaffApproval,
+                evidence_refs,
+                failure_code: None,
+                human_approval_required: ApprovalGate::None,
+                safe_agent_actions: vec![SafeAgentAction::EvidenceSummary],
+            }
         }
-    }
 
-    pub fn unknown(
-        rule_id: RuleId,
-        failure_code: FailureCode,
-        readiness_bucket: ReadinessBucket,
-        human_approval_required: ApprovalGate,
-        evidence_refs: Vec<EvidenceRef>,
-    ) -> Self {
-        Self::blocked_or_review(
-            rule_id,
-            RuleDecision::Unknown,
-            failure_code,
-            readiness_bucket,
-            human_approval_required,
-            evidence_refs,
-        )
-    }
+        pub fn unknown(finding: ReviewFinding) -> Self {
+            Self::blocked_or_review(finding, Decision::Unknown)
+        }
 
-    pub fn needs_human_approval(
-        rule_id: RuleId,
-        failure_code: FailureCode,
-        readiness_bucket: ReadinessBucket,
-        human_approval_required: ApprovalGate,
-        evidence_refs: Vec<EvidenceRef>,
-    ) -> Self {
-        Self::blocked_or_review(
-            rule_id,
-            RuleDecision::NeedsHumanApproval,
-            failure_code,
-            readiness_bucket,
-            human_approval_required,
-            evidence_refs,
-        )
-    }
+        pub fn needs_human_approval(finding: ReviewFinding) -> Self {
+            Self::blocked_or_review(finding, Decision::NeedsHumanApproval)
+        }
 
-    pub fn hard_block(
-        rule_id: RuleId,
-        failure_code: FailureCode,
-        readiness_bucket: ReadinessBucket,
-        human_approval_required: ApprovalGate,
-        evidence_refs: Vec<EvidenceRef>,
-    ) -> Self {
-        Self::blocked_or_review(
-            rule_id,
-            RuleDecision::HardBlock,
-            failure_code,
-            readiness_bucket,
-            human_approval_required,
-            evidence_refs,
-        )
-    }
+        pub fn hard_block(finding: ReviewFinding) -> Self {
+            Self::blocked_or_review(finding, Decision::HardBlock)
+        }
 
-    fn blocked_or_review(
-        rule_id: RuleId,
-        decision: RuleDecision,
-        failure_code: FailureCode,
-        readiness_bucket: ReadinessBucket,
-        human_approval_required: ApprovalGate,
-        evidence_refs: Vec<EvidenceRef>,
-    ) -> Self {
-        Self {
-            rule_id,
-            decision,
-            readiness_bucket,
-            evidence_refs,
-            failure_code: Some(failure_code),
-            human_approval_required,
-            safe_agent_actions: vec![
-                SafeAgentAction::EvidenceSummary,
-                SafeAgentAction::InternalTaskDraft,
-                SafeAgentAction::ManagerPacketDraft,
-            ],
+        fn blocked_or_review(finding: ReviewFinding, decision: Decision) -> Self {
+            Self {
+                rule_id: finding.rule_id,
+                decision,
+                readiness_bucket: finding.readiness_bucket,
+                evidence_refs: finding.evidence_refs,
+                failure_code: Some(finding.failure_code),
+                human_approval_required: finding.human_approval_required,
+                safe_agent_actions: vec![
+                    SafeAgentAction::EvidenceSummary,
+                    SafeAgentAction::InternalTaskDraft,
+                    SafeAgentAction::ManagerPacketDraft,
+                ],
+            }
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DeterministicResult {
-    rule_evaluations: Vec<RuleEvaluation>,
+    rule_evaluations: Vec<rule::Evaluation>,
     recommended_status: ReadinessBucket,
     approval_gates: Vec<ApprovalGate>,
     blocked_actions: Vec<BlockedAction>,
 }
 
 impl DeterministicResult {
-    pub fn evaluate(rule_evaluations: Vec<RuleEvaluation>) -> Self {
+    pub fn evaluate(rule_evaluations: Vec<rule::Evaluation>) -> Self {
         let recommended_status = rule_evaluations
             .iter()
             .map(|rule| rule.readiness_bucket)
@@ -438,7 +409,7 @@ impl DeterministicResult {
         &self.blocked_actions
     }
 
-    pub fn rule_evaluations(&self) -> &[RuleEvaluation] {
+    pub fn rule_evaluations(&self) -> &[rule::Evaluation] {
         &self.rule_evaluations
     }
 

@@ -26,79 +26,117 @@ use crate::entities::LocationId;
 )]
 pub struct MetricName(String);
 
-#[nutype(
-    sanitize(trim),
-    validate(not_empty, len_char_max = 500),
-    derive(
-        Debug,
-        Clone,
-        PartialEq,
-        Eq,
-        PartialOrd,
-        Ord,
-        Hash,
-        Serialize,
-        Deserialize
-    )
-)]
-pub struct OperationalObservation(String);
+pub mod operational {
+    use super::*;
 
-#[nutype(
-    sanitize(trim),
-    validate(not_empty, len_char_max = 500),
-    derive(
-        Debug,
-        Clone,
-        PartialEq,
-        Eq,
-        PartialOrd,
-        Ord,
-        Hash,
-        Serialize,
-        Deserialize
-    )
-)]
-pub struct OperationalRecommendation(String);
+    #[nutype(
+        sanitize(trim),
+        validate(not_empty, len_char_max = 500),
+        derive(
+            Debug,
+            Clone,
+            PartialEq,
+            Eq,
+            PartialOrd,
+            Ord,
+            Hash,
+            Serialize,
+            Deserialize
+        )
+    )]
+    pub struct Observation(String);
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-pub struct PetResortPortfolio {
-    pub operator: Operator,
-    pub resort_count: ResortCount,
-    pub structure: PortfolioStructure,
-    pub business_lines: Vec<BusinessLine>,
-    pub brands: Vec<PetResortBrand>,
+    #[nutype(
+        sanitize(trim),
+        validate(not_empty, len_char_max = 500),
+        derive(
+            Debug,
+            Clone,
+            PartialEq,
+            Eq,
+            PartialOrd,
+            Ord,
+            Hash,
+            Serialize,
+            Deserialize
+        )
+    )]
+    pub struct Recommendation(String);
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum PainArea {
+        LaborEfficiency,
+        CustomerCommunicationLoad,
+        ReservationCapacityOptimization,
+        DataFragmentation,
+        SalesRetentionMarketing,
+        TrainingAndStandards,
+    }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Operator {
-    NationalVeterinaryAssociates,
-}
+pub mod pet_resort {
+    use super::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PortfolioStructure {
-    FederatedMultiBrand,
-    SingleBrand,
-    Unknown,
-}
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+    pub struct Portfolio {
+        pub operator: Operator,
+        pub resort_count: ResortCount,
+        pub structure: PortfolioStructure,
+        pub business_lines: Vec<BusinessLine>,
+        pub brands: Vec<Brand>,
+    }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum BusinessLine {
-    GeneralPracticeVeterinaryHospitals,
-    PetResorts,
-    Equine,
-    SpecialtyEmergencyHospitals,
-}
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Operator {
+        NationalVeterinaryAssociates,
+    }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PetResortBrand {
-    NvaPetResorts,
-    PetSuites,
-    PoochHotel,
-    EliteSuites,
-    TheBarkSide,
-    WoofdorfAstoria,
-    DoggieDistrict,
-    Other { name: crate::location::Name },
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum PortfolioStructure {
+        FederatedMultiBrand,
+        SingleBrand,
+        Unknown,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum BusinessLine {
+        GeneralPracticeVeterinaryHospitals,
+        PetResorts,
+        Equine,
+        SpecialtyEmergencyHospitals,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Brand {
+        NvaPetResorts,
+        PetSuites,
+        PoochHotel,
+        EliteSuites,
+        TheBarkSide,
+        WoofdorfAstoria,
+        DoggieDistrict,
+        Other { name: crate::location::Name },
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum OperatingTerm {
+        PawgressReports,
+        BoardingReservations,
+        DaycarePackages,
+        PetPointsRewards,
+        GingrCustomerPortal,
+        LeadCaptureAndConversion,
+        WebsiteEmailSocialOutreach,
+        LocalMarketPlans,
+        SalesLaborExpensesCustomerSatisfactionKpis,
+        OshaCashHandlingOperationalCompliance,
+        TrainingCertificationCompletion,
+        ResortLevelEbitdaProfitability,
+        GroomingCadence,
+        DaycareEligibilityRules,
+        GuestExperience,
+        TeamMemberEngagementRetention,
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
@@ -135,9 +173,9 @@ pub enum ResortCountError {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ServiceOffering {
     Boarding {
-        accommodation: BoardingAccommodation,
-        included_care: Vec<BoardingCareFeature>,
-        add_ons: Vec<BoardingAddOn>,
+        accommodation: lodging_offer::Accommodation,
+        included_care: Vec<lodging_offer::CareFeature>,
+        add_ons: Vec<lodging_offer::AddOn>,
     },
     Daycare {
         format: DaycareFormat,
@@ -156,30 +194,34 @@ pub enum ServiceOffering {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum BoardingAccommodation {
-    ClassicSuite,
-    LuxurySuite,
-    CatCondo,
-}
+pub mod lodging_offer {
+    use super::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum BoardingCareFeature {
-    DailyHousekeeping,
-    PottyWalks,
-    Bedding,
-    PawgressReport,
-    FeedingSupport,
-    MedicationSupport,
-}
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Accommodation {
+        ClassicSuite,
+        LuxurySuite,
+        CatCondo,
+    }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum BoardingAddOn {
-    Playtime,
-    ExitBath,
-    PremiumSuite,
-    Grooming,
-    TrainingSession,
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum CareFeature {
+        DailyHousekeeping,
+        PottyWalks,
+        Bedding,
+        PawgressReport,
+        FeedingSupport,
+        MedicationSupport,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum AddOn {
+        Playtime,
+        ExitBath,
+        PremiumSuite,
+        Grooming,
+        TrainingSession,
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -201,16 +243,9 @@ pub enum DaycareEligibilityRule {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 pub struct TechnologyEcosystem {
-    pub core_portal: CoreOperatingSystem,
+    pub core_portal: service_core::OperatingSystem,
     pub data_access: Vec<DataAccessPattern>,
     pub adjacent_systems: Vec<AdjacentSystem>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CoreOperatingSystem {
-    Gingr,
-    MixedSystems,
-    Unknown,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -242,16 +277,6 @@ pub enum AdjacentSystem {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum OperationalPainArea {
-    LaborEfficiency,
-    CustomerCommunicationLoad,
-    ReservationCapacityOptimization,
-    DataFragmentation,
-    SalesRetentionMarketing,
-    TrainingAndStandards,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AiUseCase {
     ResortManagerDailyBriefing,
     RegionalOpsExceptionReporting,
@@ -273,26 +298,6 @@ pub enum AiUseCase {
     DemandForecasting,
     StaffingRecommendations,
     RegionalPerformanceBenchmarking,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PetResortOperatingTerm {
-    PawgressReports,
-    BoardingReservations,
-    DaycarePackages,
-    PetPointsRewards,
-    GingrCustomerPortal,
-    LeadCaptureAndConversion,
-    WebsiteEmailSocialOutreach,
-    LocalMarketPlans,
-    SalesLaborExpensesCustomerSatisfactionKpis,
-    OshaCashHandlingOperationalCompliance,
-    TrainingCertificationCompletion,
-    ResortLevelEbitdaProfitability,
-    GroomingCadence,
-    DaycareEligibilityRules,
-    GuestExperience,
-    TeamMemberEngagementRetention,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -375,33 +380,44 @@ pub enum OptimizationOpportunity {
     RevenueOptimizationWithoutCareDegradation,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-pub struct CoreServiceContracts {
-    pub location_id: LocationId,
-    pub boarding: crate::boarding::Contract,
-    pub daycare: crate::daycare::Contract,
-    pub grooming: crate::grooming::Contract,
-    pub training: crate::training::Contract,
-    pub retail: crate::retail::Contract,
-}
+pub mod service_core {
+    use super::*;
 
-impl CoreServiceContracts {
-    pub fn core_services(&self) -> [CoreServiceLine; 5] {
-        [
-            CoreServiceLine::Boarding,
-            CoreServiceLine::Daycare,
-            CoreServiceLine::Grooming,
-            CoreServiceLine::Training,
-            CoreServiceLine::Retail,
-        ]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum OperatingSystem {
+        Gingr,
+        MixedSystems,
+        Unknown,
     }
-}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CoreServiceLine {
-    Boarding,
-    Daycare,
-    Grooming,
-    Training,
-    Retail,
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+    pub struct ServiceContracts {
+        pub location_id: LocationId,
+        pub boarding: crate::boarding::Contract,
+        pub daycare: crate::daycare::Contract,
+        pub grooming: crate::grooming::Contract,
+        pub training: crate::training::Contract,
+        pub retail: crate::retail::Contract,
+    }
+
+    impl ServiceContracts {
+        pub fn core_services(&self) -> [ServiceLine; 5] {
+            [
+                ServiceLine::Boarding,
+                ServiceLine::Daycare,
+                ServiceLine::Grooming,
+                ServiceLine::Training,
+                ServiceLine::Retail,
+            ]
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum ServiceLine {
+        Boarding,
+        Daycare,
+        Grooming,
+        Training,
+        Retail,
+    }
 }

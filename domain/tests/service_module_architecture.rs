@@ -6,7 +6,7 @@ const SERVICE_LINE_NAMES: [&str; 5] = ["boarding", "daycare", "grooming", "train
 
 #[test]
 fn petsuites_service_contracts_are_constructed_through_canonical_service_modules() {
-    let contracts = domain::operations::CoreServiceContracts::builder()
+    let contracts = domain::operations::service_core::ServiceContracts::builder()
         .location_id(entities::LocationId(uuid::Uuid::nil()))
         .boarding(boarding::Contract::standard_petsuites())
         .daycare(daycare::Contract::standard_petsuites())

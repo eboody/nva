@@ -1,7 +1,7 @@
 //! Canonical domain contracts for cross-service resort daily briefs.
 //!
-//! `operations` keeps deprecated compatibility aliases, but brief sections, occupancy,
-//! labor, revenue, watchlists, and recommended manager actions are owned here.
+//! Brief sections, occupancy, labor, revenue, watchlists, and recommended manager actions
+//! are owned here rather than hidden behind broader operations vocabulary.
 
 use chrono::{DateTime, NaiveDate, Utc};
 use nutype::nutype;
@@ -11,28 +11,34 @@ use serde::{Deserialize, Deserializer, Serialize};
 use crate::entities::{self, CustomerId, LocationId, PetId, ServiceKind};
 use crate::operations;
 
-#[nutype(
-    sanitize(trim),
-    validate(not_empty, len_char_max = 120),
-    derive(
-        Debug,
-        Clone,
-        PartialEq,
-        Eq,
-        PartialOrd,
-        Ord,
-        Hash,
-        Serialize,
-        Deserialize
-    )
-)]
-pub struct SnapshotId(String);
+pub use snapshot::Id as Snapshot;
+
+pub mod snapshot {
+    use super::*;
+
+    #[nutype(
+        sanitize(trim),
+        validate(not_empty, len_char_max = 120),
+        derive(
+            Debug,
+            Clone,
+            PartialEq,
+            Eq,
+            PartialOrd,
+            Ord,
+            Hash,
+            Serialize,
+            Deserialize
+        )
+    )]
+    pub struct Id(String);
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResortOperatingDay {
     pub location_id: LocationId,
     pub date: NaiveDate,
-    pub snapshot_id: SnapshotId,
+    pub snapshot_id: snapshot::Id,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -65,66 +71,95 @@ pub enum Section {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OccupancySnapshot {
-    pub boarding_capacity: CapacityMetric,
-    pub daycare_capacity: CapacityMetric,
-    pub grooming_utilization: CapacityMetric,
-    pub training_utilization: CapacityMetric,
+    pub boarding_capacity: capacity::Metric,
+    pub daycare_capacity: capacity::Metric,
+    pub grooming_utilization: capacity::Metric,
+    pub training_utilization: capacity::Metric,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct CapacityBooked(u32);
+pub mod capacity {
+    use super::*;
 
-impl CapacityBooked {
-    pub const fn new(value: u32) -> Self {
-        Self(value)
-    }
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+    pub struct Booked(u32);
 
-    pub const fn get(self) -> u32 {
-        self.0
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-pub struct CapacityLimit(u32);
-
-impl CapacityLimit {
-    pub const fn try_new(value: u32) -> Result<Self, CapacityLimitError> {
-        if value == 0 {
-            return Err(CapacityLimitError::ZeroCapacity);
+    impl Booked {
+        pub const fn new(value: u32) -> Self {
+            Self(value)
         }
-        Ok(Self(value))
+
+        pub const fn get(self) -> u32 {
+            self.0
+        }
     }
 
-    pub const fn get(self) -> u32 {
-        self.0
-    }
-}
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+    pub struct Limit(u32);
 
-impl<'de> Deserialize<'de> for CapacityLimit {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        Self::try_new(u32::deserialize(deserializer)?).map_err(serde::de::Error::custom)
-    }
-}
+    impl Limit {
+        pub const fn try_new(value: u32) -> Result<Self, LimitError> {
+            if value == 0 {
+                return Err(LimitError::ZeroCapacity);
+            }
+            Ok(Self(value))
+        }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-pub enum CapacityLimitError {
-    #[error("capacity metrics require an explicit non-zero capacity limit")]
-    ZeroCapacity,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct CapacitySaturationBasisPoints(u32);
-
-impl CapacitySaturationBasisPoints {
-    pub const fn new(value: u32) -> Self {
-        Self(value)
+        pub const fn get(self) -> u32 {
+            self.0
+        }
     }
 
-    pub const fn get(self) -> u32 {
-        self.0
+    impl<'de> Deserialize<'de> for Limit {
+        fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            Self::try_new(u32::deserialize(deserializer)?).map_err(serde::de::Error::custom)
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+    pub enum LimitError {
+        #[error("capacity metrics require an explicit non-zero capacity limit")]
+        ZeroCapacity,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+    pub struct SaturationBasisPoints(u32);
+
+    impl SaturationBasisPoints {
+        pub const fn new(value: u32) -> Self {
+            Self(value)
+        }
+
+        pub const fn get(self) -> u32 {
+            self.0
+        }
+    }
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct Metric {
+        booked: Booked,
+        capacity: Limit,
+    }
+
+    impl Metric {
+        pub const fn new(booked: Booked, capacity: Limit) -> Self {
+            Self { booked, capacity }
+        }
+
+        pub const fn booked(&self) -> Booked {
+            self.booked
+        }
+
+        pub const fn capacity(&self) -> Limit {
+            self.capacity
+        }
+
+        pub fn saturation_basis_points(&self) -> SaturationBasisPoints {
+            SaturationBasisPoints::new(
+                self.booked.get().saturating_mul(10_000) / self.capacity.get(),
+            )
+        }
     }
 }
 
@@ -138,32 +173,6 @@ impl ScheduledStaffCount {
 
     pub const fn get(self) -> u16 {
         self.0
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CapacityMetric {
-    booked: CapacityBooked,
-    capacity: CapacityLimit,
-}
-
-impl CapacityMetric {
-    pub const fn new(booked: CapacityBooked, capacity: CapacityLimit) -> Self {
-        Self { booked, capacity }
-    }
-
-    pub const fn booked(&self) -> CapacityBooked {
-        self.booked
-    }
-
-    pub const fn capacity(&self) -> CapacityLimit {
-        self.capacity
-    }
-
-    pub fn saturation_basis_points(&self) -> CapacitySaturationBasisPoints {
-        CapacitySaturationBasisPoints::new(
-            self.booked.get().saturating_mul(10_000) / self.capacity.get(),
-        )
     }
 }
 
@@ -246,13 +255,13 @@ pub enum Risk {
         risk: LaborRisk,
     },
     CustomerExperienceRisk {
-        observation: operations::OperationalObservation,
+        observation: operations::operational::Observation,
     },
     PetSafetyOrCareRisk {
-        observation: operations::OperationalObservation,
+        observation: operations::operational::Observation,
     },
     RevenueLeakage {
-        observation: operations::OperationalObservation,
+        observation: operations::operational::Observation,
     },
 }
 
@@ -273,14 +282,14 @@ impl Risk {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Action {
     CreateInternalTask {
-        recommendation: operations::OperationalRecommendation,
+        recommendation: operations::operational::Recommendation,
     },
     DraftCustomerMessage {
         customer_id: CustomerId,
         reason: FollowUpReason,
     },
     EscalateToManager {
-        reason: operations::OperationalObservation,
+        reason: operations::operational::Observation,
     },
     SuggestScheduleReview {
         risk: LaborRisk,

@@ -28,7 +28,7 @@ pub trait ReservationSystem: Send + Sync {
     async fn draft_reservation_update(
         &self,
         request: draft_update::Request,
-    ) -> Result<draft_update::DraftId>;
+    ) -> Result<draft_update::draft::Id>;
 }
 
 #[async_trait]
@@ -142,25 +142,28 @@ pub mod draft_update {
         CustomerAcceptedOffer,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    pub struct DraftId(pub Id);
+    pub use draft::Id as Draft;
 
-    #[nutype(
-        sanitize(trim),
-        validate(not_empty, len_char_max = 120),
-        derive(
-            Debug,
-            Clone,
-            PartialEq,
-            Eq,
-            PartialOrd,
-            Ord,
-            Hash,
-            Serialize,
-            Deserialize
-        )
-    )]
-    pub struct Id(String);
+    pub mod draft {
+        use super::*;
+
+        #[nutype(
+            sanitize(trim),
+            validate(not_empty, len_char_max = 120),
+            derive(
+                Debug,
+                Clone,
+                PartialEq,
+                Eq,
+                PartialOrd,
+                Ord,
+                Hash,
+                Serialize,
+                Deserialize
+            )
+        )]
+        pub struct Id(String);
+    }
 }
 pub mod portal {
     use super::*;
@@ -258,9 +261,11 @@ pub mod payment {
 
     #[async_trait]
     pub trait Gateway: Send + Sync {
-        async fn authorize(&self, request: authorization::Request)
-        -> Result<authorization::Result>;
-        async fn refund(&self, request: refund::Request) -> Result<refund::Result>;
+        async fn authorize(
+            &self,
+            request: authorization::Request,
+        ) -> Result<authorization::provider::Result>;
+        async fn refund(&self, request: refund::Request) -> Result<refund::provider::Result>;
         async fn record_deposit(
             &self,
             request: deposit::RecordRequest,
@@ -315,37 +320,54 @@ pub mod payment {
             pub idempotency_key: IdempotencyKey,
         }
 
-        #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-        pub enum Result {
-            Authorized { authorization_id: Id, amount: Money },
-            Declined { reason: DeclineReason },
-            RequiresHumanReview { reason: ReviewReason },
-        }
+        pub mod provider {
+            use super::*;
 
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-        pub enum DeclineReason {
-            CardDeclined,
-            InsufficientFunds,
-            ProviderUnavailable,
-            RequiresCustomerAction,
-        }
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+            pub enum Result {
+                Authorized {
+                    authorization_id: AuthorizationId,
+                    amount: Money,
+                },
+                Declined {
+                    reason: DeclineReason,
+                },
+                RequiresHumanReview {
+                    reason: ReviewReason,
+                },
+            }
 
-        #[nutype(
-            sanitize(trim),
-            validate(not_empty, len_char_max = 160),
-            derive(
-                Debug,
-                Clone,
-                PartialEq,
-                Eq,
-                PartialOrd,
-                Ord,
-                Hash,
-                Serialize,
-                Deserialize
-            )
-        )]
-        pub struct Id(String);
+            #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+            pub enum DeclineReason {
+                CardDeclined,
+                InsufficientFunds,
+                ProviderUnavailable,
+                RequiresCustomerAction,
+            }
+
+            pub use authorization_id::Id as AuthorizationId;
+
+            pub mod authorization_id {
+                use super::*;
+
+                #[nutype(
+                    sanitize(trim),
+                    validate(not_empty, len_char_max = 160),
+                    derive(
+                        Debug,
+                        Clone,
+                        PartialEq,
+                        Eq,
+                        PartialOrd,
+                        Ord,
+                        Hash,
+                        Serialize,
+                        Deserialize
+                    )
+                )]
+                pub struct Id(String);
+            }
+        }
     }
 
     pub mod refund {
@@ -359,12 +381,6 @@ pub mod payment {
             pub idempotency_key: IdempotencyKey,
         }
 
-        #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-        pub enum Result {
-            Accepted { refund_id: Id },
-            Rejected { reason: RejectionReason },
-        }
-
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
         pub enum Reason {
             ReservationCanceled,
@@ -372,30 +388,46 @@ pub mod payment {
             ManagerApprovedAdjustment,
         }
 
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-        pub enum RejectionReason {
-            PaymentNotFound,
-            AlreadyRefunded,
-            OutsideRefundWindow,
-            ProviderRejected,
-        }
+        pub mod provider {
+            use super::*;
 
-        #[nutype(
-            sanitize(trim),
-            validate(not_empty, len_char_max = 160),
-            derive(
-                Debug,
-                Clone,
-                PartialEq,
-                Eq,
-                PartialOrd,
-                Ord,
-                Hash,
-                Serialize,
-                Deserialize
-            )
-        )]
-        pub struct Id(String);
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+            pub enum Result {
+                Accepted { refund_id: RefundId },
+                Rejected { reason: RejectionReason },
+            }
+
+            #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+            pub enum RejectionReason {
+                PaymentNotFound,
+                AlreadyRefunded,
+                OutsideRefundWindow,
+                ProviderRejected,
+            }
+
+            pub use refund_id::Id as RefundId;
+
+            pub mod refund_id {
+                use super::*;
+
+                #[nutype(
+                    sanitize(trim),
+                    validate(not_empty, len_char_max = 160),
+                    derive(
+                        Debug,
+                        Clone,
+                        PartialEq,
+                        Eq,
+                        PartialOrd,
+                        Ord,
+                        Hash,
+                        Serialize,
+                        Deserialize
+                    )
+                )]
+                pub struct Id(String);
+            }
+        }
     }
 
     pub mod deposit {
@@ -457,7 +489,7 @@ pub mod messaging {
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
         pub struct Result {
-            pub draft_id: draft_update::DraftId,
+            pub draft_id: draft_update::draft::Id,
             pub status: Status,
         }
 
@@ -492,102 +524,116 @@ pub mod messaging {
 pub mod documents {
     use super::*;
 
-    #[async_trait]
-    pub trait DocumentIntake: Send + Sync {
-        async fn intake_document(
-            &self,
-            request: DocumentIntakeRequest,
-        ) -> Result<DocumentIntakeResult>;
-        async fn extract_ocr(&self, request: OcrRequest) -> Result<OcrResult>;
+    pub mod document {
+        use super::*;
+
+        #[async_trait]
+        pub trait Intake: Send + Sync {
+            async fn intake_document(&self, request: IntakeRequest) -> Result<IntakeResult>;
+            async fn extract_ocr(&self, request: super::ocr::Request)
+            -> Result<super::ocr::Result>;
+        }
+
+        #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+        pub struct IntakeRequest {
+            pub document: reference::Ref,
+            pub source: Source,
+            pub expected_content: ExpectedContent,
+        }
+
+        #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+        pub struct IntakeResult {
+            pub document: reference::Ref,
+            pub classification: Classification,
+        }
+
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+        pub enum Source {
+            CustomerUpload,
+            StaffScan,
+            PortalImport,
+        }
+
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+        pub enum ExpectedContent {
+            VaccineProof,
+            MedicationInstructions,
+            BoardingAgreement,
+            IncidentReport,
+        }
+
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+        pub enum Classification {
+            MatchesExpectedContent,
+            Mismatch,
+            Unreadable,
+        }
+
+        pub mod reference {
+            use super::*;
+
+            #[nutype(
+                sanitize(trim),
+                validate(not_empty, len_char_max = 240),
+                derive(
+                    Debug,
+                    Clone,
+                    PartialEq,
+                    Eq,
+                    PartialOrd,
+                    Ord,
+                    Hash,
+                    Serialize,
+                    Deserialize
+                )
+            )]
+            pub struct Ref(String);
+        }
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    pub struct DocumentIntakeRequest {
-        pub document: DocumentRef,
-        pub source: DocumentSource,
-        pub expected_content: ExpectedContent,
+    pub mod ocr {
+        use super::*;
+
+        #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+        pub struct Request {
+            pub document: super::document::reference::Ref,
+            pub expected_content: super::document::ExpectedContent,
+        }
+
+        #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+        pub enum Result {
+            Extracted { text: extracted_text::Text },
+            NeedsHumanReview { reason: ReviewReason },
+        }
+
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+        pub enum ReviewReason {
+            LowConfidence,
+            AmbiguousDates,
+            MissingRequiredFields,
+        }
+
+        pub mod extracted_text {
+            use super::*;
+
+            #[nutype(
+                sanitize(trim),
+                validate(not_empty, len_char_max = 8000),
+                derive(
+                    Debug,
+                    Clone,
+                    PartialEq,
+                    Eq,
+                    PartialOrd,
+                    Ord,
+                    Hash,
+                    Serialize,
+                    Deserialize
+                )
+            )]
+            pub struct Text(String);
+        }
     }
-
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    pub struct DocumentIntakeResult {
-        pub document: DocumentRef,
-        pub classification: DocumentClassification,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    pub struct OcrRequest {
-        pub document: DocumentRef,
-        pub expected_content: ExpectedContent,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    pub enum OcrResult {
-        Extracted { text: ExtractedText },
-        NeedsHumanReview { reason: OcrReviewReason },
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    pub enum DocumentSource {
-        CustomerUpload,
-        StaffScan,
-        PortalImport,
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    pub enum ExpectedContent {
-        VaccineProof,
-        MedicationInstructions,
-        BoardingAgreement,
-        IncidentReport,
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    pub enum DocumentClassification {
-        MatchesExpectedContent,
-        Mismatch,
-        Unreadable,
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    pub enum OcrReviewReason {
-        LowConfidence,
-        AmbiguousDates,
-        MissingRequiredFields,
-    }
-
-    #[nutype(
-        sanitize(trim),
-        validate(not_empty, len_char_max = 240),
-        derive(
-            Debug,
-            Clone,
-            PartialEq,
-            Eq,
-            PartialOrd,
-            Ord,
-            Hash,
-            Serialize,
-            Deserialize
-        )
-    )]
-    pub struct DocumentRef(String);
-
-    #[nutype(
-        sanitize(trim),
-        validate(not_empty, len_char_max = 8000),
-        derive(
-            Debug,
-            Clone,
-            PartialEq,
-            Eq,
-            PartialOrd,
-            Ord,
-            Hash,
-            Serialize,
-            Deserialize
-        )
-    )]
-    pub struct ExtractedText(String);
 }
 
 pub mod media {
@@ -665,38 +711,117 @@ pub mod hermes {
 
     #[async_trait]
     pub trait AutomationHooks: Send + Sync {
-        async fn draft_task(&self, request: TaskDraftRequest) -> Result<TaskDraftResult>;
+        async fn draft_task(
+            &self,
+            request: task::DraftRequest,
+        ) -> Result<task::kanban::DraftResult>;
         async fn draft_schedule(
             &self,
-            request: ScheduleDraftRequest,
-        ) -> Result<ScheduleDraftResult>;
+            request: schedule::DraftRequest,
+        ) -> Result<schedule::DraftResult>;
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    pub struct TaskDraftRequest {
-        pub title: workflow::task::Title,
-        pub body: workflow::task::Body,
-        pub queue: QueueName,
-        pub trigger: Trigger,
+    pub mod task {
+        use super::*;
+
+        #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+        pub struct DraftRequest {
+            pub title: workflow::task::Title,
+            pub body: workflow::task::Body,
+            pub queue: QueueName,
+            pub trigger: Trigger,
+        }
+
+        pub mod kanban {
+            use super::*;
+
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+            pub struct DraftResult {
+                pub task_id: TaskId,
+                pub status: DraftStatus,
+            }
+
+            pub use task_id::Id as TaskId;
+
+            pub mod task_id {
+                use super::*;
+
+                #[nutype(
+                    sanitize(trim),
+                    validate(not_empty, len_char_max = 160),
+                    derive(
+                        Debug,
+                        Clone,
+                        PartialEq,
+                        Eq,
+                        PartialOrd,
+                        Ord,
+                        Hash,
+                        Serialize,
+                        Deserialize
+                    )
+                )]
+                pub struct Id(String);
+            }
+        }
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    pub struct TaskDraftResult {
-        pub task_id: TaskId,
-        pub status: DraftStatus,
-    }
+    pub mod schedule {
+        use super::*;
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    pub struct ScheduleDraftRequest {
-        pub name: ScheduleName,
-        pub cadence: ScheduleCadence,
-        pub queue: QueueName,
-    }
+        #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+        pub struct DraftRequest {
+            pub name: Name,
+            pub cadence: Cadence,
+            pub queue: QueueName,
+        }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    pub struct ScheduleDraftResult {
-        pub schedule_id: ScheduleId,
-        pub status: DraftStatus,
+        #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+        pub struct DraftResult {
+            pub schedule_id: Id,
+            pub status: DraftStatus,
+        }
+
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+        pub enum Cadence {
+            Daily,
+            Hourly,
+            ManualOnly,
+        }
+
+        #[nutype(
+            sanitize(trim),
+            validate(not_empty, len_char_max = 160),
+            derive(
+                Debug,
+                Clone,
+                PartialEq,
+                Eq,
+                PartialOrd,
+                Ord,
+                Hash,
+                Serialize,
+                Deserialize
+            )
+        )]
+        pub struct Name(String);
+
+        #[nutype(
+            sanitize(trim),
+            validate(not_empty, len_char_max = 160),
+            derive(
+                Debug,
+                Clone,
+                PartialEq,
+                Eq,
+                PartialOrd,
+                Ord,
+                Hash,
+                Serialize,
+                Deserialize
+            )
+        )]
+        pub struct Id(String);
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -710,13 +835,6 @@ pub mod hermes {
     pub enum DraftStatus {
         Drafted,
         DraftedRequiresReview,
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    pub enum ScheduleCadence {
-        Daily,
-        Hourly,
-        ManualOnly,
     }
 
     #[nutype(
@@ -735,57 +853,6 @@ pub mod hermes {
         )
     )]
     pub struct QueueName(String);
-
-    #[nutype(
-        sanitize(trim),
-        validate(not_empty, len_char_max = 160),
-        derive(
-            Debug,
-            Clone,
-            PartialEq,
-            Eq,
-            PartialOrd,
-            Ord,
-            Hash,
-            Serialize,
-            Deserialize
-        )
-    )]
-    pub struct ScheduleName(String);
-
-    #[nutype(
-        sanitize(trim),
-        validate(not_empty, len_char_max = 160),
-        derive(
-            Debug,
-            Clone,
-            PartialEq,
-            Eq,
-            PartialOrd,
-            Ord,
-            Hash,
-            Serialize,
-            Deserialize
-        )
-    )]
-    pub struct TaskId(String);
-
-    #[nutype(
-        sanitize(trim),
-        validate(not_empty, len_char_max = 160),
-        derive(
-            Debug,
-            Clone,
-            PartialEq,
-            Eq,
-            PartialOrd,
-            Ord,
-            Hash,
-            Serialize,
-            Deserialize
-        )
-    )]
-    pub struct ScheduleId(String);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

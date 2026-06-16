@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use domain::operations::lodging_offer;
 /// Storage shape for a migrated boarding service contract.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -46,7 +47,7 @@ pub enum AddOnCode {
     TrainingSession,
 }
 
-impl From<AccommodationCode> for domain::operations::BoardingAccommodation {
+impl From<AccommodationCode> for lodging_offer::Accommodation {
     fn from(value: AccommodationCode) -> Self {
         match value {
             AccommodationCode::ClassicSuite => Self::ClassicSuite,
@@ -56,17 +57,17 @@ impl From<AccommodationCode> for domain::operations::BoardingAccommodation {
     }
 }
 
-impl From<domain::operations::BoardingAccommodation> for AccommodationCode {
-    fn from(value: domain::operations::BoardingAccommodation) -> Self {
+impl From<lodging_offer::Accommodation> for AccommodationCode {
+    fn from(value: lodging_offer::Accommodation) -> Self {
         match value {
-            domain::operations::BoardingAccommodation::ClassicSuite => Self::ClassicSuite,
-            domain::operations::BoardingAccommodation::LuxurySuite => Self::LuxurySuite,
-            domain::operations::BoardingAccommodation::CatCondo => Self::CatCondo,
+            lodging_offer::Accommodation::ClassicSuite => Self::ClassicSuite,
+            lodging_offer::Accommodation::LuxurySuite => Self::LuxurySuite,
+            lodging_offer::Accommodation::CatCondo => Self::CatCondo,
         }
     }
 }
 
-impl From<CareFeatureCode> for domain::operations::BoardingCareFeature {
+impl From<CareFeatureCode> for lodging_offer::CareFeature {
     fn from(value: CareFeatureCode) -> Self {
         match value {
             CareFeatureCode::DailyHousekeeping => Self::DailyHousekeeping,
@@ -79,20 +80,20 @@ impl From<CareFeatureCode> for domain::operations::BoardingCareFeature {
     }
 }
 
-impl From<domain::operations::BoardingCareFeature> for CareFeatureCode {
-    fn from(value: domain::operations::BoardingCareFeature) -> Self {
+impl From<lodging_offer::CareFeature> for CareFeatureCode {
+    fn from(value: lodging_offer::CareFeature) -> Self {
         match value {
-            domain::operations::BoardingCareFeature::DailyHousekeeping => Self::DailyHousekeeping,
-            domain::operations::BoardingCareFeature::PottyWalks => Self::PottyWalks,
-            domain::operations::BoardingCareFeature::Bedding => Self::Bedding,
-            domain::operations::BoardingCareFeature::PawgressReport => Self::PawgressReport,
-            domain::operations::BoardingCareFeature::FeedingSupport => Self::FeedingSupport,
-            domain::operations::BoardingCareFeature::MedicationSupport => Self::MedicationSupport,
+            lodging_offer::CareFeature::DailyHousekeeping => Self::DailyHousekeeping,
+            lodging_offer::CareFeature::PottyWalks => Self::PottyWalks,
+            lodging_offer::CareFeature::Bedding => Self::Bedding,
+            lodging_offer::CareFeature::PawgressReport => Self::PawgressReport,
+            lodging_offer::CareFeature::FeedingSupport => Self::FeedingSupport,
+            lodging_offer::CareFeature::MedicationSupport => Self::MedicationSupport,
         }
     }
 }
 
-impl From<AddOnCode> for domain::operations::BoardingAddOn {
+impl From<AddOnCode> for lodging_offer::AddOn {
     fn from(value: AddOnCode) -> Self {
         match value {
             AddOnCode::Playtime => Self::Playtime,
@@ -104,14 +105,14 @@ impl From<AddOnCode> for domain::operations::BoardingAddOn {
     }
 }
 
-impl From<domain::operations::BoardingAddOn> for AddOnCode {
-    fn from(value: domain::operations::BoardingAddOn) -> Self {
+impl From<lodging_offer::AddOn> for AddOnCode {
+    fn from(value: lodging_offer::AddOn) -> Self {
         match value {
-            domain::operations::BoardingAddOn::Playtime => Self::Playtime,
-            domain::operations::BoardingAddOn::ExitBath => Self::ExitBath,
-            domain::operations::BoardingAddOn::PremiumSuite => Self::PremiumSuite,
-            domain::operations::BoardingAddOn::Grooming => Self::Grooming,
-            domain::operations::BoardingAddOn::TrainingSession => Self::TrainingSession,
+            lodging_offer::AddOn::Playtime => Self::Playtime,
+            lodging_offer::AddOn::ExitBath => Self::ExitBath,
+            lodging_offer::AddOn::PremiumSuite => Self::PremiumSuite,
+            lodging_offer::AddOn::Grooming => Self::Grooming,
+            lodging_offer::AddOn::TrainingSession => Self::TrainingSession,
         }
     }
 }

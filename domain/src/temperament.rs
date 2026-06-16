@@ -53,7 +53,7 @@ pub enum PeopleOrientation {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-pub enum TemperamentRating {
+pub enum Rating {
     Easygoing,
     Moderate,
     NeedsStructure,

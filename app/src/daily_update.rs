@@ -1,7 +1,7 @@
 use bon::Builder;
 use chrono::{DateTime, Utc};
 use nutype::nutype;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::BTreeMap;
 use uuid::Uuid;
 
@@ -34,31 +34,106 @@ pub struct MvpPreviewRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MvpPreview {
-    pub agent_packet: agents::AgentPromptPacket<DailyCareUpdateInput>,
-    pub output: DailyCareUpdateOutput,
+    pub agent_packet: agents::AgentPromptPacket<daily_care_update::Input>,
+    pub output: daily_care_update::Output,
     pub owner_message_draft: CustomerMessageDraft,
     pub approval: entities::ApprovalRecord,
     pub send_stub: SendStub,
     pub audit_log: Vec<entities::AuditEvent>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct DailyCareUpdateInput {
-    pub pet_name: pet::Name,
-    pub owner_display_name: customer::Name,
-    pub policy_snapshot_id: policy::Id,
-    pub notes: Vec<entities::CareNote>,
+pub mod daily_care_update {
+    use serde::{Deserialize, Serialize};
+
+    use super::{
+        CustomerMessageDraft, IncludedFact, InternalFlag, OmittedFact, ReviewDisposition, customer,
+        entities, pet, policy,
+    };
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct Input {
+        pub pet_name: pet::Name,
+        pub owner_display_name: customer::Name,
+        pub policy_snapshot_id: policy::Id,
+        pub notes: Vec<entities::CareNote>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct Output {
+        pub customer_message: CustomerMessageDraft,
+        pub internal_flags: Vec<InternalFlag>,
+        #[serde(flatten)]
+        pub disposition: ReviewDisposition,
+        pub included_facts: Vec<IncludedFact>,
+        pub omitted_facts: Vec<OmittedFact>,
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    pub struct Agent;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct DailyCareUpdateOutput {
-    pub customer_message: CustomerMessageDraft,
-    pub internal_flags: Vec<InternalFlag>,
-    pub should_send: bool,
-    pub requires_review: bool,
-    pub review_reason: Option<ReviewReason>,
-    pub included_facts: Vec<IncludedFact>,
-    pub omitted_facts: Vec<OmittedFact>,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReviewDisposition {
+    DraftOnlyRequiresReview { reason: ReviewReason },
+}
+
+impl ReviewDisposition {
+    pub const fn allows_live_send(&self) -> bool {
+        false
+    }
+
+    pub const fn requires_human_review(&self) -> bool {
+        true
+    }
+
+    pub const fn review_reason(&self) -> &ReviewReason {
+        match self {
+            Self::DraftOnlyRequiresReview { reason } => reason,
+        }
+    }
+}
+
+impl Serialize for ReviewDisposition {
+    fn serialize<S>(&self, serializer: S) -> core::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        #[derive(Serialize)]
+        struct Wire<'a> {
+            should_send: bool,
+            requires_review: bool,
+            review_reason: &'a ReviewReason,
+        }
+
+        Wire {
+            should_send: self.allows_live_send(),
+            requires_review: self.requires_human_review(),
+            review_reason: self.review_reason(),
+        }
+        .serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for ReviewDisposition {
+    fn deserialize<D>(deserializer: D) -> core::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct Wire {
+            should_send: bool,
+            requires_review: bool,
+            review_reason: Option<ReviewReason>,
+        }
+
+        let wire = Wire::deserialize(deserializer)?;
+        match (wire.should_send, wire.requires_review, wire.review_reason) {
+            (false, true, Some(reason)) => Ok(Self::DraftOnlyRequiresReview { reason }),
+            _ => Err(serde::de::Error::custom(
+                "daily care update v1 output must remain a draft-only review-required disposition",
+            )),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -250,14 +325,14 @@ pub struct FactSummary(String);
 pub fn build_mvp_preview(request: MvpPreviewRequest) -> Result<MvpPreview> {
     validate_request(&request)?;
 
-    let input = DailyCareUpdateInput {
+    let input = daily_care_update::Input {
         pet_name: request.pet_name,
         owner_display_name: request.owner_display_name,
         policy_snapshot_id: request.policy_snapshot_id,
         notes: request.notes,
     };
 
-    let agent = DailyCareUpdateAgent;
+    let agent = daily_care_update::Agent;
     let agent_packet = agent.build_prompt_packet(&request.event, input.clone());
     let output = generate_output(&input)?;
     let review_gate = review_gate_for(&output);
@@ -316,10 +391,9 @@ pub fn build_mvp_preview(request: MvpPreviewRequest) -> Result<MvpPreview> {
     })
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct DailyCareUpdateAgent;
-
-impl agents::WorkflowAgent<DailyCareUpdateInput, DailyCareUpdateOutput> for DailyCareUpdateAgent {
+impl agents::WorkflowAgent<daily_care_update::Input, daily_care_update::Output>
+    for daily_care_update::Agent
+{
     fn spec(&self) -> agents::AgentSpec {
         agents::baseline_agent_specs()
             .into_iter()
@@ -330,8 +404,8 @@ impl agents::WorkflowAgent<DailyCareUpdateInput, DailyCareUpdateOutput> for Dail
     fn build_prompt_packet(
         &self,
         event: &workflow::Event,
-        input: DailyCareUpdateInput,
-    ) -> agents::AgentPromptPacket<DailyCareUpdateInput> {
+        input: daily_care_update::Input,
+    ) -> agents::AgentPromptPacket<daily_care_update::Input> {
         agents::AgentPromptPacket::builder()
             .workflow_name(agent_name().expect("static daily-update agent name is valid"))
             .goal(agent::Purpose::try_new(
@@ -348,12 +422,8 @@ impl agents::WorkflowAgent<DailyCareUpdateInput, DailyCareUpdateOutput> for Dail
 
     fn validate_output(
         &self,
-        mut output: workflow::Result<DailyCareUpdateOutput>,
-    ) -> workflow::Result<DailyCareUpdateOutput> {
-        if let Some(structured_output) = output.structured_output.as_mut() {
-            structured_output.should_send = false;
-            structured_output.requires_review = true;
-        }
+        output: workflow::Result<daily_care_update::Output>,
+    ) -> workflow::Result<daily_care_update::Output> {
         output
     }
 }
@@ -386,7 +456,7 @@ fn validate_request(request: &MvpPreviewRequest) -> Result<()> {
     Ok(())
 }
 
-fn generate_output(input: &DailyCareUpdateInput) -> Result<DailyCareUpdateOutput> {
+fn generate_output(input: &daily_care_update::Input) -> Result<daily_care_update::Output> {
     let mut included_facts = Vec::new();
     let mut omitted_facts = Vec::new();
     let mut internal_flags = vec![InternalFlag {
@@ -478,7 +548,7 @@ fn generate_output(input: &DailyCareUpdateInput) -> Result<DailyCareUpdateOutput
         )
     };
 
-    Ok(DailyCareUpdateOutput {
+    Ok(daily_care_update::Output {
         customer_message: CustomerMessageDraft {
             body_ref: message::BodyRef::try_new(body).map_err(invalid_domain_value)?,
             channel_hint: message::Channel::Portal,
@@ -489,15 +559,15 @@ fn generate_output(input: &DailyCareUpdateInput) -> Result<DailyCareUpdateOutput
                 .map_err(invalid_domain_value)?,
         },
         internal_flags,
-        should_send: false,
-        requires_review: true,
-        review_reason: Some(ReviewReason::try_new(review_reason).map_err(invalid_domain_value)?),
+        disposition: ReviewDisposition::DraftOnlyRequiresReview {
+            reason: ReviewReason::try_new(review_reason).map_err(invalid_domain_value)?,
+        },
         included_facts,
         omitted_facts,
     })
 }
 
-fn review_gate_for(output: &DailyCareUpdateOutput) -> policy::ReviewGate {
+fn review_gate_for(output: &daily_care_update::Output) -> policy::ReviewGate {
     if output.internal_flags.iter().any(|flag| {
         matches!(
             flag.code,
