@@ -4,11 +4,13 @@
 //! entities, workflow events, agent identity values, and policy decisions.
 
 pub mod agent;
+pub mod analytics;
 pub mod audit;
 pub mod boarding;
 pub mod care;
 pub mod customer;
 pub mod daily_brief;
+pub mod data_quality;
 pub mod daycare;
 pub mod document;
 pub mod entities;
@@ -26,6 +28,7 @@ pub mod portal;
 pub mod reputation;
 pub mod reservation;
 pub mod retail;
+pub mod source;
 pub mod staff;
 pub mod temperament;
 pub mod training;
