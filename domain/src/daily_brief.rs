@@ -178,9 +178,9 @@ impl ScheduledStaffCount {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ArrivalDepartureSnapshot {
-    pub check_ins: Vec<entities::ReservationId>,
-    pub check_outs: Vec<entities::ReservationId>,
-    pub late_departure_risk: Vec<entities::ReservationId>,
+    pub check_ins: Vec<entities::reservation::Id>,
+    pub check_outs: Vec<entities::reservation::Id>,
+    pub late_departure_risk: Vec<entities::reservation::Id>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

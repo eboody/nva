@@ -154,7 +154,7 @@ fn boarding_upsell_policy_recommends_exit_bath_only_when_eligible_and_not_care_u
         .push(domain::care::AllergyName::try_new("sensitive shampoo").unwrap());
 
     let recommendation = boarding::upsell::Policy.evaluate_exit_bath(
-        entities::ReservationId(Uuid::nil()),
+        entities::reservation::Id(Uuid::nil()),
         entities::PetId(Uuid::nil()),
         &care_profile,
     );
@@ -364,7 +364,7 @@ fn daycare_package_opportunity_never_overrides_safety_or_payment_review() {
 #[test]
 fn daycare_front_desk_throughput_routes_ready_pets_to_fast_lane_without_customer_send() {
     let context = daycare::front_desk::ReadinessContext::builder()
-        .reservation_id(entities::ReservationId(Uuid::nil()))
+        .reservation_id(entities::reservation::Id(Uuid::nil()))
         .service(daycare::ServiceVariant::AllDayPlay)
         .eligibility(daycare::front_desk::EligibilityReadiness::GroupPlay(
             daycare::eligibility::GroupPlayDecision::Eligible {
@@ -825,7 +825,7 @@ fn retail_pos_policy_requires_manager_approval_for_comps_discounts_and_refunds()
         .offering(offering)
         .quantity(retail::pos::Quantity::try_new(1).unwrap())
         .source(retail::pos::Source::ReservationCheckout {
-            reservation_id: entities::ReservationId(Uuid::nil()),
+            reservation_id: entities::reservation::Id(Uuid::nil()),
         })
         .price_adjustment(retail::pos::PriceAdjustment::ManagerComp {
             reason: retail::pos::PriceExceptionReason::ComplaintRecovery,

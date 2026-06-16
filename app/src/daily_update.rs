@@ -37,9 +37,9 @@ pub struct MvpPreview {
     pub agent_packet: agents::AgentPromptPacket<daily_care_update::Input>,
     pub output: daily_care_update::Output,
     pub owner_message_draft: CustomerMessageDraft,
-    pub approval: entities::ApprovalRecord,
+    pub approval: entities::approval::Record,
     pub send_stub: SendStub,
-    pub audit_log: Vec<entities::AuditEvent>,
+    pub audit_log: Vec<entities::audit::Event>,
 }
 
 pub mod daily_care_update {
@@ -180,19 +180,19 @@ pub struct InternalFlag {
     pub code: InternalFlagCode,
     pub severity: InternalFlagSeverity,
     pub message: FlagMessage,
-    pub source_note_ids: Vec<entities::CareNoteId>,
+    pub source_note_ids: Vec<entities::care_note::Id>,
     pub recommended_action: RecommendedFlagAction,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IncludedFact {
-    pub source_note_id: entities::CareNoteId,
+    pub source_note_id: entities::care_note::Id,
     pub summary: FactSummary,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OmittedFact {
-    pub source_note_id: entities::CareNoteId,
+    pub source_note_id: entities::care_note::Id,
     pub reason: OmissionReason,
 }
 
@@ -206,7 +206,7 @@ pub enum OmissionReason {
 pub struct SendStub {
     pub mode: SendMode,
     pub blocked_by: Vec<policy::ReviewGate>,
-    pub audit_action: entities::AuditAction,
+    pub audit_action: entities::audit::Action,
 }
 
 impl SendStub {
@@ -340,7 +340,7 @@ pub fn build_mvp_preview(request: MvpPreviewRequest) -> Result<MvpPreview> {
     let message_id =
         entities::MessageId(Uuid::from_u128(0xDA17_0000_0000_0000_0000_0000_0000_0001));
     let approval_id =
-        entities::ApprovalId(Uuid::from_u128(0xDA17_0000_0000_0000_0000_0000_0000_0002));
+        entities::approval::Id(Uuid::from_u128(0xDA17_0000_0000_0000_0000_0000_0000_0002));
     let _owner_message_record = entities::Message::builder()
         .id(message_id)
         .subject(entities::MessageSubject::Reservation(
@@ -356,11 +356,11 @@ pub fn build_mvp_preview(request: MvpPreviewRequest) -> Result<MvpPreview> {
         ))])
         .build();
 
-    let approval = entities::ApprovalRecord::builder()
+    let approval = entities::approval::Record::builder()
         .id(approval_id)
-        .target(entities::ApprovalTarget::Message(message_id))
+        .target(entities::approval::Target::Message(message_id))
         .gate(review_gate.clone())
-        .lifecycle(entities::ApprovalLifecycle::ApprovalRequested)
+        .lifecycle(entities::approval::Lifecycle::ApprovalRequested)
         .requested_by(entities::ActorRef::Agent {
             workflow: agent_name()?,
         })
@@ -373,7 +373,7 @@ pub fn build_mvp_preview(request: MvpPreviewRequest) -> Result<MvpPreview> {
     let send_stub = SendStub {
         mode: SendMode::ApprovalRequiredStub,
         blocked_by: vec![review_gate],
-        audit_action: entities::AuditAction::Extension(audit_action_label(
+        audit_action: entities::audit::Action::Extension(audit_action_label(
             "message.send.blocked_stub",
         )?),
     };
@@ -473,7 +473,10 @@ fn generate_output(input: &daily_care_update::Input) -> Result<daily_care_update
     let mut sensitive_note_ids = Vec::new();
 
     for note in &input.notes {
-        if matches!(note.visibility, entities::CareNoteVisibility::InternalOnly) {
+        if matches!(
+            note.visibility,
+            entities::care_note::Visibility::InternalOnly
+        ) {
             omitted_facts.push(OmittedFact {
                 source_note_id: note.id,
                 reason: OmissionReason::InternalOnly,
@@ -509,7 +512,7 @@ fn generate_output(input: &daily_care_update::Input) -> Result<daily_care_update
         let code = if input
             .notes
             .iter()
-            .any(|note| matches!(note.kind, entities::CareNoteKind::Behavior))
+            .any(|note| matches!(note.kind, entities::care_note::Kind::Behavior))
         {
             InternalFlagCode::BehaviorReviewRequired
         } else {
@@ -584,14 +587,14 @@ fn review_gate_for(output: &daily_care_update::Output) -> policy::ReviewGate {
 fn audit_log(
     event: &workflow::Event,
     message_id: entities::MessageId,
-    approval_id: entities::ApprovalId,
-) -> Result<Vec<entities::AuditEvent>> {
+    approval_id: entities::approval::Id,
+) -> Result<Vec<entities::audit::Event>> {
     Ok(vec![
         audit_event(
             event.occurred_at,
             event.actor.clone(),
-            entities::AuditSubject::WorkflowEvent(event.event_id),
-            entities::AuditAction::WorkflowEventRecorded,
+            entities::audit::Subject::WorkflowEvent(event.event_id),
+            entities::audit::Action::WorkflowEventRecorded,
             "daily-care-update workflow event recorded for MVP preview",
         )?,
         audit_event(
@@ -599,8 +602,8 @@ fn audit_log(
             entities::ActorRef::Agent {
                 workflow: agent_name()?,
             },
-            entities::AuditSubject::Message(message_id),
-            entities::AuditAction::MessageApprovalRequested,
+            entities::audit::Subject::Message(message_id),
+            entities::audit::Action::MessageApprovalRequested,
             "daily care update owner-message draft created; no live send attempted",
         )?,
         audit_event(
@@ -608,8 +611,8 @@ fn audit_log(
             entities::ActorRef::Agent {
                 workflow: agent_name()?,
             },
-            entities::AuditSubject::Approval(approval_id),
-            entities::AuditAction::ApprovalDecisionRecorded,
+            entities::audit::Subject::Approval(approval_id),
+            entities::audit::Action::ApprovalDecisionRecorded,
             "approval record opened for staff/manager review stub",
         )?,
     ])
@@ -618,16 +621,16 @@ fn audit_log(
 fn audit_event(
     at: DateTime<Utc>,
     actor: entities::ActorRef,
-    subject: entities::AuditSubject,
-    action: entities::AuditAction,
+    subject: entities::audit::Subject,
+    action: entities::audit::Action,
     summary: &str,
-) -> Result<entities::AuditEvent> {
+) -> Result<entities::audit::Event> {
     let mut metadata = BTreeMap::new();
     metadata.insert(
-        entities::AuditMetadataKey::try_new("summary").map_err(invalid_domain_value)?,
-        entities::AuditMetadataValue::try_new(summary).map_err(invalid_domain_value)?,
+        entities::audit::MetadataKey::try_new("summary").map_err(invalid_domain_value)?,
+        entities::audit::MetadataValue::try_new(summary).map_err(invalid_domain_value)?,
     );
-    Ok(entities::AuditEvent {
+    Ok(entities::audit::Event {
         at,
         actor,
         subject,
@@ -636,19 +639,19 @@ fn audit_event(
     })
 }
 
-fn subject_reservation_id(event: &workflow::Event) -> entities::ReservationId {
+fn subject_reservation_id(event: &workflow::Event) -> entities::reservation::Id {
     match event.subject {
         workflow::Subject::Reservation(id) => id,
-        _ => entities::ReservationId(Uuid::nil()),
+        _ => entities::reservation::Id(Uuid::nil()),
     }
 }
 
-fn sensitive_kind(kind: entities::CareNoteKind) -> bool {
+fn sensitive_kind(kind: entities::care_note::Kind) -> bool {
     matches!(
         kind,
-        entities::CareNoteKind::Medication
-            | entities::CareNoteKind::Medical
-            | entities::CareNoteKind::Behavior
+        entities::care_note::Kind::Medication
+            | entities::care_note::Kind::Medical
+            | entities::care_note::Kind::Behavior
     )
 }
 
@@ -664,8 +667,8 @@ fn agent_name() -> Result<agent::Name> {
     agent::Name::try_new("daily-care-update").map_err(invalid_domain_value)
 }
 
-fn audit_action_label(label: &str) -> Result<entities::AuditActionLabel> {
-    entities::AuditActionLabel::try_new(label).map_err(invalid_domain_value)
+fn audit_action_label(label: &str) -> Result<entities::audit::ActionLabel> {
+    entities::audit::ActionLabel::try_new(label).map_err(invalid_domain_value)
 }
 
 fn flag_message(message: &str) -> Result<FlagMessage> {

@@ -10,7 +10,7 @@ positive_scalar!(
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 pub struct ReadinessContext {
-    pub reservation_id: entities::ReservationId,
+    pub reservation_id: entities::reservation::Id,
     pub service: ServiceVariant,
     pub eligibility: EligibilityReadiness,
     pub coverage: coverage::Decision,

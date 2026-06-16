@@ -298,16 +298,18 @@ fn actor_refs_use_role_specific_identity_contracts() {
 
 #[test]
 fn audit_events_use_typed_subject_action_and_metadata_contracts() {
-    let event = entities::AuditEvent {
+    let event = entities::audit::Event {
         at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
         actor: entities::ActorRef::Manager {
             manager_id: entities::ManagerId::try_new("mgr-1").unwrap(),
         },
-        subject: entities::AuditSubject::Reservation(entities::ReservationId(uuid::Uuid::nil())),
-        action: entities::AuditAction::ReservationStatusSuggested,
+        subject: entities::audit::Subject::Reservation(
+            entities::reservation::Id(uuid::Uuid::nil()),
+        ),
+        action: entities::audit::Action::ReservationStatusSuggested,
         metadata: [(
-            entities::AuditMetadataKey::try_new("  source_workflow  ").unwrap(),
-            entities::AuditMetadataValue::try_new("  booking-triage  ").unwrap(),
+            entities::audit::MetadataKey::try_new("  source_workflow  ").unwrap(),
+            entities::audit::MetadataValue::try_new("  booking-triage  ").unwrap(),
         )]
         .into_iter()
         .collect(),
@@ -315,7 +317,7 @@ fn audit_events_use_typed_subject_action_and_metadata_contracts() {
 
     assert_eq!(
         event.subject,
-        entities::AuditSubject::Reservation(entities::ReservationId(uuid::Uuid::nil()))
+        entities::audit::Subject::Reservation(entities::reservation::Id(uuid::Uuid::nil()))
     );
     assert_eq!(
         event.metadata.keys().next().unwrap().clone().into_inner(),
@@ -325,8 +327,8 @@ fn audit_events_use_typed_subject_action_and_metadata_contracts() {
         event.metadata.values().next().unwrap().clone().into_inner(),
         "booking-triage"
     );
-    assert!(entities::AuditMetadataKey::try_new("   ").is_err());
-    assert!(entities::AuditMetadataValue::try_new("   ").is_err());
+    assert!(entities::audit::MetadataKey::try_new("   ").is_err());
+    assert!(entities::audit::MetadataValue::try_new("   ").is_err());
 }
 
 #[test]
@@ -476,7 +478,7 @@ fn workflow_packets_results_and_actions_use_semantic_values() {
             workflow::RecommendedAction::UpdateStatus {
                 target: workflow::status_update::Target::Reservation(
                     workflow::status_update::Reservation {
-                        status: entities::ReservationStatus::VaccinePending,
+                        status: entities::reservation::Status::VaccinePending,
                         intent: workflow::status_update::TransitionIntent::RequestMedicalReview,
                         reason: workflow::status_update::Reason::try_new(
                             "Rabies certificate date is ambiguous.",
@@ -504,7 +506,7 @@ fn workflow_packets_results_and_actions_use_semantic_values() {
     match &result.recommended_actions[2] {
         workflow::RecommendedAction::UpdateStatus { target } => match target {
             workflow::status_update::Target::Reservation(update) => {
-                assert_eq!(update.status, entities::ReservationStatus::VaccinePending);
+                assert_eq!(update.status, entities::reservation::Status::VaccinePending);
                 assert_eq!(
                     update.intent,
                     workflow::status_update::TransitionIntent::RequestMedicalReview
@@ -545,7 +547,7 @@ fn workflow_status_update_reasons_are_semantic_transition_contracts() {
     assert!(workflow::status_update::Reason::try_new("a".repeat(501)).is_err());
 
     let update = workflow::status_update::Reservation {
-        status: entities::ReservationStatus::Waitlisted,
+        status: entities::reservation::Status::Waitlisted,
         intent: workflow::status_update::TransitionIntent::ApplyCapacityDecision,
         reason: workflow::status_update::Reason::try_new(
             "No suite is available for the requested dates.",
@@ -553,7 +555,7 @@ fn workflow_status_update_reasons_are_semantic_transition_contracts() {
         .unwrap(),
     };
 
-    assert_eq!(update.status, entities::ReservationStatus::Waitlisted);
+    assert_eq!(update.status, entities::reservation::Status::Waitlisted);
     assert_eq!(
         update.intent,
         workflow::status_update::TransitionIntent::ApplyCapacityDecision
@@ -685,7 +687,7 @@ fn staff_operations_tasks_encode_due_evidence_and_manager_attention() {
         .priority(staff::task::Priority::High)
         .due_at(chrono::DateTime::<chrono::Utc>::UNIX_EPOCH)
         .assignment(staff::task::Assignment::Role(staff::Role::KennelTechnician))
-        .source(staff::task::Source::Reservation(entities::ReservationId(
+        .source(staff::task::Source::Reservation(entities::reservation::Id(
             uuid::Uuid::nil(),
         )))
         .build();
@@ -876,15 +878,15 @@ fn entity_builders_keep_optional_and_collection_defaults_semantic() {
     assert_eq!(customer.portal_account, None);
 
     let reservation = entities::Reservation::builder()
-        .id(entities::ReservationId(uuid::Uuid::nil()))
+        .id(entities::reservation::Id(uuid::Uuid::nil()))
         .location_id(entities::LocationId(uuid::Uuid::nil()))
         .customer_id(entities::CustomerId(uuid::Uuid::nil()))
         .pet_ids(vec![entities::PetId(uuid::Uuid::nil())])
         .service(entities::ServiceKind::Boarding)
-        .status(entities::ReservationStatus::Requested)
+        .status(entities::reservation::Status::Requested)
         .starts_at(chrono::DateTime::<chrono::Utc>::UNIX_EPOCH)
         .ends_at(chrono::DateTime::<chrono::Utc>::UNIX_EPOCH)
-        .source(entities::ReservationSource::WebsiteForm)
+        .source(entities::reservation::Source::WebsiteForm)
         .build();
 
     assert_eq!(reservation.deposit, None);

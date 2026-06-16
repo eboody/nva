@@ -44,7 +44,7 @@ impl std::fmt::Display for Resource {
 pub enum ResourceId {
     Customer(domain::entities::CustomerId),
     Pet(domain::entities::PetId),
-    Reservation(domain::entities::ReservationId),
+    Reservation(domain::entities::reservation::Id),
     Snapshot(super::availability::CapacitySnapshotId),
     Draft(super::draft_update::draft::Id),
     External(String),
