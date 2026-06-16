@@ -210,6 +210,10 @@ Use this version internally when shaping source contracts, provenance, identity 
     - Dashboard screenshots?
     - Notes on known data issues?
 
+## Decision rubric
+
+Use `docs/discovery/bi-question-decision-rubric.md` to convert answers to these questions into concrete next-work decisions. The questions are the input; the rubric decides whether the next safest move is source inventory, contract refinement, projection, workflow validation, or labor-cost modeling.
+
 ## Modeling implications
 
 These questions should guide current setup and architecture decisions:
