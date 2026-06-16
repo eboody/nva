@@ -106,7 +106,9 @@ fn gingr_reservation_snapshot_promotes_to_source_agnostic_snapshot_with_assumpti
 fn data_quality_issues_do_not_depend_on_gingr_provenance() {
     let issue = data_quality::Issue::new(
         data_quality::Kind::MissingRequiredField {
-            field: data_quality::SourceField::CustomerRecordId,
+            field: data_quality::FieldPath::reservation(
+                data_quality::ReservationField::CustomerRecordId,
+            ),
         },
         data_quality::Severity::Blocking,
         source_provenance(),
@@ -116,6 +118,39 @@ fn data_quality_issues_do_not_depend_on_gingr_provenance() {
 
     assert_eq!(issue.source_system(), source::System::Gingr);
     assert_eq!(issue.provenance().record_id().as_str(), "reservation-42");
+    assert_eq!(
+        issue.provenance().source_system(),
+        issue.source_record_ref().system()
+    );
+    assert_eq!(
+        issue.provenance().record_id(),
+        issue.source_record_ref().record_id()
+    );
+}
+
+#[test]
+fn data_quality_field_paths_express_domain_fields_without_provider_table_names() {
+    assert_eq!(
+        data_quality::FieldPath::reservation(data_quality::ReservationField::Status).segments(),
+        &[
+            data_quality::FieldSegment::Reservation,
+            data_quality::FieldSegment::Status,
+        ]
+    );
+    assert_eq!(
+        data_quality::FieldPath::stay(data_quality::StayField::LocationRecordId).segments(),
+        &[
+            data_quality::FieldSegment::Stay,
+            data_quality::FieldSegment::LocationRecordId,
+        ]
+    );
+    assert_eq!(
+        data_quality::FieldPath::source(data_quality::SourceField::RawPayloadRef).segments(),
+        &[
+            data_quality::FieldSegment::Source,
+            data_quality::FieldSegment::RawPayloadRef,
+        ]
+    );
 }
 
 #[test]
@@ -135,11 +170,19 @@ fn missing_and_ambiguous_source_facts_emit_typed_data_quality_issues() {
 
     assert!(issues.iter().any(|issue| issue.kind()
         == data_quality::Kind::MissingRequiredField {
-            field: data_quality::SourceField::CustomerRecordId,
+            field: data_quality::FieldPath::reservation(
+                data_quality::ReservationField::CustomerRecordId,
+            ),
         }));
     assert!(issues.iter().any(|issue| issue.kind()
         == data_quality::Kind::MissingRequiredField {
-            field: data_quality::SourceField::LocationRecordId,
+            field: data_quality::FieldPath::reservation(
+                data_quality::ReservationField::LocationRecordId,
+            ),
+        }));
+    assert!(issues.iter().any(|issue| issue.kind()
+        == data_quality::Kind::MissingRequiredField {
+            field: data_quality::FieldPath::reservation(data_quality::ReservationField::Status),
         }));
     assert!(issues.iter().any(|issue| issue.kind()
         == data_quality::Kind::AssumptionInForce {
@@ -155,7 +198,14 @@ fn missing_and_ambiguous_source_facts_emit_typed_data_quality_issues() {
             .iter()
             .all(|issue| issue.source_system() == source::System::Gingr)
     );
-    assert!(issues.iter().any(|issue| issue.workflow_blocking()));
+    assert!(
+        issues
+            .iter()
+            .filter(|issue| issue.workflow_blocking())
+            .count()
+            >= 4
+    );
+    assert!(issues.iter().filter(|issue| issue.visible_to_bi()).count() >= 4);
 }
 
 #[test]

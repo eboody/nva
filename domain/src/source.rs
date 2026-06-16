@@ -176,6 +176,30 @@ pub mod record {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RecordRef {
+    system: System,
+    record_id: record::Id,
+}
+
+impl RecordRef {
+    pub const fn new(system: System, record_id: record::Id) -> Self {
+        Self { system, record_id }
+    }
+
+    pub fn from_provenance(provenance: &Provenance) -> Self {
+        Self::new(provenance.system(), provenance.record_id().clone())
+    }
+
+    pub const fn system(&self) -> System {
+        self.system
+    }
+
+    pub const fn record_id(&self) -> &record::Id {
+        &self.record_id
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
 pub struct Provenance {
     system: System,
@@ -325,28 +349,40 @@ pub mod reservation {
             self.push_missing_issue(
                 &mut issues,
                 self.customer_record_id.is_none(),
-                data_quality::SourceField::CustomerRecordId,
+                data_quality::FieldPath::reservation(
+                    data_quality::ReservationField::CustomerRecordId,
+                ),
                 detected_at.clone(),
             );
             self.push_missing_issue(
                 &mut issues,
                 self.pet_record_id.is_none(),
-                data_quality::SourceField::PetRecordId,
+                data_quality::FieldPath::reservation(data_quality::ReservationField::PetRecordId),
                 detected_at.clone(),
             );
             self.push_missing_issue(
                 &mut issues,
                 self.location_record_id.is_none(),
-                data_quality::SourceField::LocationRecordId,
+                data_quality::FieldPath::reservation(
+                    data_quality::ReservationField::LocationRecordId,
+                ),
                 detected_at.clone(),
             );
             self.push_missing_issue(
                 &mut issues,
                 self.service_type_record_id.is_none(),
-                data_quality::SourceField::ServiceTypeRecordId,
+                data_quality::FieldPath::reservation(
+                    data_quality::ReservationField::ServiceTypeRecordId,
+                ),
                 detected_at.clone(),
             );
             if self.status.is_none() {
+                self.push_missing_issue(
+                    &mut issues,
+                    true,
+                    data_quality::FieldPath::reservation(data_quality::ReservationField::Status),
+                    detected_at.clone(),
+                );
                 issues.push(data_quality::Issue::new(
                     data_quality::Kind::AssumptionInForce {
                         assumption: Assumption::RefreshMutationPolicyUnknown,
@@ -401,7 +437,7 @@ pub mod reservation {
             &self,
             issues: &mut Vec<data_quality::Issue>,
             missing: bool,
-            field: data_quality::SourceField,
+            field: data_quality::FieldPath,
             detected_at: source::Timestamp,
         ) {
             if missing {
