@@ -1,6 +1,8 @@
 use super::*;
 use crate::policy;
 
+pub use playgroup_id::Id as PlaygroupId;
+
 pub mod playgroup_id {
     use super::*;
 
@@ -28,14 +30,14 @@ pub struct Request {
     pub service: ServiceVariant,
     pub eligibility: eligibility::GroupPlayDecision,
     pub coverage: coverage::Decision,
-    pub playgroup: playgroup_id::Id,
+    pub playgroup: PlaygroupId,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Decision {
     Assigned {
         pet_id: PetId,
-        playgroup: playgroup_id::Id,
+        playgroup: PlaygroupId,
     },
     Waitlist {
         reason: WaitlistReason,

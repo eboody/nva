@@ -321,10 +321,12 @@ pub mod payment {
         pub mod provider {
             use super::*;
 
+            pub use authorization_id::Id as AuthorizationId;
+
             #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
             pub enum Result {
                 Authorized {
-                    authorization_id: authorization_id::Id,
+                    authorization_id: AuthorizationId,
                     amount: Money,
                 },
                 Declined {
@@ -387,9 +389,11 @@ pub mod payment {
         pub mod provider {
             use super::*;
 
+            pub use refund_id::Id as RefundId;
+
             #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
             pub enum Result {
-                Accepted { refund_id: refund_id::Id },
+                Accepted { refund_id: RefundId },
                 Rejected { reason: RejectionReason },
             }
 
@@ -729,9 +733,11 @@ pub mod hermes {
         pub mod kanban {
             use super::*;
 
+            pub use task_id::Id as TaskId;
+
             #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
             pub struct DraftResult {
-                pub task_id: task_id::Id,
+                pub task_id: TaskId,
                 pub status: DraftStatus,
             }
 

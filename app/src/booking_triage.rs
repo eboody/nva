@@ -2,6 +2,7 @@ use nutype::nutype;
 use serde::{Deserialize, Serialize};
 use statum::{machine, state, transition};
 
+use domain::entities::reservation;
 use domain::pet;
 
 #[nutype(
@@ -578,21 +579,17 @@ impl StaffEvaluationPacket {
         &self.audit_event_drafts
     }
 
-    pub const fn suggested_status(&self) -> domain::entities::reservation::Status {
+    pub const fn suggested_status(&self) -> reservation::Status {
         match self.deterministic_result.recommended_status {
-            ReadinessBucket::ReadyForStaffApproval => {
-                domain::entities::reservation::Status::Offered
-            }
-            ReadinessBucket::MissingInfo => domain::entities::reservation::Status::MissingInfo,
-            ReadinessBucket::VaccinePending => {
-                domain::entities::reservation::Status::VaccinePending
-            }
-            ReadinessBucket::SpecialReview => domain::entities::reservation::Status::SpecialReview,
-            ReadinessBucket::Waitlisted => domain::entities::reservation::Status::Waitlisted,
-            ReadinessBucket::Offered => domain::entities::reservation::Status::Offered,
-            ReadinessBucket::Confirmed => domain::entities::reservation::Status::Offered,
-            ReadinessBucket::Rejected => domain::entities::reservation::Status::SpecialReview,
-            ReadinessBucket::FailedSafely => domain::entities::reservation::Status::SpecialReview,
+            ReadinessBucket::ReadyForStaffApproval => reservation::Status::Offered,
+            ReadinessBucket::MissingInfo => reservation::Status::MissingInfo,
+            ReadinessBucket::VaccinePending => reservation::Status::VaccinePending,
+            ReadinessBucket::SpecialReview => reservation::Status::SpecialReview,
+            ReadinessBucket::Waitlisted => reservation::Status::Waitlisted,
+            ReadinessBucket::Offered => reservation::Status::Offered,
+            ReadinessBucket::Confirmed => reservation::Status::Offered,
+            ReadinessBucket::Rejected => reservation::Status::SpecialReview,
+            ReadinessBucket::FailedSafely => reservation::Status::SpecialReview,
         }
     }
 
