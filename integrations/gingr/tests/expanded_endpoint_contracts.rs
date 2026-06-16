@@ -69,10 +69,10 @@ fn reservations_by_pet_and_owner_encode_restrict_to_and_location_scope_caveat_fi
         .animal_id(endpoint::AnimalId::new(23))
         .restrict_to(endpoint::reservations::RestrictTo::Future)
         .filter(
-            endpoint::reservations::ReservationSearchFilters::builder()
+            endpoint::reservations::reservation::SearchFilters::builder()
                 .from_date(endpoint::IsoDate::parse("2026-06-01").unwrap())
                 .to_date(endpoint::IsoDate::parse("2026-06-30").unwrap())
-                .reservation_type_id(endpoint::reservations::ReservationTypeId::new(2))
+                .reservation_type_id(endpoint::reservations::reservation::TypeId::new(2))
                 .animal_id(endpoint::AnimalId::new(23))
                 .confirmed_only(true)
                 .limit(endpoint::Limit::new(50).unwrap())
@@ -184,14 +184,14 @@ fn owner_lookup_requires_one_discriminator_and_reference_endpoints_stay_typed() 
 fn forms_custom_field_and_back_of_house_are_explicitly_sensitive_or_v0_safe() {
     let client = fake_client();
     let form = endpoint::owners_animals::Form::new(endpoint::owners_animals::FormKind::Animal);
-    let custom_search = endpoint::owners_animals::CustomFieldSearch::builder()
+    let custom_search = endpoint::owners_animals::custom_field::Search::builder()
         .form(endpoint::owners_animals::FormKind::Owner)
-        .field_name(endpoint::owners_animals::CustomFieldName::new("preferred_contact").unwrap())
+        .field_name(endpoint::owners_animals::custom_field::Name::new("preferred_contact").unwrap())
         .search(endpoint::owners_animals::SensitiveLookup::new("sms").unwrap())
         .build();
     let whiteboard = endpoint::reservations::BackOfHouse::builder()
         .location(endpoint::LocationId::new(3))
-        .reservation_type_id(endpoint::reservations::ReservationTypeId::new(4))
+        .reservation_type_id(endpoint::reservations::reservation::TypeId::new(4))
         .minutes_future(endpoint::reservations::MinutesFuture::new(120).unwrap())
         .build();
 

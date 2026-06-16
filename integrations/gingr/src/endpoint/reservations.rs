@@ -1,120 +1,220 @@
 use super::{AnimalId, Date, DateRange, IsoDate, Limit, LocationId, Method, OwnerId, Request};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ReservationTypeId(u64);
+pub mod reservation {
+    use super::*;
 
-impl ReservationTypeId {
-    pub const fn new(value: u64) -> Self {
-        Self(value)
-    }
-}
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub struct TypeId(u64);
 
-impl core::fmt::Display for ReservationTypeId {
-    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(formatter, "{}", self.0)
-    }
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct ReservationTypes {
-    id: Option<ReservationTypeId>,
-    active_only: Option<bool>,
-}
-
-impl ReservationTypes {
-    pub fn builder() -> ReservationTypesBuilder {
-        ReservationTypesBuilder::default()
-    }
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct ReservationTypesBuilder {
-    id: Option<ReservationTypeId>,
-    active_only: Option<bool>,
-}
-
-impl ReservationTypesBuilder {
-    pub fn id(mut self, id: ReservationTypeId) -> Self {
-        self.id = Some(id);
-        self
-    }
-
-    pub fn active_only(mut self, active_only: bool) -> Self {
-        self.active_only = Some(active_only);
-        self
-    }
-
-    pub fn build(self) -> ReservationTypes {
-        ReservationTypes {
-            id: self.id,
-            active_only: self.active_only,
+    impl TypeId {
+        pub const fn new(value: u64) -> Self {
+            Self(value)
         }
     }
-}
 
-impl Request for ReservationTypes {
-    fn method(&self) -> Method {
-        Method::Get
-    }
-
-    fn path(&self) -> &'static str {
-        "/api/v1/reservation_types"
-    }
-
-    fn parameters(&self) -> Vec<(String, String)> {
-        let mut params = Vec::new();
-        if let Some(id) = self.id {
-            params.push(("id".to_owned(), id.to_string()));
-        }
-        if let Some(active_only) = self.active_only {
-            params.push(("active_only".to_owned(), active_only.to_string()));
-        }
-        params
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ReservationWidgetData {
-    timestamp: Date,
-}
-
-impl ReservationWidgetData {
-    pub fn builder() -> ReservationWidgetDataBuilder {
-        ReservationWidgetDataBuilder::default()
-    }
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct ReservationWidgetDataBuilder {
-    timestamp: Option<Date>,
-}
-
-impl ReservationWidgetDataBuilder {
-    pub fn timestamp(mut self, timestamp: Date) -> Self {
-        self.timestamp = Some(timestamp);
-        self
-    }
-
-    pub fn build(self) -> ReservationWidgetData {
-        ReservationWidgetData {
-            timestamp: self
-                .timestamp
-                .expect("ReservationWidgetData requires timestamp"),
+    impl core::fmt::Display for TypeId {
+        fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            write!(formatter, "{}", self.0)
         }
     }
-}
 
-impl Request for ReservationWidgetData {
-    fn method(&self) -> Method {
-        Method::Get
+    #[derive(Clone, Debug, Default, PartialEq, Eq)]
+    pub struct Types {
+        id: Option<TypeId>,
+        active_only: Option<bool>,
     }
 
-    fn path(&self) -> &'static str {
-        "/api/v1/reservation_widget_data"
+    impl Types {
+        pub fn builder() -> TypesBuilder {
+            TypesBuilder::default()
+        }
     }
 
-    fn parameters(&self) -> Vec<(String, String)> {
-        vec![("timestamp".to_owned(), self.timestamp.to_string())]
+    #[derive(Clone, Debug, Default)]
+    pub struct TypesBuilder {
+        id: Option<TypeId>,
+        active_only: Option<bool>,
+    }
+
+    impl TypesBuilder {
+        pub fn id(mut self, id: TypeId) -> Self {
+            self.id = Some(id);
+            self
+        }
+
+        pub fn active_only(mut self, active_only: bool) -> Self {
+            self.active_only = Some(active_only);
+            self
+        }
+
+        pub fn build(self) -> Types {
+            Types {
+                id: self.id,
+                active_only: self.active_only,
+            }
+        }
+    }
+
+    impl Request for Types {
+        fn method(&self) -> Method {
+            Method::Get
+        }
+
+        fn path(&self) -> &'static str {
+            "/api/v1/reservation_types"
+        }
+
+        fn parameters(&self) -> Vec<(String, String)> {
+            let mut params = Vec::new();
+            if let Some(id) = self.id {
+                params.push(("id".to_owned(), id.to_string()));
+            }
+            if let Some(active_only) = self.active_only {
+                params.push(("active_only".to_owned(), active_only.to_string()));
+            }
+            params
+        }
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct WidgetData {
+        timestamp: Date,
+    }
+
+    impl WidgetData {
+        pub fn builder() -> WidgetDataBuilder {
+            WidgetDataBuilder::default()
+        }
+    }
+
+    #[derive(Clone, Debug, Default)]
+    pub struct WidgetDataBuilder {
+        timestamp: Option<Date>,
+    }
+
+    impl WidgetDataBuilder {
+        pub fn timestamp(mut self, timestamp: Date) -> Self {
+            self.timestamp = Some(timestamp);
+            self
+        }
+
+        pub fn build(self) -> WidgetData {
+            WidgetData {
+                timestamp: self.timestamp.expect("WidgetData requires timestamp"),
+            }
+        }
+    }
+
+    impl Request for WidgetData {
+        fn method(&self) -> Method {
+            Method::Get
+        }
+
+        fn path(&self) -> &'static str {
+            "/api/v1/reservation_widget_data"
+        }
+
+        fn parameters(&self) -> Vec<(String, String)> {
+            vec![("timestamp".to_owned(), self.timestamp.to_string())]
+        }
+    }
+
+    #[derive(Clone, Debug, Default, PartialEq, Eq)]
+    pub struct SearchFilters {
+        from_date: Option<IsoDate>,
+        to_date: Option<IsoDate>,
+        reservation_type_ids: Vec<TypeId>,
+        animal_ids: Vec<AnimalId>,
+        cancelled_only: Option<bool>,
+        confirmed_only: Option<bool>,
+        completed_only: Option<bool>,
+        limit: Option<Limit>,
+    }
+
+    impl SearchFilters {
+        pub fn builder() -> SearchFiltersBuilder {
+            SearchFiltersBuilder::default()
+        }
+
+        pub(super) fn parameters(&self) -> Vec<(String, String)> {
+            let mut params = Vec::new();
+            if let Some(from_date) = self.from_date {
+                params.push(("params[fromDate]".to_owned(), from_date.to_string()));
+            }
+            if let Some(to_date) = self.to_date {
+                params.push(("params[toDate]".to_owned(), to_date.to_string()));
+            }
+            for id in &self.reservation_type_ids {
+                params.push(("params[reservationTypeIds][]".to_owned(), id.to_string()));
+            }
+            for id in &self.animal_ids {
+                params.push(("params[animalIds][]".to_owned(), id.to_string()));
+            }
+            if let Some(value) = self.cancelled_only {
+                params.push(("params[cancelledOnly]".to_owned(), value.to_string()));
+            }
+            if let Some(value) = self.confirmed_only {
+                params.push(("params[confirmedOnly]".to_owned(), value.to_string()));
+            }
+            if let Some(value) = self.completed_only {
+                params.push(("params[completedOnly]".to_owned(), value.to_string()));
+            }
+            if let Some(limit) = self.limit {
+                params.push(("params[limit]".to_owned(), limit.to_string()));
+            }
+            params
+        }
+    }
+
+    #[derive(Clone, Debug, Default)]
+    pub struct SearchFiltersBuilder {
+        filters: SearchFilters,
+    }
+
+    impl SearchFiltersBuilder {
+        pub fn from_date(mut self, date: IsoDate) -> Self {
+            self.filters.from_date = Some(date);
+            self
+        }
+
+        pub fn to_date(mut self, date: IsoDate) -> Self {
+            self.filters.to_date = Some(date);
+            self
+        }
+
+        pub fn reservation_type_id(mut self, id: TypeId) -> Self {
+            self.filters.reservation_type_ids.push(id);
+            self
+        }
+
+        pub fn animal_id(mut self, id: AnimalId) -> Self {
+            self.filters.animal_ids.push(id);
+            self
+        }
+
+        pub fn cancelled_only(mut self, value: bool) -> Self {
+            self.filters.cancelled_only = Some(value);
+            self
+        }
+
+        pub fn confirmed_only(mut self, value: bool) -> Self {
+            self.filters.confirmed_only = Some(value);
+            self
+        }
+
+        pub fn completed_only(mut self, value: bool) -> Self {
+            self.filters.completed_only = Some(value);
+            self
+        }
+
+        pub fn limit(mut self, limit: Limit) -> Self {
+            self.filters.limit = Some(limit);
+            self
+        }
+
+        pub fn build(self) -> SearchFilters {
+            self.filters
+        }
     }
 }
 
@@ -209,104 +309,6 @@ impl core::fmt::Display for RestrictTo {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct ReservationSearchFilters {
-    from_date: Option<IsoDate>,
-    to_date: Option<IsoDate>,
-    reservation_type_ids: Vec<ReservationTypeId>,
-    animal_ids: Vec<AnimalId>,
-    cancelled_only: Option<bool>,
-    confirmed_only: Option<bool>,
-    completed_only: Option<bool>,
-    limit: Option<Limit>,
-}
-
-impl ReservationSearchFilters {
-    pub fn builder() -> ReservationSearchFiltersBuilder {
-        ReservationSearchFiltersBuilder::default()
-    }
-
-    fn parameters(&self) -> Vec<(String, String)> {
-        let mut params = Vec::new();
-        if let Some(from_date) = self.from_date {
-            params.push(("params[fromDate]".to_owned(), from_date.to_string()));
-        }
-        if let Some(to_date) = self.to_date {
-            params.push(("params[toDate]".to_owned(), to_date.to_string()));
-        }
-        for id in &self.reservation_type_ids {
-            params.push(("params[reservationTypeIds][]".to_owned(), id.to_string()));
-        }
-        for id in &self.animal_ids {
-            params.push(("params[animalIds][]".to_owned(), id.to_string()));
-        }
-        if let Some(value) = self.cancelled_only {
-            params.push(("params[cancelledOnly]".to_owned(), value.to_string()));
-        }
-        if let Some(value) = self.confirmed_only {
-            params.push(("params[confirmedOnly]".to_owned(), value.to_string()));
-        }
-        if let Some(value) = self.completed_only {
-            params.push(("params[completedOnly]".to_owned(), value.to_string()));
-        }
-        if let Some(limit) = self.limit {
-            params.push(("params[limit]".to_owned(), limit.to_string()));
-        }
-        params
-    }
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct ReservationSearchFiltersBuilder {
-    filters: ReservationSearchFilters,
-}
-
-impl ReservationSearchFiltersBuilder {
-    pub fn from_date(mut self, date: IsoDate) -> Self {
-        self.filters.from_date = Some(date);
-        self
-    }
-
-    pub fn to_date(mut self, date: IsoDate) -> Self {
-        self.filters.to_date = Some(date);
-        self
-    }
-
-    pub fn reservation_type_id(mut self, id: ReservationTypeId) -> Self {
-        self.filters.reservation_type_ids.push(id);
-        self
-    }
-
-    pub fn animal_id(mut self, id: AnimalId) -> Self {
-        self.filters.animal_ids.push(id);
-        self
-    }
-
-    pub fn cancelled_only(mut self, value: bool) -> Self {
-        self.filters.cancelled_only = Some(value);
-        self
-    }
-
-    pub fn confirmed_only(mut self, value: bool) -> Self {
-        self.filters.confirmed_only = Some(value);
-        self
-    }
-
-    pub fn completed_only(mut self, value: bool) -> Self {
-        self.filters.completed_only = Some(value);
-        self
-    }
-
-    pub fn limit(mut self, limit: Limit) -> Self {
-        self.filters.limit = Some(limit);
-        self
-    }
-
-    pub fn build(self) -> ReservationSearchFilters {
-        self.filters
-    }
-}
-
 pub mod by {
     use super::*;
 
@@ -314,7 +316,7 @@ pub mod by {
     pub struct Animal {
         animal_id: AnimalId,
         restrict_to: Option<RestrictTo>,
-        filters: Option<ReservationSearchFilters>,
+        filters: Option<reservation::SearchFilters>,
     }
 
     impl Animal {
@@ -329,7 +331,7 @@ pub mod by {
     pub struct AnimalBuilder {
         animal_id: Option<AnimalId>,
         restrict_to: Option<RestrictTo>,
-        filters: Option<ReservationSearchFilters>,
+        filters: Option<reservation::SearchFilters>,
     }
 
     impl AnimalBuilder {
@@ -343,7 +345,7 @@ pub mod by {
             self
         }
 
-        pub fn filter(mut self, filters: ReservationSearchFilters) -> Self {
+        pub fn filter(mut self, filters: reservation::SearchFilters) -> Self {
             self.filters = Some(filters);
             self
         }
@@ -382,7 +384,7 @@ pub mod by {
     pub struct Owner {
         owner_id: OwnerId,
         restrict_to: Option<RestrictTo>,
-        filters: Option<ReservationSearchFilters>,
+        filters: Option<reservation::SearchFilters>,
     }
 
     impl Owner {
@@ -397,7 +399,7 @@ pub mod by {
     pub struct OwnerBuilder {
         owner_id: Option<OwnerId>,
         restrict_to: Option<RestrictTo>,
-        filters: Option<ReservationSearchFilters>,
+        filters: Option<reservation::SearchFilters>,
     }
 
     impl OwnerBuilder {
@@ -411,7 +413,7 @@ pub mod by {
             self
         }
 
-        pub fn filter(mut self, filters: ReservationSearchFilters) -> Self {
+        pub fn filter(mut self, filters: reservation::SearchFilters) -> Self {
             self.filters = Some(filters);
             self
         }
@@ -468,7 +470,7 @@ impl core::fmt::Display for MinutesFuture {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BackOfHouse {
     location: LocationId,
-    reservation_type_ids: Vec<ReservationTypeId>,
+    reservation_type_ids: Vec<reservation::TypeId>,
     minutes_future: Option<MinutesFuture>,
     full_day: Option<bool>,
 }
@@ -482,7 +484,7 @@ impl BackOfHouse {
 #[derive(Clone, Debug, Default)]
 pub struct BackOfHouseBuilder {
     location: Option<LocationId>,
-    reservation_type_ids: Vec<ReservationTypeId>,
+    reservation_type_ids: Vec<reservation::TypeId>,
     minutes_future: Option<MinutesFuture>,
     full_day: Option<bool>,
 }
@@ -493,7 +495,7 @@ impl BackOfHouseBuilder {
         self
     }
 
-    pub fn reservation_type_id(mut self, id: ReservationTypeId) -> Self {
+    pub fn reservation_type_id(mut self, id: reservation::TypeId) -> Self {
         self.reservation_type_ids.push(id);
         self
     }
@@ -544,12 +546,12 @@ impl Request for BackOfHouse {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GetServicesByType {
-    type_id: ReservationTypeId,
+    type_id: reservation::TypeId,
     location: Option<LocationId>,
 }
 
 impl GetServicesByType {
-    pub fn new(type_id: ReservationTypeId) -> Self {
+    pub fn new(type_id: reservation::TypeId) -> Self {
         Self {
             type_id,
             location: None,
