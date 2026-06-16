@@ -114,7 +114,7 @@ Tests verify both positive fixtures and negative boundaries:
 
 Status: pass in this run.
 
-Commands run from `/home/eran/code/pet-resort-agent-foundation`:
+Commands run from `/home/eran/code/nva`:
 
 ```text
 cargo fmt --check

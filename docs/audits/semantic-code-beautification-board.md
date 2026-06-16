@@ -1,7 +1,7 @@
 # Pet Resort semantic-code beautification closeout
 
 Generated: 2026-06-14
-Workspace: `/home/eran/code/pet-resort-agent-foundation`
+Workspace: `/home/eran/code/nva`
 
 ## Decision
 

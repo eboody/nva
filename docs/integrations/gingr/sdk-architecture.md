@@ -18,7 +18,7 @@ Create a dedicated Rust crate at `integrations/gingr`, with package name `gingr`
 Recommended workspace shape:
 
 ```text
-pet-resort-agent-foundation/
+nva/
   Cargo.toml
   domain/
   storage/

@@ -1,6 +1,6 @@
 # Semantic-module follow-up audit
 
-Workspace: `/home/eran/code/pet-resort-agent-foundation-worktrees/pet-resort-semantic-modules-pass/00-audit`
+Workspace: `/home/eran/code/nva-worktrees/pet-resort-semantic-modules-pass/00-audit`
 Branch: `kb/semantic-modules-audit-20260612144914`
 Command rerun: `modum check --format json`
 Scope: audit only; no Rust remediation applied.

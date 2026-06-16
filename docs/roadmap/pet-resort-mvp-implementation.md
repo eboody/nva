@@ -1,7 +1,7 @@
 # Pet Resort MVP Implementation Roadmap
 
 Board: `pet-resort-mvp-implementation`
-Default workspace: `/home/eran/code/pet-resort-agent-foundation`
+Default workspace: `/home/eran/code/nva`
 Meta source task: `t_9a262a99`
 
 This roadmap converts the pet-resort design artifacts into executable engineering phases. It intentionally separates stack/cutline approval, foundation work, feature slices, and final smoke testing so the MVP can advance without losing human approval gates for stack choice, production deployment, and live customer messaging.

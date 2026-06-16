@@ -1,6 +1,6 @@
 # Semantic-module follow-up closeout
 
-Workspace: `/home/eran/code/pet-resort-agent-foundation-worktrees/pet-resort-semantic-modules-pass/99-fan-in`
+Workspace: `/home/eran/code/nva-worktrees/pet-resort-semantic-modules-pass/99-fan-in`
 Branch: `kb/semantic-modules-fan-in-20260612144914`
 Base commit: `0b8decf`
 
@@ -103,7 +103,7 @@ The Modum JSON for the verification run was written during closeout to `/tmp/mod
 
 # Namespace follow-up fan-in closeout
 
-Workspace: `/home/eran/code/pet-resort-agent-foundation-worktrees/pet-resort-semantic-modules-pass/19-namespace-fan-in`
+Workspace: `/home/eran/code/nva-worktrees/pet-resort-semantic-modules-pass/19-namespace-fan-in`
 Branch: `kb/modum-namespace-fan-in-202606121645`
 Base commit: `1132a72` (`kb/semantic-modules-fan-in-20260612144914`)
 

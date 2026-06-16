@@ -3,7 +3,7 @@
 Status: final launch-readiness review artifact for the current documentation and board state. This document does not approve pilot launch, live customer use, production deployment, live messaging, provider/PMS mutation, payment collection, or autonomous safety-sensitive decisions. It defines the review process, evidence requirements, decision shapes, and current caveats for a human launch owner.
 
 Review timestamp: 2026-06-11T07:11:34Z
-Workspace: `/home/eran/code/pet-resort-agent-foundation`
+Workspace: `/home/eran/code/nva`
 
 ## 1. Inputs reviewed
 

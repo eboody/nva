@@ -1,6 +1,6 @@
 # Gingr SDK Kanban Plan
 
-> **For Hermes:** Use the `pet-resort-gingr-sdk` Kanban board to execute this plan. Keep code-mutating SDK work gated until the current `pet-resort-service-domain-contracts` code board is no longer mutating `/home/eran/code/pet-resort-agent-foundation`.
+> **For Hermes:** Use the `pet-resort-gingr-sdk` Kanban board to execute this plan. Keep code-mutating SDK work gated until the current `pet-resort-service-domain-contracts` code board is no longer mutating `/home/eran/code/nva`.
 
 **Goal:** Build a Rust SDK/adaptation layer for Gingr so pet-resort AI agents can read operational data, verify webhooks, and translate raw Gingr payloads into semantic domain contracts without letting raw strings/booleans leak into agent decisions.
 
@@ -153,7 +153,7 @@ Deliverables:
 ## Execution constraints
 
 - This workspace is currently not a git checkout; do not rely on git branches/worktrees.
-- Existing board `pet-resort-service-domain-contracts` currently has code-mutating work in `/home/eran/code/pet-resort-agent-foundation`. Keep SDK code cards gated until that board is done or explicitly paused.
+- Existing board `pet-resort-service-domain-contracts` currently has code-mutating work in `/home/eran/code/nva`. Keep SDK code cards gated until that board is done or explicitly paused.
 - Documentation/source-extraction cards may run immediately if they write distinct files under `docs/integrations/gingr/`.
 - Code cards must follow semantic-code doctrine: failing semantic API tests first, RED verified, smallest domain/integration type surface, then focused tests and full `cargo test --workspace` when feasible.
 - Do not perform live Gingr API calls unless the user later provides a sandbox subdomain/key and explicitly approves read-only probing.

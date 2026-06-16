@@ -1,4 +1,4 @@
-# Pet Resort Agent Foundation
+# NVA
 
 A Rust-first spike for a 170-location pet resort workflow/agent platform.
 

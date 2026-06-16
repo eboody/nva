@@ -44,7 +44,7 @@ The board successfully produced a semantic service-domain foundation: every requ
 
 All Rust verification gates passed. The full workspace test run reported 8 domain unit tests, 33 domain quality-pattern tests, 36 PetSuites core-service contract tests, 24 Gingr integration tests, 7 storage tests, and doc-tests all passing. Clippy completed with `-D warnings` successfully.
 
-`git status`/diff evidence is unavailable because `/home/eran/code/pet-resort-agent-foundation` is not a git repository in this runtime.
+`git status`/diff evidence is unavailable because `/home/eran/code/nva` is not a git repository in this runtime.
 
 ## Requirement-by-requirement review
 
@@ -136,7 +136,7 @@ Semantic caveats to keep in view:
 
 Pass.
 
-Commands run from `/home/eran/code/pet-resort-agent-foundation`:
+Commands run from `/home/eran/code/nva`:
 
 ```text
 rustup default stable

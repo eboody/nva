@@ -13,7 +13,7 @@ resolver = "3"
 [workspace.package]
 edition = "2024"
 license = "MIT OR Apache-2.0"
-repository = "https://example.invalid/pet-resort-agent-foundation"
+repository = "https://github.com/eboody/nva"
 
 [workspace.dependencies]
 anyhow = "1.0"

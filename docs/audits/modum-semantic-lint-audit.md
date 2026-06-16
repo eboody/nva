@@ -1,6 +1,6 @@
 # Modum semantic lint audit
 
-Workspace: `/home/eran/code/pet-resort-agent-foundation`  
+Workspace: `/home/eran/code/nva`
 Command: `modum check --format json`  
 Scope: audit only; no source fixes applied.  
 

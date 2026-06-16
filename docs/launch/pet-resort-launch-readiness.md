@@ -3,7 +3,7 @@
 Status: integrated launch-readiness artifact. This document summarizes the launch checklist, pilot modes, smoke-test scripts, rollback/manual fallback, go/no-go process, approval gates, and current caveats for the Pet Resort MVP.
 
 Review timestamp: 2026-06-11T07:11:34Z
-Workspace: `/home/eran/code/pet-resort-agent-foundation`
+Workspace: `/home/eran/code/nva`
 Final synthesis task: `t_cd827e7b`
 
 This document does not approve pilot launch, live customer use, production deployment, auto-send messaging, provider/PMS mutation, payment collection, or autonomous safety-sensitive decisions. It defines what evidence a human launch owner must review before making one of the allowed decision shapes.

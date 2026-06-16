@@ -1,5 +1,5 @@
 {
-  "name": "pet-resort-agent-foundation",
+  "name": "nva",
   "version": "0.1.0",
   "private": true,
   "workspaces": ["apps/staff-web"],

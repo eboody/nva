@@ -2,7 +2,7 @@
 
 Status: refreshed after semantic-code beautification closeout.
 Run timestamp: 2026-06-14.
-Workspace: `/home/eran/code/pet-resort-agent-foundation`.
+Workspace: `/home/eran/code/nva`.
 Execution mode: `local_demo` only.
 
 This review did not perform production deployment, production/provider/PMS mutation, payment movement, live customer messaging, or any live-customer operation. Production deployment and live customer messaging remain explicit human approval gates.

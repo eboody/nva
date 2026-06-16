@@ -2,7 +2,7 @@
 
 Review date: 2026-06-12
 Task: `t_6c5ff004`
-Reviewed checkout: `/home/eran/code/pet-resort-agent-foundation`
+Reviewed checkout: `/home/eran/code/nva`
 Baseline remediation commit visible in checkout: `5b5188b test(domain): assert canonical service architecture`
 
 ## Verdict
