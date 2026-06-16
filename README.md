@@ -10,10 +10,54 @@ The first step is to make the business boundary explicit before writing agents:
 4. Model external systems as tool traits.
 5. Let Hermes agents consume/produce typed packets rather than free-form strings.
 
-## Current crates
+## Architecture
 
-- `crates/domain` — domain entities, workflow contracts, policy traits, agent specs, tool traits.
-- `apps/cli` — tiny operator CLI that prints baseline agents/tools.
+This workspace follows a ports-and-adapters shape with one important rule:
+
+> `domain` defines what is true. `app` defines what the system needs to do. Adapters satisfy those app-defined contracts. Runtime crates only wire and boot the process.
+
+```text
+domain
+  ↑
+app
+  ↑
+storage / integrations/*
+  ↑
+apps/api / apps/worker / apps/cli
+```
+
+### Crate responsibilities
+
+- `domain` — pure pet-resort language: entities, service-line contracts, workflow events, policies, review gates, semantic IDs/statuses, and invariant-bearing values. This crate should not know about databases, HTTP servers, queues, or provider APIs.
+- `app` — application use-cases and ports. Workflows such as booking triage or daily updates compose domain contracts and declare the repository/service/tool traits they need, e.g. customer lookup, reservation availability, payment gateway, portal lookup, messaging draft, document intake, media capture, and agent runtime.
+- `storage` — persistence adapter boundary. It owns storage-shaped records, stable storage codes, codecs, and promotion/demotion between storage records and `domain` values. As concrete persistence is built out, storage implementations should satisfy traits defined by `app`, not define application behavior themselves.
+- `integrations/gingr` — Gingr provider adapter boundary. It owns provider DTOs, endpoint request/response contracts, transport, webhook verification, and mappings into domain/app contracts while quarantining provider vocabulary inside the integration crate.
+- `apps/api` — thin HTTP runtime shell. It should parse/serialize HTTP, load config, wire concrete adapters into app services, and expose routes.
+- `apps/worker` — thin background-worker runtime shell. It should wire queues/schedules to app services without owning business contracts.
+- `apps/cli` — thin operator CLI shell for local/manual workflows.
+
+### Port ownership
+
+Repository and service traits belong in `app` when they describe capabilities the application needs:
+
+```rust
+app::customer::Repository
+app::reservation::Repository
+app::payment::Gateway
+app::portal::Lookup
+app::agent::Runtime
+```
+
+Concrete adapters implement those ports:
+
+```rust
+storage::customer::postgres::Repository     -> app::customer::Repository
+storage::reservation::memory::Repository    -> app::reservation::Repository
+integrations::gingr::Portal                 -> app::portal::Lookup
+```
+
+The runtime crates should compose these pieces rather than define the contracts. `apps/api` and `apps/worker` may define runtime-local glue such as shutdown signals or job runners, but business/application traits should stay in `app` so every runtime shares the same contract surface.
+
 
 ## Rust quality conventions
 

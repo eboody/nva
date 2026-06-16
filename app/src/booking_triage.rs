@@ -2,8 +2,8 @@ use nutype::nutype;
 use serde::{Deserialize, Serialize};
 use statum::{machine, state, transition};
 
-use domain::entities::reservation;
-use domain::pet;
+use domain::entities::reservation as reservation_entity;
+use domain::{entities, pet};
 
 #[nutype(
     sanitize(trim),
@@ -540,7 +540,7 @@ impl StaffEvaluationPacket {
     pub fn try_with_confirmation_draft(
         mut self,
         confirmation_draft: ConfirmationDraft,
-    ) -> Result<Self, ConfirmationDraftError> {
+    ) -> core::result::Result<Self, ConfirmationDraftError> {
         if self.deterministic_result.staff_decision_boundary()
             != StaffDecisionBoundary::DraftConfirmationAllowed
         {
@@ -579,17 +579,17 @@ impl StaffEvaluationPacket {
         &self.audit_event_drafts
     }
 
-    pub const fn suggested_status(&self) -> reservation::Status {
+    pub const fn suggested_status(&self) -> reservation_entity::Status {
         match self.deterministic_result.recommended_status {
-            ReadinessBucket::ReadyForStaffApproval => reservation::Status::Offered,
-            ReadinessBucket::MissingInfo => reservation::Status::MissingInfo,
-            ReadinessBucket::VaccinePending => reservation::Status::VaccinePending,
-            ReadinessBucket::SpecialReview => reservation::Status::SpecialReview,
-            ReadinessBucket::Waitlisted => reservation::Status::Waitlisted,
-            ReadinessBucket::Offered => reservation::Status::Offered,
-            ReadinessBucket::Confirmed => reservation::Status::Offered,
-            ReadinessBucket::Rejected => reservation::Status::SpecialReview,
-            ReadinessBucket::FailedSafely => reservation::Status::SpecialReview,
+            ReadinessBucket::ReadyForStaffApproval => reservation_entity::Status::Offered,
+            ReadinessBucket::MissingInfo => reservation_entity::Status::MissingInfo,
+            ReadinessBucket::VaccinePending => reservation_entity::Status::VaccinePending,
+            ReadinessBucket::SpecialReview => reservation_entity::Status::SpecialReview,
+            ReadinessBucket::Waitlisted => reservation_entity::Status::Waitlisted,
+            ReadinessBucket::Offered => reservation_entity::Status::Offered,
+            ReadinessBucket::Confirmed => reservation_entity::Status::Offered,
+            ReadinessBucket::Rejected => reservation_entity::Status::SpecialReview,
+            ReadinessBucket::FailedSafely => reservation_entity::Status::SpecialReview,
         }
     }
 
@@ -597,4 +597,161 @@ impl StaffEvaluationPacket {
         self.audit_event_drafts.sort_unstable();
         self.audit_event_drafts.dedup();
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum Error {
+    #[error("booking triage reservation repository could not load requested reservation")]
+    ReservationNotFound,
+}
+
+pub type AppResult<T> = core::result::Result<T, Error>;
+
+pub mod reservation {
+    use super::entities;
+
+    pub trait Repository {
+        fn get(&self, id: entities::reservation::Id) -> Option<entities::Reservation>;
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Service<R> {
+    reservations: R,
+}
+
+impl<R> Service<R>
+where
+    R: reservation::Repository,
+{
+    pub const fn new(reservations: R) -> Self {
+        Self { reservations }
+    }
+
+    pub fn evaluate(&self, id: entities::reservation::Id) -> AppResult<StaffEvaluationPacket> {
+        let reservation = self
+            .reservations
+            .get(id)
+            .ok_or(Error::ReservationNotFound)?;
+        let deterministic_result =
+            DeterministicResult::evaluate(evaluate_reservation(&reservation));
+        Ok(StaffEvaluationPacket::new(
+            Reservation::try_new(reservation.id.0.to_string())
+                .expect("uuid reservation id should be a non-empty app reservation label"),
+            deterministic_result,
+        ))
+    }
+}
+
+fn evaluate_reservation(reservation: &entities::Reservation) -> Vec<rule::Evaluation> {
+    if reservation.hard_stops.is_empty() && reservation.deposit_is_satisfied() {
+        return vec![rule::Evaluation::pass(
+            rule::Id::DateRangeAndServiceSupported,
+            vec![
+                EvidenceRef::try_new("reservation:requested-without-hard-stops")
+                    .expect("static evidence ref is valid"),
+            ],
+        )];
+    }
+
+    let mut evaluations = Vec::new();
+    for hard_stop in &reservation.hard_stops {
+        evaluations.push(evaluate_hard_stop(hard_stop));
+    }
+    if !reservation.deposit_is_satisfied() {
+        evaluations.push(rule::Evaluation::needs_human_approval(review_finding(
+            rule::Id::DepositAndPricingRequirements,
+            FailureCode::DepositNotSatisfied,
+            ReadinessBucket::SpecialReview,
+            ApprovalGate::PaymentManagerApproval,
+            "deposit:missing-or-unverified",
+        )));
+    }
+    evaluations
+}
+
+trait ReservationDepositReadiness {
+    fn deposit_is_satisfied(&self) -> bool;
+}
+
+impl ReservationDepositReadiness for entities::Reservation {
+    fn deposit_is_satisfied(&self) -> bool {
+        self.deposit.as_ref().is_some_and(|deposit| {
+            matches!(
+                deposit.status(),
+                domain::payment::DepositStatus::Paid
+                    | domain::payment::DepositStatus::NotRequired
+                    | domain::payment::DepositStatus::WaivedByManager
+            )
+        })
+    }
+}
+
+fn evaluate_hard_stop(hard_stop: &entities::HardStop) -> rule::Evaluation {
+    match hard_stop {
+        entities::HardStop::MissingRequiredVaccine(_) => {
+            rule::Evaluation::needs_human_approval(review_finding(
+                rule::Id::VaccineRequirements,
+                FailureCode::MissingOrUnverifiedVaccine,
+                ReadinessBucket::VaccinePending,
+                ApprovalGate::MedicalDocumentReview,
+                "vaccine:missing-required",
+            ))
+        }
+        entities::HardStop::IneligibleForGroupPlay(_)
+        | entities::HardStop::BehaviorReviewRequired => {
+            rule::Evaluation::needs_human_approval(review_finding(
+                rule::Id::BehaviorRestrictions,
+                FailureCode::BehaviorExceptionRequiresReview,
+                ReadinessBucket::SpecialReview,
+                ApprovalGate::BehaviorReview,
+                "behavior:review-required",
+            ))
+        }
+        entities::HardStop::MedicalOrMedicationReviewRequired => {
+            rule::Evaluation::needs_human_approval(review_finding(
+                rule::Id::MedicationSpecialCareLimits,
+                FailureCode::SpecialCareRequiresReview,
+                ReadinessBucket::SpecialReview,
+                ApprovalGate::CareTeamApproval,
+                "care:medical-or-medication-review-required",
+            ))
+        }
+        entities::HardStop::DepositRequired => {
+            rule::Evaluation::needs_human_approval(review_finding(
+                rule::Id::DepositAndPricingRequirements,
+                FailureCode::DepositNotSatisfied,
+                ReadinessBucket::SpecialReview,
+                ApprovalGate::PaymentManagerApproval,
+                "deposit:required",
+            ))
+        }
+        entities::HardStop::InHeat | entities::HardStop::AgeBelowMinimumWeeks(_) => {
+            rule::Evaluation::hard_block(review_finding(
+                rule::Id::DateRangeAndServiceSupported,
+                FailureCode::PolicyHardStop,
+                ReadinessBucket::Rejected,
+                ApprovalGate::ManagerApproval,
+                "policy:hard-stop",
+            ))
+        }
+    }
+}
+
+fn review_finding(
+    rule_id: rule::Id,
+    failure_code: FailureCode,
+    readiness_bucket: ReadinessBucket,
+    human_approval_required: ApprovalGate,
+    evidence_ref: &'static str,
+) -> rule::ReviewFinding {
+    rule::ReviewFinding::builder()
+        .rule_id(rule_id)
+        .failure_code(failure_code)
+        .readiness_bucket(readiness_bucket)
+        .human_approval_required(human_approval_required)
+        .evidence_refs(vec![
+            EvidenceRef::try_new(evidence_ref).expect("static evidence ref is valid"),
+        ])
+        .build()
 }
