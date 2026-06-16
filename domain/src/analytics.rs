@@ -52,37 +52,38 @@ pub mod stay {
     }
 
     impl Fact {
-        pub fn project_from_reservation_snapshot(
+        pub fn project_from_source_reservation(
             id: Id,
-            snapshot: &source::reservation::Snapshot,
+            source_reservation: &source::reservation::Snapshot,
             projection_version: analytics::ProjectionVersion,
         ) -> std::result::Result<Self, Vec<data_quality::Issue>> {
-            let issues = snapshot.data_quality_issues(snapshot.provenance().pulled_at().clone());
+            let issues = source_reservation
+                .data_quality_issues(source_reservation.provenance().pulled_at().clone());
             if issues.iter().any(data_quality::Issue::workflow_blocking) {
                 return Err(issues);
             }
 
-            let customer_record_id = snapshot
+            let customer_record_id = source_reservation
                 .customer_record_id()
                 .expect("data_quality_issues guards customer presence")
                 .clone();
-            let pet_record_id = snapshot
+            let pet_record_id = source_reservation
                 .pet_record_id()
                 .expect("data_quality_issues guards pet presence")
                 .clone();
-            let location_record_id = snapshot
+            let location_record_id = source_reservation
                 .location_record_id()
                 .expect("data_quality_issues guards location presence")
                 .clone();
-            let service_type_record_id = snapshot
+            let service_type_record_id = source_reservation
                 .service_type_record_id()
                 .expect("data_quality_issues guards service type presence")
                 .clone();
 
             Ok(Self {
                 id,
-                provenance: snapshot.provenance().clone(),
-                reservation_record_id: snapshot.provenance().record_id().clone(),
+                provenance: source_reservation.provenance().clone(),
+                reservation_record_id: source_reservation.provenance().record_id().clone(),
                 customer_record_id,
                 pet_record_id,
                 location_record_id,

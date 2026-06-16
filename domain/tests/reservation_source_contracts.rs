@@ -209,24 +209,71 @@ fn missing_and_ambiguous_source_facts_emit_typed_data_quality_issues() {
 }
 
 #[test]
-fn complete_source_reservation_snapshot_projects_to_stay_fact() {
-    let snapshot = complete_source_snapshot();
+fn complete_source_reservation_facts_project_to_stay_fact() {
+    let source_reservation = complete_source_snapshot();
 
-    let fact = analytics::stay::Fact::project_from_reservation_snapshot(
+    let fact = analytics::stay::Fact::project_from_source_reservation(
         analytics::stay::Id::try_new("stay-fact-42").unwrap(),
-        &snapshot,
+        &source_reservation,
         analytics::ProjectionVersion::try_new("stay-v1").unwrap(),
     )
-    .expect("complete source snapshot can project to stay fact");
+    .expect("complete source reservation facts can project to stay fact");
 
     assert_eq!(fact.id().as_str(), "stay-fact-42");
     assert_eq!(fact.source_system(), source::System::Gingr);
     assert_eq!(fact.reservation_record_id().as_str(), "reservation-42");
+    assert_eq!(fact.customer_record_id().as_str(), "owner-7");
     assert_eq!(fact.pet_record_id().as_str(), "animal-9");
     assert_eq!(fact.location_record_id().as_str(), "location-3");
+    assert_eq!(fact.service_type_record_id().as_str(), "boarding-suite");
     assert_eq!(fact.projection_version().as_str(), "stay-v1");
     assert_eq!(
         fact.data_quality_status(),
         analytics::stay::DataQualityStatus::Complete
+    );
+}
+
+#[test]
+fn incomplete_source_reservation_facts_return_typed_data_quality_issues_instead_of_stay_fact() {
+    let source_reservation = source::reservation::Snapshot::builder()
+        .provenance(source_provenance())
+        .customer_record_id(None)
+        .pet_record_id(source::record::Id::try_new("animal-9").unwrap())
+        .location_record_id(None)
+        .service_type_record_id(source::record::Id::try_new("boarding-suite").unwrap())
+        .status(source::reservation::Status::Unknown {
+            observed: source::ObservedStatus::try_new("provider-specific-hold").unwrap(),
+        })
+        .relationship(source::reservation::OwnerPetRelationship::Resolved)
+        .build();
+
+    let issues = analytics::stay::Fact::project_from_source_reservation(
+        analytics::stay::Id::try_new("stay-fact-43").unwrap(),
+        &source_reservation,
+        analytics::ProjectionVersion::try_new("stay-v1").unwrap(),
+    )
+    .expect_err("incomplete source reservation facts stay typed data-quality issues");
+
+    assert!(issues.iter().any(|issue| issue.kind()
+        == data_quality::Kind::MissingRequiredField {
+            field: data_quality::FieldPath::reservation(
+                data_quality::ReservationField::CustomerRecordId,
+            ),
+        }));
+    assert!(issues.iter().any(|issue| issue.kind()
+        == data_quality::Kind::MissingRequiredField {
+            field: data_quality::FieldPath::reservation(
+                data_quality::ReservationField::LocationRecordId,
+            ),
+        }));
+    assert!(issues.iter().any(|issue| issue.kind()
+        == data_quality::Kind::UnknownSourceStatus {
+            observed: source::ObservedStatus::try_new("provider-specific-hold").unwrap(),
+        }));
+    assert!(issues.iter().all(data_quality::Issue::workflow_blocking));
+    assert!(
+        issues
+            .iter()
+            .all(|issue| issue.provenance() == source_reservation.provenance())
     );
 }
