@@ -578,17 +578,21 @@ impl StaffEvaluationPacket {
         &self.audit_event_drafts
     }
 
-    pub const fn suggested_status(&self) -> domain::entities::ReservationStatus {
+    pub const fn suggested_status(&self) -> domain::entities::reservation::Status {
         match self.deterministic_result.recommended_status {
-            ReadinessBucket::ReadyForStaffApproval => domain::entities::ReservationStatus::Offered,
-            ReadinessBucket::MissingInfo => domain::entities::ReservationStatus::MissingInfo,
-            ReadinessBucket::VaccinePending => domain::entities::ReservationStatus::VaccinePending,
-            ReadinessBucket::SpecialReview => domain::entities::ReservationStatus::SpecialReview,
-            ReadinessBucket::Waitlisted => domain::entities::ReservationStatus::Waitlisted,
-            ReadinessBucket::Offered => domain::entities::ReservationStatus::Offered,
-            ReadinessBucket::Confirmed => domain::entities::ReservationStatus::Offered,
-            ReadinessBucket::Rejected => domain::entities::ReservationStatus::SpecialReview,
-            ReadinessBucket::FailedSafely => domain::entities::ReservationStatus::SpecialReview,
+            ReadinessBucket::ReadyForStaffApproval => {
+                domain::entities::reservation::Status::Offered
+            }
+            ReadinessBucket::MissingInfo => domain::entities::reservation::Status::MissingInfo,
+            ReadinessBucket::VaccinePending => {
+                domain::entities::reservation::Status::VaccinePending
+            }
+            ReadinessBucket::SpecialReview => domain::entities::reservation::Status::SpecialReview,
+            ReadinessBucket::Waitlisted => domain::entities::reservation::Status::Waitlisted,
+            ReadinessBucket::Offered => domain::entities::reservation::Status::Offered,
+            ReadinessBucket::Confirmed => domain::entities::reservation::Status::Offered,
+            ReadinessBucket::Rejected => domain::entities::reservation::Status::SpecialReview,
+            ReadinessBucket::FailedSafely => domain::entities::reservation::Status::SpecialReview,
         }
     }
 

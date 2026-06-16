@@ -103,7 +103,7 @@ fn ready_request_produces_staff_bounded_ai_recommendation_confirmation_draft_and
     );
     assert_eq!(
         packet.suggested_status(),
-        entities::ReservationStatus::Offered
+        entities::reservation::Status::Offered
     );
     assert!(
         packet
@@ -175,7 +175,7 @@ fn hard_rejections_dominate_review_buckets_but_only_suggest_special_review() {
     );
     assert_eq!(
         packet.suggested_status(),
-        entities::ReservationStatus::SpecialReview
+        entities::reservation::Status::SpecialReview
     );
     assert!(
         packet

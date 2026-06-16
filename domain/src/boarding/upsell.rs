@@ -7,7 +7,7 @@ pub struct Policy;
 impl Policy {
     pub fn evaluate_exit_bath(
         &self,
-        reservation_id: entities::ReservationId,
+        reservation_id: entities::reservation::Id,
         pet_id: PetId,
         care_profile: &entities::CareProfile,
     ) -> Recommendation {
@@ -34,7 +34,7 @@ impl Policy {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Recommendation {
-    pub reservation_id: entities::ReservationId,
+    pub reservation_id: entities::reservation::Id,
     pub pet_id: PetId,
     pub opportunity: Opportunity,
     pub eligibility: Eligibility,

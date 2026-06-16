@@ -10,7 +10,7 @@ fn workflow_event(event_type: workflow::EventType) -> workflow::Event {
             staff_id: entities::StaffId::try_new("lead-care-1").unwrap(),
         },
         location_id: entities::LocationId(uuid::Uuid::nil()),
-        subject: workflow::Subject::Reservation(entities::ReservationId(uuid::Uuid::nil())),
+        subject: workflow::Subject::Reservation(entities::reservation::Id(uuid::Uuid::nil())),
         policy_context: workflow::PolicyContext {
             allowed_actions: vec![
                 workflow::AllowedAction::SummarizeCareNotes,
@@ -24,18 +24,18 @@ fn workflow_event(event_type: workflow::EventType) -> workflow::Event {
 
 fn note(
     id: uuid::Uuid,
-    kind: entities::CareNoteKind,
-    visibility: entities::CareNoteVisibility,
+    kind: entities::care_note::Kind,
+    visibility: entities::care_note::Visibility,
     body: &str,
 ) -> entities::CareNote {
     entities::CareNote::builder()
-        .id(entities::CareNoteId(id))
-        .subject(entities::CareNoteSubject::Reservation(
-            entities::ReservationId(uuid::Uuid::nil()),
+        .id(entities::care_note::Id(id))
+        .subject(entities::care_note::Subject::Reservation(
+            entities::reservation::Id(uuid::Uuid::nil()),
         ))
         .kind(kind)
         .visibility(visibility)
-        .body(entities::CareNoteBody::try_new(body).unwrap())
+        .body(entities::care_note::Body::try_new(body).unwrap())
         .author(entities::ActorRef::Staff {
             staff_id: entities::StaffId::try_new("kennel-1").unwrap(),
         })
@@ -53,8 +53,8 @@ fn routine_staff_notes_become_review_gated_owner_preview_with_audit_lineage() {
         .policy_snapshot_id(policy::Id::try_new("daily-care-update-mvp-v1").unwrap())
         .notes(vec![note(
             uuid::Uuid::from_u128(1),
-            entities::CareNoteKind::General,
-            entities::CareNoteVisibility::CustomerVisibleAfterReview,
+            entities::care_note::Kind::General,
+            entities::care_note::Visibility::CustomerVisibleAfterReview,
             "  enjoyed supervised play and is resting after lunch.  ",
         )])
         .build();
@@ -85,24 +85,24 @@ fn routine_staff_notes_become_review_gated_owner_preview_with_audit_lineage() {
             .output
             .included_facts
             .iter()
-            .any(|fact| fact.source_note_id == entities::CareNoteId(uuid::Uuid::from_u128(1)))
+            .any(|fact| fact.source_note_id == entities::care_note::Id(uuid::Uuid::from_u128(1)))
     );
     assert_eq!(
         preview.approval.lifecycle,
-        entities::ApprovalLifecycle::ApprovalRequested
+        entities::approval::Lifecycle::ApprovalRequested
     );
     assert!(preview.send_stub.is_blocked_until_human_approval());
     assert!(
         preview
             .audit_log
             .iter()
-            .any(|event| event.action == entities::AuditAction::WorkflowEventRecorded)
+            .any(|event| event.action == entities::audit::Action::WorkflowEventRecorded)
     );
     assert!(
         preview
             .audit_log
             .iter()
-            .any(|event| event.action == entities::AuditAction::MessageApprovalRequested)
+            .any(|event| event.action == entities::audit::Action::MessageApprovalRequested)
     );
 
     let output_json = serde_json::to_value(&preview.output).expect("output serializes");
@@ -132,14 +132,14 @@ fn concern_notes_are_suppressed_from_customer_copy_and_route_to_manager_review()
         .notes(vec![
             note(
                 uuid::Uuid::from_u128(2),
-                entities::CareNoteKind::Behavior,
-                entities::CareNoteVisibility::CustomerVisibleAfterReview,
+                entities::care_note::Kind::Behavior,
+                entities::care_note::Visibility::CustomerVisibleAfterReview,
                 "noise sensitive and needs behavior review before owner wording",
             ),
             note(
                 uuid::Uuid::from_u128(3),
-                entities::CareNoteKind::General,
-                entities::CareNoteVisibility::InternalOnly,
+                entities::care_note::Kind::General,
+                entities::care_note::Visibility::InternalOnly,
                 "staff debate: do not publish raw note",
             ),
         ])

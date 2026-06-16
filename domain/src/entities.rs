@@ -2,14 +2,13 @@ use chrono::{DateTime, NaiveDate, Utc};
 use nutype::nutype;
 #[allow(unused_imports)]
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 use uuid::Uuid;
 
 use bon::Builder;
 
 use crate::{
-    agent, audit, care, customer, document, incident, location, message, payment, pet, policy,
-    portal, reservation, temperament, vaccine,
+    agent, care, customer, document, incident, location, message, payment, pet, policy, portal,
+    temperament, vaccine,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -21,8 +20,42 @@ pub struct CustomerId(pub Uuid);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct PetId(pub Uuid);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct ReservationId(pub Uuid);
+pub mod reservation {
+    use serde::{Deserialize, Serialize};
+    use uuid::Uuid;
+
+    use super::PortalProvider;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+    pub struct Id(pub Uuid);
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Status {
+        Inquiry,
+        Requested,
+        MissingInfo,
+        VaccinePending,
+        SpecialReview,
+        Waitlisted,
+        Offered,
+        Confirmed,
+        CheckedIn,
+        Active,
+        CheckedOut,
+        Cancelled,
+        Rejected,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Source {
+        Portal(PortalProvider),
+        WebsiteForm,
+        PhoneTranscript,
+        Sms,
+        Email,
+        StaffCreated,
+    }
+}
 
 #[nutype(
     sanitize(trim),
@@ -189,16 +222,16 @@ pub struct MedicationInstruction {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 pub struct Reservation {
-    pub id: ReservationId,
+    pub id: reservation::Id,
     pub location_id: LocationId,
     pub customer_id: CustomerId,
     pub pet_ids: Vec<PetId>,
     pub service: ServiceKind,
-    pub status: ReservationStatus,
+    pub status: reservation::Status,
     pub starts_at: DateTime<Utc>,
     pub ends_at: DateTime<Utc>,
     pub deposit: Option<Deposit>,
-    pub source: ReservationSource,
+    pub source: reservation::Source,
     #[builder(default)]
     pub requested_add_ons: Vec<AddOn>,
     #[builder(default)]
@@ -215,33 +248,6 @@ pub enum ServiceKind {
     DaySpa,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ReservationStatus {
-    Inquiry,
-    Requested,
-    MissingInfo,
-    VaccinePending,
-    SpecialReview,
-    Waitlisted,
-    Offered,
-    Confirmed,
-    CheckedIn,
-    Active,
-    CheckedOut,
-    Cancelled,
-    Rejected,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ReservationSource {
-    Portal(PortalProvider),
-    WebsiteForm,
-    PhoneTranscript,
-    Sms,
-    Email,
-    StaffCreated,
-}
-
 pub type Deposit = payment::Deposit;
 pub type PaymentStatus = payment::DepositStatus;
 
@@ -253,7 +259,7 @@ pub enum AddOn {
     ExitBath,
     PawgressReport,
     MedicationAdministration,
-    Other(reservation::AddOnLabel),
+    Other(crate::reservation::AddOnLabel),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -261,7 +267,7 @@ pub enum HardStop {
     MissingRequiredVaccine(policy::VaccineName),
     IneligibleForGroupPlay(policy::play::IneligibilityReason),
     InHeat,
-    AgeBelowMinimumWeeks(reservation::AgeThreshold),
+    AgeBelowMinimumWeeks(crate::reservation::AgeThreshold),
     MedicalOrMedicationReviewRequired,
     BehaviorReviewRequired,
     DepositRequired,
@@ -273,8 +279,59 @@ pub struct DocumentId(pub Uuid);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct VaccineRecordId(pub Uuid);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct CareNoteId(pub Uuid);
+pub mod care_note {
+    use nutype::nutype;
+    #[allow(unused_imports)]
+    use serde::{Deserialize, Serialize};
+    use uuid::Uuid;
+
+    use super::{IncidentId, PetId, reservation};
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+    pub struct Id(pub Uuid);
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Subject {
+        Pet(PetId),
+        Reservation(reservation::Id),
+        Incident(IncidentId),
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Kind {
+        Feeding,
+        Medication,
+        Medical,
+        Behavior,
+        Grooming,
+        Training,
+        General,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Visibility {
+        InternalOnly,
+        CustomerVisible,
+        CustomerVisibleAfterReview,
+    }
+
+    #[nutype(
+        sanitize(trim),
+        validate(not_empty, len_char_max = 2000),
+        derive(
+            Debug,
+            Clone,
+            PartialEq,
+            Eq,
+            PartialOrd,
+            Ord,
+            Hash,
+            Serialize,
+            Deserialize
+        )
+    )]
+    pub struct Body(String);
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct IncidentId(pub Uuid);
@@ -282,8 +339,112 @@ pub struct IncidentId(pub Uuid);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct MessageId(pub Uuid);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct ApprovalId(pub Uuid);
+pub mod approval {
+    use bon::Builder;
+    use chrono::{DateTime, Utc};
+    use serde::{Deserialize, Serialize};
+    use uuid::Uuid;
+
+    use super::{
+        ActorRef, DocumentId, IncidentId, MessageId, VaccineRecordId, policy, reservation,
+    };
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+    pub struct Id(pub Uuid);
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+    pub struct Record {
+        pub id: Id,
+        pub target: Target,
+        pub gate: policy::ReviewGate,
+        pub lifecycle: Lifecycle,
+        pub requested_by: ActorRef,
+        pub requested_at: DateTime<Utc>,
+        #[builder(default)]
+        pub audit_refs: Vec<crate::audit::EventId>,
+    }
+
+    impl Record {
+        pub fn status(&self) -> Status {
+            self.lifecycle.status()
+        }
+
+        pub fn is_applicable(&self) -> bool {
+            matches!(self.lifecycle, Lifecycle::Approved { .. })
+        }
+
+        pub fn is_terminal_decision(&self) -> bool {
+            self.lifecycle.is_terminal_decision()
+        }
+
+        pub fn decision_actor_and_time(&self) -> Option<(&ActorRef, DateTime<Utc>)> {
+            self.lifecycle.decision_actor_and_time()
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Target {
+        Reservation(reservation::Id),
+        Document(DocumentId),
+        VaccineRecord(VaccineRecordId),
+        Incident(IncidentId),
+        Message(MessageId),
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Lifecycle {
+        ApprovalRequested,
+        Approved {
+            decided_by: ActorRef,
+            decided_at: DateTime<Utc>,
+        },
+        Rejected {
+            decided_by: ActorRef,
+            decided_at: DateTime<Utc>,
+        },
+        Cancelled,
+        Superseded,
+    }
+
+    impl Lifecycle {
+        pub fn status(&self) -> Status {
+            match self {
+                Self::ApprovalRequested => Status::ApprovalRequested,
+                Self::Approved { .. } => Status::Approved,
+                Self::Rejected { .. } => Status::Rejected,
+                Self::Cancelled => Status::Cancelled,
+                Self::Superseded => Status::Superseded,
+            }
+        }
+
+        pub fn is_terminal_decision(&self) -> bool {
+            matches!(self, Self::Approved { .. } | Self::Rejected { .. })
+        }
+
+        pub fn decision_actor_and_time(&self) -> Option<(&ActorRef, DateTime<Utc>)> {
+            match self {
+                Self::Approved {
+                    decided_by,
+                    decided_at,
+                }
+                | Self::Rejected {
+                    decided_by,
+                    decided_at,
+                } => Some((decided_by, *decided_at)),
+                Self::ApprovalRequested | Self::Cancelled | Self::Superseded => None,
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Status {
+        ApprovalRequested,
+        Approved,
+        Rejected,
+        Cancelled,
+        Superseded,
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 pub struct Document {
@@ -300,7 +461,7 @@ pub struct Document {
     pub pii_redaction_status: document::PiiRedactionStatus,
     pub verification_status: document::Status,
     #[builder(default)]
-    pub audit_refs: Vec<audit::EventId>,
+    pub audit_refs: Vec<crate::audit::EventId>,
 }
 
 impl Document {
@@ -320,7 +481,7 @@ impl Document {
 pub enum DocumentSubject {
     Customer(CustomerId),
     Pet(PetId),
-    Reservation(ReservationId),
+    Reservation(reservation::Id),
     Incident(IncidentId),
 }
 
@@ -335,7 +496,7 @@ pub struct VaccineRecord {
     pub expires_on: Option<NaiveDate>,
     pub review_gate: policy::ReviewGate,
     #[builder(default)]
-    pub audit_refs: Vec<audit::EventId>,
+    pub audit_refs: Vec<crate::audit::EventId>,
 }
 
 impl VaccineRecord {
@@ -352,68 +513,26 @@ impl VaccineRecord {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 pub struct CareNote {
-    pub id: CareNoteId,
-    pub subject: CareNoteSubject,
-    pub kind: CareNoteKind,
-    pub visibility: CareNoteVisibility,
-    pub body: CareNoteBody,
+    pub id: care_note::Id,
+    pub subject: care_note::Subject,
+    pub kind: care_note::Kind,
+    pub visibility: care_note::Visibility,
+    pub body: care_note::Body,
     pub author: ActorRef,
     pub recorded_at: DateTime<Utc>,
     #[builder(default)]
-    pub audit_refs: Vec<audit::EventId>,
+    pub audit_refs: Vec<crate::audit::EventId>,
 }
 
 impl CareNote {
     pub fn is_customer_visible_without_review(&self) -> bool {
-        matches!(self.visibility, CareNoteVisibility::CustomerVisible)
+        matches!(self.visibility, care_note::Visibility::CustomerVisible)
             && !matches!(
                 self.kind,
-                CareNoteKind::Medication | CareNoteKind::Medical | CareNoteKind::Behavior
+                care_note::Kind::Medication | care_note::Kind::Medical | care_note::Kind::Behavior
             )
     }
 }
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CareNoteSubject {
-    Pet(PetId),
-    Reservation(ReservationId),
-    Incident(IncidentId),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CareNoteKind {
-    Feeding,
-    Medication,
-    Medical,
-    Behavior,
-    Grooming,
-    Training,
-    General,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CareNoteVisibility {
-    InternalOnly,
-    CustomerVisible,
-    CustomerVisibleAfterReview,
-}
-
-#[nutype(
-    sanitize(trim),
-    validate(not_empty, len_char_max = 2000),
-    derive(
-        Debug,
-        Clone,
-        PartialEq,
-        Eq,
-        PartialOrd,
-        Ord,
-        Hash,
-        Serialize,
-        Deserialize
-    )
-)]
-pub struct CareNoteBody(String);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 pub struct Incident {
@@ -429,7 +548,7 @@ pub struct Incident {
     #[builder(default)]
     pub required_review_gates: Vec<policy::ReviewGate>,
     #[builder(default)]
-    pub audit_refs: Vec<audit::EventId>,
+    pub audit_refs: Vec<crate::audit::EventId>,
 }
 
 impl Incident {
@@ -449,7 +568,7 @@ impl Incident {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum IncidentSubject {
     Pet(PetId),
-    Reservation(ReservationId),
+    Reservation(reservation::Id),
     Customer(CustomerId),
     Location(LocationId),
 }
@@ -464,7 +583,7 @@ pub struct Message {
     pub body_ref: message::BodyRef,
     pub approval_gate: Option<policy::ReviewGate>,
     #[builder(default)]
-    pub audit_refs: Vec<audit::EventId>,
+    pub audit_refs: Vec<crate::audit::EventId>,
 }
 
 impl Message {
@@ -479,198 +598,118 @@ impl Message {
 pub enum MessageSubject {
     Customer(CustomerId),
     Pet(PetId),
-    Reservation(ReservationId),
+    Reservation(reservation::Id),
     Incident(IncidentId),
-    Approval(ApprovalId),
+    Approval(approval::Id),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-pub struct ApprovalRecord {
-    pub id: ApprovalId,
-    pub target: ApprovalTarget,
-    pub gate: policy::ReviewGate,
-    pub lifecycle: ApprovalLifecycle,
-    pub requested_by: ActorRef,
-    pub requested_at: DateTime<Utc>,
-    #[builder(default)]
-    pub audit_refs: Vec<audit::EventId>,
-}
+pub mod audit {
+    use chrono::{DateTime, Utc};
+    use nutype::nutype;
+    #[allow(unused_imports)]
+    use serde::{Deserialize, Serialize};
+    use std::collections::BTreeMap;
 
-impl ApprovalRecord {
-    pub fn status(&self) -> ApprovalStatus {
-        self.lifecycle.status()
+    use super::{
+        CustomerId, DocumentId, IncidentId, LocationId, MessageId, PetId, VaccineRecordId,
+        approval, care_note, reservation,
+    };
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct Event {
+        pub at: DateTime<Utc>,
+        pub actor: super::ActorRef,
+        pub subject: Subject,
+        pub action: Action,
+        pub metadata: BTreeMap<MetadataKey, MetadataValue>,
     }
 
-    pub fn is_applicable(&self) -> bool {
-        matches!(self.lifecycle, ApprovalLifecycle::Approved { .. })
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Subject {
+        Customer(CustomerId),
+        Pet(PetId),
+        Reservation(reservation::Id),
+        Location(LocationId),
+        Document(DocumentId),
+        VaccineRecord(VaccineRecordId),
+        CareNote(care_note::Id),
+        Incident(IncidentId),
+        Message(MessageId),
+        Approval(approval::Id),
+        WorkflowEvent(crate::workflow::EventId),
+        External {
+            provider: crate::workflow::external::Provider,
+            id: crate::workflow::external::Id,
+        },
     }
 
-    pub fn is_terminal_decision(&self) -> bool {
-        self.lifecycle.is_terminal_decision()
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum Action {
+        CustomerProfileUpdated,
+        PetProfileUpdated,
+        ReservationStatusSuggested,
+        ReservationStatusChanged,
+        PolicyDecisionRecorded,
+        DocumentReceived,
+        VaccineRecordReviewRequested,
+        IncidentStatusChanged,
+        MessageApprovalRequested,
+        ApprovalDecisionRecorded,
+        WorkflowEventRecorded,
+        Extension(ActionLabel),
     }
 
-    pub fn decision_actor_and_time(&self) -> Option<(&ActorRef, DateTime<Utc>)> {
-        self.lifecycle.decision_actor_and_time()
-    }
+    #[nutype(
+        sanitize(trim),
+        validate(not_empty, len_char_max = 160),
+        derive(
+            Debug,
+            Clone,
+            PartialEq,
+            Eq,
+            PartialOrd,
+            Ord,
+            Hash,
+            Serialize,
+            Deserialize
+        )
+    )]
+    pub struct ActionLabel(String);
+
+    #[nutype(
+        sanitize(trim),
+        validate(not_empty, len_char_max = 80),
+        derive(
+            Debug,
+            Clone,
+            PartialEq,
+            Eq,
+            PartialOrd,
+            Ord,
+            Hash,
+            Serialize,
+            Deserialize
+        )
+    )]
+    pub struct MetadataKey(String);
+
+    #[nutype(
+        sanitize(trim),
+        validate(not_empty, len_char_max = 500),
+        derive(
+            Debug,
+            Clone,
+            PartialEq,
+            Eq,
+            PartialOrd,
+            Ord,
+            Hash,
+            Serialize,
+            Deserialize
+        )
+    )]
+    pub struct MetadataValue(String);
 }
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ApprovalTarget {
-    Reservation(ReservationId),
-    Document(DocumentId),
-    VaccineRecord(VaccineRecordId),
-    Incident(IncidentId),
-    Message(MessageId),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ApprovalLifecycle {
-    ApprovalRequested,
-    Approved {
-        decided_by: ActorRef,
-        decided_at: DateTime<Utc>,
-    },
-    Rejected {
-        decided_by: ActorRef,
-        decided_at: DateTime<Utc>,
-    },
-    Cancelled,
-    Superseded,
-}
-
-impl ApprovalLifecycle {
-    pub fn status(&self) -> ApprovalStatus {
-        match self {
-            Self::ApprovalRequested => ApprovalStatus::ApprovalRequested,
-            Self::Approved { .. } => ApprovalStatus::Approved,
-            Self::Rejected { .. } => ApprovalStatus::Rejected,
-            Self::Cancelled => ApprovalStatus::Cancelled,
-            Self::Superseded => ApprovalStatus::Superseded,
-        }
-    }
-
-    pub fn is_terminal_decision(&self) -> bool {
-        matches!(self, Self::Approved { .. } | Self::Rejected { .. })
-    }
-
-    pub fn decision_actor_and_time(&self) -> Option<(&ActorRef, DateTime<Utc>)> {
-        match self {
-            Self::Approved {
-                decided_by,
-                decided_at,
-            }
-            | Self::Rejected {
-                decided_by,
-                decided_at,
-            } => Some((decided_by, *decided_at)),
-            Self::ApprovalRequested | Self::Cancelled | Self::Superseded => None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ApprovalStatus {
-    ApprovalRequested,
-    Approved,
-    Rejected,
-    Cancelled,
-    Superseded,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AuditEvent {
-    pub at: DateTime<Utc>,
-    pub actor: ActorRef,
-    pub subject: AuditSubject,
-    pub action: AuditAction,
-    pub metadata: BTreeMap<AuditMetadataKey, AuditMetadataValue>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AuditSubject {
-    Customer(CustomerId),
-    Pet(PetId),
-    Reservation(ReservationId),
-    Location(LocationId),
-    Document(DocumentId),
-    VaccineRecord(VaccineRecordId),
-    CareNote(CareNoteId),
-    Incident(IncidentId),
-    Message(MessageId),
-    Approval(ApprovalId),
-    WorkflowEvent(crate::workflow::EventId),
-    External {
-        provider: crate::workflow::external::Provider,
-        id: crate::workflow::external::Id,
-    },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AuditAction {
-    CustomerProfileUpdated,
-    PetProfileUpdated,
-    ReservationStatusSuggested,
-    ReservationStatusChanged,
-    PolicyDecisionRecorded,
-    DocumentReceived,
-    VaccineRecordReviewRequested,
-    IncidentStatusChanged,
-    MessageApprovalRequested,
-    ApprovalDecisionRecorded,
-    WorkflowEventRecorded,
-    Extension(AuditActionLabel),
-}
-
-#[nutype(
-    sanitize(trim),
-    validate(not_empty, len_char_max = 160),
-    derive(
-        Debug,
-        Clone,
-        PartialEq,
-        Eq,
-        PartialOrd,
-        Ord,
-        Hash,
-        Serialize,
-        Deserialize
-    )
-)]
-pub struct AuditActionLabel(String);
-
-#[nutype(
-    sanitize(trim),
-    validate(not_empty, len_char_max = 80),
-    derive(
-        Debug,
-        Clone,
-        PartialEq,
-        Eq,
-        PartialOrd,
-        Ord,
-        Hash,
-        Serialize,
-        Deserialize
-    )
-)]
-pub struct AuditMetadataKey(String);
-
-#[nutype(
-    sanitize(trim),
-    validate(not_empty, len_char_max = 500),
-    derive(
-        Debug,
-        Clone,
-        PartialEq,
-        Eq,
-        PartialOrd,
-        Ord,
-        Hash,
-        Serialize,
-        Deserialize
-    )
-)]
-pub struct AuditMetadataValue(String);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ActorRef {
