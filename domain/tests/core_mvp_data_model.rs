@@ -67,13 +67,13 @@ fn documents_and_vaccine_records_preserve_evidence_review_and_audit_lineage() {
 #[test]
 fn notes_incidents_messages_and_approvals_have_invariant_lifecycle_enums() {
     let note = entities::CareNote::builder()
-        .id(entities::CareNoteId(uuid::Uuid::nil()))
-        .subject(entities::CareNoteSubject::Reservation(
-            entities::ReservationId(uuid::Uuid::nil()),
+        .id(entities::care_note::Id(uuid::Uuid::nil()))
+        .subject(entities::care_note::Subject::Reservation(
+            entities::reservation::Id(uuid::Uuid::nil()),
         ))
-        .kind(entities::CareNoteKind::Medication)
-        .visibility(entities::CareNoteVisibility::InternalOnly)
-        .body(entities::CareNoteBody::try_new("  gave medication with dinner  ").unwrap())
+        .kind(entities::care_note::Kind::Medication)
+        .visibility(entities::care_note::Visibility::InternalOnly)
+        .body(entities::care_note::Body::try_new("  gave medication with dinner  ").unwrap())
         .author(entities::ActorRef::Staff {
             staff_id: entities::StaffId::try_new("kennel-1").unwrap(),
         })
@@ -116,11 +116,11 @@ fn notes_incidents_messages_and_approvals_have_invariant_lifecycle_enums() {
         .build();
     assert!(message.requires_approval_before_send());
 
-    let approval = entities::ApprovalRecord::builder()
-        .id(entities::ApprovalId(uuid::Uuid::nil()))
-        .target(entities::ApprovalTarget::Message(message.id))
+    let approval = entities::approval::Record::builder()
+        .id(entities::approval::Id(uuid::Uuid::nil()))
+        .target(entities::approval::Target::Message(message.id))
         .gate(policy::ReviewGate::CustomerMessageApproval)
-        .lifecycle(entities::ApprovalLifecycle::ApprovalRequested)
+        .lifecycle(entities::approval::Lifecycle::ApprovalRequested)
         .requested_by(entities::ActorRef::Agent {
             workflow: domain::agent::Name::try_new("incident-escalation").unwrap(),
         })
@@ -137,13 +137,13 @@ fn terminal_approval_decisions_carry_actor_and_decision_time() {
     };
     let decided_at = chrono::DateTime::<chrono::Utc>::UNIX_EPOCH;
 
-    let approved = entities::ApprovalRecord::builder()
-        .id(entities::ApprovalId(uuid::Uuid::nil()))
-        .target(entities::ApprovalTarget::Reservation(
-            entities::ReservationId(uuid::Uuid::nil()),
+    let approved = entities::approval::Record::builder()
+        .id(entities::approval::Id(uuid::Uuid::nil()))
+        .target(entities::approval::Target::Reservation(
+            entities::reservation::Id(uuid::Uuid::nil()),
         ))
         .gate(policy::ReviewGate::RefundOrDepositException)
-        .lifecycle(entities::ApprovalLifecycle::Approved {
+        .lifecycle(entities::approval::Lifecycle::Approved {
             decided_by: decided_by.clone(),
             decided_at,
         })
@@ -153,7 +153,7 @@ fn terminal_approval_decisions_carry_actor_and_decision_time() {
         .requested_at(decided_at)
         .build();
 
-    assert_eq!(approved.status(), entities::ApprovalStatus::Approved);
+    assert_eq!(approved.status(), entities::approval::Status::Approved);
     assert!(approved.is_terminal_decision());
     assert!(approved.is_applicable());
     assert_eq!(
@@ -165,22 +165,22 @@ fn terminal_approval_decisions_carry_actor_and_decision_time() {
 #[test]
 fn audit_subjects_and_actions_represent_required_write_paths() {
     let actions = [
-        entities::AuditAction::DocumentReceived,
-        entities::AuditAction::VaccineRecordReviewRequested,
-        entities::AuditAction::IncidentStatusChanged,
-        entities::AuditAction::MessageApprovalRequested,
-        entities::AuditAction::ApprovalDecisionRecorded,
-        entities::AuditAction::WorkflowEventRecorded,
+        entities::audit::Action::DocumentReceived,
+        entities::audit::Action::VaccineRecordReviewRequested,
+        entities::audit::Action::IncidentStatusChanged,
+        entities::audit::Action::MessageApprovalRequested,
+        entities::audit::Action::ApprovalDecisionRecorded,
+        entities::audit::Action::WorkflowEventRecorded,
     ];
 
-    assert!(actions.contains(&entities::AuditAction::WorkflowEventRecorded));
+    assert!(actions.contains(&entities::audit::Action::WorkflowEventRecorded));
     assert_eq!(
-        entities::AuditSubject::Message(entities::MessageId(uuid::Uuid::nil())),
-        entities::AuditSubject::Message(entities::MessageId(uuid::Uuid::nil()))
+        entities::audit::Subject::Message(entities::MessageId(uuid::Uuid::nil())),
+        entities::audit::Subject::Message(entities::MessageId(uuid::Uuid::nil()))
     );
     assert_eq!(
-        entities::AuditSubject::Approval(entities::ApprovalId(uuid::Uuid::nil())),
-        entities::AuditSubject::Approval(entities::ApprovalId(uuid::Uuid::nil()))
+        entities::audit::Subject::Approval(entities::approval::Id(uuid::Uuid::nil())),
+        entities::audit::Subject::Approval(entities::approval::Id(uuid::Uuid::nil()))
     );
 }
 

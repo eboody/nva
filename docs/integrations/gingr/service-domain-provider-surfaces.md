@@ -4,7 +4,7 @@ This note records which Gingr API surfaces are represented as provider DTOs/mapp
 
 ## Retail
 
-Documented endpoint: `GET /api/v1/get_all_retail_items` (`endpoint::commerce_retail::GetAllRetailItems`).
+Documented endpoint: `GET /api/v1/get_all_retail_items` (`endpoint::commerce_retail::get::AllRetailItems`).
 
 The SDK models this as `dto::retail::Item`, preserving unknown provider fields with `serde(flatten)`. `mapping::retail::product_candidate` promotes the provider item into a retail domain candidate containing:
 

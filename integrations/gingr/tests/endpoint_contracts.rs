@@ -32,8 +32,8 @@ fn get_locations_is_a_get_request_with_api_key_added_by_transport() {
 #[test]
 fn reservation_types_keeps_optional_filters_typed_and_redacted_diagnostics_safe() {
     let client = fake_client();
-    let request = endpoint::reservations::ReservationTypes::builder()
-        .id(endpoint::reservations::ReservationTypeId::new(42))
+    let request = endpoint::reservations::reservation::Types::builder()
+        .id(endpoint::reservations::reservation::TypeId::new(42))
         .active_only(true)
         .build();
 
@@ -54,7 +54,7 @@ fn reservation_types_keeps_optional_filters_typed_and_redacted_diagnostics_safe(
 fn reservation_widget_data_requires_a_yyyy_mm_dd_date_parameter() {
     let client = fake_client();
     let date = endpoint::Date::parse("2026-06-10").unwrap();
-    let request = endpoint::reservations::ReservationWidgetData::builder()
+    let request = endpoint::reservations::reservation::WidgetData::builder()
         .timestamp(date)
         .build();
 
@@ -121,12 +121,12 @@ fn commerce_retail_endpoints_preserve_legacy_date_boundaries_and_payment_sensiti
     let on_invoice_cutover = endpoint::Date::parse("2019-08-01").unwrap();
 
     let retail_items = client
-        .capture_request(&endpoint::commerce_retail::GetAllRetailItems)
+        .capture_request(&endpoint::commerce_retail::get::AllRetailItems)
         .unwrap();
     assert_eq!(retail_items.method(), endpoint::Method::Get);
     assert_eq!(retail_items.path(), "/api/v1/get_all_retail_items");
 
-    let transactions = endpoint::commerce_retail::ListTransactions::builder()
+    let transactions = endpoint::commerce_retail::list::Transactions::builder()
         .from_date(before_legacy_cutover)
         .to_date(before_legacy_cutover)
         .build()
@@ -139,7 +139,7 @@ fn commerce_retail_endpoints_preserve_legacy_date_boundaries_and_payment_sensiti
             .contains(&("from_date".into(), "2019-07-31".into()))
     );
     assert!(
-        endpoint::commerce_retail::ListTransactions::builder()
+        endpoint::commerce_retail::list::Transactions::builder()
             .from_date(on_invoice_cutover)
             .to_date(on_invoice_cutover)
             .build()
@@ -169,8 +169,8 @@ fn list_invoices_requires_paired_pagination_and_on_or_after_legacy_cutover_dates
     let client = fake_client();
     let cutover = endpoint::Date::parse("2019-08-01").unwrap();
 
-    let invoices = endpoint::commerce_retail::ListInvoices::builder()
-        .pagination(endpoint::commerce_retail::InvoicePagination::new(10, 21).unwrap())
+    let invoices = endpoint::commerce_retail::list::Invoices::builder()
+        .pagination(endpoint::commerce_retail::list::InvoicePagination::new(10, 21).unwrap())
         .complete(true)
         .closed_only(true)
         .from_date(cutover)
@@ -198,9 +198,9 @@ fn list_invoices_requires_paired_pagination_and_on_or_after_legacy_cutover_dates
             .contains(&("from_date".into(), "2019-08-01".into()))
     );
 
-    assert!(endpoint::commerce_retail::InvoicePagination::new(10, 20).is_err());
+    assert!(endpoint::commerce_retail::list::InvoicePagination::new(10, 20).is_err());
     assert!(
-        endpoint::commerce_retail::ListInvoices::builder()
+        endpoint::commerce_retail::list::Invoices::builder()
             .from_date(endpoint::Date::parse("2019-07-31").unwrap())
             .build()
             .is_err(),
@@ -212,8 +212,8 @@ fn list_invoices_requires_paired_pagination_and_on_or_after_legacy_cutover_dates
 fn subscriptions_timeclock_and_report_card_files_expose_documented_filters() {
     let client = fake_client();
 
-    let subscription = endpoint::commerce_retail::GetSubscription::new(
-        endpoint::commerce_retail::SubscriptionId::new(77),
+    let subscription = endpoint::commerce_retail::get::Subscription::new(
+        endpoint::commerce_retail::get::SubscriptionId::new(77),
     );
     let sent_subscription = client.capture_request(&subscription).unwrap();
     assert_eq!(sent_subscription.path(), "/api/v1/get_subscription");
@@ -223,15 +223,15 @@ fn subscriptions_timeclock_and_report_card_files_expose_documented_filters() {
             .contains(&("id".into(), "77".into()))
     );
 
-    let subscriptions = endpoint::commerce_retail::GetSubscriptions::builder()
+    let subscriptions = endpoint::commerce_retail::get::Subscriptions::builder()
         .include_deleted(true)
-        .bill_day_of_month(endpoint::commerce_retail::BillDayOfMonth::new(15).unwrap())
+        .bill_day_of_month(endpoint::commerce_retail::get::BillDayOfMonth::new(15).unwrap())
         .owner_id(endpoint::OwnerId::new(42))
-        .pagination(endpoint::commerce_retail::SubscriptionPagination::new(
+        .pagination(endpoint::commerce_retail::get::SubscriptionPagination::new(
             50, 100,
         ))
         .location_id(endpoint::LocationId::new(3))
-        .package_id(endpoint::commerce_retail::PackageId::new(9))
+        .package_id(endpoint::commerce_retail::get::PackageId::new(9))
         .build();
     let sent_subscriptions = client.capture_request(&subscriptions).unwrap();
     assert_eq!(sent_subscriptions.path(), "/api/v1/get_subscriptions");

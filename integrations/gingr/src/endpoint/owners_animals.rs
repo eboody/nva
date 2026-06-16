@@ -248,81 +248,83 @@ impl Request for Form {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CustomFieldName(String);
+pub mod custom_field {
+    use super::*;
 
-impl CustomFieldName {
-    pub fn new(value: impl Into<String>) -> super::Result<Self> {
-        Ok(Self(non_empty_text(value)?))
-    }
-}
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Name(String);
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CustomFieldSearch {
-    form: FormKind,
-    field_name: CustomFieldName,
-    search: SensitiveLookup,
-}
-
-impl CustomFieldSearch {
-    pub fn builder() -> CustomFieldSearchBuilder {
-        CustomFieldSearchBuilder::default()
-    }
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct CustomFieldSearchBuilder {
-    form: Option<FormKind>,
-    field_name: Option<CustomFieldName>,
-    search: Option<SensitiveLookup>,
-}
-
-impl CustomFieldSearchBuilder {
-    pub fn form(mut self, form: FormKind) -> Self {
-        self.form = Some(form);
-        self
-    }
-
-    pub fn field_name(mut self, field_name: CustomFieldName) -> Self {
-        self.field_name = Some(field_name);
-        self
-    }
-
-    pub fn search(mut self, search: SensitiveLookup) -> Self {
-        self.search = Some(search);
-        self
-    }
-
-    pub fn build(self) -> CustomFieldSearch {
-        CustomFieldSearch {
-            form: self.form.expect("CustomFieldSearch requires form"),
-            field_name: self
-                .field_name
-                .expect("CustomFieldSearch requires field_name"),
-            search: self.search.expect("CustomFieldSearch requires search"),
+    impl Name {
+        pub fn new(value: impl Into<String>) -> super::super::Result<Self> {
+            Ok(Self(non_empty_text(value)?))
         }
     }
-}
 
-impl Request for CustomFieldSearch {
-    fn method(&self) -> Method {
-        Method::Get
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Search {
+        form: FormKind,
+        field_name: Name,
+        search: SensitiveLookup,
     }
 
-    fn path(&self) -> &'static str {
-        "/api/v1/custom_field_search"
+    impl Search {
+        pub fn builder() -> SearchBuilder {
+            SearchBuilder::default()
+        }
     }
 
-    fn parameters(&self) -> Vec<(String, String)> {
-        vec![
-            ("form_id".to_owned(), self.form.form_id().to_string()),
-            ("field_name".to_owned(), self.field_name.0.clone()),
-            ("search".to_owned(), self.search.as_str().to_owned()),
-        ]
+    #[derive(Clone, Debug, Default)]
+    pub struct SearchBuilder {
+        form: Option<FormKind>,
+        field_name: Option<Name>,
+        search: Option<SensitiveLookup>,
     }
 
-    fn sensitive_parameter_names(&self) -> &'static [&'static str] {
-        &["search"]
+    impl SearchBuilder {
+        pub fn form(mut self, form: FormKind) -> Self {
+            self.form = Some(form);
+            self
+        }
+
+        pub fn field_name(mut self, field_name: Name) -> Self {
+            self.field_name = Some(field_name);
+            self
+        }
+
+        pub fn search(mut self, search: SensitiveLookup) -> Self {
+            self.search = Some(search);
+            self
+        }
+
+        pub fn build(self) -> Search {
+            Search {
+                form: self.form.expect("Search requires form"),
+                field_name: self.field_name.expect("Search requires field_name"),
+                search: self.search.expect("Search requires search"),
+            }
+        }
+    }
+
+    impl Request for Search {
+        fn method(&self) -> Method {
+            Method::Get
+        }
+
+        fn path(&self) -> &'static str {
+            "/api/v1/custom_field_search"
+        }
+
+        fn parameters(&self) -> Vec<(String, String)> {
+            vec![
+                ("form_id".to_owned(), self.form.form_id().to_string()),
+                ("field_name".to_owned(), self.field_name.0.clone()),
+                ("search".to_owned(), self.search.as_str().to_owned()),
+            ]
+        }
+
+        fn sensitive_parameter_names(&self) -> &'static [&'static str] {
+            &["search"]
+        }
     }
 }
 

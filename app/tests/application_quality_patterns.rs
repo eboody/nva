@@ -30,7 +30,7 @@ fn agent_prompt_packets_use_domain_event_contracts_from_application_boundary() {
             occurred_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
             actor: entities::ActorRef::System,
             location_id: entities::LocationId(uuid::Uuid::nil()),
-            subject: workflow::Subject::Reservation(entities::ReservationId(uuid::Uuid::nil())),
+            subject: workflow::Subject::Reservation(entities::reservation::Id(uuid::Uuid::nil())),
             policy_context: workflow::PolicyContext {
                 allowed_actions: vec![workflow::AllowedAction::ExtractStructuredData],
                 automation_level: policy::automation::Level::DraftOnly,
@@ -88,7 +88,7 @@ fn tool_and_policy_results_use_semantic_decisions_not_bool_string_pairs() {
 
     let availability_request = tools::availability::Request {
         location_id: entities::LocationId(uuid::Uuid::nil()),
-        reservation_id: Some(entities::ReservationId(uuid::Uuid::nil())),
+        reservation_id: Some(entities::reservation::Id(uuid::Uuid::nil())),
         service_notes: tools::availability::ServiceNotes::try_new(
             "  boarding suite with medication watch  ",
         )
@@ -101,13 +101,13 @@ fn tool_and_policy_results_use_semantic_decisions_not_bool_string_pairs() {
     assert!(tools::availability::ServiceNotes::try_new("   ").is_err());
 
     let draft = tools::draft_update::Request {
-        reservation_id: entities::ReservationId(uuid::Uuid::nil()),
-        proposed_status: entities::ReservationStatus::Waitlisted,
+        reservation_id: entities::reservation::Id(uuid::Uuid::nil()),
+        proposed_status: entities::reservation::Status::Waitlisted,
         rationale: tools::draft_update::Rationale::CapacityUnavailable,
     };
     assert_eq!(
         draft.proposed_status,
-        entities::ReservationStatus::Waitlisted
+        entities::reservation::Status::Waitlisted
     );
 
     let tool_denial = tools::Error::policy_denied(policy::denial::Reason::ManagerApprovalRequired);
@@ -122,7 +122,7 @@ fn external_integration_contracts_are_application_tool_port_types() {
     let lookup = tools::portal::lookup::Request {
         provider: tools::portal::Provider::Gingr,
         account: tools::portal::AccountId::try_new("  gingr-east-1  ").unwrap(),
-        criteria: tools::portal::lookup::Criteria::Reservation(entities::ReservationId(
+        criteria: tools::portal::lookup::Criteria::Reservation(entities::reservation::Id(
             uuid::Uuid::nil(),
         )),
         include: vec![tools::portal::Include::PetProfile],
@@ -130,7 +130,7 @@ fn external_integration_contracts_are_application_tool_port_types() {
     assert_eq!(lookup.account.into_inner(), "gingr-east-1");
 
     let authorization = tools::payment::authorization::Request {
-        subject: tools::payment::Subject::ReservationDeposit(entities::ReservationId(
+        subject: tools::payment::Subject::ReservationDeposit(entities::reservation::Id(
             uuid::Uuid::nil(),
         )),
         amount: money::Money::new(
@@ -225,7 +225,7 @@ fn application_prelude_consolidates_agent_and_tool_boundaries() {
             occurred_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
             actor: entities::ActorRef::System,
             location_id: entities::LocationId(uuid::Uuid::nil()),
-            subject: workflow::Subject::Reservation(entities::ReservationId(uuid::Uuid::nil())),
+            subject: workflow::Subject::Reservation(entities::reservation::Id(uuid::Uuid::nil())),
             policy_context: workflow::PolicyContext {
                 allowed_actions: vec![workflow::AllowedAction::ExtractStructuredData],
                 automation_level: policy::automation::Level::DraftOnly,

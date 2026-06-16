@@ -2,9 +2,7 @@ use async_trait::async_trait;
 use nutype::nutype;
 use serde::{Deserialize, Serialize};
 
-use domain::entities::{
-    Customer, CustomerId, LocationId, Pet, PetId, Reservation, ReservationId, ReservationStatus,
-};
+use domain::entities::{Customer, CustomerId, LocationId, Pet, PetId, Reservation, reservation};
 use domain::money::Money;
 use domain::workflow;
 
@@ -16,7 +14,7 @@ pub use error::{Error, ExternalFailure, Resource, ResourceId, Result};
 pub trait CustomerStore: Send + Sync {
     async fn get_customer(&self, id: CustomerId) -> Result<Customer>;
     async fn get_pet(&self, id: PetId) -> Result<Pet>;
-    async fn get_reservation(&self, id: ReservationId) -> Result<Reservation>;
+    async fn get_reservation(&self, id: reservation::Id) -> Result<Reservation>;
 }
 
 #[async_trait]
@@ -49,7 +47,7 @@ pub mod availability {
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct Request {
         pub location_id: LocationId,
-        pub reservation_id: Option<ReservationId>,
+        pub reservation_id: Option<reservation::Id>,
         pub service_notes: ServiceNotes,
     }
 
@@ -128,8 +126,8 @@ pub mod draft_update {
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct Request {
-        pub reservation_id: ReservationId,
-        pub proposed_status: ReservationStatus,
+        pub reservation_id: reservation::Id,
+        pub proposed_status: reservation::Status,
         pub rationale: Rationale,
     }
 
@@ -194,7 +192,7 @@ pub mod portal {
         pub enum Match {
             Customer(CustomerId),
             Pet(PetId),
-            Reservation(ReservationId),
+            Reservation(reservation::Id),
             NotFound,
             Ambiguous { candidates: Vec<ExternalRecordId> },
         }
@@ -203,7 +201,7 @@ pub mod portal {
         pub enum Criteria {
             Customer(CustomerId),
             Pet(PetId),
-            Reservation(ReservationId),
+            Reservation(reservation::Id),
             External(ExternalRecordId),
         }
     }
@@ -274,8 +272,8 @@ pub mod payment {
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub enum Subject {
-        ReservationDeposit(ReservationId),
-        ReservationBalance(ReservationId),
+        ReservationDeposit(reservation::Id),
+        ReservationBalance(reservation::Id),
         CustomerAccount(CustomerId),
     }
 
@@ -323,6 +321,8 @@ pub mod payment {
         pub mod provider {
             use super::*;
 
+            pub use authorization_id::Id as AuthorizationId;
+
             #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
             pub enum Result {
                 Authorized {
@@ -344,8 +344,6 @@ pub mod payment {
                 ProviderUnavailable,
                 RequiresCustomerAction,
             }
-
-            pub use authorization_id::Id as AuthorizationId;
 
             pub mod authorization_id {
                 use super::*;
@@ -391,6 +389,8 @@ pub mod payment {
         pub mod provider {
             use super::*;
 
+            pub use refund_id::Id as RefundId;
+
             #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
             pub enum Result {
                 Accepted { refund_id: RefundId },
@@ -404,8 +404,6 @@ pub mod payment {
                 OutsideRefundWindow,
                 ProviderRejected,
             }
-
-            pub use refund_id::Id as RefundId;
 
             pub mod refund_id {
                 use super::*;
@@ -435,14 +433,14 @@ pub mod payment {
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
         pub struct RecordRequest {
-            pub reservation_id: ReservationId,
+            pub reservation_id: reservation::Id,
             pub payment_reference: domain::payment::Reference,
             pub amount: Money,
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
         pub struct RecordResult {
-            pub reservation_id: ReservationId,
+            pub reservation_id: reservation::Id,
             pub deposit_status: domain::payment::DepositStatus,
         }
     }
@@ -661,7 +659,7 @@ pub mod media {
     pub enum CapturePurpose {
         PetStatusCheck(PetId),
         FacilitySafetyCheck,
-        IncidentReview(ReservationId),
+        IncidentReview(reservation::Id),
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -735,13 +733,13 @@ pub mod hermes {
         pub mod kanban {
             use super::*;
 
+            pub use task_id::Id as TaskId;
+
             #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
             pub struct DraftResult {
                 pub task_id: TaskId,
                 pub status: DraftStatus,
             }
-
-            pub use task_id::Id as TaskId;
 
             pub mod task_id {
                 use super::*;

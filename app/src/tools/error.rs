@@ -1,4 +1,4 @@
-use domain::policy;
+use domain::{entities, policy};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -42,9 +42,9 @@ impl std::fmt::Display for Resource {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResourceId {
-    Customer(domain::entities::CustomerId),
-    Pet(domain::entities::PetId),
-    Reservation(domain::entities::ReservationId),
+    Customer(entities::CustomerId),
+    Pet(entities::PetId),
+    Reservation(entities::reservation::Id),
     Snapshot(super::availability::CapacitySnapshotId),
     Draft(super::draft_update::draft::Id),
     External(String),

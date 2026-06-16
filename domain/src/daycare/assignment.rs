@@ -1,6 +1,8 @@
 use super::*;
 use crate::policy;
 
+pub use playgroup_id::Id as PlaygroupId;
+
 pub mod playgroup_id {
     use super::*;
 
@@ -21,8 +23,6 @@ pub mod playgroup_id {
     )]
     pub struct Id(String);
 }
-
-pub use playgroup_id::Id as PlaygroupId;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 pub struct Request {

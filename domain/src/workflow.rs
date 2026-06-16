@@ -238,7 +238,7 @@ pub mod status_update {
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct Reservation {
-        pub status: entities::ReservationStatus,
+        pub status: entities::reservation::Status,
         pub intent: TransitionIntent,
         pub reason: Reason,
     }
@@ -282,7 +282,7 @@ pub enum EventType {
 pub enum Subject {
     Customer(entities::CustomerId),
     Pet(entities::PetId),
-    Reservation(entities::ReservationId),
+    Reservation(entities::reservation::Id),
     External {
         provider: external::Provider,
         id: external::Id,

@@ -2,6 +2,7 @@ use nutype::nutype;
 use serde::{Deserialize, Serialize};
 use statum::{machine, state, transition};
 
+use domain::entities::reservation;
 use domain::pet;
 
 #[nutype(
@@ -578,17 +579,17 @@ impl StaffEvaluationPacket {
         &self.audit_event_drafts
     }
 
-    pub const fn suggested_status(&self) -> domain::entities::ReservationStatus {
+    pub const fn suggested_status(&self) -> reservation::Status {
         match self.deterministic_result.recommended_status {
-            ReadinessBucket::ReadyForStaffApproval => domain::entities::ReservationStatus::Offered,
-            ReadinessBucket::MissingInfo => domain::entities::ReservationStatus::MissingInfo,
-            ReadinessBucket::VaccinePending => domain::entities::ReservationStatus::VaccinePending,
-            ReadinessBucket::SpecialReview => domain::entities::ReservationStatus::SpecialReview,
-            ReadinessBucket::Waitlisted => domain::entities::ReservationStatus::Waitlisted,
-            ReadinessBucket::Offered => domain::entities::ReservationStatus::Offered,
-            ReadinessBucket::Confirmed => domain::entities::ReservationStatus::Offered,
-            ReadinessBucket::Rejected => domain::entities::ReservationStatus::SpecialReview,
-            ReadinessBucket::FailedSafely => domain::entities::ReservationStatus::SpecialReview,
+            ReadinessBucket::ReadyForStaffApproval => reservation::Status::Offered,
+            ReadinessBucket::MissingInfo => reservation::Status::MissingInfo,
+            ReadinessBucket::VaccinePending => reservation::Status::VaccinePending,
+            ReadinessBucket::SpecialReview => reservation::Status::SpecialReview,
+            ReadinessBucket::Waitlisted => reservation::Status::Waitlisted,
+            ReadinessBucket::Offered => reservation::Status::Offered,
+            ReadinessBucket::Confirmed => reservation::Status::Offered,
+            ReadinessBucket::Rejected => reservation::Status::SpecialReview,
+            ReadinessBucket::FailedSafely => reservation::Status::SpecialReview,
         }
     }
 

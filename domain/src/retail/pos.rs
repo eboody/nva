@@ -92,7 +92,7 @@ pub enum Source {
         staff_id: entities::StaffId,
     },
     ReservationCheckout {
-        reservation_id: entities::ReservationId,
+        reservation_id: entities::reservation::Id,
     },
     ExternalPosReconciliation,
 }

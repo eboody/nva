@@ -76,10 +76,10 @@ pub mod task {
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub enum Kind {
         CheckInPrep {
-            reservation_id: entities::ReservationId,
+            reservation_id: entities::reservation::Id,
         },
         CheckOutPrep {
-            reservation_id: entities::ReservationId,
+            reservation_id: entities::reservation::Id,
         },
         Feeding {
             pet_id: PetId,
@@ -91,10 +91,10 @@ pub mod task {
             pet_id: PetId,
         },
         CleaningTurnover {
-            reservation_id: entities::ReservationId,
+            reservation_id: entities::reservation::Id,
         },
         DailyUpdateDraft {
-            reservation_id: entities::ReservationId,
+            reservation_id: entities::reservation::Id,
         },
         DocumentReview {
             pet_id: PetId,
@@ -135,7 +135,7 @@ pub mod task {
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub enum Source {
-        Reservation(entities::ReservationId),
+        Reservation(entities::reservation::Id),
         Pet(PetId),
         Customer(CustomerId),
         DailyBrief(daily_brief::snapshot::Id),
