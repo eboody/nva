@@ -276,7 +276,7 @@ fn daycare_assignment_requires_group_play_eligibility_and_staff_coverage() {
             reason: daycare::coverage::InsufficiencyReason::RatioExceeded,
             gate: domain::policy::ReviewGate::ManagerApproval,
         })
-        .playgroup(daycare::assignment::PlaygroupId::try_new(" small-dogs-am ").unwrap())
+        .playgroup(daycare::assignment::playgroup_id::Id::try_new(" small-dogs-am ").unwrap())
         .build();
 
     let decision = daycare::assignment::Service.assign(request);
@@ -682,7 +682,7 @@ fn achieved_outcome_claim_requires_evidence_before_documentation_can_be_member_f
 
 #[test]
 fn training_package_ledger_exposes_remaining_sessions_without_callers_recomputing_counts() {
-    let package_id = training::package::PackageId::try_new("pkg-1").unwrap();
+    let package_id = training::package::Id::try_new("pkg-1").unwrap();
     let ledger = training::package::Ledger::open(training::package::OpeningLedger {
         package_id: package_id.clone(),
         customer_id: entities::CustomerId(Uuid::nil()),
