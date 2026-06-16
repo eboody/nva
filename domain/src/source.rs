@@ -428,6 +428,12 @@ pub mod reservation {
         assumptions: Vec<Assumption>,
     }
 
+    impl Default for SnapshotBuilder {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
     impl SnapshotBuilder {
         pub const fn new() -> Self {
             Self {
@@ -844,6 +850,12 @@ pub mod gingr {
             service_type_provider_id: Option<ProviderRecordId>,
             provider_status: Option<ProviderStatus>,
             relationship: Option<OwnerPetRelationship>,
+        }
+
+        impl Default for SnapshotBuilder {
+            fn default() -> Self {
+                Self::new()
+            }
         }
 
         impl SnapshotBuilder {
