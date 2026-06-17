@@ -70,6 +70,35 @@ This repo should bias toward making invalid business states unrepresentable earl
 
 The `domain_quality_patterns` integration test is the living example for these conventions. See `docs/architecture/domain-quality-gate.md` for the rule that implementation work should pause for prerequisite domain refactors when a tweak exposes weak abstractions, and `docs/quality/semantic-code-doctrine-inventory.md` for the current completed/debt inventory.
 
+## Where we are: labor-cost reduction platform
+
+This repository is currently a typed local/demo foundation for turning messy pet-resort operations into safe, measurable AI-assisted workflows. It is intentionally not a generic chatbot repo. The north star is labor-cost reduction through operational leverage: fewer manual dashboard checks, faster staff triage, better manager action briefs, cleaner source evidence, safer customer-message drafts, and reusable workflow controls across a 170-location, multi-brand pet-resort portfolio.
+
+What is strong now:
+
+- The architecture treats Gingr as one upstream operational source, not as the domain model. The current source boundary is `Gingr DTO -> Gingr snapshot -> source-agnostic reservation snapshot -> analytics stay fact -> future workflow-validator evidence`.
+- Domain/app/storage/integration crates keep business contracts, use-case ports, persistence records, and provider DTOs separated.
+- Core pet-resort workflows are represented with semantic Rust types, builders, review gates, provenance, data-quality issues, audit events, and draft-only AI boundaries.
+- The local/demo MVP covers inquiry intake, booking triage, vaccine document review, staff operations, daily care updates, incident escalation, and staff-web smoke surfaces without live customer sends, provider/PMS mutation, or payment movement.
+- Baseline agent specs are bounded around concrete operational jobs: manager daily brief, lead conversion, grooming rebooking, reputation triage, SOP/policy assistance, and the MVP workflow agents.
+- The canonical local gate is `./scripts/test.sh`, which runs Rust formatting, clippy, workspace tests, and staff-web typecheck/lint/smoke tests when frontend dependencies are installed.
+
+What is not done yet:
+
+- The repo does not yet close a full executable local/demo journey from inquiry through checkout and retention.
+- Checkout/completion and CRM/retention are weaker than intake, booking, vaccine, daily-update, and incident slices.
+- Idempotency/replay, redaction, and evidence hygiene are not yet proven across the whole workflow chain.
+- The labor-cost story needs at least one measurable loop that connects source facts, operational recommendations, staff action, and outcome measurement.
+- Live customer use, production deployment, live messaging, provider/PMS writes, payment actions, and safety-sensitive decisions remain explicit no-go areas without human approval and smoke evidence.
+
+The next implementation sequence is:
+
+1. Add the full-chain local E2E smoke harness: `inquiry -> profile -> vaccine docs -> booking triage -> confirmation draft -> check-in/today view -> staff note/daily update draft -> checkout/completion -> follow-up/retention`.
+2. Add checkout/completion plus CRM/retention executable contracts so the stay lifecycle closes in code, API/persistence, and staff UI evidence.
+3. Add a Manager Daily Brief measurable labor loop that turns source/service-demand evidence into prioritized manager actions, captures feedback/outcomes, and estimates labor impact.
+
+The target product posture after these slices is not “AI can answer questions.” It is: **safe operational agents that reduce avoidable labor by producing source-grounded drafts, review packets, manager actions, and measurable outcomes.**
+
 ## Call prep questions for Tyler
 
 1. Is the 170-location operator actually NVA/PetSuites, a franchise/network, or a similar pet-resort group?
