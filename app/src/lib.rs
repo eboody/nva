@@ -6,7 +6,11 @@
 
 pub mod agents;
 pub mod booking_triage;
+pub mod checkout_completion;
+pub mod crm_retention;
 pub mod daily_update;
+pub mod local_smoke;
+pub mod manager_daily_brief;
 pub mod tools;
 
 pub mod prelude {
