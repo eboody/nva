@@ -45,26 +45,26 @@ pub mod operating_day {
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
     pub struct Key {
-        location_record_id: crate::source::record::Id,
+        location_id: LocationId,
         service_line: super::service_core::ServiceLine,
         date: Date,
     }
 
     impl Key {
         pub const fn new(
-            location_record_id: crate::source::record::Id,
+            location_id: LocationId,
             service_line: super::service_core::ServiceLine,
             date: Date,
         ) -> Self {
             Self {
-                location_record_id,
+                location_id,
                 service_line,
                 date,
             }
         }
 
-        pub const fn location_record_id(&self) -> &crate::source::record::Id {
-            &self.location_record_id
+        pub const fn location_id(&self) -> LocationId {
+            self.location_id
         }
 
         pub const fn service_line(&self) -> super::service_core::ServiceLine {

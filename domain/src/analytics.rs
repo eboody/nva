@@ -152,7 +152,7 @@ pub mod stay {
 pub mod service_demand {
     use serde::{Deserialize, Serialize};
 
-    use crate::{analytics, operations, source};
+    use crate::{analytics, data_quality, operations, source};
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
     pub struct Id(String);
@@ -191,6 +191,14 @@ pub mod service_demand {
         demand_units: DemandUnits,
         source_record_refs: Vec<source::RecordRef>,
         projection_version: analytics::ProjectionVersion,
+        data_quality_status: DataQualityStatus,
+        data_quality_issues: Vec<data_quality::Issue>,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    pub enum DataQualityStatus {
+        Complete,
+        ManagerReviewRequired,
     }
 
     impl Fact {
@@ -200,10 +208,16 @@ pub mod service_demand {
             demand_units: DemandUnits,
             source_record_refs: Vec<source::RecordRef>,
             projection_version: analytics::ProjectionVersion,
+            data_quality_issues: Vec<data_quality::Issue>,
         ) -> Result<Self> {
             if source_record_refs.is_empty() {
                 return Err(Error::MissingSourceEvidence);
             }
+            let data_quality_status = if data_quality_issues.is_empty() {
+                DataQualityStatus::Complete
+            } else {
+                DataQualityStatus::ManagerReviewRequired
+            };
 
             Ok(Self {
                 id,
@@ -211,6 +225,8 @@ pub mod service_demand {
                 demand_units,
                 source_record_refs,
                 projection_version,
+                data_quality_status,
+                data_quality_issues,
             })
         }
 
@@ -232,6 +248,14 @@ pub mod service_demand {
 
         pub const fn projection_version(&self) -> &analytics::ProjectionVersion {
             &self.projection_version
+        }
+
+        pub const fn data_quality_status(&self) -> DataQualityStatus {
+            self.data_quality_status
+        }
+
+        pub fn data_quality_issues(&self) -> &[data_quality::Issue] {
+            &self.data_quality_issues
         }
     }
 

@@ -67,10 +67,10 @@ Implemented roots:
 
 - `analytics::ProjectionVersion`
 - `analytics::stay::{Id, Fact, DataQualityStatus}`
+- `analytics::service_demand::{Id, DemandUnits, Fact, DataQualityStatus}`
 
 Known future fact families, artifact-gated:
 
-- `analytics::demand::Fact` or `analytics::service_demand::Fact`
 - `analytics::capacity::{OccupancyFact, PressureFact}`
 - `analytics::labor::scheduled::CoverageFact`
 - `analytics::labor::actual::WorkedTimeFact`
@@ -85,15 +85,15 @@ Implemented/current surfaces:
 
 - `entities::{LocationId, CustomerId, PetId, ReservationId}`
 - `operations::ServiceOffering` and related NVA operating vocabulary
+- `operations::operating_day::{Date, Key}` for typed domain location/service/date joins
 - `daily_brief::{ResortOperatingDay, Resort, ScheduledStaffCount, LaborSnapshot}`
 - service modules such as `boarding`, `daycare`, `grooming`, `training`, and `retail`
 
 Known future pressure:
 
-- `operations::operating_day::Key` for typed day/location/service joins once cross-fact joins need it.
 - A service-line or coverage-line semantic type only if existing service modules cannot honestly express the join.
 
-Contract rule: source location/service/date evidence should map to a typed operating key or produce an explicit issue explaining why it cannot. Workflow and staff tasks should reference the semantic key rather than raw report filters.
+Contract rule: source location/service/date evidence should map to a typed operating key or produce an explicit issue explaining why it cannot. Workflow and staff tasks should reference the semantic key rather than raw report filters. `operations::operating_day::Key` uses `entities::LocationId`; source-specific location record identity remains on source evidence/provenance and analytics facts rather than becoming domain location truth.
 
 ### Staff, scheduling, timeclock, and payroll
 
