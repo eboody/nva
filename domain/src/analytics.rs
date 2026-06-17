@@ -149,10 +149,109 @@ pub mod stay {
     }
 }
 
+pub mod service_demand {
+    use serde::{Deserialize, Serialize};
+
+    use crate::{analytics, operations, source};
+
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+    pub struct Id(String);
+
+    impl Id {
+        pub fn try_new(value: impl Into<String>) -> analytics::Result<Self> {
+            analytics::trimmed_non_empty(value, analytics::Error::EmptyServiceDemandFactId)
+                .map(Self)
+        }
+
+        pub fn as_str(&self) -> &str {
+            &self.0
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+    pub struct DemandUnits(u32);
+
+    impl DemandUnits {
+        pub const fn try_new(value: u32) -> analytics::Result<Self> {
+            if value == 0 {
+                return Err(analytics::Error::EmptyDemandUnits);
+            }
+            Ok(Self(value))
+        }
+
+        pub const fn get(self) -> u32 {
+            self.0
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct Fact {
+        id: Id,
+        operating_day: operations::operating_day::Key,
+        demand_units: DemandUnits,
+        source_record_refs: Vec<source::RecordRef>,
+        projection_version: analytics::ProjectionVersion,
+    }
+
+    impl Fact {
+        pub fn try_new(
+            id: Id,
+            operating_day: operations::operating_day::Key,
+            demand_units: DemandUnits,
+            source_record_refs: Vec<source::RecordRef>,
+            projection_version: analytics::ProjectionVersion,
+        ) -> Result<Self> {
+            if source_record_refs.is_empty() {
+                return Err(Error::MissingSourceEvidence);
+            }
+
+            Ok(Self {
+                id,
+                operating_day,
+                demand_units,
+                source_record_refs,
+                projection_version,
+            })
+        }
+
+        pub const fn id(&self) -> &Id {
+            &self.id
+        }
+
+        pub const fn operating_day(&self) -> &operations::operating_day::Key {
+            &self.operating_day
+        }
+
+        pub const fn demand_units(&self) -> DemandUnits {
+            self.demand_units
+        }
+
+        pub fn source_record_refs(&self) -> &[source::RecordRef] {
+            &self.source_record_refs
+        }
+
+        pub const fn projection_version(&self) -> &analytics::ProjectionVersion {
+            &self.projection_version
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+    pub enum Error {
+        #[error("service demand facts require source evidence")]
+        MissingSourceEvidence,
+    }
+
+    pub type Result<T> = std::result::Result<T, Error>;
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum Error {
     #[error("stay fact id must not be empty")]
     EmptyStayFactId,
+    #[error("service demand fact id must not be empty")]
+    EmptyServiceDemandFactId,
+    #[error("service demand units must be greater than zero")]
+    EmptyDemandUnits,
     #[error("projection version must not be empty")]
     EmptyProjectionVersion,
 }

@@ -4,6 +4,7 @@
 //! those namespaces visible instead of re-exporting compatibility synonyms.
 
 use bon::Builder;
+use chrono::NaiveDate;
 use nutype::nutype;
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -25,6 +26,61 @@ use crate::entities::LocationId;
     )
 )]
 pub struct MetricName(String);
+
+pub mod operating_day {
+    use super::*;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+    pub struct Date(NaiveDate);
+
+    impl Date {
+        pub const fn try_new(value: NaiveDate) -> Result<Self> {
+            Ok(Self(value))
+        }
+
+        pub const fn get(self) -> NaiveDate {
+            self.0
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+    pub struct Key {
+        location_record_id: crate::source::record::Id,
+        service_line: super::service_core::ServiceLine,
+        date: Date,
+    }
+
+    impl Key {
+        pub const fn new(
+            location_record_id: crate::source::record::Id,
+            service_line: super::service_core::ServiceLine,
+            date: Date,
+        ) -> Self {
+            Self {
+                location_record_id,
+                service_line,
+                date,
+            }
+        }
+
+        pub const fn location_record_id(&self) -> &crate::source::record::Id {
+            &self.location_record_id
+        }
+
+        pub const fn service_line(&self) -> super::service_core::ServiceLine {
+            self.service_line
+        }
+
+        pub const fn date(&self) -> Date {
+            self.date
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+    pub enum Error {}
+
+    pub type Result<T> = std::result::Result<T, Error>;
+}
 
 pub mod operational {
     use super::*;
@@ -412,7 +468,7 @@ pub mod service_core {
         }
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
     pub enum ServiceLine {
         Boarding,
         Daycare,
