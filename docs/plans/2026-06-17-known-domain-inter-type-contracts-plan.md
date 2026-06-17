@@ -127,13 +127,14 @@ Current implemented root:
 
 ```rust
 analytics::stay::Fact
+analytics::service_demand::Fact
 analytics::ProjectionVersion
 ```
 
 Known analytics facts we will likely need, in safe modeling order:
 
 1. `analytics::stay::Fact` — implemented first, source reservation -> stay read model.
-2. `analytics::demand::Fact` or `analytics::service_demand::Fact` — service-line/location/day demand derived from stay/reservation/service facts.
+2. `analytics::service_demand::Fact` — implemented as the minimal service-line/location/day demand bridge, with provenance and data-quality issue refs.
 3. `analytics::capacity::Fact` — capacity inventory or occupancy pressure once capacity artifacts exist.
 4. `analytics::labor::scheduled::Fact` — scheduled coverage by operational day/location/role once scheduling artifacts exist.
 5. `analytics::labor::actual::Fact` — timeclock/actual paid coverage once timeclock artifacts exist.
@@ -146,6 +147,7 @@ Inter-type contracts:
 
 ```text
 source::reservation::Snapshot -> analytics::stay::Fact
+analytics::stay::Fact -> analytics::service_demand::Fact
 analytics::stay::Fact + source::capacity::* -> analytics::capacity::Fact
 analytics::stay::Fact + source::labor_schedule::* -> analytics::labor::scheduled::Fact
 analytics::labor::scheduled::Fact + source::timeclock::* -> analytics::labor::actual::Fact
@@ -168,19 +170,20 @@ training::*
 retail::*
 daily_brief::ResortOperatingDay
 daily_brief::Resort
+operations::operating_day::{Date, Key}
 ```
 
-Missing contract pressure: source evidence and analytics facts need a shared operational index, but this should not become a generic `String` tuple. Candidate future module:
+Source evidence and analytics facts need a shared operational index, but this should not become a generic `String` tuple. The current minimal module is:
 
 ```rust
 operations::operating_day::Key {
-    location: entities::LocationId or source::record::Id,
-    service_line: operations::ServiceLine,
-    date: operations::OperatingDate,
+    location_id: entities::LocationId,
+    service_line: operations::service_core::ServiceLine,
+    date: operations::operating_day::Date,
 }
 ```
 
-Only add it when a test needs cross-fact joins by day/location/service.
+Provider/source location record IDs remain evidence/provenance; they must not become the operating-day location identity.
 
 Inter-type contract:
 
@@ -239,7 +242,7 @@ Current surfaces:
 boarding::capacity::*
 daycare::coverage::*
 daily_brief::capacity::*
-operations::CapacityMetric / capacity-related service contracts
+capacity-related service contracts
 source::System::CapacityInventory
 ```
 
