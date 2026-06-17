@@ -2,6 +2,8 @@
 
 Purpose: this is the contract-first expansion map for the pet-resort domain. It preserves the repository doctrine of semantic fidelity: write failing semantic API tests first, verify RED, then add the smallest module-owned type/trait/typestate surface needed to make the contract true. Do not add behavior to raw `String`, `bool`, integer, or UUID fields while expanding the domain.
 
+For the canonical atlas of known source evidence, analytics/read-model, workflow validator, policy, staff-action, labor, capacity, POS, and BI-export bridge contracts, see [`known-domain-inter-type-contracts.md`](known-domain-inter-type-contracts.md).
+
 Status after final skeleton review: the first contract skeleton is implemented and review-approved. The foundation now has module-owned semantic contracts for care/medical, temperament, money/deposit, reservation add-ons and age thresholds, workflow/action payloads, tool boundaries, operations metrics, agent prompts, and baseline entity identity surfaces. The remaining items in this document are intentional entry rules for future features, not blockers for the current skeleton.
 
 ## Implemented semantic contract surface
