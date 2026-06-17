@@ -17,25 +17,38 @@ BI warehouse. The allowed flow is:
 Gingr API endpoints / reports / exports / webhooks
 -> raw Gingr DTOs and response wrappers
 -> versioned Gingr source snapshots with provenance
--> explicit domain promotion and data-quality issue emission
--> analytics/read-model projections
--> Statum workflow-validator inputs
+-> source-agnostic reservation/stay snapshots with typed assumptions/issues
+-> analytics stay facts and other read-model projections
+-> future workflow-validator inputs
 ```
 
 Each arrow is a trust-boundary crossing. Code may preserve provider vocabulary
 inside the raw and snapshot layers, but domain, read-model, and workflow code must
 consume named semantic contracts instead of ad hoc raw DTO fields.
 
+The canonical post-refactor boundary note is
+`docs/integrations/gingr/adapter-boundary-and-labor-source-expansion.md`. It
+summarizes the exact chain that downstream work should preserve:
+
+```text
+Gingr DTO -> Gingr snapshot -> source-agnostic reservation snapshot -> analytics stay fact -> future workflow validators
+```
+
 ## Boundary summary
 
 - Raw Gingr DTOs own provider-shaped request/response records, unknown fields,
   and redaction markers. They must not own domain invariants, BI facts, or
   workflow states.
-- Gingr snapshots own stable source facts, provenance, payload identity, and
-  extraction context. They must not own final business truth or denormalized
-  dashboard rows.
-- Domain promotion owns semantic IDs, statuses, service concepts, and validation
-  outcomes. It must not own raw payload storage or report-specific columns.
+- Gingr snapshots own stable Gingr-derived source facts, provider vocabulary,
+  provenance, payload identity, and extraction context. They must not own final
+  business truth, source-agnostic joins, or denormalized dashboard rows.
+- Source-agnostic reservation snapshots own promoted source record identities,
+  related-record roles, reservation/stay grain, conservative statuses, owner/pet
+  relationship shape, and typed assumptions. They must not own raw payload
+  storage, Gingr-only provider semantics, or report-specific columns.
+- Promotion owns the explicit crossing from Gingr provider vocabulary into the
+  source-agnostic contract. It must not hide uncertainty; unresolved BI-question
+  buckets become typed assumptions or data-quality issues.
 - Data-quality issues own durable source-data problems with severity,
   provenance, and resolution status. They must not be hidden logs or one-off
   mapper errors only.
@@ -90,15 +103,10 @@ workflow needs.
 
 Candidate snapshot concepts:
 
-```rust
-gingr::snapshot::ReservationSnapshot
-gingr::snapshot::CustomerSnapshot
-gingr::snapshot::PetSnapshot
-gingr::snapshot::StaySnapshot
-gingr::snapshot::InvoiceSnapshot
-gingr::snapshot::PaymentSnapshot
-gingr::snapshot::WebhookEventSnapshot
-```
+- `source::gingr::reservation::Snapshot` for the current reservation/stay slice.
+- Future Gingr customer, pet, stay, invoice, payment, and webhook-event snapshots
+  only when an inspected artifact proves the grain and promotion target. Do not
+  create empty modules for those families just because they are likely to matter.
 
 Every snapshot must carry provenance:
 
@@ -134,12 +142,14 @@ Snapshots must be append/replay friendly. If later Gingr pulls conflict with
 prior snapshots, keep both source facts and emit data-quality issues instead of
 silently overwriting the contradiction.
 
-## Domain promotion contract
+## Source-agnostic promotion contract
 
-Domain promotion turns source snapshots into NVA semantic concepts through named
-validators and conversion functions. Promotion is where provider strings, partial
-records, and ambiguous IDs become either domain values or explicit data-quality
-issues.
+Promotion turns Gingr source snapshots into NVA's source-agnostic contracts
+through named validators and conversion functions. Promotion is where provider
+strings, partial records, and ambiguous IDs become either source-level semantic
+values, typed assumptions, or explicit data-quality issues. Domain entities and
+workflow evidence may be built later from the promoted source contracts; they
+should not consume Gingr adapter DTOs directly.
 
 Promotion must:
 
@@ -159,11 +169,11 @@ Promotion must not:
 - collapse owner/pet duplicate or merge ambiguity without a recorded issue;
 - treat webhook facts as authoritative without reconciliation rules.
 
-Candidate promotion path for the first slice:
+Canonical promotion path for the first slice:
 
 ```text
-gingr::snapshot::ReservationSnapshot
--> domain reservation/stay/service/payment evidence
+source::gingr::reservation::Snapshot
+-> source::reservation::Snapshot
 -> data_quality::Issue records for unresolved source problems
 -> analytics::stay::Fact projection input
 ```

@@ -27,8 +27,18 @@ The desired lane is:
 3. Emit data-quality issues when source facts are missing or ambiguous.
 4. Project validated facts into BI/read-model shapes.
 
-The repo does not yet contain source snapshots, provenance records,
-source-data-quality issue records, or analytics/read-model projection types.
+The post-refactor reservation/stay boundary is documented in
+`docs/integrations/gingr/adapter-boundary-and-labor-source-expansion.md`:
+
+```text
+Gingr DTO -> Gingr snapshot -> source-agnostic reservation snapshot -> analytics stay fact -> future workflow validators
+```
+
+The repo now contains the first source-contract slice for reservation/stay
+evidence: source-agnostic provenance, source record identities, reservation
+snapshots, data-quality issues, and `analytics::stay::Fact` projection. That
+slice is fixture/test oriented; it is not a live Gingr or BI database
+integration.
 
 ## Current boundary posture
 
@@ -39,6 +49,18 @@ mappers into domain/app concepts.
 `domain` owns semantic entities and operations vocabulary. It already recognizes
 Gingr as a portal/source context and recognizes BI/data-quality concepts at an
 operations-discovery level.
+
+The source contract now separates `source::gingr::*` adapter vocabulary from the
+source-agnostic core paths used by data quality and analytics:
+
+- Gingr adapter: `source::gingr::Provenance`,
+  `source::gingr::ProviderRecordId`, `source::gingr::ProviderStatus`, and
+  `source::gingr::reservation::Snapshot`.
+- Core source contract: `source::Provenance`, `source::record::*`,
+  `source::reservation::Snapshot`, `source::reservation::Status`, and
+  `source::reservation::Assumption`.
+- Analytics projection: `analytics::stay::Fact::project_from_source_reservation`
+  consumes the source-agnostic snapshot, not the Gingr adapter snapshot.
 
 `storage` owns storage-shaped operation records and codecs. It mirrors the
 operations vocabulary for `TechnologyEcosystemRecord`, including Gingr,
@@ -64,6 +86,7 @@ Canonical local docs:
 - `docs/integrations/gingr/sdk-webhooks.md`
 - `docs/integrations/gingr/sdk-customer-portal-js.md`
 - `docs/integrations/gingr/service-domain-provider-surfaces.md`
+- `docs/integrations/gingr/adapter-boundary-and-labor-source-expansion.md`
 - `docs/integrations/gingr/fixtures/webhooks/`
 - `docs/integrations/gingr/articles/`
 - `docs/integrations/gingr/manifest.json`
@@ -199,9 +222,12 @@ BI/source facts to preserve:
 different visibility.
 
 Current gap: `response::ReservationRecord` only models provider reservation ID,
-optional owner ID, optional animal ID, raw status, and unknown fields. There is
-no mapper into `domain::entities::Reservation`, no stay snapshot, no
-data-quality issue emission, and no BI stay/revenue/utilization projection.
+optional owner ID, optional animal ID, raw status, and unknown fields. The
+domain crate now has a source-contract slice for Gingr reservation snapshots,
+source-agnostic reservation snapshots, data-quality issues, and
+`analytics::stay::Fact`; however, the integration crate has not yet wired the
+public Gingr response DTO into that source-contract promotion path, and revenue
+or utilization projections remain future slices.
 
 ### Owner/customer and animal/pet source facts
 

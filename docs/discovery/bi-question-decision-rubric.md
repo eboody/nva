@@ -19,6 +19,9 @@ For each BI answer, classify it into one or more decision buckets:
 5. **Provenance and raw retention** — whether source payloads, batches, endpoints, and transformation versions exist.
 6. **Metric trust** — which reports/definitions are operationally trusted or distrusted.
 7. **Artifact availability** — what we can inspect next without formal access.
+8. **Source-family expansion** — whether scheduling, timeclock, payroll,
+   capacity, POS/payments, BI/manual import, or task-system artifacts are
+   concrete enough to model as source evidence.
 
 The next engineering task should be selected by the highest-risk unanswered bucket, not by implementation convenience.
 
@@ -36,6 +39,7 @@ The next engineering task should be selected by the highest-risk unanswered buck
 | Trusted dashboards exist | Reconciliation tests against trusted metric definitions | Inventing metric names in isolation |
 | Distrusted dashboards exist | Failure-case fixtures and anti-reconciliation tests | Copying BI definitions blindly |
 | Payroll/timeclock/scheduling data is available | Labor-cost projection and staffing optimization planning | Gingr-only product framing |
+| Capacity/rooms/runs data is available | Capacity source evidence and occupancy-pressure projection planning | Treating Gingr reservation counts as capacity truth |
 | Only screenshots/table names are available | Lightweight schema glossary and fixture guesses marked provisional | Live DB integration |
 | Formal access is granted | Read-only connector spike and schema introspection | Production writes or member-facing actions |
 
@@ -46,6 +50,14 @@ When new BI input arrives:
 1. Add the raw non-secret answer or artifact summary under `docs/discovery/` or `docs/integrations/gingr/`.
 2. Tag each answer with the relevant decision buckets above.
 3. Update current assumptions in the source contract/read-model docs.
+   - Preserve the current boundary from
+     `docs/integrations/gingr/adapter-boundary-and-labor-source-expansion.md`:
+     Gingr DTO -> Gingr snapshot -> source-agnostic reservation snapshot ->
+     analytics stay fact -> future workflow validators.
+   - If the answer concerns scheduling, timeclock, payroll, capacity, POS, BI,
+     or manual imports, record it as a future source-family expansion point until
+     a stable grain, join key, provenance shape, and first projection need are
+     known.
 4. Choose the next card by this priority order:
    1. **Safety blockers**: unstable IDs, ambiguous grain, destructive refreshes, missing provenance.
    2. **Projection blockers**: fields needed to produce a deterministic `StayFact`.

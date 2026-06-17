@@ -214,6 +214,12 @@ Use this version internally when shaping source contracts, provenance, identity 
 
 Use `docs/discovery/bi-question-decision-rubric.md` to convert answers to these questions into concrete next-work decisions. The questions are the input; the rubric decides whether the next safest move is source inventory, contract refinement, projection, workflow validation, or labor-cost modeling.
 
+Use `docs/integrations/gingr/adapter-boundary-and-labor-source-expansion.md` as
+the current adapter-boundary reference when converting answers into source
+contracts. BI answers should clarify which layer changes: Gingr adapter snapshot,
+source-agnostic reservation snapshot, analytics stay/read-model fact, future
+workflow-validator evidence, or a later labor-source adapter.
+
 ## Modeling implications
 
 These questions should guide current setup and architecture decisions:
@@ -223,5 +229,13 @@ These questions should guide current setup and architecture decisions:
 - Preserve table grain and join assumptions explicitly.
 - Treat reliability/messiness as data-quality facts, not incidental logs.
 - Design source contracts so non-Gingr sources can be added later without rewriting the domain core.
+- Keep the current boundary explicit: Gingr DTOs promote to Gingr snapshots,
+  Gingr snapshots promote to source-agnostic reservation/stay snapshots,
+  analytics projects stay facts from those source-agnostic snapshots, and future
+  workflow validators consume semantic evidence instead of raw provider statuses.
+- Treat scheduling, timeclock, payroll, and capacity as future source families
+  that plug into the same provenance/identity/assumption/data-quality pattern;
+  do not create modules or crates for them before an answer or artifact proves
+  grain, join keys, and first projection needs.
 - Avoid asking BI to define NVA's cost-reduction strategy; use BI answers to understand the existing factual data surface.
 - Let NVA independently identify cost-reduction opportunities from the modeled operational facts.
