@@ -115,6 +115,8 @@ Current state:
 
 Future expansion rule: add entity-specific status-update targets only when that entity has a real status vocabulary. Do not reintroduce generic `{ entity, status: String }` updates.
 
+Validator evidence rule: future workflow validators should consume named source-agnostic evidence bundles, not provider DTOs, BI table names, raw customer/staff prose, or LLM summaries. The canonical bridge shape is maintained in [`known-domain-inter-type-contracts.md`](known-domain-inter-type-contracts.md): deterministic evidence and policy decisions first, then separate staff/manager/customer copy drafts that cite the decision and remain review-gated as needed.
+
 Boundary rule: agents may recommend actions; deterministic Rust validators decide whether an action is allowed and whether it needs human review before a tool sees it.
 
 ### External tool trait contracts

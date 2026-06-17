@@ -20,6 +20,8 @@ source::gingr::reservation::Snapshot
 
 Every arrow should become a named bridge API with semantic tests before downstream automation consumes it. Avoid casual `.into()` chains when a conversion promotes source evidence, crosses a trust boundary, applies data-quality rules, or changes action-safety state.
 
+Future workflow validators should treat the chain as evidence-in, decision-out. They consume already-promoted source snapshots, analytics/read-model facts, data-quality issues, and policy context; they do not read provider DTOs, BI table names, raw payroll exports, raw customer/staff prose, or LLM-written summaries as authority. A validator may assemble a review packet or draftable action request, but its deterministic output must stay separate from any natural-language copy later written for staff, managers, or customers.
+
 ## Stable type families NVA already knows it needs
 
 ### Source evidence
@@ -171,6 +173,10 @@ Known future families:
 
 Contract rule: validators consume named evidence bundles of analytics facts, source refs, issue refs, and policy context. Validators emit workflow decisions. Tool/action ports accept drafts only after policy permits them.
 
+Evidence-bundle rule: start with narrowly owned bundles such as `workflow::reservation::ReadinessEvidence`, `workflow::daycare::GroupPlayReadinessEvidence`, or `workflow::labor::StaffingPressureEvidence` instead of a generic `WorkflowEvidence` bag. Each bundle should name the facts it accepts, the issue severities that can block or route review, the policy snapshot it evaluated, and the exact output decision vocabulary for that workflow family.
+
+Decision/output rule: workflow decisions are deterministic domain values. They can say `allowed`, `blocked`, `manager_review_required`, `bi_review_required`, `staff_task_draft_required`, or a more specific workflow-owned variant. They must not contain final customer-facing prose, provider-write payloads, payment operations, or unreviewed staff-completion claims. LLM-written text belongs in a downstream draft artifact that cites the decision and evidence refs and remains review-gated according to `policy`.
+
 ## Bridge contracts to name and test
 
 | Bridge | Owner | Allowed input | Output | Forbidden shortcut |
@@ -238,6 +244,47 @@ Examples:
 - BI export columns may identify a future artifact gate; they must not define analytics fact names until grain, identity, provenance, and issue behavior are known.
 - Scheduling role names may map to `staff::Role` only when semantics align. Otherwise create an artifact-proven coverage-role type.
 - Payroll cost fields may feed labor-cost facts only after legal/ethical modeling boundaries and cost-attribution grain are explicit.
+
+## Workflow validator contract shape
+
+Validators are deterministic contract code, not copywriting or tool-execution code. A future validator should have an explicit contract shaped like:
+
+```text
+workflow::<family>::Evidence {
+    source_refs,
+    analytics_facts,
+    data_quality_issue_refs,
+    policy_context,
+    optional human-entered/reviewed facts,
+}
+-> workflow::<family>::Decision
+-> staff/manager action draft or message/status/tool draft request
+```
+
+Evidence bundles may reference raw artifacts by governed source refs, but the validator-facing fields should be source-agnostic semantic facts. If a workflow needs a human-entered fact, OCR extraction, BI export row, or LLM summary, that item must first become reviewed evidence or a `data_quality::Issue`/assumption with provenance. LLM output can assist extraction, summarization, or copy drafting; it is not a source of policy truth.
+
+Policy decisions should be small, auditable values with reasons and issue refs. Preferred output shape:
+
+- decision kind: allowed, blocked, manager review, BI review, staff task draft, or workflow-specific denial/review variant;
+- reasons: typed policy/data-quality reasons, not free-form copy as authority;
+- evidence refs: stable links to source records, projection versions, issue ids, and policy snapshot ids;
+- permitted draft classes: internal task, manager review packet, customer-message draft, status-update draft, provider/tool request draft;
+- blocked actions: exact side effects that must not execute without approval.
+
+LLM-written copy is a downstream draft artifact. It may render the deterministic decision for a human, but it must cite the decision/evidence refs, preserve redactions, avoid making final promises, and remain gated by `policy` for customer-facing, provider-write, payment, medical, behavior, incident, and sensitive staff/manager actions.
+
+### Labor-cost reduction decision levers
+
+The labor-cost north star should appear in validator design as explicit decision levers, not as hidden optimization prose. Useful levers include:
+
+- demand-vs-scheduled-coverage variance: route manager review when scheduled labor materially exceeds/under-runs source-backed service demand;
+- actual-vs-scheduled variance: flag missed punches, callouts, overtime risk, or schedule adherence only after timeclock evidence exists;
+- labor-cost-per-stay/service/day: compare payroll/cost facts to demand/revenue/service facts only after payroll or approved cost artifacts exist;
+- capacity pressure: distinguish low-demand labor trimming opportunities from high-pressure service/care risk;
+- task deflection: draft staff/manager tasks that remove manual reconciliation, duplicate data entry, follow-up chasing, and status-check labor;
+- review targeting: route only ambiguous/high-risk exceptions to managers while allowing routine internal summaries and safe draft preparation.
+
+These levers should produce staff or manager action drafts such as "review tomorrow's daycare coverage variance," "resolve missing timeclock evidence before trusting actual labor cost," or "prepare customer follow-up draft for missing vaccine proof." They should not claim an automatic schedule change, wage decision, provider write, customer send, or live optimization exists until source artifacts, policy thresholds, and approved execution ports are implemented.
 
 ## Open artifact gates
 
