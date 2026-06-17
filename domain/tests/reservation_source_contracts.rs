@@ -231,6 +231,79 @@ fn complete_source_reservation_facts_project_to_stay_fact() {
         fact.data_quality_status(),
         analytics::stay::DataQualityStatus::Complete
     );
+    assert!(fact.data_quality_issues().is_empty());
+}
+
+#[test]
+fn source_reservation_projection_preserves_nonblocking_data_quality_warnings_on_stay_fact() {
+    let source_reservation = source::reservation::Snapshot::builder()
+        .provenance(source_provenance())
+        .customer_record_id(source::record::Id::try_new("owner-7").unwrap())
+        .pet_record_id(source::record::Id::try_new("animal-9").unwrap())
+        .location_record_id(source::record::Id::try_new("location-3").unwrap())
+        .service_type_record_id(source::record::Id::try_new("boarding-suite").unwrap())
+        .status(source::reservation::Status::CheckedIn)
+        .relationship(source::reservation::OwnerPetRelationship::Resolved)
+        .assumptions(vec![
+            source::reservation::Assumption::RawPayloadRetentionUnknown,
+        ])
+        .build();
+
+    let fact = analytics::stay::Fact::project_from_source_reservation(
+        analytics::stay::Id::try_new("stay-fact-warning").unwrap(),
+        &source_reservation,
+        analytics::ProjectionVersion::try_new("stay-v1").unwrap(),
+    )
+    .expect("nonblocking data-quality warnings should not block stay fact projection");
+
+    assert_eq!(
+        fact.data_quality_status(),
+        analytics::stay::DataQualityStatus::ManagerReviewRequired
+    );
+    assert!(fact.data_quality_issues().iter().any(|issue| issue.kind()
+        == data_quality::Kind::AssumptionInForce {
+            assumption: source::reservation::Assumption::RawPayloadRetentionUnknown,
+        }));
+    assert!(fact.data_quality_issues().iter().all(|issue| {
+        !issue.workflow_blocking()
+            && issue.provenance() == source_reservation.provenance()
+            && issue.source_record_ref().record_id() == source_reservation.provenance().record_id()
+    }));
+}
+
+#[test]
+fn source_specific_gingr_fixture_must_promote_before_projection_consumers_see_source_records() {
+    fn assert_source_record_id(id: &source::record::Id, expected: &str) {
+        assert_eq!(id.as_str(), expected);
+    }
+
+    let source_reservation = source::gingr::reservation::Snapshot::builder()
+        .provenance(gingr_provenance())
+        .owner_provider_id(source::gingr::ProviderRecordId::try_new("owner-7").unwrap())
+        .animal_provider_id(source::gingr::ProviderRecordId::try_new("animal-9").unwrap())
+        .location_provider_id(source::gingr::ProviderRecordId::try_new("location-3").unwrap())
+        .service_type_provider_id(
+            source::gingr::ProviderRecordId::try_new("boarding-suite").unwrap(),
+        )
+        .provider_status(source::gingr::ProviderStatus::try_new("checked_in").unwrap())
+        .relationship(source::gingr::reservation::OwnerPetRelationship::Resolved)
+        .build()
+        .promote();
+
+    let fact = analytics::stay::Fact::project_from_source_reservation(
+        analytics::stay::Id::try_new("stay-fact-promoted").unwrap(),
+        &source_reservation,
+        analytics::ProjectionVersion::try_new("stay-v1").unwrap(),
+    )
+    .expect("promoted source-agnostic reservation fixture should project to stay fact");
+
+    assert_source_record_id(fact.reservation_record_id(), "reservation-42");
+    assert_source_record_id(fact.customer_record_id(), "owner-7");
+    assert_source_record_id(fact.pet_record_id(), "animal-9");
+    assert_source_record_id(fact.location_record_id(), "location-3");
+    assert_source_record_id(fact.service_type_record_id(), "boarding-suite");
+    assert_eq!(fact.source_system(), source::System::Gingr);
+    assert_eq!(fact.provenance(), source_reservation.provenance());
 }
 
 #[test]

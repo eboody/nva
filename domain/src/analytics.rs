@@ -49,6 +49,7 @@ pub mod stay {
         service_type_record_id: source::record::Id,
         projection_version: analytics::ProjectionVersion,
         data_quality_status: DataQualityStatus,
+        data_quality_issues: Vec<data_quality::Issue>,
     }
 
     impl Fact {
@@ -62,6 +63,11 @@ pub mod stay {
             if issues.iter().any(data_quality::Issue::workflow_blocking) {
                 return Err(issues);
             }
+            let data_quality_status = if issues.is_empty() {
+                DataQualityStatus::Complete
+            } else {
+                DataQualityStatus::ManagerReviewRequired
+            };
 
             let customer_record_id = source_reservation
                 .customer_record_id()
@@ -89,7 +95,8 @@ pub mod stay {
                 location_record_id,
                 service_type_record_id,
                 projection_version,
-                data_quality_status: DataQualityStatus::Complete,
+                data_quality_status,
+                data_quality_issues: issues,
             })
         }
 
@@ -131,6 +138,13 @@ pub mod stay {
 
         pub const fn data_quality_status(&self) -> DataQualityStatus {
             self.data_quality_status
+        }
+
+        /// Nonblocking source data-quality issues preserved on the projected stay fact.
+        ///
+        /// Workflow-blocking issues are returned as projection errors instead of producing a fact.
+        pub fn data_quality_issues(&self) -> &[data_quality::Issue] {
+            &self.data_quality_issues
         }
     }
 }
