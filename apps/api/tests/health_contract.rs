@@ -58,7 +58,7 @@ async fn readiness_endpoint_keeps_mvp_dependencies_explicitly_stubbed() {
 
 #[tokio::test]
 async fn inquiry_submission_creates_review_gated_intake_record() {
-    let app = http::router();
+    let app = http::router_with_state(http::VaccineDocumentState::default());
     let response = app
         .oneshot(
             axum_http::request::Builder::new()
@@ -122,7 +122,7 @@ async fn inquiry_submission_creates_review_gated_intake_record() {
 
 #[tokio::test]
 async fn inquiry_intake_records_are_visible_to_staff_review_queue() {
-    let app = http::router();
+    let app = http::router_with_state(http::VaccineDocumentState::default());
     let submit_response = app
         .clone()
         .oneshot(

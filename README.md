@@ -1,123 +1,146 @@
-# NVA
+# NVA pet-resort agent platform wiki
 
-A Rust-first spike for a 170-location pet resort workflow/agent platform.
+This workspace is a Rust-first foundation for safe pet-resort workflow automation across a multi-location operator. The repository is intentionally documentation-heavy: the READMEs are the maintainer wiki, and the Rust module paths are the glossary. Start here, then follow the crate and module READMEs into the code.
 
-The first step is to make the business boundary explicit before writing agents:
+The product goal is labor-cost reduction, not generic chat. The useful surfaces are the ones that reduce avoidable manager/front-desk handoffs: source-data normalization, deterministic policy checks, review-gated agent drafts, exception triage, outcome capture, and reusable operational workflows. [nva-pet-resorts-ai-context.md](nva-pet-resorts-ai-context.md) is the repository-level acceptance lens for that work; [docs/architecture/agent-app-infrastructure.md](docs/architecture/agent-app-infrastructure.md) describes the agent/app contract; [docs/design/manager-daily-brief-measurable-labor-loop.md](docs/design/manager-daily-brief-measurable-labor-loop.md) is the first measurable labor loop design; and [docs/audits/2026-06-18-agent-app-infrastructure-readiness.md](docs/audits/2026-06-18-agent-app-infrastructure-readiness.md) captures the current go/no-go posture.
 
-1. Model the core entities as Rust types.
-2. Model workflow events and structured results.
-3. Model automation/review policy as traits and decisions.
-4. Model external systems as tool traits.
-5. Let Hermes agents consume/produce typed packets rather than free-form strings.
+## Workspace map
 
-## Architecture
+The workspace members are declared in [Cargo.toml](Cargo.toml):
 
-This workspace follows a ports-and-adapters shape with one important rule:
+- `domain` — semantic truths: pet-resort entities, service-line contracts, workflow events, source provenance, policies, review gates, evidence, and invariant-bearing values. Start with [domain/README.md](domain/README.md) and [domain/src/lib.rs](domain/src/lib.rs).
+- `app` — use cases and agent-safe workflows that compose `domain` concepts into typed packets, deterministic evaluations, draft validation, audit drafts, and tool-port contracts. Start with [app/README.md](app/README.md) and [app/src/lib.rs](app/src/lib.rs).
+- `storage` — storage-shaped records/projections, stable codes, codecs, and explicit promotion/demotion between persisted records and `domain` values. Start with [storage/README.md](storage/README.md) and [storage/src/lib.rs](storage/src/lib.rs).
+- `integrations/gingr` — Gingr provider adapter boundary: DTOs, endpoints, transport, webhooks, responses, and mapping into source-agnostic/domain concepts. Start with [integrations/gingr/README.md](integrations/gingr/README.md) and [integrations/gingr/src/lib.rs](integrations/gingr/src/lib.rs).
+- `apps/api` — HTTP runtime shell over the app/domain contracts. It owns route shape and runtime policy gates, not the domain model. See [apps/api/src/lib.rs](apps/api/src/lib.rs), [apps/api/src/http.rs](apps/api/src/http.rs), and [apps/api/src/main.rs](apps/api/src/main.rs).
+- `apps/worker` — background-worker runtime shell for deterministic/stubbed local execution and future durable jobs. Start with [apps/worker/README.md](apps/worker/README.md) and [apps/worker/src/lib.rs](apps/worker/src/lib.rs).
+- `apps/cli` — operator/developer CLI shell for local inspection of app-owned agent/tool surfaces. Start with [apps/cli/README.md](apps/cli/README.md) and [apps/cli/src/main.rs](apps/cli/src/main.rs).
 
-> `domain` defines what is true. `app` defines what the system needs to do. Adapters satisfy those app-defined contracts. Runtime crates only wire and boot the process.
+The dependency direction is deliberate:
 
 ```text
-domain
+domain                 semantic truths and invariants
   ↑
-app
+app                    use cases, ports, workflow packets, agent-safe drafts
   ↑
-storage / integrations/*
+storage / integrations persistence records and provider adapters
   ↑
-apps/api / apps/worker / apps/cli
+apps/*                 runtime shells: HTTP, worker, CLI
 ```
 
-### Crate responsibilities
+Keep provider vocabulary, storage codes, HTTP details, and runtime concerns from leaking upward. If a concept becomes important to business logic, promote it into a semantic `domain::*` type and adapt at the boundary.
 
-- `domain` — pure pet-resort language: entities, service-line contracts, workflow events, policies, review gates, semantic IDs/statuses, and invariant-bearing values. This crate should not know about databases, HTTP servers, queues, or provider APIs.
-- `app` — application use-cases and ports. Workflows such as booking triage or daily updates compose domain contracts and declare the repository/service/tool traits they need, e.g. customer lookup, reservation availability, payment gateway, portal lookup, messaging draft, document intake, media capture, and agent runtime.
-- `storage` — persistence adapter boundary. It owns storage-shaped records, stable storage codes, codecs, and promotion/demotion between storage records and `domain` values. As concrete persistence is built out, storage implementations should satisfy traits defined by `app`, not define application behavior themselves.
-- `integrations/gingr` — Gingr provider adapter boundary. It owns provider DTOs, endpoint request/response contracts, transport, webhook verification, and mappings into domain/app contracts while quarantining provider vocabulary inside the integration crate.
-- `apps/api` — thin HTTP runtime shell. It should parse/serialize HTTP, load config, wire concrete adapters into app services, and expose routes.
-- `apps/worker` — thin background-worker runtime shell. It should wire queues/schedules to app services without owning business contracts.
-- `apps/cli` — thin operator CLI shell for local/manual workflows.
+## README index
 
-### Port ownership
+Crate READMEs:
 
-Repository and service traits belong in `app` when they describe capabilities the application needs:
+- `domain`: [domain/README.md](domain/README.md)
+- `app`: [app/README.md](app/README.md)
+- `storage`: [storage/README.md](storage/README.md)
+- `integrations/gingr`: [integrations/gingr/README.md](integrations/gingr/README.md)
+- `apps/worker`: [apps/worker/README.md](apps/worker/README.md)
+- `apps/cli`: [apps/cli/README.md](apps/cli/README.md)
 
-```rust
-app::customer::Repository
-app::reservation::Repository
-app::payment::Gateway
-app::portal::Lookup
-app::agent::Runtime
+Domain module READMEs:
+
+- Boarding: [domain/src/boarding/README.md](domain/src/boarding/README.md)
+- Daycare: [domain/src/daycare/README.md](domain/src/daycare/README.md)
+- Grooming: [domain/src/grooming/README.md](domain/src/grooming/README.md)
+- Money: [domain/src/money/README.md](domain/src/money/README.md)
+- Payment: [domain/src/payment/README.md](domain/src/payment/README.md)
+- Reservation: [domain/src/reservation/README.md](domain/src/reservation/README.md)
+- Retail: [domain/src/retail/README.md](domain/src/retail/README.md)
+- Training: [domain/src/training/README.md](domain/src/training/README.md)
+
+Storage module READMEs:
+
+- Service-line records/codecs: [storage/src/service_line/README.md](storage/src/service_line/README.md)
+
+Gingr module READMEs:
+
+- Endpoint requests: [integrations/gingr/src/endpoint/README.md](integrations/gingr/src/endpoint/README.md)
+- Provider DTOs: [integrations/gingr/src/dto/README.md](integrations/gingr/src/dto/README.md)
+- Mapping/promotion: [integrations/gingr/src/mapping/README.md](integrations/gingr/src/mapping/README.md)
+- Integration docs and fixtures: [docs/integrations/gingr/README.md](docs/integrations/gingr/README.md), [docs/integrations/gingr/fixtures/webhooks/README.md](docs/integrations/gingr/fixtures/webhooks/README.md)
+
+## Type/module map
+
+The primary flow is:
+
+```text
+Gingr/provider payloads
+  -> integrations::gingr::dto::* / integrations::gingr::endpoint::*
+  -> integrations::gingr::mapping::* candidates and source refs
+  -> domain::* semantic truths and source/provenance values
+  -> app::* workflow requests, deterministic evaluations, review packets, drafts, and tool ports
+  -> storage::* records/projections/outcome rows
+  -> apps/* runtime shells for HTTP, workers, or CLI inspection
 ```
 
-Concrete adapters implement those ports:
+Important public surfaces:
 
-```rust
-storage::customer::postgres::Repository     -> app::customer::Repository
-storage::reservation::memory::Repository    -> app::reservation::Repository
-integrations::gingr::Portal                 -> app::portal::Lookup
-```
+| Concept | Public path | Representative files |
+| --- | --- | --- |
+| Workspace membership and shared dependencies | [Cargo.toml](Cargo.toml) workspace members/dependencies | [Cargo.toml](Cargo.toml) |
+| Domain crate root | `domain::*` modules | [domain/src/lib.rs](domain/src/lib.rs), [domain/README.md](domain/README.md) |
+| Service-line truths | `domain::boarding`, `domain::daycare`, `domain::grooming`, `domain::retail`, `domain::training` | [domain/src/boarding/mod.rs](domain/src/boarding/mod.rs), [domain/src/daycare/mod.rs](domain/src/daycare/mod.rs), [domain/src/grooming/mod.rs](domain/src/grooming/mod.rs), [domain/src/retail/mod.rs](domain/src/retail/mod.rs), [domain/src/training/mod.rs](domain/src/training/mod.rs) |
+| Reservation policy and transitions | `domain::reservation::{MinimumAgeWeeks, AgeThreshold, TransitionReason}` | [domain/src/reservation/mod.rs](domain/src/reservation/mod.rs), [domain/src/reservation/error.rs](domain/src/reservation/error.rs) |
+| Money and payment safety | `domain::money::{Money, MinorUnits, Currency}`, `domain::payment::*` | [domain/src/money/mod.rs](domain/src/money/mod.rs), [domain/src/payment/mod.rs](domain/src/payment/mod.rs) |
+| Workflow review boundary | `domain::workflow::{PolicyContext, AllowedAction, Result, Status, RecommendedAction}` | [domain/src/workflow.rs](domain/src/workflow.rs) |
+| Source/provenance boundary | `domain::source::{RecordRef, Provenance}`, `domain::source::reservation::*`, `domain::source::gingr::*` | [domain/src/source.rs](domain/src/source.rs) |
+| Data-quality exception triage | `domain::data_quality::{Issue, FieldPath, Kind, Severity, ResolutionStatus}` | [domain/src/data_quality.rs](domain/src/data_quality.rs) |
+| Manager daily brief truths | `domain::daily_brief::{Section, Risk, Action, LaborSnapshot}` | [domain/src/daily_brief.rs](domain/src/daily_brief.rs) |
+| Agent specs and prompt packets | `app::agents::{AgentSpec, WorkflowAgent, AgentPromptPacket}` | [app/src/agents.rs](app/src/agents.rs) |
+| Booking triage use case | `app::booking_triage::{Request, DeterministicResult, StaffEvaluationPacket, Service}` | [app/src/booking_triage.rs](app/src/booking_triage.rs) |
+| Daily update / checkout / CRM workflows | `app::daily_update`, `app::checkout_completion`, `app::crm_retention` | [app/src/daily_update.rs](app/src/daily_update.rs), [app/src/checkout_completion.rs](app/src/checkout_completion.rs), [app/src/crm_retention.rs](app/src/crm_retention.rs) |
+| Manager daily brief workflow | `app::manager_daily_brief::*` | [app/src/manager_daily_brief.rs](app/src/manager_daily_brief.rs) |
+| External tool ports | `app::tools::{CustomerStore, ReservationSystem, AgentRuntime, ExternalToolCandidate}` and nested `availability`, `draft_update`, `portal`, `payment`, `messaging`, `documents`, `media`, `hermes` modules | [app/src/tools.rs](app/src/tools.rs), [app/src/tools/error.rs](app/src/tools/error.rs) |
+| Storage operation records | `storage::operations::{RecordKind, CodecError, ManagerDailyBriefOutcomeRecord, PetResortPortfolioRecord, ServiceOfferingRecord}` | [storage/src/operations.rs](storage/src/operations.rs) |
+| Storage service-line codecs | `storage::service_line::{boarding, daycare, grooming, retail, training}` contract records and stable codes | [storage/src/service_line/mod.rs](storage/src/service_line/mod.rs), [storage/src/service_line/boarding.rs](storage/src/service_line/boarding.rs), [storage/src/service_line/daycare.rs](storage/src/service_line/daycare.rs), [storage/src/service_line/grooming.rs](storage/src/service_line/grooming.rs), [storage/src/service_line/retail.rs](storage/src/service_line/retail.rs), [storage/src/service_line/training.rs](storage/src/service_line/training.rs) |
+| Gingr provider config/transport | `gingr::{Provider, BaseUrl, ApiKey, Subdomain}`, `gingr::transport::{Transport, Client, RequestParts}` | [integrations/gingr/src/config.rs](integrations/gingr/src/config.rs), [integrations/gingr/src/transport.rs](integrations/gingr/src/transport.rs) |
+| Gingr endpoint vocabulary | `gingr::endpoint::{Request, Method, DateRange, Limit, Reservations}` plus endpoint modules | [integrations/gingr/src/endpoint/mod.rs](integrations/gingr/src/endpoint/mod.rs), [integrations/gingr/src/endpoint/reservations.rs](integrations/gingr/src/endpoint/reservations.rs), [integrations/gingr/src/endpoint/owners_animals.rs](integrations/gingr/src/endpoint/owners_animals.rs), [integrations/gingr/src/endpoint/labor_ops.rs](integrations/gingr/src/endpoint/labor_ops.rs), [integrations/gingr/src/endpoint/commerce_retail.rs](integrations/gingr/src/endpoint/commerce_retail.rs) |
+| Gingr DTO boundary | `gingr::dto::{ProviderSurface, grooming, retail, training}` | [integrations/gingr/src/dto/mod.rs](integrations/gingr/src/dto/mod.rs), [integrations/gingr/src/dto/grooming.rs](integrations/gingr/src/dto/grooming.rs), [integrations/gingr/src/dto/retail.rs](integrations/gingr/src/dto/retail.rs), [integrations/gingr/src/dto/training.rs](integrations/gingr/src/dto/training.rs) |
+| Gingr semantic promotion | `gingr::mapping::{ProviderField, Error}`, `gingr::mapping::customer::ContactCandidate`, `gingr::mapping::pet::NameCandidate`, `gingr::mapping::retail::ProductCandidate` | [integrations/gingr/src/mapping/mod.rs](integrations/gingr/src/mapping/mod.rs), [integrations/gingr/src/mapping/customer.rs](integrations/gingr/src/mapping/customer.rs), [integrations/gingr/src/mapping/pet.rs](integrations/gingr/src/mapping/pet.rs), [integrations/gingr/src/mapping/retail.rs](integrations/gingr/src/mapping/retail.rs) |
+| Gingr webhook/response wrappers | `gingr::webhook::{Envelope, Verified, Payload, Ack}`, `gingr::response::{Raw, Envelope}` | [integrations/gingr/src/webhook.rs](integrations/gingr/src/webhook.rs), [integrations/gingr/src/response.rs](integrations/gingr/src/response.rs) |
+| API runtime shell | `pet_resort_api::http`, `pet_resort_api::http::VaccineDocumentState` | [apps/api/src/lib.rs](apps/api/src/lib.rs), [apps/api/src/http.rs](apps/api/src/http.rs), [apps/api/src/main.rs](apps/api/src/main.rs) |
+| Worker runtime shell | `pet_resort_worker::runtime::{Config, AgentRuntimeMode, SideEffectMode}` | [apps/worker/src/lib.rs](apps/worker/src/lib.rs), [apps/worker/src/runtime.rs](apps/worker/src/runtime.rs) |
+| CLI runtime shell | `pet-resort agents`, `pet-resort tools` commands over app surfaces | [apps/cli/src/main.rs](apps/cli/src/main.rs) |
 
-The runtime crates should compose these pieces rather than define the contracts. `apps/api` and `apps/worker` may define runtime-local glue such as shutdown signals or job runners, but business/application traits should stay in `app` so every runtime shares the same contract surface.
+## Cross-crate relationships
 
+- `domain` is the semantic center. Its README ([domain/README.md](domain/README.md)) links the service-line modules and explains where truths such as `domain::workflow::AllowedAction`, `domain::source::Provenance`, and `domain::daily_brief::Action` live.
+- `app` depends on `domain` and owns use-case orchestration. Its README ([app/README.md](app/README.md)) is the entrypoint for `app::booking_triage`, `app::manager_daily_brief`, `app::agents`, and `app::tools`.
+- `storage` depends on `domain` so persisted records can promote/demote into semantic values. It should satisfy app-needed capabilities rather than inventing workflow behavior. See [storage/README.md](storage/README.md) and [storage/src/service_line/README.md](storage/src/service_line/README.md).
+- `integrations/gingr` translates external/provider facts into source-grounded app/domain inputs. Use [integrations/gingr/src/dto/README.md](integrations/gingr/src/dto/README.md) for raw provider payloads, [integrations/gingr/src/endpoint/README.md](integrations/gingr/src/endpoint/README.md) for request construction, and [integrations/gingr/src/mapping/README.md](integrations/gingr/src/mapping/README.md) for semantic promotion.
+- `apps/api`, `apps/worker`, and `apps/cli` are runtime shells. They should wire app services, parse runtime input, expose local/manual surfaces, and keep business contracts in `domain`/`app`.
+
+## Navigation by job
+
+- To understand the domain language, read [domain/README.md](domain/README.md), then the relevant module README under `domain/src/*/README.md`, then the linked Rust module.
+- To add or review an agent-safe workflow, start in [app/README.md](app/README.md), then inspect [app/src/agents.rs](app/src/agents.rs), [app/src/tools.rs](app/src/tools.rs), and the specific workflow module such as [app/src/booking_triage.rs](app/src/booking_triage.rs) or [app/src/manager_daily_brief.rs](app/src/manager_daily_brief.rs).
+- To connect a provider field, start in [integrations/gingr/README.md](integrations/gingr/README.md), keep raw fields in `integrations/gingr/src/dto`, build requests in `integrations/gingr/src/endpoint`, and promote only named, reviewed facts through `integrations/gingr/src/mapping` into `domain::source` or another domain module.
+- To persist a concept, start in [storage/README.md](storage/README.md); add storage-shaped records/codes in [storage/src/operations.rs](storage/src/operations.rs) or `storage/src/service_line/*`, and keep conversion to/from `domain` explicit.
+- To wire a runtime, start in [apps/api/src/http.rs](apps/api/src/http.rs), [apps/worker/src/runtime.rs](apps/worker/src/runtime.rs), or [apps/cli/src/main.rs](apps/cli/src/main.rs); runtime crates should stay thin.
 
 ## Rust quality conventions
 
-This repo should bias toward making invalid business states unrepresentable early:
+The repo biases toward making invalid business states unrepresentable:
 
 - Use `nutype` for semantic scalar values that need trimming, non-empty checks, length limits, or future validation.
-- Use `bon` for ordinary domain builders so required fields are compile-checked and call sites stay named. Entity aggregates with many meaningful fields (`Pet`, `Reservation`, `Customer`) should expose builders with defaults for optional/collection fields instead of forcing raw struct literals everywhere.
-- Use `statum` when a workflow phase should change what methods are legally callable; e.g. booking triage must attach pet profile and policy context before it can become ready for deterministic policy decisions.
-- Keep semantic names module-qualified at call sites (`agent::Spec`, `pet::Name`, `booking_triage::Request<Intake>`) rather than flattening everything into globally verbose type names. For ergonomic consumers, `domain::prelude` re-exports common boundary contracts with disambiguated aliases such as `AgentName` and `AgentSpec`.
+- Use `bon` builders when construction has multiple meaningful fields and named call sites reduce review mistakes.
+- Use `statum` when a workflow phase should change what methods are legally callable.
+- Preserve semantic module paths in prose and code: prefer `domain::boarding::capacity::Policy` style paths over flattened aliases when the path carries meaning.
+- Keep boundary ugliness quarantined. DTOs, database rows, HTTP bodies, and external status codes should convert into semantic values before they drive business decisions.
 
-The `domain_quality_patterns` integration test is the living example for these conventions. See `docs/architecture/domain-quality-gate.md` for the rule that implementation work should pause for prerequisite domain refactors when a tweak exposes weak abstractions, and `docs/quality/semantic-code-doctrine-inventory.md` for the current completed/debt inventory.
+The living acceptance lens is labor saved with safety preserved: fewer manual checks, source-grounded drafts, deterministic triage, cleaner handoffs, stronger review packets, and better exception queues.
 
-## Where we are: labor-cost reduction platform
+## Verification
 
-This repository is currently a typed local/demo foundation for turning messy pet-resort operations into safe, measurable AI-assisted workflows. It is intentionally not a generic chatbot repo. The north star is labor-cost reduction through operational leverage: fewer manual dashboard checks, faster staff triage, better manager action briefs, cleaner source evidence, safer customer-message drafts, and reusable workflow controls across a 170-location, multi-brand pet-resort portfolio.
+For code changes, run:
 
-What is strong now:
+```sh
+cargo fmt --check
+cargo test --workspace --no-run
+```
 
-- The architecture treats Gingr as one upstream operational source, not as the domain model. The current source boundary is `Gingr DTO -> Gingr snapshot -> source-agnostic reservation snapshot -> analytics stay fact -> future workflow-validator evidence`.
-- Domain/app/storage/integration crates keep business contracts, use-case ports, persistence records, and provider DTOs separated.
-- Core pet-resort workflows are represented with semantic Rust types, builders, review gates, provenance, data-quality issues, audit events, and draft-only AI boundaries.
-- The local/demo MVP covers inquiry intake, booking triage, vaccine document review, staff operations, daily care updates, incident escalation, and staff-web smoke surfaces without live customer sends, provider/PMS mutation, or payment movement.
-- Baseline agent specs are bounded around concrete operational jobs: manager daily brief, lead conversion, grooming rebooking, reputation triage, SOP/policy assistance, and the MVP workflow agents.
-- The canonical local gate is `./scripts/test.sh`, which runs Rust formatting, clippy, workspace tests, and staff-web typecheck/lint/smoke tests when frontend dependencies are installed.
-
-What is not done yet:
-
-- The repo does not yet close a full executable local/demo journey from inquiry through checkout and retention.
-- Checkout/completion and CRM/retention are weaker than intake, booking, vaccine, daily-update, and incident slices.
-- Idempotency/replay, redaction, and evidence hygiene are not yet proven across the whole workflow chain.
-- The labor-cost story needs at least one measurable loop that connects source facts, operational recommendations, staff action, and outcome measurement.
-- Live customer use, production deployment, live messaging, provider/PMS writes, payment actions, and safety-sensitive decisions remain explicit no-go areas without human approval and smoke evidence.
-
-The next implementation sequence is:
-
-1. Add the full-chain local E2E smoke harness: `inquiry -> profile -> vaccine docs -> booking triage -> confirmation draft -> check-in/today view -> staff note/daily update draft -> checkout/completion -> follow-up/retention`.
-2. Add checkout/completion plus CRM/retention executable contracts so the stay lifecycle closes in code, API/persistence, and staff UI evidence.
-3. Add a Manager Daily Brief measurable labor loop that turns source/service-demand evidence into prioritized manager actions, captures feedback/outcomes, and estimates labor impact.
-
-The target product posture after these slices is not “AI can answer questions.” It is: **safe operational agents that reduce avoidable labor by producing source-grounded drafts, review packets, manager actions, and measurable outcomes.**
-
-## Call prep questions for Tyler
-
-1. Is the 170-location operator actually NVA/PetSuites, a franchise/network, or a similar pet-resort group?
-2. What is the incumbent source of truth: Gingr, another kennel/PMS system, custom software, spreadsheets, or mixed by location?
-3. Are they asking for replacement software, an AI workflow layer on top of the incumbent system, or internal automation prototypes?
-4. Which first workflow matters most: inquiry intake, booking triage, vaccine/document review, daily updates, incident escalation, or staff operations?
-5. Do agents need live write access initially, or should v1 be draft/recommendation-only?
-6. What data access can they provide: sandbox portal, API docs, exports, database snapshots, sample PDFs/photos/notes, or screen recordings?
-7. What are the hard compliance/safety lines for medical/vaccine decisions, group-play eligibility, incidents, refunds/deposits, and customer messages?
-8. What channels matter first: email, SMS, portal messages, phones/transcripts, webcams, internal task queues?
-9. What does success look like in 30 days: architecture, prototype, one workflow in pilot, or cross-location platform plan?
-
-## Suggested first engineering slice
-
-Build a deterministic `booking_triage` pipeline around typed inputs/outputs:
-
-- Input: reservation request + pet profile + vaccine state + location policy + capacity snapshot.
-- Deterministic stage: hard stops and eligibility rules.
-- Agent stage: draft explanation, missing-info questions, and internal tasks.
-- Output: `WorkflowResult<BookingTriageOutput>` with review gates.
-
-This demonstrates the right architecture: normal Rust application logic owns policy, state, and writes; Hermes/LLM agents are bounded assistants that receive typed context and return validated structured output.
+For docs-only README changes, also run a local-link existence check over Markdown links so wiki navigation does not rot.

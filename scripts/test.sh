@@ -6,6 +6,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
+python -m unittest scripts.tests.test_hermes_agent_bridge -v
 
 if [[ -d node_modules ]]; then
   npm --workspace @pet-resort/staff-web run typecheck

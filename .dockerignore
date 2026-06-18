@@ -1,0 +1,17 @@
+# Keep local build artifacts and dependency caches out of Rust image contexts.
+.git
+.gitignore
+
+/target
+**/target
+
+/node_modules
+**/node_modules
+/.next
+**/.next
+
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example

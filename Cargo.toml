@@ -28,6 +28,7 @@ http-body-util = "0.1"
 nutype = { version = "0.7", features = ["serde"] }
 domain = { path = "domain" }
 app = { path = "app" }
+storage = { path = "storage" }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 secrecy = "0.8"
 serde = { version = "1.0", features = ["derive"] }

@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: pet_resort
       POSTGRES_DB: pet_resort
     ports:
-      - "127.0.0.1:54329:5432"
+      - "127.0.0.1:${PET_RESORT_POSTGRES_HOST_PORT:-54329}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U pet_resort -d pet_resort"]
       interval: 5s
@@ -22,8 +22,8 @@ services:
       MINIO_ROOT_USER: pet_resort_local
       MINIO_ROOT_PASSWORD: pet_resort_local_password
     ports:
-      - "127.0.0.1:9000:9000"
-      - "127.0.0.1:9001:9001"
+      - "127.0.0.1:${PET_RESORT_MINIO_HOST_PORT:-9000}:9000"
+      - "127.0.0.1:${PET_RESORT_MINIO_CONSOLE_HOST_PORT:-9001}:9001"
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 5s
@@ -32,6 +32,78 @@ services:
     volumes:
       - pet_resort_minio:/data
 
+  pet-resort-api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      PET_RESORT_API_ADDR: 0.0.0.0:3001
+      DATABASE_URL: postgres://pet_resort:pet_resort@postgres:5432/pet_resort
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: pet_resort_local
+      MINIO_SECRET_KEY: pet_resort_local_password
+      MINIO_BUCKET: pet-resort-evidence-local
+      PET_RESORT_AGENT_RUNTIME_MODE: fake
+      LIVE_CUSTOMER_MESSAGING: disabled
+      LIVE_PROVIDER_WRITES: disabled
+    ports:
+      - "127.0.0.1:${PET_RESORT_API_HOST_PORT:-3001}:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3001/healthz >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  pet-resort-worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    environment:
+      DATABASE_URL: postgres://pet_resort:pet_resort@postgres:5432/pet_resort
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: pet_resort_local
+      MINIO_SECRET_KEY: pet_resort_local_password
+      MINIO_BUCKET: pet-resort-evidence-local
+      PET_RESORT_AGENT_RUNTIME_MODE: fake
+      PET_RESORT_SIDE_EFFECT_MODE: stubbed
+      PET_RESORT_API_URL: http://pet-resort-api:3001
+      LIVE_CUSTOMER_MESSAGING: disabled
+      LIVE_PROVIDER_WRITES: disabled
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      pet-resort-api:
+        condition: service_healthy
+
+  openviking:
+    image: ghcr.io/volcengine/openviking:latest
+    profiles:
+      - agent-infra
+    environment:
+      OPENVIKING_PUBLIC_BASE_URL: ${OPENVIKING_PUBLIC_BASE_URL:-}
+      OPENVIKING_WITH_BOT: ${OPENVIKING_WITH_BOT:-0}
+      OPENVIKING_CONFIG_FILE: ${OPENVIKING_CONFIG_FILE:-/app/.openviking/ov.conf}
+      OPENVIKING_CONF_CONTENT: ${OPENVIKING_CONF_CONTENT:-}
+    ports:
+      - "127.0.0.1:${PET_RESORT_OPENVIKING_HOST_PORT:-1933}:1933"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:1933/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    volumes:
+      - pet_resort_openviking:/app/.openviking
+
 volumes:
   pet_resort_postgres:
   pet_resort_minio:
+  pet_resort_openviking:

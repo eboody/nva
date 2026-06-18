@@ -23,6 +23,12 @@ const requiredOperationalSurfaces = [
   "Staff notes",
   "Incident entry",
   "Incident list",
+  "Manager Daily Brief",
+  "Daily brief action review",
+  "Review gates",
+  "Blocked action boundaries",
+  "Outcome capture",
+  "Labor savings evidence",
   "Audit-visible staff actions"
 ];
 
@@ -78,5 +84,26 @@ test("vaccine document review UI shows upload extraction approval eligibility an
     "approval.decision.recorded"
   ]) {
     assert.match(page, new RegExp(expected, "i"), `missing vaccine document MVP evidence: ${expected}`);
+  }
+});
+
+test("manager daily brief UI exposes review outcomes and labor-savings loop", () => {
+  for (const expected of [
+    "Manager Daily Brief",
+    "source evidence summary",
+    "Daily brief action review",
+    "Approve action",
+    "Defer action",
+    "Suppress action",
+    "Source fact wrong",
+    "actual minutes spent",
+    "estimated vs actual labor minutes saved",
+    "change_staff_schedule",
+    "mutate_provider_or_pms_record",
+    "send_customer_message",
+    "move_refund_discount_or_payment",
+    "hide_source_data_quality_issue"
+  ]) {
+    assert.match(page, new RegExp(expected, "i"), `missing manager daily brief UI evidence: ${expected}`);
   }
 });

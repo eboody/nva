@@ -54,6 +54,127 @@ pub enum StorageField {
     BrandName,
     GroomingCadenceWeeks,
     TrainingProgramDurationWeeks,
+    ManagerDailyBriefLaborMinutes,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+pub struct StoredSourceRecordRef {
+    pub system: String,
+    pub record_type: String,
+    pub record_id: String,
+    pub observed_at: String,
+    pub adapter_version: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ManagerDailyBriefOutcomeCode {
+    Completed,
+    Deferred,
+    SuppressedByManager,
+    SourceFactWasWrong,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ManagerDailyBriefPersonaCode {
+    GeneralManager,
+    AssistantGeneralManager,
+    FrontDeskLead,
+    FrontDeskAgent,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ManagerDailyBriefActionKindCode {
+    ReviewDemandAgainstStaffingPlan,
+    ResolveCheckoutException,
+    ApproveRetentionFollowUpDraft,
+    InvestigateSourceDataQualityIssue,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ManagerDailyBriefReportingGroup {
+    pub location_id: String,
+    pub operating_day: String,
+    pub action_kind: ManagerDailyBriefActionKindCode,
+    pub owner_persona: ManagerDailyBriefPersonaCode,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(transparent)]
+pub struct StoredManagerDailyBriefLaborMinutes(u16);
+
+impl StoredManagerDailyBriefLaborMinutes {
+    pub fn try_new(value: u16) -> Result<Self> {
+        if value == 0 {
+            return Err(Error::InvalidDomainValue {
+                field: StorageField::ManagerDailyBriefLaborMinutes,
+                reason: "must be greater than zero".to_owned(),
+            });
+        }
+
+        Ok(Self(value))
+    }
+
+    pub const fn get(self) -> u16 {
+        self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for StoredManagerDailyBriefLaborMinutes {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = u16::deserialize(deserializer)?;
+        Self::try_new(value).map_err(serde::de::Error::custom)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+pub struct ManagerDailyBriefOutcomeRecord {
+    pub action_id: String,
+    pub outcome: ManagerDailyBriefOutcomeCode,
+    pub before_minutes: StoredManagerDailyBriefLaborMinutes,
+    pub actual_minutes: StoredManagerDailyBriefLaborMinutes,
+    pub actor_id: String,
+    pub actor_persona: ManagerDailyBriefPersonaCode,
+    pub feedback: String,
+    #[builder(default)]
+    pub source_refs: Vec<StoredSourceRecordRef>,
+    pub recorded_at: String,
+    pub correlation_id: String,
+    pub location_id: String,
+    pub operating_day: String,
+    pub action_kind: ManagerDailyBriefActionKindCode,
+    pub owner_persona: ManagerDailyBriefPersonaCode,
+    pub estimated_minutes_saved: u16,
+}
+
+impl ManagerDailyBriefOutcomeRecord {
+    pub fn decode_json(raw: &str) -> Result<Self> {
+        serde_json::from_str(raw).map_err(|source| CodecError::JsonDecode { source }.into())
+    }
+
+    pub fn encode_json(&self) -> Result<String> {
+        serde_json::to_string(self).map_err(|source| CodecError::JsonEncode { source }.into())
+    }
+
+    pub const fn actual_minutes_saved(&self) -> u16 {
+        self.before_minutes
+            .get()
+            .saturating_sub(self.actual_minutes.get())
+    }
+
+    pub fn reporting_group(&self) -> ManagerDailyBriefReportingGroup {
+        ManagerDailyBriefReportingGroup {
+            location_id: self.location_id.clone(),
+            operating_day: self.operating_day.clone(),
+            action_kind: self.action_kind,
+            owner_persona: self.owner_persona,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]

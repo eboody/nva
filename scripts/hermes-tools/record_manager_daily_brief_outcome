@@ -1,0 +1,34 @@
+#!/usr/bin/env python3
+"""Record reviewed Manager Daily Brief outcome feedback through the app API."""
+
+from __future__ import annotations
+
+import argparse
+from urllib import parse
+
+from pet_resort_api import BridgeError, add_payload_file_argument, fail_safe, read_json_payload, request_json, write_json
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Post reviewed Manager Daily Brief action outcome feedback to the deterministic app."
+    )
+    parser.add_argument("--action-id", required=True, help="Manager Daily Brief action id being reviewed.")
+    add_payload_file_argument(parser, "outcome")
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    try:
+        outcome = read_json_payload(args.payload_file)
+        action_id = parse.quote(args.action_id, safe="")
+        payload = request_json("POST", f"/manager-daily-brief/actions/{action_id}/outcome", body=outcome)
+        write_json(payload)
+        return 0
+    except BridgeError as exc:
+        return fail_safe(exc)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

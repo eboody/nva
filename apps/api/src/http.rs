@@ -1,11 +1,14 @@
+use app::{checkout_completion, crm_retention, manager_daily_brief};
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     routing::{get, post},
 };
-use chrono::{NaiveDate, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
+use domain::{analytics, data_quality, entities, message, operations, policy, source};
 use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, sync::Arc};
 use tokio::sync::Mutex;
@@ -35,6 +38,7 @@ struct VaccineDocumentStore {
     review_packets: BTreeMap<Uuid, ReviewPacket>,
     approvals: BTreeMap<Uuid, ApprovalRecord>,
     eligibility: BTreeMap<Uuid, PetEligibility>,
+    manager_daily_brief_outcomes: Vec<storage::operations::ManagerDailyBriefOutcomeRecord>,
     inquiry_intake_records: Vec<InquiryIntakeRecord>,
     audit_events: Vec<AuditEvent>,
 }
@@ -279,6 +283,18 @@ pub fn router_with_state(state: VaccineDocumentState) -> Router {
         .route("/readyz", get(readyz))
         .route("/inquiries", post(submit_inquiry))
         .route("/staff/inquiries", get(staff_inquiries))
+        .route(
+            "/agent/context/manager-daily-brief",
+            get(manager_daily_brief_agent_context),
+        )
+        .route(
+            "/agent/drafts/manager-daily-brief",
+            post(submit_manager_daily_brief_agent_draft),
+        )
+        .route(
+            "/manager-daily-brief/actions/{action_id}/outcome",
+            post(capture_manager_daily_brief_action_outcome),
+        )
         .route("/vaccine-documents/uploads", post(upload_vaccine_document))
         .route(
             "/vaccine-documents/review-packets/{review_packet_id}/approve",
@@ -327,6 +343,511 @@ async fn staff_inquiries(
     Json(InquiryStaffQueuePayload {
         records: store.inquiry_intake_records.clone(),
     })
+}
+
+#[derive(Debug, Deserialize)]
+struct ManagerDailyBriefAgentContextQuery {
+    location_id: Uuid,
+    operating_day: NaiveDate,
+}
+
+#[derive(Debug, Deserialize)]
+struct ManagerDailyBriefAgentDraftSubmissionRequest {
+    context_packet_id: String,
+    correlation_id: String,
+    submitted_by: String,
+    actions: Vec<ManagerDailyBriefSubmittedAction>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ManagerDailyBriefSubmittedAction {
+    id: String,
+    kind: String,
+    recommendation: String,
+    #[serde(default)]
+    source_refs: Vec<Value>,
+    #[serde(default)]
+    review_gates: Vec<String>,
+    #[serde(default)]
+    requested_side_effects: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ManagerDailyBriefOutcomeCaptureRequest {
+    outcome: storage::operations::ManagerDailyBriefOutcomeCode,
+    actual_minutes: u16,
+    actor: ManagerDailyBriefOutcomeActorRequest,
+    feedback: String,
+    #[serde(default)]
+    source_refs: Vec<storage::operations::StoredSourceRecordRef>,
+    timestamp: String,
+    audit: ManagerDailyBriefOutcomeAuditRequest,
+    reporting: ManagerDailyBriefOutcomeReportingRequest,
+    #[serde(default)]
+    requested_side_effects: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ManagerDailyBriefOutcomeActorRequest {
+    id: String,
+    persona: storage::operations::ManagerDailyBriefPersonaCode,
+}
+
+#[derive(Debug, Deserialize)]
+struct ManagerDailyBriefOutcomeAuditRequest {
+    correlation_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ManagerDailyBriefOutcomeReportingRequest {
+    location_id: String,
+    operating_day: String,
+}
+
+async fn capture_manager_daily_brief_action_outcome(
+    State(state): State<VaccineDocumentState>,
+    Path(action_id): Path<String>,
+    Json(request): Json<ManagerDailyBriefOutcomeCaptureRequest>,
+) -> (StatusCode, Json<Value>) {
+    let reasons = request
+        .requested_side_effects
+        .iter()
+        .map(|side_effect| manager_daily_brief_requested_side_effect_rejection_reason(side_effect))
+        .collect::<Vec<_>>();
+
+    if !reasons.is_empty() {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({
+                "accepted": false,
+                "outcome_persisted": false,
+                "reasons": reasons,
+                "live_side_effects_allowed": false,
+                "blocked_actions": manager_daily_brief_blocked_action_codes()
+            })),
+        );
+    }
+
+    let Ok(actual_minutes) =
+        storage::operations::StoredManagerDailyBriefLaborMinutes::try_new(request.actual_minutes)
+    else {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({
+                "accepted": false,
+                "outcome_persisted": false,
+                "reasons": ["actual_minutes_must_be_greater_than_zero"],
+                "live_side_effects_allowed": false,
+                "blocked_actions": manager_daily_brief_blocked_action_codes()
+            })),
+        );
+    };
+
+    let Some((location_id, operating_day)) =
+        manager_daily_brief_reporting_scope(&request.reporting)
+    else {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({
+                "accepted": false,
+                "outcome_persisted": false,
+                "reasons": ["invalid_reporting_scope"],
+                "live_side_effects_allowed": false,
+                "blocked_actions": manager_daily_brief_blocked_action_codes()
+            })),
+        );
+    };
+
+    let packet = local_manager_daily_brief_packet(location_id, operating_day);
+    let Some(action) = packet
+        .actions()
+        .iter()
+        .find(|action| action.id().clone().into_inner() == action_id)
+    else {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({
+                "accepted": false,
+                "outcome_persisted": false,
+                "reasons": ["unknown_manager_daily_brief_action_id"],
+                "live_side_effects_allowed": false,
+                "blocked_actions": manager_daily_brief_blocked_action_codes()
+            })),
+        );
+    };
+
+    let before_minutes = storage::operations::StoredManagerDailyBriefLaborMinutes::try_new(
+        action.labor_impact().before_minutes().get(),
+    )
+    .expect("manager daily brief action labor impact uses non-zero domain labor minutes");
+
+    let record = storage::operations::ManagerDailyBriefOutcomeRecord::builder()
+        .action_id(action_id)
+        .outcome(request.outcome)
+        .before_minutes(before_minutes)
+        .actual_minutes(actual_minutes)
+        .actor_id(request.actor.id)
+        .actor_persona(request.actor.persona)
+        .feedback(request.feedback)
+        .source_refs(request.source_refs)
+        .recorded_at(request.timestamp)
+        .correlation_id(request.audit.correlation_id)
+        .location_id(location_id.0.to_string())
+        .operating_day(operating_day.get().to_string())
+        .action_kind(stored_manager_daily_brief_action_kind(action.kind()))
+        .owner_persona(stored_manager_daily_brief_persona(action.owner_persona()))
+        .estimated_minutes_saved(action.labor_impact().minutes_saved())
+        .build();
+    let reporting_group = record.reporting_group();
+    let persisted_outcome_count = {
+        let mut store = state.store.lock().await;
+        store.manager_daily_brief_outcomes.push(record.clone());
+        store.manager_daily_brief_outcomes.len()
+    };
+
+    (
+        StatusCode::CREATED,
+        Json(json!({
+            "accepted": true,
+            "outcome_persisted": true,
+            "outcome_record": {
+                "action_id": record.action_id,
+                "outcome": record.outcome,
+                "before_minutes": record.before_minutes.get(),
+                "actual_minutes": record.actual_minutes.get(),
+                "actor": {
+                    "id": record.actor_id,
+                    "persona": record.actor_persona
+                },
+                "feedback": record.feedback,
+                "source_refs": record.source_refs,
+                "timestamp": record.recorded_at,
+                "audit": {
+                    "correlation_id": record.correlation_id
+                }
+            },
+            "labor_savings_evidence": {
+                "estimated_minutes_saved": record.estimated_minutes_saved,
+                "actual_minutes_saved": record.actual_minutes_saved(),
+                "grouping": {
+                    "location_id": reporting_group.location_id,
+                    "operating_day": reporting_group.operating_day,
+                    "action_kind": reporting_group.action_kind,
+                    "owner_persona": reporting_group.owner_persona
+                },
+                "persisted_outcome_count": persisted_outcome_count
+            },
+            "live_side_effects_allowed": false,
+            "blocked_actions": manager_daily_brief_blocked_action_codes(),
+            "audit": {
+                "event": "manager_daily_brief_outcome_recorded",
+                "policy_owner": "deterministic_app"
+            }
+        })),
+    )
+}
+
+async fn submit_manager_daily_brief_agent_draft(
+    Json(request): Json<ManagerDailyBriefAgentDraftSubmissionRequest>,
+) -> (StatusCode, Json<Value>) {
+    let mut accepted_actions = Vec::new();
+    let mut rejected_actions = Vec::new();
+
+    for action in &request.actions {
+        let reasons = validate_manager_daily_brief_submitted_action(action);
+        if reasons.is_empty() {
+            accepted_actions.push(json!({
+                "id": action.id,
+                "kind": action.kind,
+                "recommendation": action.recommendation,
+                "review_gates": action.review_gates,
+                "source_refs": action.source_refs,
+                "showable_to_manager": true,
+                "live_side_effects_allowed": false
+            }));
+        } else {
+            rejected_actions.push(json!({
+                "id": action.id,
+                "kind": action.kind,
+                "reasons": reasons,
+                "showable_to_manager": false,
+                "live_side_effects_allowed": false
+            }));
+        }
+    }
+
+    let validation_status = match (accepted_actions.is_empty(), rejected_actions.is_empty()) {
+        (false, true) => "accepted",
+        (false, false) => "partially_accepted",
+        (true, false) => "rejected",
+        (true, true) => "rejected",
+    };
+    let status_code = if rejected_actions.is_empty() {
+        StatusCode::CREATED
+    } else {
+        StatusCode::UNPROCESSABLE_ENTITY
+    };
+
+    (
+        status_code,
+        Json(json!({
+            "validation": {
+                "status": validation_status,
+                "validator": "pet_resort_api.manager_daily_brief.agent_draft_validator.v1"
+            },
+            "context_packet_id": request.context_packet_id,
+            "correlation_id": request.correlation_id,
+            "submitted_by": request.submitted_by,
+            "accepted_actions": accepted_actions,
+            "rejected_actions": rejected_actions,
+            "live_side_effects_allowed": false,
+            "audit": {
+                "event": "manager_daily_brief_agent_draft_validated",
+                "policy_owner": "deterministic_app"
+            }
+        })),
+    )
+}
+
+fn validate_manager_daily_brief_submitted_action(
+    action: &ManagerDailyBriefSubmittedAction,
+) -> Vec<String> {
+    let mut reasons = Vec::new();
+
+    let Some(required_review_gate) = required_manager_daily_brief_review_gate(&action.kind) else {
+        reasons.push("unsupported_action_kind".to_owned());
+        return reasons;
+    };
+
+    if action.source_refs.is_empty() {
+        reasons.push("missing_source_refs".to_owned());
+    }
+
+    if !action
+        .review_gates
+        .iter()
+        .any(|gate| gate == required_review_gate)
+    {
+        reasons.push(format!(
+            "missing_required_review_gate:{required_review_gate}"
+        ));
+    }
+
+    for side_effect in &action.requested_side_effects {
+        reasons.push(manager_daily_brief_requested_side_effect_rejection_reason(
+            side_effect,
+        ));
+    }
+
+    reasons
+}
+
+fn required_manager_daily_brief_review_gate(kind: &str) -> Option<&'static str> {
+    match kind {
+        "review_demand_against_staffing_plan" => Some("manager_approval"),
+        "resolve_checkout_exception" => Some("manager_approval"),
+        "approve_retention_follow_up_draft" => Some("customer_message_approval"),
+        "investigate_source_data_quality_issue" => Some("manager_approval"),
+        _ => None,
+    }
+}
+
+fn manager_daily_brief_side_effect_is_blocked(side_effect: &str) -> bool {
+    matches!(
+        side_effect,
+        "send_customer_message"
+            | "mutate_provider_or_pms_record"
+            | "change_staff_schedule"
+            | "move_refund_discount_or_payment"
+            | "hide_source_data_quality_issue"
+    )
+}
+
+fn manager_daily_brief_requested_side_effect_rejection_reason(side_effect: &str) -> String {
+    if manager_daily_brief_side_effect_is_blocked(side_effect) {
+        format!("blocked_side_effect:{side_effect}")
+    } else {
+        format!("unsupported_side_effect:{side_effect}")
+    }
+}
+
+fn manager_daily_brief_reporting_scope(
+    reporting: &ManagerDailyBriefOutcomeReportingRequest,
+) -> Option<(entities::LocationId, operations::operating_day::Date)> {
+    let location_id = Uuid::parse_str(&reporting.location_id).ok()?;
+    let operating_day = NaiveDate::parse_from_str(&reporting.operating_day, "%Y-%m-%d").ok()?;
+
+    Some((
+        entities::LocationId(location_id),
+        operations::operating_day::Date::try_new(operating_day).ok()?,
+    ))
+}
+
+fn local_manager_daily_brief_packet(
+    location_id: entities::LocationId,
+    operating_day: operations::operating_day::Date,
+) -> manager_daily_brief::Packet {
+    manager_daily_brief::Workflow::evaluate(
+        manager_daily_brief::Request::builder()
+            .location_id(location_id)
+            .operating_day(operating_day)
+            .prepared_for(manager_daily_brief::ManagerBriefPersona::GeneralManager)
+            .demand_attention_threshold(
+                manager_daily_brief::DemandThresholdUnits::try_new(10)
+                    .expect("static demand threshold is valid"),
+            )
+            .service_demand_facts(local_manager_daily_brief_service_demand_facts(
+                location_id,
+                operating_day,
+            ))
+            .checkout_packets(local_manager_daily_brief_checkout_packets(
+                location_id,
+                operating_day,
+            ))
+            .retention_packets(local_manager_daily_brief_retention_packets(
+                location_id,
+                operating_day,
+            ))
+            .build(),
+    )
+}
+
+fn stored_manager_daily_brief_action_kind(
+    kind: manager_daily_brief::BriefActionKind,
+) -> storage::operations::ManagerDailyBriefActionKindCode {
+    match kind {
+        manager_daily_brief::BriefActionKind::ReviewDemandAgainstStaffingPlan => {
+            storage::operations::ManagerDailyBriefActionKindCode::ReviewDemandAgainstStaffingPlan
+        }
+        manager_daily_brief::BriefActionKind::ResolveCheckoutException => {
+            storage::operations::ManagerDailyBriefActionKindCode::ResolveCheckoutException
+        }
+        manager_daily_brief::BriefActionKind::ApproveRetentionFollowUpDraft => {
+            storage::operations::ManagerDailyBriefActionKindCode::ApproveRetentionFollowUpDraft
+        }
+        manager_daily_brief::BriefActionKind::InvestigateSourceDataQualityIssue => {
+            storage::operations::ManagerDailyBriefActionKindCode::InvestigateSourceDataQualityIssue
+        }
+    }
+}
+
+fn stored_manager_daily_brief_persona(
+    persona: manager_daily_brief::ManagerBriefPersona,
+) -> storage::operations::ManagerDailyBriefPersonaCode {
+    match persona {
+        manager_daily_brief::ManagerBriefPersona::GeneralManager => {
+            storage::operations::ManagerDailyBriefPersonaCode::GeneralManager
+        }
+        manager_daily_brief::ManagerBriefPersona::AssistantGeneralManager => {
+            storage::operations::ManagerDailyBriefPersonaCode::AssistantGeneralManager
+        }
+        manager_daily_brief::ManagerBriefPersona::FrontDeskLead => {
+            storage::operations::ManagerDailyBriefPersonaCode::FrontDeskLead
+        }
+        manager_daily_brief::ManagerBriefPersona::FrontDeskAgent => {
+            storage::operations::ManagerDailyBriefPersonaCode::FrontDeskAgent
+        }
+    }
+}
+
+async fn manager_daily_brief_agent_context(
+    Query(query): Query<ManagerDailyBriefAgentContextQuery>,
+) -> Json<Value> {
+    let location_id = entities::LocationId(query.location_id);
+    let operating_day = operations::operating_day::Date::try_new(query.operating_day)
+        .expect("operating day date is always valid after query parsing");
+    let service_demand_facts =
+        local_manager_daily_brief_service_demand_facts(location_id, operating_day);
+    let checkout_packets = local_manager_daily_brief_checkout_packets(location_id, operating_day);
+    let retention_packets = local_manager_daily_brief_retention_packets(location_id, operating_day);
+
+    let request = manager_daily_brief::Request::builder()
+        .location_id(location_id)
+        .operating_day(operating_day)
+        .prepared_for(manager_daily_brief::ManagerBriefPersona::GeneralManager)
+        .demand_attention_threshold(
+            manager_daily_brief::DemandThresholdUnits::try_new(10)
+                .expect("static demand threshold is valid"),
+        )
+        .service_demand_facts(service_demand_facts.clone())
+        .checkout_packets(checkout_packets.clone())
+        .retention_packets(retention_packets.clone())
+        .build();
+    let packet = manager_daily_brief::Workflow::evaluate(request);
+    let mut data_quality_issues = service_demand_facts
+        .iter()
+        .flat_map(|fact| fact.data_quality_issues().iter())
+        .map(data_quality_issue_payload)
+        .collect::<Vec<_>>();
+
+    if service_demand_facts.is_empty() {
+        data_quality_issues.push(missing_context_issue_payload(
+            "missing_service_demand_fact",
+            "No source-grounded service demand fact exists for the requested location and operating day.",
+        ));
+    }
+    if checkout_packets.is_empty() {
+        data_quality_issues.push(missing_context_issue_payload(
+            "missing_checkout_completion_packet",
+            "No checkout/completion packet exists for the requested location and operating day.",
+        ));
+    }
+    if retention_packets.is_empty() {
+        data_quality_issues.push(missing_context_issue_payload(
+            "missing_crm_retention_packet",
+            "No CRM/retention packet exists for the requested location and operating day.",
+        ));
+    }
+
+    let mut source_refs = Vec::new();
+    source_refs.extend(
+        service_demand_facts
+            .iter()
+            .flat_map(|fact| fact.source_record_refs())
+            .map(source_record_ref_payload),
+    );
+    source_refs.extend(checkout_packets.iter().map(|scoped| {
+        source_record_ref_payload(&source::RecordRef::from_provenance(
+            scoped.packet().provenance(),
+        ))
+    }));
+    source_refs.extend(
+        retention_packets
+            .iter()
+            .flat_map(|scoped| scoped.packet().source_record_refs())
+            .map(source_record_ref_payload),
+    );
+
+    let correlation_id = format!(
+        "manager-daily-brief:{}:{}",
+        query.location_id, query.operating_day
+    );
+
+    Json(json!({
+        "workflow": {
+            "name": "manager_daily_brief",
+            "version": "local-manager-daily-brief-context-v1"
+        },
+        "location_id": query.location_id.to_string(),
+        "operating_day": query.operating_day.to_string(),
+        "service_demand_facts": service_demand_facts.iter().map(service_demand_fact_payload).collect::<Vec<_>>(),
+        "checkout_completion_exceptions": checkout_packets.iter().filter_map(checkout_exception_payload).collect::<Vec<_>>(),
+        "crm_retention_opportunities": retention_packets.iter().filter_map(retention_opportunity_payload).collect::<Vec<_>>(),
+        "manager_brief_actions": packet.actions().iter().map(manager_brief_action_payload).collect::<Vec<_>>(),
+        "data_quality_issues": data_quality_issues,
+        "source_refs": source_refs,
+        "allowed_agent_actions": packet.safe_agent_actions().iter().map(safe_agent_action_code).collect::<Vec<_>>(),
+        "blocked_actions": packet.blocked_actions().iter().map(blocked_action_code).collect::<Vec<_>>(),
+        "labor_impact": {
+            "before_minutes": packet.before_minutes().get(),
+            "after_minutes": packet.after_minutes().get(),
+            "minutes_saved": packet.minutes_saved()
+        },
+        "audit": {
+            "context_packet_id": format!("manager-daily-brief-context:{}:{}", query.location_id, query.operating_day),
+            "correlation_id": correlation_id
+        }
+    }))
 }
 
 async fn upload_vaccine_document(
@@ -681,5 +1202,549 @@ fn audit(
         subject_kind,
         subject_id,
         metadata: metadata.into_iter().collect(),
+    }
+}
+
+fn local_manager_daily_brief_service_demand_facts(
+    location_id: entities::LocationId,
+    operating_day: operations::operating_day::Date,
+) -> Vec<analytics::service_demand::Fact> {
+    if location_id == local_manager_daily_brief_location_id()
+        && operating_day == local_manager_daily_brief_operating_day()
+    {
+        vec![
+            analytics::service_demand::Fact::try_new(
+                analytics::service_demand::Id::try_new("service-demand-42")
+                    .expect("static service demand id is valid"),
+                operations::operating_day::Key::new(
+                    location_id,
+                    operations::service_core::ServiceLine::Boarding,
+                    operating_day,
+                ),
+                analytics::service_demand::DemandUnits::try_new(18)
+                    .expect("static demand units are valid"),
+                vec![source::RecordRef::from_provenance(
+                    &manager_brief_source_provenance(),
+                )],
+                analytics::ProjectionVersion::try_new("local-manager-brief-v1")
+                    .expect("static projection version is valid"),
+                vec![data_quality::Issue::new(
+                    data_quality::Kind::UnmappedServiceType,
+                    data_quality::Severity::Warning,
+                    manager_brief_source_provenance(),
+                    source::Timestamp::try_new("2026-06-17T00:00:00Z")
+                        .expect("static timestamp is valid"),
+                    false,
+                )],
+            )
+            .expect("fixture source refs make service demand fact valid"),
+        ]
+    } else {
+        Vec::new()
+    }
+}
+
+fn local_manager_daily_brief_checkout_packets(
+    location_id: entities::LocationId,
+    operating_day: operations::operating_day::Date,
+) -> Vec<manager_daily_brief::ScopedCheckoutPacket> {
+    if location_id == local_manager_daily_brief_location_id()
+        && operating_day == local_manager_daily_brief_operating_day()
+    {
+        let packet = checkout_completion::Workflow::evaluate(
+            checkout_completion::Request::builder()
+                .reservation_id(local_manager_daily_brief_reservation_id())
+                .source_provenance(manager_brief_source_provenance())
+                .observed_source_status(source::reservation::Status::CheckedOut)
+                .staff_handoff(open_manager_brief_staff_handoff())
+                .build(),
+        );
+        vec![
+            manager_daily_brief::ScopedCheckoutPacket::builder()
+                .location_id(location_id)
+                .operating_day(operating_day)
+                .packet(packet)
+                .build(),
+        ]
+    } else {
+        Vec::new()
+    }
+}
+
+fn local_manager_daily_brief_retention_packets(
+    location_id: entities::LocationId,
+    operating_day: operations::operating_day::Date,
+) -> Vec<manager_daily_brief::ScopedRetentionPacket> {
+    if location_id == local_manager_daily_brief_location_id()
+        && operating_day == local_manager_daily_brief_operating_day()
+    {
+        let checkout_packet = checkout_completion::Workflow::evaluate(
+            checkout_completion::Request::builder()
+                .reservation_id(local_manager_daily_brief_reservation_id())
+                .source_provenance(manager_brief_source_provenance())
+                .observed_source_status(source::reservation::Status::CheckedOut)
+                .staff_handoff(resolved_manager_brief_staff_handoff())
+                .build(),
+        );
+        let packet = crm_retention::Workflow::evaluate(
+            crm_retention::Request::builder()
+                .reservation_id(local_manager_daily_brief_reservation_id())
+                .customer_id(local_manager_daily_brief_customer_id())
+                .checkout_packet(checkout_packet)
+                .contact_permission(manager_brief_contact_permission())
+                .opportunities(vec![manager_brief_retention_opportunity()])
+                .build(),
+        );
+        vec![
+            manager_daily_brief::ScopedRetentionPacket::builder()
+                .location_id(location_id)
+                .operating_day(operating_day)
+                .packet(packet)
+                .build(),
+        ]
+    } else {
+        Vec::new()
+    }
+}
+
+fn service_demand_fact_payload(fact: &analytics::service_demand::Fact) -> Value {
+    json!({
+        "kind": "service_demand_forecast",
+        "service_line": "boarding",
+        "demand_units": fact.demand_units().get(),
+        "projection_version": fact.projection_version().as_str(),
+        "data_quality_status": service_demand_data_quality_status_code(fact.data_quality_status()),
+        "source_refs": fact.source_record_refs().iter().map(source_record_ref_payload).collect::<Vec<_>>()
+    })
+}
+
+fn checkout_exception_payload(scoped: &manager_daily_brief::ScopedCheckoutPacket) -> Option<Value> {
+    let packet = scoped.packet();
+    if matches!(
+        packet.completion_status(),
+        checkout_completion::CompletionStatus::StaffVerifiedCheckout
+    ) {
+        return None;
+    }
+    Some(json!({
+        "reservation_id": format!("{:?}", packet.reservation_id()),
+        "completion_status": checkout_completion_status_code(packet.completion_status()),
+        "required_review_gates": packet.required_review_gates().iter().map(review_gate_code).collect::<Vec<_>>(),
+        "source_refs": [source_record_ref_payload(&source::RecordRef::from_provenance(packet.provenance()))]
+    }))
+}
+
+fn retention_opportunity_payload(
+    scoped: &manager_daily_brief::ScopedRetentionPacket,
+) -> Option<Value> {
+    let packet = scoped.packet();
+    if !matches!(
+        packet.eligibility(),
+        crm_retention::FollowUpEligibility::Eligible { .. }
+    ) {
+        return None;
+    }
+    Some(json!({
+        "reservation_id": format!("{:?}", packet.reservation_id()),
+        "eligibility": "eligible",
+        "required_review_gates": packet.required_review_gates().iter().map(review_gate_code).collect::<Vec<_>>(),
+        "source_refs": packet.source_record_refs().iter().map(source_record_ref_payload).collect::<Vec<_>>()
+    }))
+}
+
+fn manager_brief_action_payload(action: &manager_daily_brief::BriefAction) -> Value {
+    json!({
+        "id": action.id().clone().into_inner(),
+        "kind": brief_action_kind_code(action.kind()),
+        "priority": brief_action_priority_code(action.priority()),
+        "owner_persona": manager_brief_persona_code(action.owner_persona()),
+        "removed_manual_work": removed_manual_work_code(action.removed_manual_work()),
+        "source_facts": action.source_facts().iter().map(source_fact_payload).collect::<Vec<_>>(),
+        "required_review_gates": action.required_review_gates().iter().map(review_gate_code).collect::<Vec<_>>(),
+        "labor_impact": {
+            "before_minutes": action.labor_impact().before_minutes().get(),
+            "after_minutes": action.labor_impact().after_minutes().get(),
+            "minutes_saved": action.labor_impact().minutes_saved()
+        }
+    })
+}
+
+fn source_fact_payload(fact: &manager_daily_brief::SourceFact) -> Value {
+    json!({
+        "kind": source_fact_kind_code(fact.kind()),
+        "summary": fact.summary().clone().into_inner(),
+        "source_refs": fact.source_record_refs().iter().map(source_record_ref_payload).collect::<Vec<_>>()
+    })
+}
+
+fn data_quality_issue_payload(issue: &data_quality::Issue) -> Value {
+    json!({
+        "kind": data_quality_kind_code(&issue.kind()),
+        "severity": data_quality_severity_code(issue.severity()),
+        "workflow_blocking": issue.workflow_blocking(),
+        "source_refs": [source_record_ref_payload(issue.source_record_ref())]
+    })
+}
+
+fn missing_context_issue_payload(kind: &'static str, detail: &'static str) -> Value {
+    json!({
+        "kind": kind,
+        "severity": "warning",
+        "workflow_blocking": false,
+        "detail": detail,
+        "source_refs": []
+    })
+}
+
+fn source_record_ref_payload(record_ref: &source::RecordRef) -> Value {
+    json!({
+        "system": source_system_code(record_ref.system()),
+        "record_id": record_ref.record_id().as_str()
+    })
+}
+
+fn local_manager_daily_brief_location_id() -> entities::LocationId {
+    entities::LocationId(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0001))
+}
+
+fn local_manager_daily_brief_customer_id() -> entities::CustomerId {
+    entities::CustomerId(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0099))
+}
+
+fn local_manager_daily_brief_reservation_id() -> entities::reservation::Id {
+    entities::reservation::Id(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0042))
+}
+
+fn local_manager_daily_brief_operating_day() -> operations::operating_day::Date {
+    operations::operating_day::Date::try_new(
+        NaiveDate::from_ymd_opt(2026, 6, 17).expect("fixture operating day is valid"),
+    )
+    .expect("fixture operating day is valid")
+}
+
+fn open_manager_brief_staff_handoff() -> checkout_completion::StaffHandoff {
+    checkout_completion::StaffHandoff::builder()
+        .completed_by(entities::ActorRef::Staff {
+            staff_id: entities::StaffId::try_new("front-desk-erin")
+                .expect("static staff id is valid"),
+        })
+        .completed_at(DateTime::<Utc>::UNIX_EPOCH)
+        .belongings_status(checkout_completion::BelongingsStatus::NeedsStaffFollowUp)
+        .care_summary(
+            checkout_completion::CareSummary::try_new("Medication bag needs review.")
+                .expect("static care summary is valid"),
+        )
+        .departure_notes_review(checkout_completion::DepartureNotesReview::ManagerReviewRequired)
+        .build()
+}
+
+fn resolved_manager_brief_staff_handoff() -> checkout_completion::StaffHandoff {
+    checkout_completion::StaffHandoff::builder()
+        .completed_by(entities::ActorRef::Staff {
+            staff_id: entities::StaffId::try_new("front-desk-erin")
+                .expect("static staff id is valid"),
+        })
+        .completed_at(DateTime::<Utc>::UNIX_EPOCH)
+        .belongings_status(checkout_completion::BelongingsStatus::ReturnedToCustomer)
+        .care_summary(
+            checkout_completion::CareSummary::try_new("Clean checkout.")
+                .expect("static care summary is valid"),
+        )
+        .departure_notes_review(checkout_completion::DepartureNotesReview::StaffReviewed)
+        .build()
+}
+
+fn manager_brief_retention_opportunity() -> crm_retention::RetentionOpportunity {
+    crm_retention::RetentionOpportunity::builder()
+        .kind(crm_retention::OpportunityKind::NextBoardingStay)
+        .evidence(
+            crm_retention::OpportunityEvidence::builder()
+                .reason_code(crm_retention::SourceGroundedReasonCode::CompletedBoardingStay)
+                .summary(
+                    crm_retention::EvidenceSummary::try_new(
+                        "Completed boarding stay and owner mentioned a return trip.",
+                    )
+                    .expect("static evidence summary is valid"),
+                )
+                .provenance(manager_brief_source_provenance())
+                .build(),
+        )
+        .build()
+}
+
+fn manager_brief_contact_permission() -> crm_retention::ContactPermission {
+    crm_retention::ContactPermission::builder()
+        .preferred_channel(message::Channel::Email)
+        .allowed_channels(vec![message::Channel::Email])
+        .marketing_consent(crm_retention::ConsentStatus::Granted)
+        .transactional_consent(crm_retention::ConsentStatus::Granted)
+        .source_record_refs(vec![source::RecordRef::from_provenance(
+            &manager_brief_contact_provenance(),
+        )])
+        .build()
+}
+
+fn manager_brief_source_provenance() -> source::Provenance {
+    source::Provenance::builder()
+        .system(source::System::Gingr)
+        .endpoint(
+            source::Endpoint::try_new("GET /reservations/{id}").expect("static endpoint is valid"),
+        )
+        .record_id(
+            source::record::Id::try_new("reservation-42").expect("static record id is valid"),
+        )
+        .extraction_batch(
+            source::ExtractionBatchId::try_new("manager-brief-batch-local")
+                .expect("static batch id is valid"),
+        )
+        .pulled_at(
+            source::Timestamp::try_new("2026-06-17T00:00:00Z").expect("static timestamp is valid"),
+        )
+        .request_scope(
+            source::RequestScope::try_new("local-manager-daily-brief-context")
+                .expect("static request scope is valid"),
+        )
+        .schema_version(
+            source::SchemaVersion::try_new("gingr-v0-readonly")
+                .expect("static schema version is valid"),
+        )
+        .payload_hash(
+            source::PayloadHash::try_new("sha256:managerbrieffixture")
+                .expect("static payload hash is valid"),
+        )
+        .raw_payload_ref(
+            source::RawPayloadRef::try_new("fixtures/gingr/manager-brief.json")
+                .expect("static raw payload ref is valid"),
+        )
+        .build()
+}
+
+fn manager_brief_contact_provenance() -> source::Provenance {
+    source::Provenance::builder()
+        .system(source::System::Gingr)
+        .endpoint(
+            source::Endpoint::try_new("GET /customers/{id}/contact-permissions")
+                .expect("static endpoint is valid"),
+        )
+        .record_id(
+            source::record::Id::try_new("customer-contact-99").expect("static record id is valid"),
+        )
+        .extraction_batch(
+            source::ExtractionBatchId::try_new("manager-brief-batch-local")
+                .expect("static batch id is valid"),
+        )
+        .pulled_at(
+            source::Timestamp::try_new("2026-06-17T00:00:00Z").expect("static timestamp is valid"),
+        )
+        .request_scope(
+            source::RequestScope::try_new("local-manager-daily-brief-context")
+                .expect("static request scope is valid"),
+        )
+        .schema_version(
+            source::SchemaVersion::try_new("gingr-v0-readonly")
+                .expect("static schema version is valid"),
+        )
+        .payload_hash(
+            source::PayloadHash::try_new("sha256:managerbriefcontactfixture")
+                .expect("static payload hash is valid"),
+        )
+        .raw_payload_ref(
+            source::RawPayloadRef::try_new("fixtures/gingr/manager-brief-contact.json")
+                .expect("static raw payload ref is valid"),
+        )
+        .build()
+}
+
+fn source_system_code(system: source::System) -> &'static str {
+    match system {
+        source::System::Gingr => "gingr",
+        source::System::BusinessIntelligence => "business_intelligence",
+        source::System::LaborScheduling => "labor_scheduling",
+        source::System::Timeclock => "timeclock",
+        source::System::Payroll => "payroll",
+        source::System::CapacityInventory => "capacity_inventory",
+        source::System::PointOfSale => "point_of_sale",
+        source::System::ManualImport => "manual_import",
+    }
+}
+
+fn service_demand_data_quality_status_code(
+    status: analytics::service_demand::DataQualityStatus,
+) -> &'static str {
+    match status {
+        analytics::service_demand::DataQualityStatus::Complete => "complete",
+        analytics::service_demand::DataQualityStatus::ManagerReviewRequired => {
+            "manager_review_required"
+        }
+    }
+}
+
+fn checkout_completion_status_code(status: checkout_completion::CompletionStatus) -> &'static str {
+    match status {
+        checkout_completion::CompletionStatus::StaffVerifiedCheckout => "staff_verified_checkout",
+        checkout_completion::CompletionStatus::NeedsStaffHandoffReview => {
+            "needs_staff_handoff_review"
+        }
+        checkout_completion::CompletionStatus::SourceNotCheckedOut => "source_not_checked_out",
+    }
+}
+
+fn review_gate_code(gate: &policy::ReviewGate) -> &'static str {
+    match gate {
+        policy::ReviewGate::ManagerApproval => "manager_approval",
+        policy::ReviewGate::CustomerMessageApproval => "customer_message_approval",
+        policy::ReviewGate::MedicalDocumentReview => "medical_document_review",
+        policy::ReviewGate::BehaviorReview => "behavior_review",
+        policy::ReviewGate::RefundOrDepositException => "refund_or_deposit_exception",
+    }
+}
+
+fn safe_agent_action_code(action: &manager_daily_brief::SafeAgentAction) -> &'static str {
+    match action {
+        manager_daily_brief::SafeAgentAction::SummarizeSourceEvidence => {
+            "summarize_source_evidence"
+        }
+        manager_daily_brief::SafeAgentAction::RankManagerActions => "rank_manager_actions",
+        manager_daily_brief::SafeAgentAction::DraftInternalTaskForReview => "draft_internal_tasks",
+        manager_daily_brief::SafeAgentAction::RecordManagerFeedback => "record_manager_feedback",
+        manager_daily_brief::SafeAgentAction::EstimateLaborMinutesSaved => {
+            "estimate_labor_minutes_saved"
+        }
+    }
+}
+
+fn manager_daily_brief_blocked_action_codes() -> Vec<&'static str> {
+    manager_daily_brief::Workflow::evaluate(
+        manager_daily_brief::Request::builder()
+            .location_id(entities::LocationId(Uuid::nil()))
+            .operating_day(
+                operations::operating_day::Date::try_new(
+                    NaiveDate::from_ymd_opt(2026, 1, 1).expect("static date is valid"),
+                )
+                .expect("static operating day is valid"),
+            )
+            .prepared_for(manager_daily_brief::ManagerBriefPersona::GeneralManager)
+            .demand_attention_threshold(
+                manager_daily_brief::DemandThresholdUnits::try_new(1)
+                    .expect("static demand threshold is valid"),
+            )
+            .build(),
+    )
+    .blocked_actions()
+    .iter()
+    .map(blocked_action_code)
+    .collect()
+}
+
+fn blocked_action_code(action: &manager_daily_brief::BlockedAction) -> &'static str {
+    match action {
+        manager_daily_brief::BlockedAction::ChangeStaffSchedule => "change_staff_schedule",
+        manager_daily_brief::BlockedAction::MutateProviderOrPmsRecord => {
+            "mutate_provider_or_pms_record"
+        }
+        manager_daily_brief::BlockedAction::SendCustomerMessage => "send_customer_message",
+        manager_daily_brief::BlockedAction::MoveRefundDiscountOrPayment => {
+            "move_refund_discount_or_payment"
+        }
+        manager_daily_brief::BlockedAction::HideSourceDataQualityIssue => {
+            "hide_source_data_quality_issue"
+        }
+    }
+}
+
+fn brief_action_kind_code(kind: manager_daily_brief::BriefActionKind) -> &'static str {
+    match kind {
+        manager_daily_brief::BriefActionKind::ReviewDemandAgainstStaffingPlan => {
+            "review_demand_against_staffing_plan"
+        }
+        manager_daily_brief::BriefActionKind::ResolveCheckoutException => {
+            "resolve_checkout_exception"
+        }
+        manager_daily_brief::BriefActionKind::ApproveRetentionFollowUpDraft => {
+            "approve_retention_follow_up_draft"
+        }
+        manager_daily_brief::BriefActionKind::InvestigateSourceDataQualityIssue => {
+            "investigate_source_data_quality_issue"
+        }
+    }
+}
+
+fn brief_action_priority_code(priority: manager_daily_brief::BriefActionPriority) -> &'static str {
+    match priority {
+        manager_daily_brief::BriefActionPriority::High => "high",
+        manager_daily_brief::BriefActionPriority::Medium => "medium",
+        manager_daily_brief::BriefActionPriority::Low => "low",
+    }
+}
+
+fn manager_brief_persona_code(persona: manager_daily_brief::ManagerBriefPersona) -> &'static str {
+    match persona {
+        manager_daily_brief::ManagerBriefPersona::GeneralManager => "general_manager",
+        manager_daily_brief::ManagerBriefPersona::AssistantGeneralManager => {
+            "assistant_general_manager"
+        }
+        manager_daily_brief::ManagerBriefPersona::FrontDeskLead => "front_desk_lead",
+        manager_daily_brief::ManagerBriefPersona::FrontDeskAgent => "front_desk_agent",
+    }
+}
+
+fn removed_manual_work_code(work: manager_daily_brief::RemovedManualWork) -> &'static str {
+    match work {
+        manager_daily_brief::RemovedManualWork::MorningDashboardReconciliation => {
+            "morning_dashboard_reconciliation"
+        }
+        manager_daily_brief::RemovedManualWork::DemandVersusStaffingScan => {
+            "demand_versus_staffing_scan"
+        }
+        manager_daily_brief::RemovedManualWork::CheckoutExceptionAudit => {
+            "checkout_exception_audit"
+        }
+        manager_daily_brief::RemovedManualWork::RetentionFollowUpQueuePrioritization => {
+            "retention_follow_up_queue_prioritization"
+        }
+        manager_daily_brief::RemovedManualWork::DataQualityExceptionTriage => {
+            "data_quality_exception_triage"
+        }
+    }
+}
+
+fn source_fact_kind_code(kind: manager_daily_brief::SourceFactKind) -> &'static str {
+    match kind {
+        manager_daily_brief::SourceFactKind::ServiceDemandForecast => "service_demand_forecast",
+        manager_daily_brief::SourceFactKind::CheckoutCompletionStatus => {
+            "checkout_completion_status"
+        }
+        manager_daily_brief::SourceFactKind::RetentionFollowUpEligibility => {
+            "retention_follow_up_eligibility"
+        }
+        manager_daily_brief::SourceFactKind::SourceDataQualityIssue => "source_data_quality_issue",
+    }
+}
+
+fn data_quality_kind_code(kind: &data_quality::Kind) -> &'static str {
+    match kind {
+        data_quality::Kind::MissingRequiredField { .. } => "missing_required_field",
+        data_quality::Kind::AssumptionInForce { .. } => "assumption_in_force",
+        data_quality::Kind::UnknownSourceStatus { .. } => "unknown_source_status",
+        data_quality::Kind::ConflictingTimestamps => "conflicting_timestamps",
+        data_quality::Kind::DuplicateSourceRecord => "duplicate_source_record",
+        data_quality::Kind::AmbiguousOwnerPetRelationship => "ambiguous_owner_pet_relationship",
+        data_quality::Kind::UnmappedServiceType => "unmapped_service_type",
+        data_quality::Kind::LocationScopeAmbiguity => "location_scope_ambiguity",
+        data_quality::Kind::PaymentStateConflict => "payment_state_conflict",
+        data_quality::Kind::CheckoutEvidenceMissing => "checkout_evidence_missing",
+        data_quality::Kind::UnclosedReservation => "unclosed_reservation",
+        data_quality::Kind::IncompletePetProfile => "incomplete_pet_profile",
+        data_quality::Kind::MissingVaccinationRecord => "missing_vaccination_record",
+        data_quality::Kind::SensitivePayloadQuarantined => "sensitive_payload_quarantined",
+    }
+}
+
+fn data_quality_severity_code(severity: data_quality::Severity) -> &'static str {
+    match severity {
+        data_quality::Severity::Informational => "informational",
+        data_quality::Severity::Warning => "warning",
+        data_quality::Severity::Blocking => "blocking",
+        data_quality::Severity::Critical => "critical",
     }
 }

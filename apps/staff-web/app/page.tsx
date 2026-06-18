@@ -23,6 +23,32 @@ type StaffNote = {
   body: string;
 };
 
+type ManagerDailyBriefOutcome = "Completed" | "Deferred" | "SuppressedByManager" | "SourceFactWasWrong";
+
+type ManagerDailyBriefAction = {
+  id: string;
+  kind: string;
+  title: string;
+  ownerPersona: string;
+  priority: string;
+  removedManualWork: string;
+  rationale: string;
+  sourceEvidenceSummary: string;
+  sourceRefs: string[];
+  reviewGates: string[];
+  blockedActions: string[];
+  beforeMinutes: number;
+  estimatedAfterMinutes: number;
+  recommendation: string;
+};
+
+type ManagerDailyBriefOutcomeState = {
+  actionId: string;
+  outcome: ManagerDailyBriefOutcome;
+  actualMinutes: number;
+  feedback: string;
+};
+
 type IncidentType =
   | "injury"
   | "illness"
@@ -226,6 +252,109 @@ const notes: StaffNote[] = [
   }
 ];
 
+const managerDailyBrief = {
+  contextPacketId: "manager-daily-brief-context:local-dev-kennel:2026-06-20",
+  correlationId: "manager-daily-brief:local-dev-kennel:2026-06-20",
+  operatingDay: "2026-06-20",
+  location: "Local/dev kennel",
+  preparedFor: "General manager + front-desk lead",
+  allowedAgentActions: [
+    "summarize_source_evidence",
+    "rank_manager_actions",
+    "draft_internal_tasks_for_review",
+    "record_manager_feedback",
+    "estimate_labor_minutes_saved"
+  ],
+  blockedActions: [
+    "change_staff_schedule",
+    "mutate_provider_or_pms_record",
+    "send_customer_message",
+    "move_refund_discount_or_payment",
+    "hide_source_data_quality_issue"
+  ]
+};
+
+const managerDailyBriefActions: ManagerDailyBriefAction[] = [
+  {
+    id: "MDB-ACT-001",
+    kind: "review_demand_against_staffing_plan",
+    title: "Review daycare demand against staffing plan",
+    ownerPersona: "General manager",
+    priority: "high",
+    removedManualWork: "Demand-versus-staffing dashboard scan",
+    rationale: "Projected all-day-play demand is above the manager threshold while the morning yard handoff still has one unassigned staff block.",
+    sourceEvidenceSummary: "analytics::service_demand fact from Gingr snapshot stay-count-v1 plus schedule source ref sched-2026-06-20-am.",
+    sourceRefs: ["gingr:service-demand:2026-06-20:all-day-play", "labor:schedule:sched-2026-06-20-am"],
+    reviewGates: ["manager_approval"],
+    blockedActions: ["change_staff_schedule", "mutate_provider_or_pms_record"],
+    beforeMinutes: 45,
+    estimatedAfterMinutes: 15,
+    recommendation: "Draft only: ask the GM to compare the source refs and approve an internal staffing review task; do not change the schedule automatically."
+  },
+  {
+    id: "MDB-ACT-002",
+    kind: "resolve_checkout_exception",
+    title: "Resolve Juniper checkout completion exception",
+    ownerPersona: "Front-desk lead",
+    priority: "medium",
+    removedManualWork: "Checkout exception audit",
+    rationale: "Juniper has a completed stay with an open handoff note and a checkout-summary draft awaiting lead review.",
+    sourceEvidenceSummary: "checkout_completion::Packet references reservation RSV-1012, care-note NOTE-21, and message draft MSG-DRAFT-52.",
+    sourceRefs: ["gingr:reservation:RSV-1012", "staff-note:NOTE-21", "message-draft:MSG-DRAFT-52"],
+    reviewGates: ["manager_approval"],
+    blockedActions: ["send_customer_message", "mutate_provider_or_pms_record"],
+    beforeMinutes: 20,
+    estimatedAfterMinutes: 8,
+    recommendation: "Draft internal task for front-desk review; customer copy remains a draft until CustomerMessageApproval is recorded."
+  },
+  {
+    id: "MDB-ACT-003",
+    kind: "approve_retention_follow_up_draft",
+    title: "Review grooming rebooking follow-up draft",
+    ownerPersona: "Front-desk lead",
+    priority: "medium",
+    removedManualWork: "Retention follow-up queue prioritization",
+    rationale: "A completed boarding stay has safe grooming interest evidence, but owner-facing copy must stay review-gated.",
+    sourceEvidenceSummary: "crm_retention::Packet includes prior grooming service, staff evidence, and draft-only follow-up eligibility.",
+    sourceRefs: ["gingr:reservation:RSV-1007", "crm-retention:opportunity:GROOM-44", "staff-evidence:NOTE-18"],
+    reviewGates: ["customer_message_approval"],
+    blockedActions: ["send_customer_message", "move_refund_discount_or_payment"],
+    beforeMinutes: 30,
+    estimatedAfterMinutes: 10,
+    recommendation: "Prepare a follow-up draft for human approval; no customer send, discount, refund, or payment movement is available here."
+  },
+  {
+    id: "MDB-ACT-004",
+    kind: "investigate_source_data_quality_issue",
+    title: "Investigate missing medication source detail",
+    ownerPersona: "General manager",
+    priority: "high",
+    removedManualWork: "Rediscovering nonblocking source ambiguity during downstream review",
+    rationale: "Medication note exists as staff-reported text, but the source record does not prove final medication administration status.",
+    sourceEvidenceSummary: "SourceDataQualityIssue from incident INC-DRAFT and reservation RSV-1007; ambiguity remains visible instead of hidden.",
+    sourceRefs: ["incident:INC-DRAFT", "gingr:reservation:RSV-1007"],
+    reviewGates: ["manager_approval"],
+    blockedActions: ["hide_source_data_quality_issue", "mutate_provider_or_pms_record"],
+    beforeMinutes: 12,
+    estimatedAfterMinutes: 5,
+    recommendation: "Ask a manager to verify the source fact and mark Source fact wrong if the source record contradicts the draft."
+  }
+];
+
+const managerDailyBriefOutcomeOptions: { value: ManagerDailyBriefOutcome; label: string }[] = [
+  { value: "Completed", label: "Approve action" },
+  { value: "Deferred", label: "Defer action" },
+  { value: "SuppressedByManager", label: "Suppress action" },
+  { value: "SourceFactWasWrong", label: "Source fact wrong" }
+];
+
+const initialManagerDailyBriefOutcome: ManagerDailyBriefOutcomeState = {
+  actionId: managerDailyBriefActions[0].id,
+  outcome: "Completed",
+  actualMinutes: 14,
+  feedback: "Reviewed source refs, approved internal staffing review task, no schedule change executed."
+};
+
 const initialIncidentForm: IncidentFormState = {
   subject: "Miso / RSV-1007",
   type: "medication issue",
@@ -361,10 +490,17 @@ function Panel({ title, eyebrow, children }: Readonly<{ title: string; eyebrow?:
 export default function Home() {
   const [incidentForm, setIncidentForm] = useState<IncidentFormState>(initialIncidentForm);
   const [incidents, setIncidents] = useState<Incident[]>(initialIncidents);
+  const [managerDailyBriefOutcome, setManagerDailyBriefOutcome] = useState<ManagerDailyBriefOutcomeState>(initialManagerDailyBriefOutcome);
   const currentDraft = useMemo(() => buildIncident(incidentForm, "INC-DRAFT"), [incidentForm]);
   const managerReviewQueue = incidents.filter((incident) =>
     incident.reviewGates.includes("ManagerApproval") || incident.reviewGates.includes("BehaviorReview")
   );
+  const selectedDailyBriefAction = managerDailyBriefActions.find((action) => action.id === managerDailyBriefOutcome.actionId) ?? managerDailyBriefActions[0];
+  const estimatedMinutesSaved = selectedDailyBriefAction.beforeMinutes - selectedDailyBriefAction.estimatedAfterMinutes;
+  const actualMinutesSaved = selectedDailyBriefAction.beforeMinutes - managerDailyBriefOutcome.actualMinutes;
+  const dailyBriefTotalBeforeMinutes = managerDailyBriefActions.reduce((total, action) => total + action.beforeMinutes, 0);
+  const dailyBriefTotalEstimatedAfterMinutes = managerDailyBriefActions.reduce((total, action) => total + action.estimatedAfterMinutes, 0);
+  const dailyBriefTotalEstimatedSavedMinutes = dailyBriefTotalBeforeMinutes - dailyBriefTotalEstimatedAfterMinutes;
 
   function recordIncident(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -405,6 +541,12 @@ export default function Home() {
           "Incident entry",
           "Manager review queue",
           "Incident list",
+          "Manager Daily Brief",
+          "Daily brief action review",
+          "Review gates",
+          "Blocked action boundaries",
+          "Outcome capture",
+          "Labor savings evidence",
           "Audit-visible staff actions"
         ].map((surface) => (
           <a href={`#${surface.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`} key={surface}>{surface}</a>
@@ -650,6 +792,120 @@ export default function Home() {
             <small>Audit: {incident.auditEvents.join(" / ")}</small>
           </article>
         ))}
+      </Panel>
+
+      <Panel title="Manager Daily Brief" eyebrow="source-grounded labor-saving loop">
+        <div className="record-card">
+          <div className="record-header">
+            <div>
+              <h3>{managerDailyBrief.location} • {managerDailyBrief.operatingDay}</h3>
+              <p>{managerDailyBrief.preparedFor}</p>
+            </div>
+            <span className="badge">draft/review only</span>
+          </div>
+          <p><strong>Context packet:</strong> {managerDailyBrief.contextPacketId}</p>
+          <p><strong>Correlation:</strong> {managerDailyBrief.correlationId}</p>
+          <p className="muted">Deterministic app owns source facts, policy, review gates, outcome persistence, audit, and side effects. AI can summarize and rank; staff/managers approve, defer, suppress, or mark source fact wrong.</p>
+          <div className="metric-grid">
+            <div><strong>{managerDailyBriefActions.length}</strong><span>daily brief actions</span></div>
+            <div><strong>{dailyBriefTotalBeforeMinutes}</strong><span>estimated manual minutes before</span></div>
+            <div><strong>{dailyBriefTotalEstimatedAfterMinutes}</strong><span>estimated minutes after review</span></div>
+            <div><strong>{dailyBriefTotalEstimatedSavedMinutes}</strong><span>estimated minutes saved</span></div>
+          </div>
+        </div>
+      </Panel>
+
+      <Panel title="Daily brief action review" eyebrow="actions with rationale/source evidence summary">
+        <div className="table-list" role="table" aria-label="Manager Daily Brief actions">
+          {managerDailyBriefActions.map((action) => (
+            <article role="row" className="list-row" key={action.id}>
+              <div>
+                <strong>{action.title}</strong>
+                <p>{action.id} • {action.kind} • owner: {action.ownerPersona} • priority: {action.priority}</p>
+                <p><strong>Removed manual work:</strong> {action.removedManualWork}</p>
+              </div>
+              <span className="badge">{action.beforeMinutes - action.estimatedAfterMinutes} min saved est.</span>
+              <div>
+                <p><strong>Rationale:</strong> {action.rationale}</p>
+                <p><strong>source evidence summary:</strong> {action.sourceEvidenceSummary}</p>
+                <p><strong>Draft recommendation:</strong> {action.recommendation}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+      </Panel>
+
+      <Panel title="Review gates" eyebrow="required human decision boundaries">
+        {managerDailyBriefActions.map((action) => (
+          <article className="list-row" key={`${action.id}-gates`}>
+            <div><strong>{action.title}</strong><p>{action.id}</p></div>
+            <span className="badge">{action.reviewGates.join(" + ")}</span>
+            <p>Sensitive actions remain draft/review oriented; approval records must cite source refs: {action.sourceRefs.join(", ")}.</p>
+          </article>
+        ))}
+      </Panel>
+
+      <Panel title="Blocked action boundaries" eyebrow="visible app-owned no-go list">
+        <div className="split">
+          <div>
+            <h3>Workflow blocked actions</h3>
+            <ul>{managerDailyBrief.blockedActions.map((blockedAction) => <li key={blockedAction}>{blockedAction}</li>)}</ul>
+          </div>
+          <div>
+            <h3>Allowed agent actions</h3>
+            <ul>{managerDailyBrief.allowedAgentActions.map((allowedAction) => <li key={allowedAction}>{allowedAction}</li>)}</ul>
+          </div>
+        </div>
+        <p className="muted">This surface cannot change staff schedules, mutate provider/PMS records, send customer messages, move refunds/discounts/payments, or hide source data-quality issues.</p>
+      </Panel>
+
+      <Panel title="Outcome capture" eyebrow="approve/defer/suppress/source-fact-wrong">
+        <form className="incident-form" aria-label="Manager Daily Brief outcome capture" onSubmit={(event) => event.preventDefault()}>
+          <div className="form-grid">
+            <label>Daily brief action
+              <select value={managerDailyBriefOutcome.actionId} onChange={(event) => setManagerDailyBriefOutcome({ ...managerDailyBriefOutcome, actionId: event.target.value })}>
+                {managerDailyBriefActions.map((action) => <option key={action.id} value={action.id}>{action.title}</option>)}
+              </select>
+            </label>
+            <label>Outcome
+              <select value={managerDailyBriefOutcome.outcome} onChange={(event) => setManagerDailyBriefOutcome({ ...managerDailyBriefOutcome, outcome: event.target.value as ManagerDailyBriefOutcome })}>
+                {managerDailyBriefOutcomeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </label>
+            <label>actual minutes spent
+              <input min="1" type="number" value={managerDailyBriefOutcome.actualMinutes} onChange={(event) => setManagerDailyBriefOutcome({ ...managerDailyBriefOutcome, actualMinutes: Number(event.target.value) })} />
+            </label>
+          </div>
+          <label>Manager/staff feedback
+            <textarea value={managerDailyBriefOutcome.feedback} onChange={(event) => setManagerDailyBriefOutcome({ ...managerDailyBriefOutcome, feedback: event.target.value })} />
+          </label>
+          <div className="split">
+            {managerDailyBriefOutcomeOptions.map((option) => (
+              <button type="button" key={option.value} onClick={() => setManagerDailyBriefOutcome({ ...managerDailyBriefOutcome, outcome: option.value })}>{option.label}</button>
+            ))}
+          </div>
+          <p className="muted">Outcome capture records staff evidence only; live_side_effects_allowed remains false and blocked actions stay visible after submission.</p>
+        </form>
+      </Panel>
+
+      <Panel title="Labor savings evidence" eyebrow="estimated vs actual labor minutes saved">
+        <article className="record-card">
+          <div className="record-header">
+            <div>
+              <h3>{selectedDailyBriefAction.title}</h3>
+              <p>{managerDailyBriefOutcome.outcome} • {managerDailyBriefOutcome.feedback}</p>
+            </div>
+            <span className="badge">{actualMinutesSaved} actual minutes saved</span>
+          </div>
+          <div className="metric-grid">
+            <div><strong>{selectedDailyBriefAction.beforeMinutes}</strong><span>before minutes</span></div>
+            <div><strong>{selectedDailyBriefAction.estimatedAfterMinutes}</strong><span>estimated after minutes</span></div>
+            <div><strong>{estimatedMinutesSaved}</strong><span>estimated minutes saved</span></div>
+            <div><strong>{managerDailyBriefOutcome.actualMinutes}</strong><span>actual minutes spent</span></div>
+          </div>
+          <p><strong>estimated vs actual labor minutes saved:</strong> {estimatedMinutesSaved} estimated vs {actualMinutesSaved} actual.</p>
+          <small>Audit: manager_daily_brief_outcome_recorded / policy_owner: deterministic_app / no live side effects.</small>
+        </article>
       </Panel>
 
       <Panel title="Audit-visible staff actions" eyebrow="append-only audit evidence">
