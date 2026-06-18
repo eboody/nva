@@ -1,4 +1,4 @@
-use app::{checkout_completion, crm_retention, manager_daily_brief};
+use app::{checkout_completion, crm_retention, data_quality_hygiene, manager_daily_brief};
 use axum::{
     Json, Router,
     extract::{Path, Query, State},
@@ -39,6 +39,7 @@ struct VaccineDocumentStore {
     approvals: BTreeMap<Uuid, ApprovalRecord>,
     eligibility: BTreeMap<Uuid, PetEligibility>,
     manager_daily_brief_outcomes: Vec<storage::operations::ManagerDailyBriefOutcomeRecord>,
+    data_quality_hygiene_outcomes: Vec<storage::operations::DataQualityHygieneOutcomeRecord>,
     inquiry_intake_records: Vec<InquiryIntakeRecord>,
     audit_events: Vec<AuditEvent>,
 }
@@ -295,6 +296,18 @@ pub fn router_with_state(state: VaccineDocumentState) -> Router {
             "/manager-daily-brief/actions/{action_id}/outcome",
             post(capture_manager_daily_brief_action_outcome),
         )
+        .route(
+            "/agent/context/data-quality-hygiene",
+            get(data_quality_hygiene_agent_context),
+        )
+        .route(
+            "/agent/drafts/data-quality-hygiene",
+            post(submit_data_quality_hygiene_agent_draft),
+        )
+        .route(
+            "/data-quality-hygiene/actions/{action_id}/outcome",
+            post(capture_data_quality_hygiene_action_outcome),
+        )
         .route("/vaccine-documents/uploads", post(upload_vaccine_document))
         .route(
             "/vaccine-documents/review-packets/{review_packet_id}/approve",
@@ -404,6 +417,63 @@ struct ManagerDailyBriefOutcomeReportingRequest {
     operating_day: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct DataQualityHygieneAgentContextQuery {
+    location_id: Uuid,
+    operating_day: NaiveDate,
+}
+
+#[derive(Debug, Deserialize)]
+struct DataQualityHygieneAgentDraftSubmissionRequest {
+    context_packet_id: String,
+    correlation_id: String,
+    actions: Vec<DataQualityHygieneSubmittedAction>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DataQualityHygieneSubmittedAction {
+    action_id: String,
+    kind: String,
+    #[serde(default)]
+    source_refs: Vec<Value>,
+    #[serde(default)]
+    issue_refs: Vec<String>,
+    #[serde(default)]
+    review_gates: Vec<String>,
+    #[serde(default)]
+    requested_side_effects: Vec<String>,
+    #[serde(default)]
+    attempted_ambiguity_resolution: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct DataQualityHygieneOutcomeCaptureRequest {
+    outcome: storage::operations::DataQualityHygieneOutcomeCode,
+    actual_minutes: u16,
+    actor: DataQualityHygieneOutcomeActorRequest,
+    feedback: String,
+    #[serde(default)]
+    source_refs: Vec<Value>,
+    #[serde(default)]
+    issue_refs: Vec<String>,
+    resolution_status_after_review: storage::operations::DataQualityResolutionStatusCode,
+    timestamp: String,
+    audit: DataQualityHygieneOutcomeAuditRequest,
+    #[serde(default)]
+    requested_side_effects: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DataQualityHygieneOutcomeActorRequest {
+    id: String,
+    persona: storage::operations::DataQualityHygienePersonaCode,
+}
+
+#[derive(Debug, Deserialize)]
+struct DataQualityHygieneOutcomeAuditRequest {
+    correlation_id: String,
+}
+
 async fn capture_manager_daily_brief_action_outcome(
     State(state): State<VaccineDocumentState>,
     Path(action_id): Path<String>,
@@ -412,7 +482,7 @@ async fn capture_manager_daily_brief_action_outcome(
     let reasons = request
         .requested_side_effects
         .iter()
-        .map(|side_effect| manager_daily_brief::requested_side_effect_rejection_reason(side_effect))
+        .map(|side_effect| manager_daily_brief_requested_side_effect_rejection_reason(side_effect))
         .collect::<Vec<_>>();
 
     if !reasons.is_empty() {
@@ -609,6 +679,222 @@ async fn submit_manager_daily_brief_agent_draft(
     )
 }
 
+async fn data_quality_hygiene_agent_context(
+    Query(query): Query<DataQualityHygieneAgentContextQuery>,
+) -> Json<Value> {
+    let location_id = entities::LocationId(query.location_id);
+    let operating_day = operations::operating_day::Date::try_new(query.operating_day)
+        .expect("operating day date is always valid after query parsing");
+    let packet = local_data_quality_hygiene_packet(location_id, operating_day);
+
+    Json(data_quality_hygiene_packet_payload(&packet))
+}
+
+async fn submit_data_quality_hygiene_agent_draft(
+    Json(request): Json<DataQualityHygieneAgentDraftSubmissionRequest>,
+) -> (StatusCode, Json<Value>) {
+    let packet = local_data_quality_hygiene_packet(
+        local_data_quality_hygiene_location_id(),
+        local_data_quality_hygiene_operating_day(),
+    );
+    let mut accepted_actions = Vec::new();
+    let mut rejected_actions = Vec::new();
+
+    for action in &request.actions {
+        let reasons = validate_data_quality_hygiene_submitted_action(&packet, action);
+        if reasons.is_empty() {
+            accepted_actions.push(json!({
+                "id": action.action_id,
+                "kind": action.kind,
+                "review_gates": action.review_gates,
+                "source_refs": action.source_refs,
+                "issue_refs": action.issue_refs,
+                "showable_to_manager": true,
+                "live_side_effects_allowed": false
+            }));
+        } else {
+            rejected_actions.push(json!({
+                "id": action.action_id,
+                "kind": action.kind,
+                "reasons": reasons,
+                "showable_to_manager": false,
+                "live_side_effects_allowed": false
+            }));
+        }
+    }
+
+    let validation_status = match (accepted_actions.is_empty(), rejected_actions.is_empty()) {
+        (false, true) => "accepted",
+        (false, false) => "partially_accepted",
+        (true, false) | (true, true) => "rejected",
+    };
+    let status_code = if rejected_actions.is_empty() {
+        StatusCode::CREATED
+    } else {
+        StatusCode::UNPROCESSABLE_ENTITY
+    };
+
+    (
+        status_code,
+        Json(json!({
+            "validation": {
+                "status": validation_status,
+                "validator": "pet_resort_api.data_quality_hygiene.agent_draft_validator.v1"
+            },
+            "context_packet_id": request.context_packet_id,
+            "correlation_id": request.correlation_id,
+            "accepted_actions": accepted_actions,
+            "rejected_actions": rejected_actions,
+            "live_side_effects_allowed": false,
+            "audit": {
+                "event": "data_quality_hygiene_agent_draft_validated",
+                "policy_owner": "deterministic_app"
+            }
+        })),
+    )
+}
+
+async fn capture_data_quality_hygiene_action_outcome(
+    State(state): State<VaccineDocumentState>,
+    Path(action_id): Path<String>,
+    Json(request): Json<DataQualityHygieneOutcomeCaptureRequest>,
+) -> (StatusCode, Json<Value>) {
+    let reasons = request
+        .requested_side_effects
+        .iter()
+        .map(|side_effect| data_quality_hygiene_requested_side_effect_rejection_reason(side_effect))
+        .collect::<Vec<_>>();
+
+    if !reasons.is_empty() {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({
+                "accepted": false,
+                "outcome_persisted": false,
+                "reasons": reasons,
+                "live_side_effects_allowed": false,
+                "blocked_actions": data_quality_hygiene_blocked_action_codes()
+            })),
+        );
+    }
+
+    let Ok(actual_minutes) =
+        storage::operations::StoredDataQualityHygieneLaborMinutes::try_new(request.actual_minutes)
+    else {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({
+                "accepted": false,
+                "outcome_persisted": false,
+                "reasons": ["actual_minutes_must_be_greater_than_zero"],
+                "live_side_effects_allowed": false,
+                "blocked_actions": data_quality_hygiene_blocked_action_codes()
+            })),
+        );
+    };
+
+    let packet = local_data_quality_hygiene_packet(
+        local_data_quality_hygiene_location_id(),
+        local_data_quality_hygiene_operating_day(),
+    );
+    let Some(action) = packet
+        .actions()
+        .iter()
+        .find(|action| action.id().as_str() == action_id)
+    else {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({
+                "accepted": false,
+                "outcome_persisted": false,
+                "reasons": ["unknown_data_quality_hygiene_action_id"],
+                "live_side_effects_allowed": false,
+                "blocked_actions": data_quality_hygiene_blocked_action_codes()
+            })),
+        );
+    };
+
+    let before_minutes = storage::operations::StoredDataQualityHygieneLaborMinutes::try_new(
+        action.labor_impact().before_minutes().get(),
+    )
+    .expect("data-quality hygiene action labor impact uses non-zero domain labor minutes");
+
+    let record = storage::operations::DataQualityHygieneOutcomeRecord::builder()
+        .action_id(action_id)
+        .outcome(request.outcome)
+        .before_minutes(before_minutes)
+        .actual_minutes(actual_minutes)
+        .actor_id(request.actor.id)
+        .actor_persona(request.actor.persona)
+        .feedback(request.feedback)
+        .source_refs(
+            request
+                .source_refs
+                .iter()
+                .map(stored_source_record_ref_from_payload)
+                .collect(),
+        )
+        .issue_refs(request.issue_refs)
+        .resolution_status_after_review(request.resolution_status_after_review)
+        .recorded_at(request.timestamp)
+        .correlation_id(request.audit.correlation_id)
+        .location_id(packet.location_id().0.to_string())
+        .operating_day(packet.operating_day().get().to_string())
+        .action_kind(stored_data_quality_hygiene_action_kind(action.kind()))
+        .owner_persona(stored_data_quality_hygiene_persona(action.owner_persona()))
+        .estimated_minutes_saved(action.labor_impact().minutes_saved())
+        .build();
+    let reporting_group = record.reporting_group();
+    let persisted_outcome_count = {
+        let mut store = state.store.lock().await;
+        store.data_quality_hygiene_outcomes.push(record.clone());
+        store.data_quality_hygiene_outcomes.len()
+    };
+
+    (
+        StatusCode::CREATED,
+        Json(json!({
+            "accepted": true,
+            "outcome_persisted": true,
+            "outcome_record": {
+                "action_id": record.action_id,
+                "outcome": record.outcome,
+                "before_minutes": record.before_minutes.get(),
+                "actual_minutes": record.actual_minutes.get(),
+                "actor": {
+                    "id": record.actor_id,
+                    "persona": record.actor_persona
+                },
+                "feedback": record.feedback,
+                "source_refs": record.source_refs,
+                "issue_refs": record.issue_refs,
+                "resolution_status_after_review": record.resolution_status_after_review,
+                "timestamp": record.recorded_at,
+                "audit": {
+                    "correlation_id": record.correlation_id
+                }
+            },
+            "labor_savings_evidence": {
+                "estimated_minutes_saved": record.estimated_minutes_saved,
+                "actual_minutes_saved": record.actual_minutes_saved(),
+                "grouping": {
+                    "location_id": reporting_group.location_id,
+                    "operating_day": reporting_group.operating_day,
+                    "action_kind": reporting_group.action_kind,
+                    "owner_persona": reporting_group.owner_persona
+                },
+                "persisted_outcome_count": persisted_outcome_count
+            },
+            "live_side_effects_allowed": false,
+            "blocked_actions": data_quality_hygiene_blocked_action_codes(),
+            "audit": {
+                "event": "data_quality_hygiene_outcome_recorded",
+                "policy_owner": "deterministic_app"
+            }
+        })),
+    )
+}
+
 fn validate_manager_daily_brief_submitted_action(
     action: &ManagerDailyBriefSubmittedAction,
 ) -> Vec<String> {
@@ -634,7 +920,7 @@ fn validate_manager_daily_brief_submitted_action(
     }
 
     for side_effect in &action.requested_side_effects {
-        reasons.push(manager_daily_brief::requested_side_effect_rejection_reason(
+        reasons.push(manager_daily_brief_requested_side_effect_rejection_reason(
             side_effect,
         ));
     }
@@ -649,6 +935,25 @@ fn required_manager_daily_brief_review_gate(kind: &str) -> Option<&'static str> 
         "approve_retention_follow_up_draft" => Some("customer_message_approval"),
         "investigate_source_data_quality_issue" => Some("manager_approval"),
         _ => None,
+    }
+}
+
+fn manager_daily_brief_side_effect_is_blocked(side_effect: &str) -> bool {
+    matches!(
+        side_effect,
+        "send_customer_message"
+            | "mutate_provider_or_pms_record"
+            | "change_staff_schedule"
+            | "move_refund_discount_or_payment"
+            | "hide_source_data_quality_issue"
+    )
+}
+
+fn manager_daily_brief_requested_side_effect_rejection_reason(side_effect: &str) -> String {
+    if manager_daily_brief_side_effect_is_blocked(side_effect) {
+        format!("blocked_side_effect:{side_effect}")
+    } else {
+        format!("unsupported_side_effect:{side_effect}")
     }
 }
 
@@ -818,7 +1123,7 @@ async fn manager_daily_brief_agent_context(
         "data_quality_issues": data_quality_issues,
         "source_refs": source_refs,
         "allowed_agent_actions": packet.safe_agent_actions().iter().map(safe_agent_action_code).collect::<Vec<_>>(),
-        "blocked_actions": packet.blocked_actions().iter().map(|action| action.code()).collect::<Vec<_>>(),
+        "blocked_actions": packet.blocked_actions().iter().map(blocked_action_code).collect::<Vec<_>>(),
         "labor_impact": {
             "before_minutes": packet.before_minutes().get(),
             "after_minutes": packet.after_minutes().get(),
@@ -1384,6 +1689,479 @@ fn source_record_ref_payload(record_ref: &source::RecordRef) -> Value {
     })
 }
 
+fn local_data_quality_hygiene_packet(
+    location_id: entities::LocationId,
+    operating_day: operations::operating_day::Date,
+) -> data_quality_hygiene::Packet {
+    data_quality_hygiene::Workflow::evaluate(
+        data_quality_hygiene::Request::builder()
+            .location_id(location_id)
+            .operating_day(operating_day)
+            .prepared_for(data_quality_hygiene::HygienePersona::GeneralManager)
+            .candidates(local_data_quality_hygiene_candidates())
+            .build(),
+    )
+}
+
+fn local_data_quality_hygiene_candidates() -> Vec<data_quality_hygiene::Candidate> {
+    vec![
+        data_quality_hygiene::Candidate::builder()
+            .id(
+                data_quality_hygiene::IssueRef::try_new("dq-vaccine-stale-42")
+                    .expect("static issue ref is valid"),
+            )
+            .kind(data_quality_hygiene::CandidateKind::SourceFreshness)
+            .issue(data_quality::Issue::new(
+                data_quality::Kind::MissingVaccinationRecord,
+                data_quality::Severity::Blocking,
+                data_quality_hygiene_source_provenance(
+                    "GET /vaccinations/{id}",
+                    "vaccine-record-42",
+                ),
+                source::Timestamp::try_new("2026-06-17T09:00:00Z")
+                    .expect("static timestamp is valid"),
+                true,
+            ))
+            .source_record_refs(vec![source::RecordRef::from_provenance(
+                &data_quality_hygiene_source_provenance(
+                    "GET /vaccinations/{id}",
+                    "vaccine-record-42",
+                ),
+            )])
+            .source_freshness(data_quality_hygiene::SourceFreshness::Stale)
+            .sensitivity(data_quality_hygiene::Sensitivity::VaccineEvidence)
+            .build(),
+        data_quality_hygiene::Candidate::builder()
+            .id(
+                data_quality_hygiene::IssueRef::try_new("dq-duplicate-customer-17")
+                    .expect("static issue ref is valid"),
+            )
+            .kind(data_quality_hygiene::CandidateKind::DuplicateCandidate)
+            .issue(data_quality::Issue::new(
+                data_quality::Kind::DuplicateSourceRecord,
+                data_quality::Severity::Warning,
+                data_quality_hygiene_source_provenance(
+                    "GET /customers/{id}",
+                    "customer-duplicate-17",
+                ),
+                source::Timestamp::try_new("2026-06-17T09:05:00Z")
+                    .expect("static timestamp is valid"),
+                false,
+            ))
+            .source_record_refs(vec![source::RecordRef::from_provenance(
+                &data_quality_hygiene_source_provenance(
+                    "GET /customers/{id}",
+                    "customer-duplicate-17",
+                ),
+            )])
+            .source_freshness(data_quality_hygiene::SourceFreshness::Conflicting)
+            .sensitivity(data_quality_hygiene::Sensitivity::StandardOperationalEvidence)
+            .build(),
+    ]
+}
+
+fn data_quality_hygiene_packet_payload(packet: &data_quality_hygiene::Packet) -> Value {
+    json!({
+        "workflow": {
+            "name": packet.workflow(),
+            "version": packet.schema_version()
+        },
+        "location_id": packet.location_id().0,
+        "operating_day": packet.operating_day().get().to_string(),
+        "prepared_for": data_quality_hygiene_persona_code(packet.prepared_for()),
+        "candidates": packet.candidates().iter().map(data_quality_hygiene_candidate_payload).collect::<Vec<_>>(),
+        "hygiene_actions": packet.actions().iter().map(data_quality_hygiene_action_payload).collect::<Vec<_>>(),
+        "allowed_agent_actions": packet.safe_agent_actions().iter().map(|action| data_quality_hygiene_safe_action_code(*action)).collect::<Vec<_>>(),
+        "blocked_actions": packet.blocked_actions().iter().map(|action| data_quality_hygiene_blocked_action_code(*action)).collect::<Vec<_>>(),
+        "labor_savings_estimate": {
+            "before_minutes": packet.before_minutes().get(),
+            "after_minutes": packet.after_minutes().get(),
+            "estimated_minutes_saved": packet.minutes_saved()
+        },
+        "live_side_effects_allowed": false,
+        "audit": {
+            "context_packet_id": packet.context_packet_id().as_str(),
+            "correlation_id": packet.correlation_id().as_str(),
+            "runtime": "agent.data-quality-hygiene.fake_deterministic"
+        }
+    })
+}
+
+fn data_quality_hygiene_candidate_payload(candidate: &data_quality_hygiene::Candidate) -> Value {
+    json!({
+        "id": candidate.id().as_str(),
+        "kind": data_quality_hygiene_candidate_kind_code(candidate.kind()),
+        "issue": data_quality_issue_payload(candidate.issue()),
+        "source_refs": candidate.source_record_refs().iter().map(source_record_ref_payload).collect::<Vec<_>>(),
+        "source_freshness": data_quality_hygiene_source_freshness_code(candidate.source_freshness()),
+        "sensitivity": data_quality_hygiene_sensitivity_code(candidate.sensitivity())
+    })
+}
+
+fn data_quality_hygiene_action_payload(action: &data_quality_hygiene::Action) -> Value {
+    json!({
+        "id": action.id().as_str(),
+        "kind": data_quality_hygiene_action_kind_code(action.kind()),
+        "priority": data_quality_hygiene_action_priority_code(action.priority()),
+        "owner_persona": data_quality_hygiene_persona_code(action.owner_persona()),
+        "removed_manual_work": data_quality_hygiene_removed_manual_work_code(action.removed_manual_work()),
+        "rationale": action.rationale(),
+        "source_refs": action.source_record_refs().iter().map(source_record_ref_payload).collect::<Vec<_>>(),
+        "issue_refs": action.issue_refs().iter().map(|issue_ref| issue_ref.as_str()).collect::<Vec<_>>(),
+        "review_gates": action.required_review_gates().iter().map(review_gate_code).collect::<Vec<_>>(),
+        "labor_impact": {
+            "before_minutes": action.labor_impact().before_minutes().get(),
+            "after_minutes": action.labor_impact().after_minutes().get(),
+            "estimated_minutes_saved": action.labor_impact().minutes_saved()
+        },
+        "live_side_effects_allowed": false
+    })
+}
+
+fn validate_data_quality_hygiene_submitted_action(
+    packet: &data_quality_hygiene::Packet,
+    action: &DataQualityHygieneSubmittedAction,
+) -> Vec<String> {
+    let mut reasons = Vec::new();
+    if action.source_refs.is_empty() {
+        reasons.push("missing_source_refs".to_owned());
+    }
+    if action.issue_refs.is_empty() {
+        reasons.push("missing_data_quality_issue_refs".to_owned());
+    }
+    if action.attempted_ambiguity_resolution {
+        reasons.push("attempted_ambiguity_hiding".to_owned());
+    }
+    for side_effect in &action.requested_side_effects {
+        reasons.push(data_quality_hygiene_requested_side_effect_rejection_reason(
+            side_effect,
+        ));
+    }
+    let matching_action = packet.actions().iter().find(|packet_action| {
+        packet_action.id().as_str() == action.action_id
+            && data_quality_hygiene_action_kind_code(packet_action.kind()) == action.kind
+    });
+    match matching_action {
+        Some(packet_action) => {
+            let required_gates = packet_action
+                .required_review_gates()
+                .iter()
+                .map(|gate| review_gate_code(gate).to_owned())
+                .collect::<Vec<_>>();
+            if required_gates != action.review_gates {
+                reasons.push("wrong_review_gate".to_owned());
+            }
+        }
+        None => reasons.push("unsupported_action_kind".to_owned()),
+    }
+    reasons.sort();
+    reasons.dedup();
+    reasons
+}
+
+fn data_quality_hygiene_requested_side_effect_rejection_reason(side_effect: &str) -> String {
+    match side_effect.trim() {
+        "send_customer_message"
+        | "mutate_provider_or_pms_record"
+        | "change_staff_schedule"
+        | "move_refund_discount_or_payment"
+        | "hide_or_auto_resolve_source_ambiguity"
+        | "expose_quarantined_sensitive_payload" => "blocked_side_effect_requested".to_owned(),
+        _ => "unsupported_side_effect_requested".to_owned(),
+    }
+}
+
+fn data_quality_hygiene_blocked_action_codes() -> Vec<&'static str> {
+    vec![
+        "send_customer_message",
+        "mutate_provider_or_pms_record",
+        "change_staff_schedule",
+        "move_refund_discount_or_payment",
+        "hide_or_auto_resolve_source_ambiguity",
+        "expose_quarantined_sensitive_payload",
+    ]
+}
+
+fn stored_source_record_ref_from_payload(
+    value: &Value,
+) -> storage::operations::StoredSourceRecordRef {
+    storage::operations::StoredSourceRecordRef::builder()
+        .system(
+            value
+                .get("system")
+                .and_then(Value::as_str)
+                .unwrap_or("unknown")
+                .to_owned(),
+        )
+        .record_type(
+            value
+                .get("record_type")
+                .and_then(Value::as_str)
+                .unwrap_or("source_record")
+                .to_owned(),
+        )
+        .record_id(
+            value
+                .get("record_id")
+                .and_then(Value::as_str)
+                .unwrap_or("unknown")
+                .to_owned(),
+        )
+        .observed_at(
+            value
+                .get("observed_at")
+                .and_then(Value::as_str)
+                .unwrap_or("2026-06-17T00:00:00Z")
+                .to_owned(),
+        )
+        .adapter_version(
+            value
+                .get("adapter_version")
+                .and_then(Value::as_str)
+                .unwrap_or("gingr-v0-readonly")
+                .to_owned(),
+        )
+        .build()
+}
+
+fn stored_data_quality_hygiene_action_kind(
+    kind: data_quality_hygiene::ActionKind,
+) -> storage::operations::DataQualityHygieneActionKindCode {
+    use data_quality_hygiene::ActionKind as App;
+    use storage::operations::DataQualityHygieneActionKindCode as Stored;
+    match kind {
+        App::InvestigateMissingSourceEvidence => Stored::InvestigateMissingSourceEvidence,
+        App::ReconcileDuplicateCustomerOrPetCandidate => {
+            Stored::ReconcileDuplicateCustomerOrPetCandidate
+        }
+        App::CompleteMissingPetOrCustomerProfileFields => {
+            Stored::CompleteMissingPetOrCustomerProfileFields
+        }
+        App::ReviewStaleVaccinationSourceFreshness => Stored::ReviewStaleVaccinationSourceFreshness,
+        App::NormalizeAmbiguousServiceLineNaming => Stored::NormalizeAmbiguousServiceLineNaming,
+        App::ReviewCheckoutOrUnclosedReservationEvidence => {
+            Stored::ReviewCheckoutOrUnclosedReservationEvidence
+        }
+        App::EscalateSensitiveOrQuarantinedPayload => Stored::EscalateSensitiveOrQuarantinedPayload,
+    }
+}
+
+fn stored_data_quality_hygiene_persona(
+    persona: data_quality_hygiene::HygienePersona,
+) -> storage::operations::DataQualityHygienePersonaCode {
+    use data_quality_hygiene::HygienePersona as App;
+    use storage::operations::DataQualityHygienePersonaCode as Stored;
+    match persona {
+        App::GeneralManager => Stored::GeneralManager,
+        App::AssistantGeneralManager => Stored::AssistantGeneralManager,
+        App::FrontDeskLead => Stored::FrontDeskLead,
+        App::FrontDeskAgent => Stored::FrontDeskAgent,
+        App::RegionalOperator => Stored::RegionalOperator,
+        App::OperationsAnalyst => Stored::OperationsAnalyst,
+    }
+}
+
+fn local_data_quality_hygiene_location_id() -> entities::LocationId {
+    local_manager_daily_brief_location_id()
+}
+
+fn local_data_quality_hygiene_operating_day() -> operations::operating_day::Date {
+    local_manager_daily_brief_operating_day()
+}
+
+fn data_quality_hygiene_source_provenance(
+    endpoint: &'static str,
+    record_id: &'static str,
+) -> source::Provenance {
+    source::Provenance::builder()
+        .system(source::System::Gingr)
+        .endpoint(source::Endpoint::try_new(endpoint).expect("static endpoint is valid"))
+        .record_id(source::record::Id::try_new(record_id).expect("static record id is valid"))
+        .extraction_batch(
+            source::ExtractionBatchId::try_new("dq-hygiene-batch-local")
+                .expect("static batch id is valid"),
+        )
+        .pulled_at(
+            source::Timestamp::try_new("2026-06-17T00:00:00Z").expect("static timestamp is valid"),
+        )
+        .request_scope(
+            source::RequestScope::try_new("local-data-quality-hygiene-context")
+                .expect("static request scope is valid"),
+        )
+        .schema_version(
+            source::SchemaVersion::try_new("gingr-v0-readonly")
+                .expect("static schema version is valid"),
+        )
+        .payload_hash(
+            source::PayloadHash::try_new("sha256:dataqualityhygienefixture")
+                .expect("static payload hash is valid"),
+        )
+        .raw_payload_ref(
+            source::RawPayloadRef::try_new("fixtures/gingr/data-quality-hygiene.json")
+                .expect("static raw payload ref is valid"),
+        )
+        .build()
+}
+
+fn data_quality_hygiene_action_kind_code(kind: data_quality_hygiene::ActionKind) -> &'static str {
+    match kind {
+        data_quality_hygiene::ActionKind::InvestigateMissingSourceEvidence => {
+            "investigate_missing_source_evidence"
+        }
+        data_quality_hygiene::ActionKind::ReconcileDuplicateCustomerOrPetCandidate => {
+            "reconcile_duplicate_customer_or_pet_candidate"
+        }
+        data_quality_hygiene::ActionKind::CompleteMissingPetOrCustomerProfileFields => {
+            "complete_missing_pet_or_customer_profile_fields"
+        }
+        data_quality_hygiene::ActionKind::ReviewStaleVaccinationSourceFreshness => {
+            "review_stale_vaccination_source_freshness"
+        }
+        data_quality_hygiene::ActionKind::NormalizeAmbiguousServiceLineNaming => {
+            "normalize_ambiguous_service_line_naming"
+        }
+        data_quality_hygiene::ActionKind::ReviewCheckoutOrUnclosedReservationEvidence => {
+            "review_checkout_or_unclosed_reservation_evidence"
+        }
+        data_quality_hygiene::ActionKind::EscalateSensitiveOrQuarantinedPayload => {
+            "escalate_sensitive_or_quarantined_payload"
+        }
+    }
+}
+
+fn data_quality_hygiene_persona_code(
+    persona: data_quality_hygiene::HygienePersona,
+) -> &'static str {
+    match persona {
+        data_quality_hygiene::HygienePersona::GeneralManager => "general_manager",
+        data_quality_hygiene::HygienePersona::AssistantGeneralManager => {
+            "assistant_general_manager"
+        }
+        data_quality_hygiene::HygienePersona::FrontDeskLead => "front_desk_lead",
+        data_quality_hygiene::HygienePersona::FrontDeskAgent => "front_desk_agent",
+        data_quality_hygiene::HygienePersona::RegionalOperator => "regional_operator",
+        data_quality_hygiene::HygienePersona::OperationsAnalyst => "operations_analyst",
+    }
+}
+
+fn data_quality_hygiene_candidate_kind_code(
+    kind: data_quality_hygiene::CandidateKind,
+) -> &'static str {
+    match kind {
+        data_quality_hygiene::CandidateKind::SourceIssue => "source_issue",
+        data_quality_hygiene::CandidateKind::DuplicateCandidate => "duplicate_candidate",
+        data_quality_hygiene::CandidateKind::ProfileGap => "profile_gap",
+        data_quality_hygiene::CandidateKind::ServiceLineMapping => "service_line_mapping",
+        data_quality_hygiene::CandidateKind::SourceFreshness => "source_freshness",
+    }
+}
+
+fn data_quality_hygiene_source_freshness_code(
+    freshness: data_quality_hygiene::SourceFreshness,
+) -> &'static str {
+    match freshness {
+        data_quality_hygiene::SourceFreshness::Current => "current",
+        data_quality_hygiene::SourceFreshness::Stale => "stale",
+        data_quality_hygiene::SourceFreshness::Conflicting => "conflicting",
+        data_quality_hygiene::SourceFreshness::Missing => "missing",
+    }
+}
+
+fn data_quality_hygiene_sensitivity_code(
+    sensitivity: data_quality_hygiene::Sensitivity,
+) -> &'static str {
+    match sensitivity {
+        data_quality_hygiene::Sensitivity::StandardOperationalEvidence => {
+            "standard_operational_evidence"
+        }
+        data_quality_hygiene::Sensitivity::VaccineEvidence => "vaccine_evidence",
+        data_quality_hygiene::Sensitivity::IncidentOrBehaviorEvidence => {
+            "incident_or_behavior_evidence"
+        }
+        data_quality_hygiene::Sensitivity::PaymentEvidence => "payment_evidence",
+        data_quality_hygiene::Sensitivity::QuarantinedSensitivePayload => {
+            "quarantined_sensitive_payload"
+        }
+    }
+}
+
+fn data_quality_hygiene_action_priority_code(
+    priority: data_quality_hygiene::ActionPriority,
+) -> &'static str {
+    match priority {
+        data_quality_hygiene::ActionPriority::High => "high",
+        data_quality_hygiene::ActionPriority::Medium => "medium",
+        data_quality_hygiene::ActionPriority::Low => "low",
+    }
+}
+
+fn data_quality_hygiene_removed_manual_work_code(
+    work: data_quality_hygiene::RemovedManualWork,
+) -> &'static str {
+    match work {
+        data_quality_hygiene::RemovedManualWork::MissingEvidenceInvestigation => {
+            "missing_evidence_investigation"
+        }
+        data_quality_hygiene::RemovedManualWork::DuplicateCandidateReconciliation => {
+            "duplicate_candidate_reconciliation"
+        }
+        data_quality_hygiene::RemovedManualWork::IncompleteProfileCleanupPreparation => {
+            "incomplete_profile_cleanup_preparation"
+        }
+        data_quality_hygiene::RemovedManualWork::SourceFreshnessReview => "source_freshness_review",
+        data_quality_hygiene::RemovedManualWork::ServiceLineNormalizationReview => {
+            "service_line_normalization_review"
+        }
+        data_quality_hygiene::RemovedManualWork::CheckoutEvidenceReview => {
+            "checkout_evidence_review"
+        }
+        data_quality_hygiene::RemovedManualWork::SensitivePayloadEscalation => {
+            "sensitive_payload_escalation"
+        }
+    }
+}
+
+fn data_quality_hygiene_safe_action_code(
+    action: data_quality_hygiene::SafeAgentAction,
+) -> &'static str {
+    match action {
+        data_quality_hygiene::SafeAgentAction::SummarizeSourceEvidence => {
+            "summarize_source_evidence"
+        }
+        data_quality_hygiene::SafeAgentAction::RankHygieneActions => "rank_hygiene_actions",
+        data_quality_hygiene::SafeAgentAction::DraftInternalCleanupTask => {
+            "draft_internal_cleanup_task"
+        }
+        data_quality_hygiene::SafeAgentAction::PreserveAmbiguityForReview => {
+            "preserve_ambiguity_for_review"
+        }
+        data_quality_hygiene::SafeAgentAction::EstimateReconciliationMinutesSaved => {
+            "estimate_reconciliation_minutes_saved"
+        }
+    }
+}
+
+fn data_quality_hygiene_blocked_action_code(
+    action: data_quality_hygiene::BlockedAction,
+) -> &'static str {
+    match action {
+        data_quality_hygiene::BlockedAction::SendCustomerMessage => "send_customer_message",
+        data_quality_hygiene::BlockedAction::MutateProviderOrPmsRecord => {
+            "mutate_provider_or_pms_record"
+        }
+        data_quality_hygiene::BlockedAction::ChangeStaffSchedule => "change_staff_schedule",
+        data_quality_hygiene::BlockedAction::MoveRefundDiscountOrPayment => {
+            "move_refund_discount_or_payment"
+        }
+        data_quality_hygiene::BlockedAction::HideOrAutoResolveSourceAmbiguity => {
+            "hide_or_auto_resolve_source_ambiguity"
+        }
+        data_quality_hygiene::BlockedAction::ExposeQuarantinedSensitivePayload => {
+            "expose_quarantined_sensitive_payload"
+        }
+    }
+}
+
 fn local_manager_daily_brief_location_id() -> entities::LocationId {
     entities::LocationId(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0001))
 }
@@ -1613,8 +2391,24 @@ fn manager_daily_brief_blocked_action_codes() -> Vec<&'static str> {
     )
     .blocked_actions()
     .iter()
-    .map(|action| action.code())
+    .map(blocked_action_code)
     .collect()
+}
+
+fn blocked_action_code(action: &manager_daily_brief::BlockedAction) -> &'static str {
+    match action {
+        manager_daily_brief::BlockedAction::ChangeStaffSchedule => "change_staff_schedule",
+        manager_daily_brief::BlockedAction::MutateProviderOrPmsRecord => {
+            "mutate_provider_or_pms_record"
+        }
+        manager_daily_brief::BlockedAction::SendCustomerMessage => "send_customer_message",
+        manager_daily_brief::BlockedAction::MoveRefundDiscountOrPayment => {
+            "move_refund_discount_or_payment"
+        }
+        manager_daily_brief::BlockedAction::HideSourceDataQualityIssue => {
+            "hide_source_data_quality_issue"
+        }
+    }
 }
 
 fn brief_action_kind_code(kind: manager_daily_brief::BriefActionKind) -> &'static str {
