@@ -4,4 +4,5 @@
 //! request actions, but this crate is where those requests will become typed,
 //! audited application commands.
 
+/// Axum routes that expose review-gated workflows and audit-friendly DTOs.
 pub mod http;

@@ -37,16 +37,19 @@ use super::*;
 use crate::{payment, policy};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Typed policy domain value that keeps raw primitives out of boarding workflows.
 pub struct Policy {
     rule: DepositRule,
     timing: PaymentTiming,
 }
 
 impl Policy {
+    /// Assembles this boarding value from already-validated domain parts.
     pub const fn new(rule: DepositRule, timing: PaymentTiming) -> Self {
         Self { rule, timing }
     }
 
+    /// Returns the readiness for confirmation for this boarding value.
     pub fn readiness_for_confirmation(
         &self,
         deposit: Option<&payment::Deposit>,
@@ -74,16 +77,24 @@ impl Policy {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Domain vocabulary for confirmation readiness decisions in boarding workflows.
 pub enum ConfirmationReadiness {
+    /// Ready boarding policy, stay, capacity, or upsell signal.
     Ready,
+    /// Blocked boarding policy, stay, capacity, or upsell signal.
     Blocked {
+        /// Blocker fact promoted into this boarding contract.
         blocker: Blocker,
+        /// Review gate fact promoted into this boarding contract.
         review_gate: policy::ReviewGate,
     },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Domain vocabulary for blocker decisions in boarding workflows.
 pub enum Blocker {
+    /// Deposit must be collected before the booking is secure.
     DepositRequired,
+    /// Reference missing boarding policy, stay, capacity, or upsell signal.
     ReferenceMissing,
 }

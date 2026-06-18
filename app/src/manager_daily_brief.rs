@@ -124,9 +124,11 @@ pub struct ActionId(String);
 pub struct ActionRationale(String);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Labor minutes carried by the manager daily brief workflow; it assembles reviewable manager brief packets from deterministic context and agent drafts.
 pub struct LaborMinutes(u16);
 
 impl LaborMinutes {
+    /// Builds or derives try new data for the manager daily brief workflow contract.
     pub const fn try_new(value: u16) -> Result<Self> {
         if value == 0 {
             return Err(Error::ZeroLaborMinutes);
@@ -134,28 +136,34 @@ impl LaborMinutes {
         Ok(Self(value))
     }
 
+    /// Returns the get carried by this manager daily brief workflow value.
     pub const fn get(self) -> u16 {
         self.0
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Aggregate labor minutes carried by the manager daily brief workflow; it assembles reviewable manager brief packets from deterministic context and agent drafts.
 pub struct AggregateLaborMinutes(u16);
 
 impl AggregateLaborMinutes {
+    /// Builds or derives new data for the manager daily brief workflow contract.
     pub const fn new(value: u16) -> Self {
         Self(value)
     }
 
+    /// Returns the get carried by this manager daily brief workflow value.
     pub const fn get(self) -> u16 {
         self.0
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Demand threshold units carried by the manager daily brief workflow; it assembles reviewable manager brief packets from deterministic context and agent drafts.
 pub struct DemandThresholdUnits(u32);
 
 impl DemandThresholdUnits {
+    /// Builds or derives try new data for the manager daily brief workflow contract.
     pub const fn try_new(value: u32) -> Result<Self> {
         if value == 0 {
             return Err(Error::ZeroDemandThresholdUnits);
@@ -163,37 +171,55 @@ impl DemandThresholdUnits {
         Ok(Self(value))
     }
 
+    /// Returns the get carried by this manager daily brief workflow value.
     pub const fn get(self) -> u32 {
         self.0
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Classifies manager brief persona values that drive the manager daily brief workflow.
 pub enum ManagerBriefPersona {
+    /// Routes manager brief work flagged as general manager to the right queue, review gate, or agent packet.
     GeneralManager,
+    /// Routes manager brief work flagged as assistant general manager to the right queue, review gate, or agent packet.
     AssistantGeneralManager,
+    /// Routes manager brief work flagged as front desk lead to the right queue, review gate, or agent packet.
     FrontDeskLead,
+    /// Routes manager brief work flagged as front desk agent to the right queue, review gate, or agent packet.
     FrontDeskAgent,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Classifies removed manual work values that drive the manager daily brief workflow.
 pub enum RemovedManualWork {
+    /// Routes manager brief work flagged as morning dashboard reconciliation to the right queue, review gate, or agent packet.
     MorningDashboardReconciliation,
+    /// Routes manager brief work flagged as demand versus staffing scan to the right queue, review gate, or agent packet.
     DemandVersusStaffingScan,
+    /// Routes manager brief work flagged as checkout exception audit to the right queue, review gate, or agent packet.
     CheckoutExceptionAudit,
+    /// Routes manager brief work flagged as retention follow up queue prioritization to the right queue, review gate, or agent packet.
     RetentionFollowUpQueuePrioritization,
+    /// Routes manager brief work flagged as data quality exception triage to the right queue, review gate, or agent packet.
     DataQualityExceptionTriage,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Classifies source fact kind values that drive the manager daily brief workflow.
 pub enum SourceFactKind {
+    /// Routes manager brief work flagged as service demand forecast to the right queue, review gate, or agent packet.
     ServiceDemandForecast,
+    /// Routes manager brief work flagged as checkout completion status to the right queue, review gate, or agent packet.
     CheckoutCompletionStatus,
+    /// Routes manager brief work flagged as retention follow up eligibility to the right queue, review gate, or agent packet.
     RetentionFollowUpEligibility,
+    /// Routes manager brief work flagged as source data quality issue to the right queue, review gate, or agent packet.
     SourceDataQualityIssue,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+/// Source fact carried by the manager daily brief workflow; it assembles reviewable manager brief packets from deterministic context and agent drafts.
 pub struct SourceFact {
     kind: SourceFactKind,
     summary: BriefSummary,
@@ -202,57 +228,83 @@ pub struct SourceFact {
 }
 
 impl SourceFact {
+    /// Returns the kind carried by this manager daily brief workflow value.
     pub const fn kind(&self) -> SourceFactKind {
         self.kind
     }
 
+    /// Returns the summary carried by this manager daily brief workflow value.
     pub const fn summary(&self) -> &BriefSummary {
         &self.summary
     }
 
+    /// Returns the source record refs carried by this manager daily brief workflow value.
     pub fn source_record_refs(&self) -> &[source::RecordRef] {
         &self.source_record_refs
     }
 
+    /// Reports whether the manager daily brief workflow satisfies the has source evidence safety condition.
     pub fn has_source_evidence(&self) -> bool {
         !self.source_record_refs.is_empty()
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Classifies brief action kind values that drive the manager daily brief workflow.
 pub enum BriefActionKind {
+    /// Routes manager brief work flagged as review demand against staffing plan to the right queue, review gate, or agent packet.
     ReviewDemandAgainstStaffingPlan,
+    /// Routes manager brief work flagged as resolve checkout exception to the right queue, review gate, or agent packet.
     ResolveCheckoutException,
+    /// Routes manager brief work flagged as approve retention follow up draft to the right queue, review gate, or agent packet.
     ApproveRetentionFollowUpDraft,
+    /// Routes manager brief work flagged as investigate source data quality issue to the right queue, review gate, or agent packet.
     InvestigateSourceDataQualityIssue,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Classifies brief action priority values that drive the manager daily brief workflow.
 pub enum BriefActionPriority {
+    /// Routes manager brief work flagged as high to the right queue, review gate, or agent packet.
     High,
+    /// Routes manager brief work flagged as medium to the right queue, review gate, or agent packet.
     Medium,
+    /// Routes manager brief work flagged as low to the right queue, review gate, or agent packet.
     Low,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Review-safe agent tasks allowed to save staff time without crossing mutation or send boundaries.
 pub enum SafeAgentAction {
+    /// Allows agents to summarize source evidence for staff review without mutating records or contacting customers.
     SummarizeSourceEvidence,
+    /// Allows agents to rank manager actions for staff review without mutating records or contacting customers.
     RankManagerActions,
+    /// Allows agents to draft internal task for review for staff review without mutating records or contacting customers.
     DraftInternalTaskForReview,
+    /// Allows agents to record manager feedback for staff review without mutating records or contacting customers.
     RecordManagerFeedback,
+    /// Allows agents to estimate labor minutes saved for staff review without mutating records or contacting customers.
     EstimateLaborMinutesSaved,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Actions the agent must never perform without a human/operator system of record.
 pub enum BlockedAction {
+    /// Blocks agents from change staff schedule until staff or the system of record performs the action.
     ChangeStaffSchedule,
+    /// Blocks agents from mutate provider or pms record until staff or the system of record performs the action.
     MutateProviderOrPmsRecord,
+    /// Blocks agents from send customer message until staff or the system of record performs the action.
     SendCustomerMessage,
+    /// Blocks agents from move refund discount or payment until staff or the system of record performs the action.
     MoveRefundDiscountOrPayment,
+    /// Blocks agents from hide source data quality issue until staff or the system of record performs the action.
     HideSourceDataQualityIssue,
 }
 
 impl BlockedAction {
+    /// Returns the code carried by this manager daily brief workflow value.
     pub const fn code(self) -> &'static str {
         match self {
             Self::ChangeStaffSchedule => "change_staff_schedule",
@@ -263,6 +315,7 @@ impl BlockedAction {
         }
     }
 
+    /// Builds or derives from requested side effect code data for the manager daily brief workflow contract.
     pub fn from_requested_side_effect_code(code: &str) -> Option<Self> {
         match code {
             "change_staff_schedule" => Some(Self::ChangeStaffSchedule),
@@ -275,6 +328,7 @@ impl BlockedAction {
     }
 }
 
+/// Produces the requested side effect rejection reason contract for the manager daily brief workflow.
 pub fn requested_side_effect_rejection_reason(side_effect: &str) -> String {
     if BlockedAction::from_requested_side_effect_code(side_effect).is_some() {
         format!("blocked_side_effect:{side_effect}")
@@ -284,12 +338,14 @@ pub fn requested_side_effect_rejection_reason(side_effect: &str) -> String {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Labor impact estimate carried by the manager daily brief workflow; it assembles reviewable manager brief packets from deterministic context and agent drafts.
 pub struct LaborImpactEstimate {
     before_minutes: LaborMinutes,
     after_minutes: LaborMinutes,
 }
 
 impl LaborImpactEstimate {
+    /// Builds or derives new data for the manager daily brief workflow contract.
     pub const fn new(before_minutes: LaborMinutes, after_minutes: LaborMinutes) -> Self {
         Self {
             before_minutes,
@@ -297,20 +353,24 @@ impl LaborImpactEstimate {
         }
     }
 
+    /// Returns the before minutes carried by this manager daily brief workflow value.
     pub const fn before_minutes(&self) -> LaborMinutes {
         self.before_minutes
     }
 
+    /// Returns the after minutes carried by this manager daily brief workflow value.
     pub const fn after_minutes(&self) -> LaborMinutes {
         self.after_minutes
     }
 
+    /// Returns the minutes saved carried by this manager daily brief workflow value.
     pub const fn minutes_saved(&self) -> u16 {
         self.before_minutes.0.saturating_sub(self.after_minutes.0)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+/// Brief action carried by the manager daily brief workflow; it assembles reviewable manager brief packets from deterministic context and agent drafts.
 pub struct BriefAction {
     id: ActionId,
     kind: BriefActionKind,
@@ -325,42 +385,52 @@ pub struct BriefAction {
 }
 
 impl BriefAction {
+    /// Returns the id carried by this manager daily brief workflow value.
     pub const fn id(&self) -> &ActionId {
         &self.id
     }
 
+    /// Returns the kind carried by this manager daily brief workflow value.
     pub const fn kind(&self) -> BriefActionKind {
         self.kind
     }
 
+    /// Returns the priority carried by this manager daily brief workflow value.
     pub const fn priority(&self) -> BriefActionPriority {
         self.priority
     }
 
+    /// Returns the owner persona carried by this manager daily brief workflow value.
     pub const fn owner_persona(&self) -> ManagerBriefPersona {
         self.owner_persona
     }
 
+    /// Returns the removed manual work carried by this manager daily brief workflow value.
     pub const fn removed_manual_work(&self) -> RemovedManualWork {
         self.removed_manual_work
     }
 
+    /// Returns the rationale carried by this manager daily brief workflow value.
     pub const fn rationale(&self) -> &ActionRationale {
         &self.rationale
     }
 
+    /// Returns the source facts carried by this manager daily brief workflow value.
     pub fn source_facts(&self) -> &[SourceFact] {
         &self.source_facts
     }
 
+    /// Returns the labor impact carried by this manager daily brief workflow value.
     pub const fn labor_impact(&self) -> &LaborImpactEstimate {
         &self.labor_impact
     }
 
+    /// Returns the required review gates carried by this manager daily brief workflow value.
     pub fn required_review_gates(&self) -> &[policy::ReviewGate] {
         &self.required_review_gates
     }
 
+    /// Reports whether the manager daily brief workflow satisfies the is source grounded safety condition.
     pub fn is_source_grounded(&self) -> bool {
         !self.source_facts.is_empty()
             && self
@@ -371,6 +441,7 @@ impl BriefAction {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+/// Scoped checkout packet carried by the manager daily brief workflow; it assembles reviewable manager brief packets from deterministic context and agent drafts.
 pub struct ScopedCheckoutPacket {
     location_id: entities::LocationId,
     operating_day: operations::operating_day::Date,
@@ -378,20 +449,24 @@ pub struct ScopedCheckoutPacket {
 }
 
 impl ScopedCheckoutPacket {
+    /// Returns the location id carried by this manager daily brief workflow value.
     pub const fn location_id(&self) -> entities::LocationId {
         self.location_id
     }
 
+    /// Returns the operating day carried by this manager daily brief workflow value.
     pub const fn operating_day(&self) -> operations::operating_day::Date {
         self.operating_day
     }
 
+    /// Returns the packet carried by this manager daily brief workflow value.
     pub const fn packet(&self) -> &checkout_completion::Packet {
         &self.packet
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+/// Scoped retention packet carried by the manager daily brief workflow; it assembles reviewable manager brief packets from deterministic context and agent drafts.
 pub struct ScopedRetentionPacket {
     location_id: entities::LocationId,
     operating_day: operations::operating_day::Date,
@@ -399,20 +474,24 @@ pub struct ScopedRetentionPacket {
 }
 
 impl ScopedRetentionPacket {
+    /// Returns the location id carried by this manager daily brief workflow value.
     pub const fn location_id(&self) -> entities::LocationId {
         self.location_id
     }
 
+    /// Returns the operating day carried by this manager daily brief workflow value.
     pub const fn operating_day(&self) -> operations::operating_day::Date {
         self.operating_day
     }
 
+    /// Returns the packet carried by this manager daily brief workflow value.
     pub const fn packet(&self) -> &crm_retention::Packet {
         &self.packet
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+/// Input contract for building the workflow packet from source-grounded records.
 pub struct Request {
     location_id: entities::LocationId,
     operating_day: operations::operating_day::Date,
@@ -427,36 +506,44 @@ pub struct Request {
 }
 
 impl Request {
+    /// Returns the location id carried by this manager daily brief workflow value.
     pub const fn location_id(&self) -> entities::LocationId {
         self.location_id
     }
 
+    /// Returns the operating day carried by this manager daily brief workflow value.
     pub const fn operating_day(&self) -> operations::operating_day::Date {
         self.operating_day
     }
 
+    /// Returns the prepared for carried by this manager daily brief workflow value.
     pub const fn prepared_for(&self) -> ManagerBriefPersona {
         self.prepared_for
     }
 
+    /// Returns the demand attention threshold carried by this manager daily brief workflow value.
     pub const fn demand_attention_threshold(&self) -> DemandThresholdUnits {
         self.demand_attention_threshold
     }
 
+    /// Returns the service demand facts carried by this manager daily brief workflow value.
     pub fn service_demand_facts(&self) -> &[analytics::service_demand::Fact] {
         &self.service_demand_facts
     }
 
+    /// Returns the checkout packets carried by this manager daily brief workflow value.
     pub fn checkout_packets(&self) -> &[ScopedCheckoutPacket] {
         &self.checkout_packets
     }
 
+    /// Returns the retention packets carried by this manager daily brief workflow value.
     pub fn retention_packets(&self) -> &[ScopedRetentionPacket] {
         &self.retention_packets
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Reviewable packet handed to staff or agents with deterministic gates already applied.
 pub struct Packet {
     location_id: entities::LocationId,
     operating_day: operations::operating_day::Date,
@@ -469,56 +556,72 @@ pub struct Packet {
 }
 
 impl Packet {
+    /// Returns the location id carried by this manager daily brief workflow value.
     pub const fn location_id(&self) -> entities::LocationId {
         self.location_id
     }
 
+    /// Returns the operating day carried by this manager daily brief workflow value.
     pub const fn operating_day(&self) -> operations::operating_day::Date {
         self.operating_day
     }
 
+    /// Returns the prepared for carried by this manager daily brief workflow value.
     pub const fn prepared_for(&self) -> ManagerBriefPersona {
         self.prepared_for
     }
 
+    /// Returns the actions carried by this manager daily brief workflow value.
     pub fn actions(&self) -> &[BriefAction] {
         &self.actions
     }
 
+    /// Returns the safe agent actions carried by this manager daily brief workflow value.
     pub fn safe_agent_actions(&self) -> &[SafeAgentAction] {
         &self.safe_agent_actions
     }
 
+    /// Returns the blocked actions carried by this manager daily brief workflow value.
     pub fn blocked_actions(&self) -> &[BlockedAction] {
         &self.blocked_actions
     }
 
+    /// Returns the before minutes carried by this manager daily brief workflow value.
     pub const fn before_minutes(&self) -> AggregateLaborMinutes {
         self.before_minutes
     }
 
+    /// Returns the after minutes carried by this manager daily brief workflow value.
     pub const fn after_minutes(&self) -> AggregateLaborMinutes {
         self.after_minutes
     }
 
+    /// Returns the minutes saved carried by this manager daily brief workflow value.
     pub const fn minutes_saved(&self) -> u16 {
         self.before_minutes.0.saturating_sub(self.after_minutes.0)
     }
 
+    /// Returns the all actions are source grounded carried by this manager daily brief workflow value.
     pub fn all_actions_are_source_grounded(&self) -> bool {
         self.actions.iter().all(BriefAction::is_source_grounded)
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Classifies feedback outcome values that drive the manager daily brief workflow.
 pub enum FeedbackOutcome {
+    /// Records a completed result so follow-up impact is auditable.
     Completed,
+    /// Records a deferred result so follow-up impact is auditable.
     Deferred,
+    /// Records a suppressed by manager result so follow-up impact is auditable.
     SuppressedByManager,
+    /// Records a source fact was wrong result so follow-up impact is auditable.
     SourceFactWasWrong,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+/// Outcome record carried by the manager daily brief workflow; it assembles reviewable manager brief packets from deterministic context and agent drafts.
 pub struct OutcomeRecord {
     action_id: ActionId,
     recorded_by: entities::ActorRef,
@@ -530,57 +633,72 @@ pub struct OutcomeRecord {
 }
 
 impl OutcomeRecord {
+    /// Returns the action id carried by this manager daily brief workflow value.
     pub const fn action_id(&self) -> &ActionId {
         &self.action_id
     }
 
+    /// Returns the recorded by carried by this manager daily brief workflow value.
     pub const fn recorded_by(&self) -> &entities::ActorRef {
         &self.recorded_by
     }
 
+    /// Returns the outcome carried by this manager daily brief workflow value.
     pub const fn outcome(&self) -> FeedbackOutcome {
         self.outcome
     }
 
+    /// Returns the before minutes carried by this manager daily brief workflow value.
     pub const fn before_minutes(&self) -> LaborMinutes {
         self.before_minutes
     }
 
+    /// Returns the actual minutes carried by this manager daily brief workflow value.
     pub const fn actual_minutes(&self) -> LaborMinutes {
         self.actual_minutes
     }
 
+    /// Returns the actual minutes saved carried by this manager daily brief workflow value.
     pub const fn actual_minutes_saved(&self) -> u16 {
         self.before_minutes.0.saturating_sub(self.actual_minutes.0)
     }
 
+    /// Returns the source record refs carried by this manager daily brief workflow value.
     pub fn source_record_refs(&self) -> &[source::RecordRef] {
         &self.source_record_refs
     }
 
+    /// Returns the records feedback without external mutation carried by this manager daily brief workflow value.
     pub fn records_feedback_without_external_mutation(&self) -> bool {
         true
     }
 
+    /// Returns the blocked actions carried by this manager daily brief workflow value.
     pub fn blocked_actions(&self) -> Vec<BlockedAction> {
         blocked_actions_for()
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+/// Classifies error values that drive the manager daily brief workflow.
 pub enum Error {
     #[error("labor minutes must be greater than zero")]
+    /// Identifies zero labor minutes as the reason the workflow must stop, retry, or request review.
     ZeroLaborMinutes,
     #[error("demand threshold units must be greater than zero")]
+    /// Identifies zero demand threshold units as the reason the workflow must stop, retry, or request review.
     ZeroDemandThresholdUnits,
 }
 
+/// Result type returned by fallible manager daily brief operations.
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Workflow carried by the manager daily brief workflow; it assembles reviewable manager brief packets from deterministic context and agent drafts.
 pub struct Workflow;
 
 impl Workflow {
+    /// Builds or derives evaluate data for the manager daily brief workflow contract.
     pub fn evaluate(request: Request) -> Packet {
         let mut actions = Vec::new();
         actions.extend(service_demand_actions(&request));

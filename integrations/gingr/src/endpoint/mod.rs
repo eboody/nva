@@ -25,12 +25,19 @@
 //! # }
 //! ```
 
+/// Gingr catalog endpoint boundary with provider parameters kept explicit.
 pub mod catalog;
+/// Gingr commerce retail endpoint boundary with provider parameters kept explicit.
 pub mod commerce_retail;
+/// Gingr labor ops endpoint boundary with provider parameters kept explicit.
 pub mod labor_ops;
+/// Gingr owners animals endpoint boundary with provider parameters kept explicit.
 pub mod owners_animals;
+/// Gingr reference data endpoint boundary with provider parameters kept explicit.
 pub mod reference_data;
+/// Gingr report cards files endpoint boundary with provider parameters kept explicit.
 pub mod report_cards_files;
+/// Gingr reservations endpoint boundary with provider parameters kept explicit.
 pub mod reservations;
 
 pub use reservations::Reservations;
@@ -39,45 +46,87 @@ use crate::transport;
 use chrono::NaiveDate;
 use std::fmt;
 
+/// Result type returned by fallible endpoint operations.
 pub type Result<T> = core::result::Result<T, Error>;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
+/// Errors raised while validating Gingr configuration, request parameters, or DTO mappings.
 pub enum Error {
     #[error("invalid Gingr date {value:?}: expected YYYY-MM-DD")]
-    InvalidDate { value: String },
+    /// Provider date did not match the endpoint date format.
+    InvalidDate {
+        /// Rejected value or provider value associated with this error.
+        value: String,
+    },
     #[error("invalid Gingr ISO date {value:?}: expected YYYY-MM-DD")]
-    InvalidIsoDate { value: String },
+    /// Provider ISO date could not be parsed for a Gingr request.
+    InvalidIsoDate {
+        /// Rejected value or provider value associated with this error.
+        value: String,
+    },
     #[error("invalid Gingr date range: start {start} must not be after end {end}")]
-    ReversedDateRange { start: Date, end: Date },
+    /// Start date is after end date in a Gingr request.
+    ReversedDateRange {
+        /// Start attached to this Gingr error or DTO.
+        start: Date,
+        /// End attached to this Gingr error or DTO.
+        end: Date,
+    },
     #[error("invalid Gingr date range: reservations range may not exceed 30 days")]
+    /// Date range exceeds the maximum Gingr endpoint window.
     DateRangeTooLong,
     #[error("invalid Gingr positive integer {value}: expected non-zero value")]
-    InvalidPositiveInteger { value: u64 },
+    /// Provider integer wrapper rejected zero or an invalid value.
+    InvalidPositiveInteger {
+        /// Rejected value or provider value associated with this error.
+        value: u64,
+    },
     #[error("invalid Gingr text value: expected non-empty text")]
+    /// Required text parameter was empty after trimming.
     EmptyText,
     #[error("missing required Gingr endpoint parameter {parameter}")]
-    MissingRequiredParameter { parameter: &'static str },
+    /// Typed request builder is missing a required Gingr parameter.
+    MissingRequiredParameter {
+        /// Parameter attached to this Gingr error or DTO.
+        parameter: &'static str,
+    },
     #[error("invalid Gingr legacy date boundary for {date}: {boundary}")]
+    /// Request asks Gingr for data before the endpoint-supported cutover date.
     LegacyDateBoundary {
+        /// Date carried with this error or record.
         date: String,
+        /// Boundary carried with this error or record.
         boundary: &'static str,
     },
     #[error("invalid Gingr pagination: {reason}")]
-    InvalidPagination { reason: &'static str },
+    /// Pagination parameters would produce an invalid Gingr request.
+    InvalidPagination {
+        /// Provider-facing reason explaining why request construction failed.
+        reason: &'static str,
+    },
     #[error("invalid Gingr subscription bill day {value}: expected 1..=31")]
-    InvalidBillDayOfMonth { value: u8 },
+    /// Subscription bill day was outside Gingr-supported month bounds.
+    InvalidBillDayOfMonth {
+        /// Rejected value or provider value associated with this error.
+        value: u8,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// HTTP methods used by typed Gingr endpoint descriptors.
 pub enum Method {
+    /// Gingr endpoint uses an HTTP GET request.
     Get,
+    /// Gingr endpoint uses an HTTP POST request.
     Post,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+/// Typed Gingr request/response value for date.
 pub struct Date(NaiveDate);
 
 impl Date {
+    /// Normalizes a provider string into a typed value, preserving unknown provider values.
     pub fn parse(raw: impl AsRef<str>) -> Result<Self> {
         let raw = raw.as_ref();
         NaiveDate::parse_from_str(raw, "%Y-%m-%d")
@@ -87,6 +136,7 @@ impl Date {
             })
     }
 
+    /// Returns the parsed calendar date used by Gingr endpoint filters.
     pub const fn inner(self) -> NaiveDate {
         self.0
     }
@@ -99,9 +149,11 @@ impl fmt::Display for Date {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+/// Typed Gingr request/response value for iso date.
 pub struct IsoDate(NaiveDate);
 
 impl IsoDate {
+    /// Normalizes a provider string into a typed value, preserving unknown provider values.
     pub fn parse(raw: impl AsRef<str>) -> Result<Self> {
         let raw = raw.as_ref();
         NaiveDate::parse_from_str(raw, "%Y-%m-%d")
@@ -119,12 +171,14 @@ impl fmt::Display for IsoDate {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Typed Gingr request/response value for date range.
 pub struct DateRange {
     start: Date,
     end: Date,
 }
 
 impl DateRange {
+    /// Builds the validated storage wrapper for a known-good value.
     pub fn new(start: Date, end: Date) -> Result<Self> {
         if start > end {
             return Err(Error::ReversedDateRange { start, end });
@@ -135,10 +189,12 @@ impl DateRange {
         Ok(Self { start, end })
     }
 
+    /// Returns the inclusive start date sent to Gingr.
     pub const fn start(self) -> Date {
         self.start
     }
 
+    /// Returns the inclusive end date sent to Gingr.
     pub const fn end(self) -> Date {
         self.end
     }
@@ -159,13 +215,16 @@ macro_rules! id_type {
             serde::Serialize,
         )]
         #[serde(transparent)]
+        /// Newtype identifier shared by Gingr endpoints that pass numeric provider IDs.
         pub struct $name(u64);
 
         impl $name {
+            /// Creates the wrapper from an already validated value.
             pub const fn new(value: u64) -> Self {
                 Self(value)
             }
 
+            /// Returns the provider numeric identifier carried by this wrapper.
             pub const fn get(self) -> u64 {
                 self.0
             }
@@ -188,13 +247,16 @@ id_type!(FormId);
 id_type!(ReferenceId);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Typed Gingr request/response value for path.
 pub struct Path(&'static str);
 
 impl Path {
+    /// Creates the wrapper from an already validated value.
     pub const fn new(value: &'static str) -> Self {
         Self(value)
     }
 
+    /// Returns the validated endpoint path segment.
     pub const fn as_str(self) -> &'static str {
         self.0
     }
@@ -213,9 +275,11 @@ impl fmt::Display for Path {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Typed Gingr request/response value for limit.
 pub struct Limit(u64);
 
 impl Limit {
+    /// Builds the validated storage wrapper for a known-good value.
     pub fn new(value: u64) -> Result<Self> {
         if value == 0 {
             return Err(Error::InvalidPositiveInteger { value });
@@ -230,14 +294,20 @@ impl fmt::Display for Limit {
     }
 }
 
+/// Defines the behavior required from a request participant in the endpoint workflow.
 pub trait Request {
+    /// Describes how a typed parameter is encoded for Gingr.
     fn method(&self) -> Method;
+    /// Describes how a typed parameter is encoded for Gingr.
     fn path(&self) -> &'static str;
+    /// Describes how a typed parameter is encoded for Gingr.
     fn parameters(&self) -> Vec<(String, String)>;
+    /// Describes how a typed parameter is encoded for Gingr.
     fn sensitive_parameter_names(&self) -> &'static [&'static str] {
         &[]
     }
 
+    /// Describes how a typed parameter is encoded for Gingr.
     fn request_parts(&self) -> transport::RequestParts {
         transport::RequestParts::builder()
             .method(self.method())

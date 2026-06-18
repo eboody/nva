@@ -3,20 +3,32 @@ use secrecy::SecretString;
 use std::fmt;
 use url::Url;
 
+/// Result type returned by fallible config operations.
 pub type Result<T> = core::result::Result<T, Error>;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
+/// Errors raised while validating Gingr configuration, request parameters, or DTO mappings.
 pub enum Error {
     #[error("invalid Gingr subdomain: {value}")]
-    InvalidSubdomain { value: String },
+    /// Subdomain was empty or contained characters Gingr tenant hosts cannot use.
+    InvalidSubdomain {
+        /// Rejected value or provider value associated with this error.
+        value: String,
+    },
     #[error("invalid Gingr base URL: {reason}")]
-    InvalidBaseUrl { reason: String },
+    /// Base URL was not a valid HTTPS Gingr endpoint.
+    InvalidBaseUrl {
+        /// Provider-facing reason explaining why request construction failed.
+        reason: String,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+/// Validated Gingr tenant subdomain, without protocol or host suffix.
 pub struct Subdomain(String);
 
 impl Subdomain {
+    /// Normalizes a provider string into a typed value, preserving unknown provider values.
     pub fn parse(raw: impl AsRef<str>) -> Result<Self> {
         let value = raw.as_ref();
         let valid = !value.is_empty()
@@ -36,6 +48,7 @@ impl Subdomain {
         }
     }
 
+    /// Returns the normalized provider or storage string slice.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -48,14 +61,17 @@ impl fmt::Display for Subdomain {
 }
 
 #[derive(Clone, PartialEq, Eq)]
+/// Canonical Gingr API base URL with HTTPS and no trailing slash.
 pub struct BaseUrl(Url);
 
 impl BaseUrl {
+    /// Constructs the canonical Gingr base URL for a tenant subdomain.
     pub fn for_subdomain(subdomain: &Subdomain) -> Self {
         let raw = format!("https://{}.gingrapp.com", subdomain.as_str());
         Self(Url::parse(&raw).expect("constructed Gingr URL is valid"))
     }
 
+    /// Normalizes a provider string into a typed value, preserving unknown provider values.
     pub fn parse(raw: impl AsRef<str>) -> Result<Self> {
         let raw = raw.as_ref();
         let url = Url::parse(raw).map_err(|error| Error::InvalidBaseUrl {
@@ -81,6 +97,7 @@ impl BaseUrl {
         Ok(Self(url))
     }
 
+    /// Returns the normalized provider or storage string slice.
     pub fn as_str(&self) -> &str {
         self.0.as_str().trim_end_matches('/')
     }
@@ -109,9 +126,11 @@ impl fmt::Display for BaseUrl {
 }
 
 #[derive(Clone)]
+/// Secret Gingr API key kept out of debug output and log-safe request views.
 pub struct ApiKey(SecretString);
 
 impl ApiKey {
+    /// Wraps the shared Gingr webhook secret without exposing it in debug output.
     pub fn from_secret(raw: impl Into<String>) -> Self {
         Self(SecretString::new(raw.into()))
     }
@@ -135,15 +154,18 @@ impl fmt::Display for ApiKey {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+/// Provider label attached to outbound Gingr requests and diagnostics.
 pub struct Provider {
     label: Option<String>,
 }
 
 impl Provider {
+    /// Identifies the generic Gingr provider label.
     pub fn gingr() -> Self {
         Self { label: None }
     }
 
+    /// Identifies a labeled Gingr App provider installation.
     pub fn gingr_app(label: impl Into<String>) -> Self {
         Self {
             label: Some(label.into()),
@@ -161,6 +183,7 @@ impl fmt::Display for Provider {
 }
 
 #[derive(Clone)]
+/// Gingr client configuration bundle shared by endpoint builders and transport.
 pub struct Client {
     base_url: BaseUrl,
     api_key: ApiKey,
@@ -168,6 +191,7 @@ pub struct Client {
 }
 
 impl Client {
+    /// Builds the validated storage wrapper for a known-good value.
     pub fn new(base_url: BaseUrl, api_key: ApiKey) -> Self {
         Self {
             base_url,
@@ -176,14 +200,17 @@ impl Client {
         }
     }
 
+    /// Returns the Gingr API base URL used by the client.
     pub fn base_url(&self) -> &BaseUrl {
         &self.base_url
     }
 
+    /// Returns the secret Gingr API key wrapper.
     pub fn api_key(&self) -> &ApiKey {
         &self.api_key
     }
 
+    /// Returns the provider label attached to outbound Gingr requests.
     pub fn provider(&self) -> &Provider {
         &self.provider
     }

@@ -34,33 +34,51 @@
 //! # }
 //! ```
 
+/// Gingr customer mapper boundary that promotes provider payloads into domain candidates.
 pub mod customer;
+/// Gingr pet mapper boundary that promotes provider payloads into domain candidates.
 pub mod pet;
+/// Gingr retail mapper boundary that promotes provider payloads into domain candidates.
 pub mod retail;
 
+/// Result type returned by fallible mapping operations.
 pub type Result<T> = core::result::Result<T, Error>;
 
 #[derive(Debug, Clone, PartialEq, Eq, strum::Display)]
+/// Gingr fields required by DTO-to-domain mapping routines.
 pub enum ProviderField {
     #[strum(to_string = "owner name")]
+    /// Required Gingr owner-name field for customer mapping.
     OwnerName,
     #[strum(to_string = "animal name")]
+    /// Required Gingr animal-name field for pet mapping.
     AnimalName,
     #[strum(to_string = "retail item name")]
+    /// Required Gingr retail item name for product mapping.
     RetailItemName,
     #[strum(to_string = "retail item sku")]
+    /// Required Gingr retail SKU for product matching.
     RetailItemSku,
     #[strum(to_string = "retail item category")]
+    /// Required Gingr retail category for merchandising mapping.
     RetailItemCategory,
 }
 
 #[derive(Debug, thiserror::Error, Clone, PartialEq, Eq)]
+/// Errors raised while validating Gingr configuration, request parameters, or DTO mappings.
 pub enum Error {
     #[error("missing required Gingr provider field: {field}")]
-    MissingRequiredProviderField { field: ProviderField },
-    #[error("invalid domain value promoted from Gingr provider field {field}: {reason}")]
-    InvalidDomainValue {
+    /// DTO mapping cannot proceed because Gingr omitted a required field.
+    MissingRequiredProviderField {
+        /// Field attached to this Gingr error or DTO.
         field: ProviderField,
+    },
+    #[error("invalid domain value promoted from Gingr provider field {field}: {reason}")]
+    /// Signals that a domain value cannot be represented safely in storage.
+    InvalidDomainValue {
+        /// Storage field that was missing, invalid, or rejected.
+        field: ProviderField,
+        /// Human-readable or typed reason explaining why storage conversion failed.
         reason: String,
     },
 }

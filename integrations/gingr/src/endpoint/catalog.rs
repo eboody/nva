@@ -1,3 +1,4 @@
+/// Lists documented Gingr read endpoints modeled by this integration crate.
 pub fn exported_read_endpoint_names() -> &'static [&'static str] {
     &[
         "get_locations",
@@ -32,6 +33,7 @@ pub fn exported_read_endpoint_names() -> &'static [&'static str] {
     ]
 }
 
+/// Lists Gingr service areas where endpoint coverage exists but semantic DTO mapping is intentionally absent.
 pub fn semantic_mapping_gaps() -> &'static [&'static str] {
     &["retail", "training", "grooming"]
 }

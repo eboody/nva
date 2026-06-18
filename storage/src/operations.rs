@@ -52,102 +52,166 @@ pub use crate::service_line::{
     },
 };
 
+/// Result type returned by fallible operations operations.
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, thiserror::Error)]
+/// Errors raised while validating Gingr configuration, request parameters, or DTO mappings.
 pub enum Error {
     #[error("storage codec error")]
+    /// Wraps a storage JSON codec failure without losing the underlying source error.
     Codec(#[from] CodecError),
     #[error("{record:?} storage shape mismatch: {reason:?}")]
+    /// Signals that a flattened record populated fields inconsistent with its discriminator.
     StorageShapeMismatch {
+        /// Record family whose flattened storage shape failed validation.
         record: RecordKind,
+        /// Human-readable or typed reason explaining why storage conversion failed.
         reason: ShapeMismatchReason,
     },
     #[error("domain value rejected storage field {field:?}: {reason}")]
-    InvalidDomainValue { field: StorageField, reason: String },
+    /// Signals that a domain value cannot be represented safely in storage.
+    InvalidDomainValue {
+        /// Field attached to this Gingr error or DTO.
+        field: StorageField,
+        /// Provider-facing reason explaining why request construction failed.
+        reason: String,
+    },
 }
 
 #[derive(Debug, thiserror::Error)]
+/// JSON codec failures at the storage boundary.
 pub enum CodecError {
     #[error("failed to decode json: {source}")]
-    JsonDecode { source: serde_json::Error },
+    /// JSON could not be decoded into the expected storage record.
+    JsonDecode {
+        /// Source attached to this Gingr error or DTO.
+        source: serde_json::Error,
+    },
     #[error("failed to encode json: {source}")]
-    JsonEncode { source: serde_json::Error },
+    /// Storage record could not be serialized as JSON.
+    JsonEncode {
+        /// Source attached to this Gingr error or DTO.
+        source: serde_json::Error,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Storage record families used in shape-validation diagnostics.
 pub enum RecordKind {
+    /// Stable storage code for pet resort portfolio.
     PetResortPortfolio,
+    /// Stable storage code for service offering.
     ServiceOffering,
+    /// Stable storage code for core service contracts.
     CoreServiceContracts,
+    /// Stable storage code for data quality hygiene outcome.
     DataQualityHygieneOutcome,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Reasons a flattened record cannot represent the requested domain variant.
 pub enum ShapeMismatchReason {
+    /// A field required by the selected discriminator was absent.
     RequiredFieldMissing,
+    /// A field from another flattened variant was populated.
     FieldBelongsToDifferentVariant,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Persisted fields that can reject invalid domain values during storage conversion.
 pub enum StorageField {
+    /// Stable storage code for resort count.
     ResortCount,
+    /// Stable storage code for brand name.
     BrandName,
+    /// Stable storage code for grooming cadence weeks.
     GroomingCadenceWeeks,
+    /// Stable storage code for training program duration weeks.
     TrainingProgramDurationWeeks,
+    /// Stable storage code for manager daily brief labor minutes.
     ManagerDailyBriefLaborMinutes,
+    /// Stable storage code for data quality hygiene labor minutes.
     DataQualityHygieneLaborMinutes,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+/// Provider provenance attached to stored evidence so facts can be audited back to Gingr or another source system.
 pub struct StoredSourceRecordRef {
+    /// Source system name, for example `gingr`, used to keep provider facts quarantined by origin.
     pub system: String,
+    /// Provider record collection or endpoint that produced the evidence.
     pub record_type: String,
+    /// Provider-native identifier for the source record.
     pub record_id: String,
+    /// Timestamp when the adapter observed this provider fact.
     pub observed_at: String,
+    /// Adapter or fixture version that interpreted the source record.
     pub adapter_version: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// Persisted outcome states for manager daily-brief actions.
 pub enum ManagerDailyBriefOutcomeCode {
+    /// Workflow completed and can contribute final labor evidence.
     Completed,
+    /// Workflow was postponed and should not be counted as completed savings.
     Deferred,
+    /// Manager intentionally hid or skipped the suggested workflow action.
     SuppressedByManager,
+    /// Provider evidence was incorrect, so the action is excluded or corrected.
     SourceFactWasWrong,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// Persisted staff personas accountable for manager daily-brief work.
 pub enum ManagerDailyBriefPersonaCode {
+    /// Stable storage code for general manager.
     GeneralManager,
+    /// Stable storage code for assistant general manager.
     AssistantGeneralManager,
+    /// Stable storage code for front desk lead.
     FrontDeskLead,
+    /// Stable storage code for front desk agent.
     FrontDeskAgent,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// Persisted manager daily-brief actions that can produce labor-minute evidence.
 pub enum ManagerDailyBriefActionKindCode {
+    /// Stable storage code for review demand against staffing plan.
     ReviewDemandAgainstStaffingPlan,
+    /// Stable storage code for resolve checkout exception.
     ResolveCheckoutException,
+    /// Stable storage code for approve retention follow up draft.
     ApproveRetentionFollowUpDraft,
+    /// Stable storage code for investigate source data quality issue.
     InvestigateSourceDataQualityIssue,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Dimensions used to aggregate manager daily-brief labor outcomes by location, day, action, and owner role.
 pub struct ManagerDailyBriefReportingGroup {
+    /// Location whose operating day or service contract is described.
     pub location_id: String,
+    /// Business date used for labor and reporting aggregation.
     pub operating_day: String,
+    /// Workflow action that generated the labor evidence.
     pub action_kind: ManagerDailyBriefActionKindCode,
+    /// Role expected to own or review the workflow item.
     pub owner_persona: ManagerDailyBriefPersonaCode,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
+/// Non-zero minute quantity persisted for manager daily-brief labor evidence.
 pub struct StoredManagerDailyBriefLaborMinutes(u16);
 
 impl StoredManagerDailyBriefLaborMinutes {
+    /// Validates and wraps a positive storage quantity before persistence.
     pub fn try_new(value: u16) -> Result<Self> {
         if value == 0 {
             return Err(Error::InvalidDomainValue {
@@ -159,6 +223,7 @@ impl StoredManagerDailyBriefLaborMinutes {
         Ok(Self(value))
     }
 
+    /// Returns the provider numeric identifier carried by this wrapper.
     pub const fn get(self) -> u16 {
         self.0
     }
@@ -175,40 +240,60 @@ impl<'de> Deserialize<'de> for StoredManagerDailyBriefLaborMinutes {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+/// Stored evidence for a manager daily-brief action, including before/after labor minutes and source references.
 pub struct ManagerDailyBriefOutcomeRecord {
+    /// Stable workflow action identifier used for idempotent labor evidence.
     pub action_id: String,
+    /// Final disposition recorded for the workflow action.
     pub outcome: ManagerDailyBriefOutcomeCode,
+    /// Estimated manual minutes before automation or assisted workflow execution.
     pub before_minutes: StoredManagerDailyBriefLaborMinutes,
+    /// Observed minutes spent after the workflow was completed or reviewed.
     pub actual_minutes: StoredManagerDailyBriefLaborMinutes,
+    /// User, worker, or system actor that recorded the outcome.
     pub actor_id: String,
+    /// Role of the actor that completed or reviewed the action.
     pub actor_persona: ManagerDailyBriefPersonaCode,
+    /// Optional operator feedback explaining the decision or correction.
     pub feedback: String,
     #[builder(default)]
+    /// Provider evidence records used to justify the workflow action.
     pub source_refs: Vec<StoredSourceRecordRef>,
+    /// Timestamp when the labor evidence was written.
     pub recorded_at: String,
+    /// Cross-system identifier tying the record to a workflow run or request.
     pub correlation_id: String,
+    /// Location whose operating day or service contract is described.
     pub location_id: String,
+    /// Business date used for labor and reporting aggregation.
     pub operating_day: String,
+    /// Workflow action that generated the labor evidence.
     pub action_kind: ManagerDailyBriefActionKindCode,
+    /// Role expected to own or review the workflow item.
     pub owner_persona: ManagerDailyBriefPersonaCode,
+    /// Derived labor savings based on before and actual minute evidence.
     pub estimated_minutes_saved: u16,
 }
 
 impl ManagerDailyBriefOutcomeRecord {
+    /// Decodes a JSON storage payload into its typed record shape.
     pub fn decode_json(raw: &str) -> Result<Self> {
         serde_json::from_str(raw).map_err(|source| CodecError::JsonDecode { source }.into())
     }
 
+    /// Encodes the storage record as JSON for persistence or fixture comparison.
     pub fn encode_json(&self) -> Result<String> {
         serde_json::to_string(self).map_err(|source| CodecError::JsonEncode { source }.into())
     }
 
+    /// Returns or constructs the Gingr actual minutes saved value.
     pub const fn actual_minutes_saved(&self) -> u16 {
         self.before_minutes
             .get()
             .saturating_sub(self.actual_minutes.get())
     }
 
+    /// Returns the aggregation dimensions used for labor reporting.
     pub fn reporting_group(&self) -> ManagerDailyBriefReportingGroup {
         ManagerDailyBriefReportingGroup {
             location_id: self.location_id.clone(),
@@ -221,60 +306,94 @@ impl ManagerDailyBriefOutcomeRecord {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// Persisted outcome states for data-quality hygiene actions.
 pub enum DataQualityHygieneOutcomeCode {
+    /// Workflow completed and can contribute final labor evidence.
     Completed,
+    /// Workflow was postponed and should not be counted as completed savings.
     Deferred,
+    /// Manager intentionally hid or skipped the suggested workflow action.
     SuppressedByManager,
+    /// Provider evidence was incorrect, so the action is excluded or corrected.
     SourceFactWasWrong,
+    /// Issue was reviewed but did not require an operational repair.
     NotActionable,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// Persisted personas accountable for data-quality hygiene work.
 pub enum DataQualityHygienePersonaCode {
+    /// Stable storage code for general manager.
     GeneralManager,
+    /// Stable storage code for assistant general manager.
     AssistantGeneralManager,
+    /// Stable storage code for front desk lead.
     FrontDeskLead,
+    /// Stable storage code for front desk agent.
     FrontDeskAgent,
+    /// Stable storage code for regional operator.
     RegionalOperator,
+    /// Stable storage code for operations analyst.
     OperationsAnalyst,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// Persisted data-quality actions used to quarantine, repair, or reconcile source evidence.
 pub enum DataQualityHygieneActionKindCode {
+    /// Stable storage code for investigate missing source evidence.
     InvestigateMissingSourceEvidence,
+    /// Stable storage code for reconcile duplicate customer or pet candidate.
     ReconcileDuplicateCustomerOrPetCandidate,
+    /// Stable storage code for complete missing pet or customer profile fields.
     CompleteMissingPetOrCustomerProfileFields,
+    /// Stable storage code for review stale vaccination source freshness.
     ReviewStaleVaccinationSourceFreshness,
+    /// Stable storage code for normalize ambiguous service line naming.
     NormalizeAmbiguousServiceLineNaming,
+    /// Stable storage code for review checkout or unclosed reservation evidence.
     ReviewCheckoutOrUnclosedReservationEvidence,
+    /// Stable storage code for escalate sensitive or quarantined payload.
     EscalateSensitiveOrQuarantinedPayload,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// Persisted lifecycle status for a data-quality issue after review.
 pub enum DataQualityResolutionStatusCode {
+    /// Issue remains open after review.
     Open,
+    /// Issue was accepted for later repair or monitoring.
     Acknowledged,
+    /// Issue was intentionally ignored after review.
     Ignored,
+    /// Issue was corrected during or after review.
     Repaired,
+    /// Issue was replaced by fresher evidence or another issue record.
     Superseded,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Dimensions used to group data-quality hygiene outcomes by location, day, issue type, and owner role.
 pub struct DataQualityHygieneReportingGroup {
+    /// Location whose operating day or service contract is described.
     pub location_id: String,
+    /// Business date used for labor and reporting aggregation.
     pub operating_day: String,
+    /// Workflow action that generated the labor evidence.
     pub action_kind: DataQualityHygieneActionKindCode,
+    /// Role expected to own or review the workflow item.
     pub owner_persona: DataQualityHygienePersonaCode,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
+/// Non-zero minute quantity persisted for data-quality hygiene labor evidence.
 pub struct StoredDataQualityHygieneLaborMinutes(u16);
 
 impl StoredDataQualityHygieneLaborMinutes {
+    /// Validates and wraps a positive storage quantity before persistence.
     pub fn try_new(value: u16) -> Result<Self> {
         if value == 0 {
             return Err(Error::InvalidDomainValue {
@@ -286,6 +405,7 @@ impl StoredDataQualityHygieneLaborMinutes {
         Ok(Self(value))
     }
 
+    /// Returns the provider numeric identifier carried by this wrapper.
     pub const fn get(self) -> u16 {
         self.0
     }
@@ -302,43 +422,65 @@ impl<'de> Deserialize<'de> for StoredDataQualityHygieneLaborMinutes {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+/// Stored evidence for a data-quality hygiene action, including labor deltas, issue references, and resolution state.
 pub struct DataQualityHygieneOutcomeRecord {
+    /// Stable workflow action identifier used for idempotent labor evidence.
     pub action_id: String,
+    /// Final disposition recorded for the workflow action.
     pub outcome: DataQualityHygieneOutcomeCode,
+    /// Estimated manual minutes before automation or assisted workflow execution.
     pub before_minutes: StoredDataQualityHygieneLaborMinutes,
+    /// Observed minutes spent after the workflow was completed or reviewed.
     pub actual_minutes: StoredDataQualityHygieneLaborMinutes,
+    /// User, worker, or system actor that recorded the outcome.
     pub actor_id: String,
+    /// Role of the actor that completed or reviewed the action.
     pub actor_persona: DataQualityHygienePersonaCode,
+    /// Optional operator feedback explaining the decision or correction.
     pub feedback: String,
     #[builder(default)]
+    /// Provider evidence records used to justify the workflow action.
     pub source_refs: Vec<StoredSourceRecordRef>,
     #[builder(default)]
+    /// Data-quality issue identifiers reviewed by the hygiene workflow.
     pub issue_refs: Vec<String>,
+    /// Issue lifecycle state after the hygiene review completed.
     pub resolution_status_after_review: DataQualityResolutionStatusCode,
+    /// Timestamp when the labor evidence was written.
     pub recorded_at: String,
+    /// Cross-system identifier tying the record to a workflow run or request.
     pub correlation_id: String,
+    /// Location whose operating day or service contract is described.
     pub location_id: String,
+    /// Business date used for labor and reporting aggregation.
     pub operating_day: String,
+    /// Workflow action that generated the labor evidence.
     pub action_kind: DataQualityHygieneActionKindCode,
+    /// Role expected to own or review the workflow item.
     pub owner_persona: DataQualityHygienePersonaCode,
+    /// Derived labor savings based on before and actual minute evidence.
     pub estimated_minutes_saved: u16,
 }
 
 impl DataQualityHygieneOutcomeRecord {
+    /// Decodes a JSON storage payload into its typed record shape.
     pub fn decode_json(raw: &str) -> Result<Self> {
         serde_json::from_str(raw).map_err(|source| CodecError::JsonDecode { source }.into())
     }
 
+    /// Encodes the storage record as JSON for persistence or fixture comparison.
     pub fn encode_json(&self) -> Result<String> {
         serde_json::to_string(self).map_err(|source| CodecError::JsonEncode { source }.into())
     }
 
+    /// Returns or constructs the Gingr actual minutes saved value.
     pub const fn actual_minutes_saved(&self) -> u16 {
         self.before_minutes
             .get()
             .saturating_sub(self.actual_minutes.get())
     }
 
+    /// Returns the aggregation dimensions used for labor reporting.
     pub fn reporting_group(&self) -> DataQualityHygieneReportingGroup {
         DataQualityHygieneReportingGroup {
             location_id: self.location_id.clone(),
@@ -350,19 +492,27 @@ impl DataQualityHygieneOutcomeRecord {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+/// Storage shape for the pet-resort portfolio facts used to seed operating assumptions.
 pub struct PetResortPortfolioRecord {
+    /// Portfolio operator represented by the seed record.
     pub operator: OperatorCode,
+    /// Number of resorts represented by the portfolio fact.
     pub resort_count: StoredResortCount,
+    /// Portfolio organization model used in operating assumptions.
     pub structure: PortfolioStructureCode,
+    /// Business lines included in the portfolio fact.
     pub business_lines: Vec<BusinessLineCode>,
+    /// Pet-resort brands included in the portfolio fact.
     pub brands: Vec<PetResortBrandRecord>,
 }
 
 impl PetResortPortfolioRecord {
+    /// Decodes a JSON storage payload into its typed record shape.
     pub fn decode_json(raw: &str) -> Result<Self> {
         serde_json::from_str(raw).map_err(|source| CodecError::JsonDecode { source }.into())
     }
 
+    /// Encodes the storage record as JSON for persistence or fixture comparison.
     pub fn encode_json(&self) -> Result<String> {
         serde_json::to_string(self).map_err(|source| CodecError::JsonEncode { source }.into())
     }
@@ -370,51 +520,81 @@ impl PetResortPortfolioRecord {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// Stable operator code used in portfolio seed records.
 pub enum OperatorCode {
     #[serde(rename = "nva")]
+    /// Stable storage code for national veterinary associates.
     NationalVeterinaryAssociates,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// Stable portfolio-structure codes for pet-resort operating assumptions.
 pub enum PortfolioStructureCode {
+    /// Stable storage code for federated multi brand.
     FederatedMultiBrand,
+    /// Stable storage code for single brand.
     SingleBrand,
+    /// Provider supplied an unrecognized value; preserve it for audit instead of failing closed.
     Unknown,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// Stable business-line codes for NVA portfolio membership.
 pub enum BusinessLineCode {
+    /// Stable storage code for general practice veterinary hospitals.
     GeneralPracticeVeterinaryHospitals,
+    /// Stable storage code for pet resorts.
     PetResorts,
+    /// Stable storage code for equine.
     Equine,
+    /// Stable storage code for specialty emergency hospitals.
     SpecialtyEmergencyHospitals,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+/// Stored pet-resort brand descriptor with code plus display name.
 pub enum PetResortBrandRecord {
-    Known { code: PetResortBrandCode },
-    Other { name: StoredBrandName },
+    /// Stable storage code for known.
+    Known {
+        /// Code attached to this Gingr error or DTO.
+        code: PetResortBrandCode,
+    },
+    /// Stable storage code for other.
+    Other {
+        /// Name attached to this Gingr error or DTO.
+        name: StoredBrandName,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// Stable brand codes for NVA pet-resort banners.
 pub enum PetResortBrandCode {
+    /// Stable storage code for nva pet resorts.
     NvaPetResorts,
+    /// Stable storage code for pet suites.
     PetSuites,
+    /// Stable storage code for pooch hotel.
     PoochHotel,
+    /// Stable storage code for elite suites.
     EliteSuites,
+    /// Stable storage code for the bark side.
     TheBarkSide,
+    /// Stable storage code for woofdorf astoria.
     WoofdorfAstoria,
+    /// Stable storage code for doggie district.
     DoggieDistrict,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+/// Positive resort count persisted for portfolio seed facts.
 pub struct StoredResortCount(u16);
 
 impl StoredResortCount {
+    /// Validates and wraps a positive quantity before it is persisted.
     pub const fn try_new(value: u16) -> std::result::Result<Self, StoredResortCountError> {
         if value == 0 {
             return Err(StoredResortCountError::ZeroResorts);
@@ -422,6 +602,7 @@ impl StoredResortCount {
         Ok(Self(value))
     }
 
+    /// Returns the provider numeric identifier carried by this wrapper.
     pub const fn get(self) -> u16 {
         self.0
     }
@@ -437,15 +618,19 @@ impl<'de> Deserialize<'de> for StoredResortCount {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+/// Validation failures for persisted resort-count quantities.
 pub enum StoredResortCountError {
     #[error("stored pet resort portfolios require at least one resort")]
+    /// Stable storage code for zero resorts.
     ZeroResorts,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Non-empty pet-resort brand display name persisted beside the stable brand code.
 pub struct StoredBrandName(String);
 
 impl StoredBrandName {
+    /// Validates and wraps a positive storage quantity before persistence.
     pub fn try_new(value: impl Into<String>) -> Result<Self> {
         let value = value.into().trim().to_owned();
         if value.is_empty() {
@@ -457,6 +642,7 @@ impl StoredBrandName {
         Ok(Self(value))
     }
 
+    /// Returns the normalized provider or storage string slice.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -664,28 +850,42 @@ impl From<PetResortBrandCode> for pet_resort::Brand {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+/// Flattened storage shape for one service-line offering; only fields valid for its `service_kind` may be populated.
 pub struct ServiceOfferingRecord {
+    /// Discriminator indicating which service-line fields are meaningful.
     pub service_kind: ServiceOfferingKindCode,
+    /// Boarding room or suite type for a boarding offering.
     pub boarding_accommodation: Option<boarding::AccommodationCode>,
     #[builder(default)]
+    /// Included care features bundled with a boarding offering.
     pub boarding_included_care: Vec<boarding::CareFeatureCode>,
     #[builder(default)]
+    /// Optional boarding add-ons available for the offering.
     pub boarding_add_ons: Vec<boarding::AddOnCode>,
+    /// Daycare play or day-boarding format represented by the offering.
     pub daycare_format: Option<daycare::FormatCode>,
     #[builder(default)]
+    /// Eligibility requirements that must be satisfied before daycare use.
     pub daycare_eligibility_rules: Vec<daycare::EligibilityRuleCode>,
+    /// Grooming service represented by the offering.
     pub grooming_service: Option<grooming::ServiceCode>,
+    /// Recommended grooming repeat cadence in weeks.
     pub grooming_cadence_weeks: Option<grooming::StoredCadenceWeeks>,
+    /// Training program represented by the offering.
     pub training_program: Option<training::ProgramRecord>,
+    /// Retail partner product represented by the offering.
     pub retail_partner: Option<retail::PartnerCode>,
+    /// Retail category used for merchandising and upsell logic.
     pub retail_product_category: Option<retail::ProductCategoryCode>,
 }
 
 impl ServiceOfferingRecord {
+    /// Decodes a JSON storage payload into its typed record shape.
     pub fn decode_json(raw: &str) -> Result<Self> {
         serde_json::from_str(raw).map_err(|source| CodecError::JsonDecode { source }.into())
     }
 
+    /// Encodes the storage record as JSON for persistence or fixture comparison.
     pub fn encode_json(&self) -> Result<String> {
         serde_json::to_string(self).map_err(|source| CodecError::JsonEncode { source }.into())
     }
@@ -763,11 +963,17 @@ impl ServiceOfferingRecord {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// Discriminator for the service-line variant represented by a flattened offering record.
 pub enum ServiceOfferingKindCode {
+    /// Stable storage code for boarding.
     Boarding,
+    /// Stable storage code for daycare.
     Daycare,
+    /// Stable storage code for grooming.
     Grooming,
+    /// Stable storage code for training.
     Training,
+    /// Stable storage code for retail partner product.
     RetailPartnerProduct,
 }
 
@@ -929,25 +1135,35 @@ impl TryFrom<ServiceOfferingRecord> for domain::operations::ServiceOffering {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Storage snapshot of the service-line contracts enabled for a location.
 pub struct CoreServiceContractsRecord {
+    /// Location whose operating day or service contract is described.
     pub location_id: domain::entities::LocationId,
+    /// Boarding contract capabilities for the location.
     pub boarding: boarding::ContractRecord,
+    /// Daycare contract capabilities for the location.
     pub daycare: daycare::ContractRecord,
+    /// Grooming contract capabilities for the location.
     pub grooming: grooming::ContractRecord,
+    /// Training contract capabilities for the location.
     pub training: training::ContractRecord,
+    /// Retail contract capabilities for the location.
     pub retail: retail::ContractRecord,
 }
 
 impl CoreServiceContractsRecord {
+    /// Returns or constructs the Gingr record kind value.
     pub const fn record_kind(&self) -> RecordKind {
         RecordKind::CoreServiceContracts
     }
 
+    /// Encodes the storage record as JSON for persistence or fixture comparison.
     pub fn encode_json(&self) -> Result<String> {
         serde_json::to_string(self)
             .map_err(|source| Error::Codec(CodecError::JsonEncode { source }))
     }
 
+    /// Decodes a JSON storage payload into its typed record shape.
     pub fn decode_json(raw: &str) -> Result<Self> {
         serde_json::from_str(raw).map_err(|source| Error::Codec(CodecError::JsonDecode { source }))
     }
@@ -980,47 +1196,77 @@ impl From<CoreServiceContractsRecord> for service_core::ServiceContracts {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+/// Stored view of the systems that produce operational data and adjacent labor signals.
 pub struct TechnologyEcosystemRecord {
+    /// Primary operating portal expected to originate pet-resort facts.
     pub core_portal: CoreOperatingSystemCode,
+    /// Access paths available for extracting source evidence.
     pub data_access: Vec<DataAccessPatternCode>,
+    /// Nearby systems that may corroborate or enrich operational evidence.
     pub adjacent_systems: Vec<AdjacentSystemCode>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// Stable codes for operational source systems that may feed NVA workflows.
 pub enum CoreOperatingSystemCode {
+    /// Stable storage code for gingr.
     Gingr,
+    /// Stable storage code for mixed systems.
     MixedSystems,
+    /// Provider supplied an unrecognized value; preserve it for audit instead of failing closed.
     Unknown,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// Stable codes for how operational facts are accessed from source systems.
 pub enum DataAccessPatternCode {
+    /// Stable storage code for api.
     Api,
+    /// Stable storage code for webhook.
     Webhook,
+    /// Stable storage code for data export.
     DataExport,
+    /// Stable storage code for warehouse.
     Warehouse,
+    /// Stable storage code for business intelligence dashboard.
     BusinessIntelligenceDashboard,
+    /// Provider supplied an unrecognized value; preserve it for audit instead of failing closed.
     Unknown,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// Stable codes for adjacent systems that provide labor, recruiting, marketing, or analytics evidence.
 pub enum AdjacentSystemCode {
+    /// Stable storage code for avature recruiting.
     AvatureRecruiting,
+    /// Stable storage code for ga4.
     Ga4,
+    /// Stable storage code for amplitude.
     Amplitude,
+    /// Stable storage code for google tag manager.
     GoogleTagManager,
+    /// Stable storage code for hris.
     Hris,
+    /// Stable storage code for labor scheduling.
     LaborScheduling,
+    /// Stable storage code for payroll.
     Payroll,
+    /// Stable storage code for marketing automation.
     MarketingAutomation,
+    /// Stable storage code for ticketing.
     Ticketing,
+    /// Stable storage code for call center telephony.
     CallCenterTelephony,
+    /// Stable storage code for reviews.
     Reviews,
+    /// Stable storage code for email sms marketing.
     EmailSmsMarketing,
+    /// Stable storage code for business intelligence.
     BusinessIntelligence,
+    /// Stable storage code for data lake.
     DataLake,
 }
 

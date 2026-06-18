@@ -2,74 +2,92 @@ use serde::{Deserialize, Serialize};
 
 use domain::{data_quality, entities, operations, policy, source};
 
+/// Stable Workflow name constant for the data quality hygiene layer.
 pub const WORKFLOW_NAME: &str = "data-quality-hygiene";
+/// Stable Schema version constant for the data quality hygiene layer.
 pub const SCHEMA_VERSION: &str = "data-quality-hygiene-context-v1";
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Issue ref carried by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct IssueRef(String);
 
 impl IssueRef {
+    /// Builds or derives try new data for the data-quality hygiene workflow contract.
     pub fn try_new(value: impl Into<String>) -> Result<Self> {
         trimmed_non_empty(value, Error::EmptyIssueRef).map(Self)
     }
 
+    /// Returns the as str carried by this data-quality hygiene workflow value.
     pub fn as_str(&self) -> &str {
         &self.0
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Action id carried by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct ActionId(String);
 
 impl ActionId {
+    /// Builds or derives try new data for the data-quality hygiene workflow contract.
     pub fn try_new(value: impl Into<String>) -> Result<Self> {
         trimmed_non_empty(value, Error::EmptyActionId).map(Self)
     }
 
+    /// Returns the as str carried by this data-quality hygiene workflow value.
     pub fn as_str(&self) -> &str {
         &self.0
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Context packet id carried by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct ContextPacketId(String);
 
 impl ContextPacketId {
+    /// Builds or derives try new data for the data-quality hygiene workflow contract.
     pub fn try_new(value: impl Into<String>) -> Result<Self> {
         trimmed_non_empty(value, Error::EmptyContextPacketId).map(Self)
     }
 
+    /// Returns the as str carried by this data-quality hygiene workflow value.
     pub fn as_str(&self) -> &str {
         &self.0
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Correlation id carried by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct CorrelationId(String);
 
 impl CorrelationId {
+    /// Builds or derives try new data for the data-quality hygiene workflow contract.
     pub fn try_new(value: impl Into<String>) -> Result<Self> {
         trimmed_non_empty(value, Error::EmptyCorrelationId).map(Self)
     }
 
+    /// Returns the as str carried by this data-quality hygiene workflow value.
     pub fn as_str(&self) -> &str {
         &self.0
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Action rationale carried by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct ActionRationale(String);
 
 impl ActionRationale {
+    /// Builds or derives try new data for the data-quality hygiene workflow contract.
     pub fn try_new(value: impl Into<String>) -> Result<Self> {
         trimmed_non_empty(value, Error::EmptyActionRationale).map(Self)
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Labor minutes carried by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct LaborMinutes(u16);
 
 impl LaborMinutes {
+    /// Builds or derives try new data for the data-quality hygiene workflow contract.
     pub const fn try_new(value: u16) -> Result<Self> {
         if value == 0 {
             return Err(Error::ZeroLaborMinutes);
@@ -77,61 +95,90 @@ impl LaborMinutes {
         Ok(Self(value))
     }
 
+    /// Returns the get carried by this data-quality hygiene workflow value.
     pub const fn get(self) -> u16 {
         self.0
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Aggregate labor minutes carried by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct AggregateLaborMinutes(u16);
 
 impl AggregateLaborMinutes {
+    /// Builds or derives new data for the data-quality hygiene workflow contract.
     pub const fn new(value: u16) -> Self {
         Self(value)
     }
 
+    /// Returns the get carried by this data-quality hygiene workflow value.
     pub const fn get(self) -> u16 {
         self.0
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Classifies hygiene persona values that drive the data-quality hygiene workflow.
 pub enum HygienePersona {
+    /// Routes data-quality hygiene work flagged as general manager to the right queue, review gate, or agent packet.
     GeneralManager,
+    /// Routes data-quality hygiene work flagged as assistant general manager to the right queue, review gate, or agent packet.
     AssistantGeneralManager,
+    /// Routes data-quality hygiene work flagged as front desk lead to the right queue, review gate, or agent packet.
     FrontDeskLead,
+    /// Routes data-quality hygiene work flagged as front desk agent to the right queue, review gate, or agent packet.
     FrontDeskAgent,
+    /// Routes data-quality hygiene work flagged as regional operator to the right queue, review gate, or agent packet.
     RegionalOperator,
+    /// Routes data-quality hygiene work flagged as operations analyst to the right queue, review gate, or agent packet.
     OperationsAnalyst,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Classifies candidate kind values that drive the data-quality hygiene workflow.
 pub enum CandidateKind {
+    /// Routes data-quality hygiene work flagged as source issue to the right queue, review gate, or agent packet.
     SourceIssue,
+    /// Routes data-quality hygiene work flagged as duplicate candidate to the right queue, review gate, or agent packet.
     DuplicateCandidate,
+    /// Routes data-quality hygiene work flagged as profile gap to the right queue, review gate, or agent packet.
     ProfileGap,
+    /// Routes data-quality hygiene work flagged as service line mapping to the right queue, review gate, or agent packet.
     ServiceLineMapping,
+    /// Routes data-quality hygiene work flagged as source freshness to the right queue, review gate, or agent packet.
     SourceFreshness,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Classifies source freshness values that drive the data-quality hygiene workflow.
 pub enum SourceFreshness {
+    /// Routes data-quality hygiene work flagged as current to the right queue, review gate, or agent packet.
     Current,
+    /// Routes data-quality hygiene work flagged as stale to the right queue, review gate, or agent packet.
     Stale,
+    /// Routes data-quality hygiene work flagged as conflicting to the right queue, review gate, or agent packet.
     Conflicting,
+    /// Routes data-quality hygiene work flagged as missing to the right queue, review gate, or agent packet.
     Missing,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Classifies sensitivity values that drive the data-quality hygiene workflow.
 pub enum Sensitivity {
+    /// Routes data-quality hygiene work flagged as standard operational evidence to the right queue, review gate, or agent packet.
     StandardOperationalEvidence,
+    /// Routes data-quality hygiene work flagged as vaccine evidence to the right queue, review gate, or agent packet.
     VaccineEvidence,
+    /// Routes data-quality hygiene work flagged as incident or behavior evidence to the right queue, review gate, or agent packet.
     IncidentOrBehaviorEvidence,
+    /// Routes data-quality hygiene work flagged as payment evidence to the right queue, review gate, or agent packet.
     PaymentEvidence,
+    /// Routes data-quality hygiene work flagged as quarantined sensitive payload to the right queue, review gate, or agent packet.
     QuarantinedSensitivePayload,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+/// Candidate carried by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct Candidate {
     id: IssueRef,
     kind: CandidateKind,
@@ -143,26 +190,32 @@ pub struct Candidate {
 }
 
 impl Candidate {
+    /// Returns the id carried by this data-quality hygiene workflow value.
     pub const fn id(&self) -> &IssueRef {
         &self.id
     }
 
+    /// Returns the kind carried by this data-quality hygiene workflow value.
     pub const fn kind(&self) -> CandidateKind {
         self.kind
     }
 
+    /// Returns the issue carried by this data-quality hygiene workflow value.
     pub const fn issue(&self) -> &data_quality::Issue {
         &self.issue
     }
 
+    /// Returns the source record refs carried by this data-quality hygiene workflow value.
     pub fn source_record_refs(&self) -> &[source::RecordRef] {
         &self.source_record_refs
     }
 
+    /// Returns the source freshness carried by this data-quality hygiene workflow value.
     pub const fn source_freshness(&self) -> SourceFreshness {
         self.source_freshness
     }
 
+    /// Returns the sensitivity carried by this data-quality hygiene workflow value.
     pub const fn sensitivity(&self) -> Sensitivity {
         self.sensitivity
     }
@@ -178,60 +231,95 @@ impl Candidate {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Classifies action kind values that drive the data-quality hygiene workflow.
 pub enum ActionKind {
+    /// Routes data-quality hygiene work flagged as investigate missing source evidence to the right queue, review gate, or agent packet.
     InvestigateMissingSourceEvidence,
+    /// Routes data-quality hygiene work flagged as reconcile duplicate customer or pet candidate to the right queue, review gate, or agent packet.
     ReconcileDuplicateCustomerOrPetCandidate,
+    /// Routes data-quality hygiene work flagged as complete missing pet or customer profile fields to the right queue, review gate, or agent packet.
     CompleteMissingPetOrCustomerProfileFields,
+    /// Routes data-quality hygiene work flagged as review stale vaccination source freshness to the right queue, review gate, or agent packet.
     ReviewStaleVaccinationSourceFreshness,
+    /// Routes data-quality hygiene work flagged as normalize ambiguous service line naming to the right queue, review gate, or agent packet.
     NormalizeAmbiguousServiceLineNaming,
+    /// Routes data-quality hygiene work flagged as review checkout or unclosed reservation evidence to the right queue, review gate, or agent packet.
     ReviewCheckoutOrUnclosedReservationEvidence,
+    /// Routes data-quality hygiene work flagged as escalate sensitive or quarantined payload to the right queue, review gate, or agent packet.
     EscalateSensitiveOrQuarantinedPayload,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Classifies action priority values that drive the data-quality hygiene workflow.
 pub enum ActionPriority {
+    /// Routes data-quality hygiene work flagged as high to the right queue, review gate, or agent packet.
     High,
+    /// Routes data-quality hygiene work flagged as medium to the right queue, review gate, or agent packet.
     Medium,
+    /// Routes data-quality hygiene work flagged as low to the right queue, review gate, or agent packet.
     Low,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Classifies removed manual work values that drive the data-quality hygiene workflow.
 pub enum RemovedManualWork {
+    /// Routes data-quality hygiene work flagged as missing evidence investigation to the right queue, review gate, or agent packet.
     MissingEvidenceInvestigation,
+    /// Routes data-quality hygiene work flagged as duplicate candidate reconciliation to the right queue, review gate, or agent packet.
     DuplicateCandidateReconciliation,
+    /// Routes data-quality hygiene work flagged as incomplete profile cleanup preparation to the right queue, review gate, or agent packet.
     IncompleteProfileCleanupPreparation,
+    /// Routes data-quality hygiene work flagged as source freshness review to the right queue, review gate, or agent packet.
     SourceFreshnessReview,
+    /// Routes data-quality hygiene work flagged as service line normalization review to the right queue, review gate, or agent packet.
     ServiceLineNormalizationReview,
+    /// Routes data-quality hygiene work flagged as checkout evidence review to the right queue, review gate, or agent packet.
     CheckoutEvidenceReview,
+    /// Routes data-quality hygiene work flagged as sensitive payload escalation to the right queue, review gate, or agent packet.
     SensitivePayloadEscalation,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Review-safe agent tasks allowed to save staff time without crossing mutation or send boundaries.
 pub enum SafeAgentAction {
+    /// Allows agents to summarize source evidence for staff review without mutating records or contacting customers.
     SummarizeSourceEvidence,
+    /// Allows agents to rank hygiene actions for staff review without mutating records or contacting customers.
     RankHygieneActions,
+    /// Allows agents to draft internal cleanup task for staff review without mutating records or contacting customers.
     DraftInternalCleanupTask,
+    /// Allows agents to preserve ambiguity for review for staff review without mutating records or contacting customers.
     PreserveAmbiguityForReview,
+    /// Allows agents to estimate reconciliation minutes saved for staff review without mutating records or contacting customers.
     EstimateReconciliationMinutesSaved,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Actions the agent must never perform without a human/operator system of record.
 pub enum BlockedAction {
+    /// Blocks agents from send customer message until staff or the system of record performs the action.
     SendCustomerMessage,
+    /// Blocks agents from mutate provider or pms record until staff or the system of record performs the action.
     MutateProviderOrPmsRecord,
+    /// Blocks agents from change staff schedule until staff or the system of record performs the action.
     ChangeStaffSchedule,
+    /// Blocks agents from move refund discount or payment until staff or the system of record performs the action.
     MoveRefundDiscountOrPayment,
+    /// Blocks agents from hide or auto resolve source ambiguity until staff or the system of record performs the action.
     HideOrAutoResolveSourceAmbiguity,
+    /// Blocks agents from expose quarantined sensitive payload until staff or the system of record performs the action.
     ExposeQuarantinedSensitivePayload,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Labor impact estimate carried by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct LaborImpactEstimate {
     before_minutes: LaborMinutes,
     after_minutes: LaborMinutes,
 }
 
 impl LaborImpactEstimate {
+    /// Builds or derives new data for the data-quality hygiene workflow contract.
     pub const fn new(before_minutes: LaborMinutes, after_minutes: LaborMinutes) -> Self {
         Self {
             before_minutes,
@@ -239,20 +327,24 @@ impl LaborImpactEstimate {
         }
     }
 
+    /// Returns the before minutes carried by this data-quality hygiene workflow value.
     pub const fn before_minutes(&self) -> LaborMinutes {
         self.before_minutes
     }
 
+    /// Returns the after minutes carried by this data-quality hygiene workflow value.
     pub const fn after_minutes(&self) -> LaborMinutes {
         self.after_minutes
     }
 
+    /// Returns the minutes saved carried by this data-quality hygiene workflow value.
     pub const fn minutes_saved(&self) -> u16 {
         self.before_minutes.0.saturating_sub(self.after_minutes.0)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+/// Action carried by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct Action {
     id: ActionId,
     kind: ActionKind,
@@ -270,52 +362,64 @@ pub struct Action {
 }
 
 impl Action {
+    /// Returns the id carried by this data-quality hygiene workflow value.
     pub const fn id(&self) -> &ActionId {
         &self.id
     }
 
+    /// Returns the kind carried by this data-quality hygiene workflow value.
     pub const fn kind(&self) -> ActionKind {
         self.kind
     }
 
+    /// Returns the priority carried by this data-quality hygiene workflow value.
     pub const fn priority(&self) -> ActionPriority {
         self.priority
     }
 
+    /// Returns the owner persona carried by this data-quality hygiene workflow value.
     pub const fn owner_persona(&self) -> HygienePersona {
         self.owner_persona
     }
 
+    /// Returns the removed manual work carried by this data-quality hygiene workflow value.
     pub const fn removed_manual_work(&self) -> RemovedManualWork {
         self.removed_manual_work
     }
 
+    /// Returns the rationale carried by this data-quality hygiene workflow value.
     pub const fn rationale(&self) -> &ActionRationale {
         &self.rationale
     }
 
+    /// Returns the source record refs carried by this data-quality hygiene workflow value.
     pub fn source_record_refs(&self) -> &[source::RecordRef] {
         &self.source_record_refs
     }
 
+    /// Returns the issue refs carried by this data-quality hygiene workflow value.
     pub fn issue_refs(&self) -> &[IssueRef] {
         &self.issue_refs
     }
 
+    /// Returns the required review gates carried by this data-quality hygiene workflow value.
     pub fn required_review_gates(&self) -> &[policy::ReviewGate] {
         &self.required_review_gates
     }
 
+    /// Returns the labor impact carried by this data-quality hygiene workflow value.
     pub const fn labor_impact(&self) -> &LaborImpactEstimate {
         &self.labor_impact
     }
 
+    /// Reports whether the data-quality hygiene workflow satisfies the is source grounded safety condition.
     pub fn is_source_grounded(&self) -> bool {
         !self.source_record_refs.is_empty() && !self.issue_refs.is_empty()
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+/// Input contract for building the workflow packet from source-grounded records.
 pub struct Request {
     location_id: entities::LocationId,
     operating_day: operations::operating_day::Date,
@@ -325,24 +429,29 @@ pub struct Request {
 }
 
 impl Request {
+    /// Returns the location id carried by this data-quality hygiene workflow value.
     pub const fn location_id(&self) -> entities::LocationId {
         self.location_id
     }
 
+    /// Returns the operating day carried by this data-quality hygiene workflow value.
     pub const fn operating_day(&self) -> operations::operating_day::Date {
         self.operating_day
     }
 
+    /// Returns the prepared for carried by this data-quality hygiene workflow value.
     pub const fn prepared_for(&self) -> HygienePersona {
         self.prepared_for
     }
 
+    /// Returns the candidates carried by this data-quality hygiene workflow value.
     pub fn candidates(&self) -> &[Candidate] {
         &self.candidates
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Reviewable packet handed to staff or agents with deterministic gates already applied.
 pub struct Packet {
     workflow: &'static str,
     schema_version: &'static str,
@@ -360,66 +469,82 @@ pub struct Packet {
 }
 
 impl Packet {
+    /// Returns the workflow carried by this data-quality hygiene workflow value.
     pub const fn workflow(&self) -> &'static str {
         self.workflow
     }
 
+    /// Returns the schema version carried by this data-quality hygiene workflow value.
     pub const fn schema_version(&self) -> &'static str {
         self.schema_version
     }
 
+    /// Returns the context packet id carried by this data-quality hygiene workflow value.
     pub const fn context_packet_id(&self) -> &ContextPacketId {
         &self.context_packet_id
     }
 
+    /// Returns the correlation id carried by this data-quality hygiene workflow value.
     pub const fn correlation_id(&self) -> &CorrelationId {
         &self.correlation_id
     }
 
+    /// Returns the location id carried by this data-quality hygiene workflow value.
     pub const fn location_id(&self) -> entities::LocationId {
         self.location_id
     }
 
+    /// Returns the operating day carried by this data-quality hygiene workflow value.
     pub const fn operating_day(&self) -> operations::operating_day::Date {
         self.operating_day
     }
 
+    /// Returns the prepared for carried by this data-quality hygiene workflow value.
     pub const fn prepared_for(&self) -> HygienePersona {
         self.prepared_for
     }
 
+    /// Returns the candidates carried by this data-quality hygiene workflow value.
     pub fn candidates(&self) -> &[Candidate] {
         &self.candidates
     }
 
+    /// Returns the actions carried by this data-quality hygiene workflow value.
     pub fn actions(&self) -> &[Action] {
         &self.actions
     }
 
+    /// Returns the safe agent actions carried by this data-quality hygiene workflow value.
     pub fn safe_agent_actions(&self) -> &[SafeAgentAction] {
         &self.safe_agent_actions
     }
 
+    /// Returns the blocked actions carried by this data-quality hygiene workflow value.
     pub fn blocked_actions(&self) -> &[BlockedAction] {
         &self.blocked_actions
     }
 
+    /// Returns the before minutes carried by this data-quality hygiene workflow value.
     pub const fn before_minutes(&self) -> AggregateLaborMinutes {
         self.before_minutes
     }
 
+    /// Returns the after minutes carried by this data-quality hygiene workflow value.
     pub const fn after_minutes(&self) -> AggregateLaborMinutes {
         self.after_minutes
     }
 
+    /// Returns the minutes saved carried by this data-quality hygiene workflow value.
     pub const fn minutes_saved(&self) -> u16 {
         self.before_minutes.0.saturating_sub(self.after_minutes.0)
     }
 
+    /// Returns the all actions are source grounded carried by this data-quality hygiene workflow value.
     pub fn all_actions_are_source_grounded(&self) -> bool {
         self.actions.iter().all(Action::is_source_grounded)
     }
 
+    /// Returns the validate draft carried by this data-quality hygiene workflow value.
     pub fn validate_draft(&self, draft: &DraftSubmission) -> DraftValidation {
         let mut rejection_reasons = Vec::new();
 
@@ -439,6 +564,7 @@ impl Packet {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Draft action carried by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct DraftAction {
     action_id: ActionId,
     kind: ActionKind,
@@ -450,6 +576,7 @@ pub struct DraftAction {
 }
 
 impl DraftAction {
+    /// Builds or derives from action data for the data-quality hygiene workflow contract.
     pub fn from_action(action: Action) -> Self {
         Self {
             action_id: action.id,
@@ -462,11 +589,13 @@ impl DraftAction {
         }
     }
 
+    /// Returns the with requested side effect carried by this data-quality hygiene workflow value.
     pub fn with_requested_side_effect(mut self, side_effect: impl Into<String>) -> Self {
         self.requested_side_effects.push(side_effect.into());
         self
     }
 
+    /// Returns the with attempted ambiguity resolution carried by this data-quality hygiene workflow value.
     pub const fn with_attempted_ambiguity_resolution(mut self) -> Self {
         self.attempted_ambiguity_resolution = true;
         self
@@ -474,6 +603,7 @@ impl DraftAction {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+/// Draft submission carried by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct DraftSubmission {
     context_packet_id: ContextPacketId,
     correlation_id: CorrelationId,
@@ -482,44 +612,65 @@ pub struct DraftSubmission {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Draft validation carried by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct DraftValidation {
     rejection_reasons: Vec<DraftRejectionReason>,
 }
 
 impl DraftValidation {
+    /// Reports whether the data-quality hygiene workflow satisfies the is accepted safety condition.
     pub fn is_accepted(&self) -> bool {
         self.rejection_reasons.is_empty()
     }
 
+    /// Returns the rejection reasons carried by this data-quality hygiene workflow value.
     pub fn rejection_reasons(&self) -> &[DraftRejectionReason] {
         &self.rejection_reasons
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Classifies draft rejection reason values that drive the data-quality hygiene workflow.
 pub enum DraftRejectionReason {
+    /// Uses stale or unknown context packet as source-grounded evidence for the deterministic decision.
     StaleOrUnknownContextPacket,
+    /// Uses unsupported action kind as source-grounded evidence for the deterministic decision.
     UnsupportedActionKind,
+    /// Uses missing source refs as source-grounded evidence for the deterministic decision.
     MissingSourceRefs,
+    /// Uses source refs not present in context packet as source-grounded evidence for the deterministic decision.
     SourceRefsNotPresentInContextPacket,
+    /// Uses missing data quality issue refs as source-grounded evidence for the deterministic decision.
     MissingDataQualityIssueRefs,
+    /// Uses wrong review gate as source-grounded evidence for the deterministic decision.
     WrongReviewGate,
+    /// Uses blocked side effect requested as source-grounded evidence for the deterministic decision.
     BlockedSideEffectRequested,
+    /// Uses unsupported side effect requested as source-grounded evidence for the deterministic decision.
     UnsupportedSideEffectRequested,
+    /// Uses attempted ambiguity hiding as source-grounded evidence for the deterministic decision.
     AttemptedAmbiguityHiding,
+    /// Uses sensitive payload exposure attempted as source-grounded evidence for the deterministic decision.
     SensitivePayloadExposureAttempted,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Classifies feedback outcome values that drive the data-quality hygiene workflow.
 pub enum FeedbackOutcome {
+    /// Records a completed result so follow-up impact is auditable.
     Completed,
+    /// Records a deferred result so follow-up impact is auditable.
     Deferred,
+    /// Records a suppressed by manager result so follow-up impact is auditable.
     SuppressedByManager,
+    /// Records a source fact was wrong result so follow-up impact is auditable.
     SourceFactWasWrong,
+    /// Records a not actionable result so follow-up impact is auditable.
     NotActionable,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+/// Outcome record carried by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct OutcomeRecord {
     action_id: ActionId,
     recorded_by: entities::ActorRef,
@@ -534,73 +685,94 @@ pub struct OutcomeRecord {
 }
 
 impl OutcomeRecord {
+    /// Returns the action id carried by this data-quality hygiene workflow value.
     pub const fn action_id(&self) -> &ActionId {
         &self.action_id
     }
 
+    /// Returns the recorded by carried by this data-quality hygiene workflow value.
     pub const fn recorded_by(&self) -> &entities::ActorRef {
         &self.recorded_by
     }
 
+    /// Returns the outcome carried by this data-quality hygiene workflow value.
     pub const fn outcome(&self) -> FeedbackOutcome {
         self.outcome
     }
 
+    /// Returns the before minutes carried by this data-quality hygiene workflow value.
     pub const fn before_minutes(&self) -> LaborMinutes {
         self.before_minutes
     }
 
+    /// Returns the actual minutes carried by this data-quality hygiene workflow value.
     pub const fn actual_minutes(&self) -> LaborMinutes {
         self.actual_minutes
     }
 
+    /// Returns the actual minutes saved carried by this data-quality hygiene workflow value.
     pub const fn actual_minutes_saved(&self) -> u16 {
         self.before_minutes.0.saturating_sub(self.actual_minutes.0)
     }
 
+    /// Returns the source record refs carried by this data-quality hygiene workflow value.
     pub fn source_record_refs(&self) -> &[source::RecordRef] {
         &self.source_record_refs
     }
 
+    /// Returns the issue refs carried by this data-quality hygiene workflow value.
     pub fn issue_refs(&self) -> &[IssueRef] {
         &self.issue_refs
     }
 
+    /// Returns the reviewed resolution status carried by this data-quality hygiene workflow value.
     pub const fn reviewed_resolution_status(&self) -> Option<data_quality::ResolutionStatus> {
         self.reviewed_resolution_status
     }
 
+    /// Returns the records feedback without external mutation carried by this data-quality hygiene workflow value.
     pub fn records_feedback_without_external_mutation(&self) -> bool {
         true
     }
 
+    /// Returns the blocked actions carried by this data-quality hygiene workflow value.
     pub fn blocked_actions(&self) -> Vec<BlockedAction> {
         blocked_actions_for()
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+/// Classifies error values that drive the data-quality hygiene workflow.
 pub enum Error {
     #[error("issue ref cannot be empty")]
+    /// Identifies empty issue ref as the reason the workflow must stop, retry, or request review.
     EmptyIssueRef,
     #[error("action id cannot be empty")]
+    /// Identifies empty action id as the reason the workflow must stop, retry, or request review.
     EmptyActionId,
     #[error("context packet id cannot be empty")]
+    /// Identifies empty context packet id as the reason the workflow must stop, retry, or request review.
     EmptyContextPacketId,
     #[error("correlation id cannot be empty")]
+    /// Identifies empty correlation id as the reason the workflow must stop, retry, or request review.
     EmptyCorrelationId,
     #[error("action rationale cannot be empty")]
+    /// Identifies empty action rationale as the reason the workflow must stop, retry, or request review.
     EmptyActionRationale,
     #[error("labor minutes must be greater than zero")]
+    /// Identifies zero labor minutes as the reason the workflow must stop, retry, or request review.
     ZeroLaborMinutes,
 }
 
+/// Result type returned by fallible data quality hygiene operations.
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Workflow carried by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct Workflow;
 
 impl Workflow {
+    /// Builds or derives evaluate data for the data-quality hygiene workflow contract.
     pub fn evaluate(request: Request) -> Packet {
         let actions = request
             .candidates

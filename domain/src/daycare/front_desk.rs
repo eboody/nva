@@ -33,51 +33,94 @@ positive_scalar!(
 );
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+/// Typed readiness context domain value that keeps raw primitives out of daycare workflows.
 pub struct ReadinessContext {
+    /// Reservation id fact promoted into this daycare contract.
     pub reservation_id: entities::reservation::Id,
+    /// Requested service that drives scheduling and labor estimates.
     pub service: ServiceVariant,
+    /// Eligibility fact promoted into this daycare contract.
     pub eligibility: EligibilityReadiness,
+    /// Coverage fact promoted into this daycare contract.
     pub coverage: coverage::Decision,
+    /// Care fact promoted into this daycare contract.
     pub care: CareReadiness,
+    /// Package fact promoted into this daycare contract.
     pub package: PackageReadiness,
+    /// Customer message fact promoted into this daycare contract.
     pub customer_message: CustomerMessageReadiness,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Domain vocabulary for eligibility readiness decisions in daycare workflows.
 pub enum EligibilityReadiness {
+    /// Group-play add-on or accommodation feature.
     GroupPlay(eligibility::GroupPlayDecision),
+    /// Individual care ready daycare attendance, eligibility, coverage, or package signal.
     IndividualCareReady,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Domain vocabulary for care readiness decisions in daycare workflows.
 pub enum CareReadiness {
+    /// Ready daycare attendance, eligibility, coverage, or package signal.
     Ready,
-    NeedsCareTeamReview { gate: policy::ReviewGate },
+    /// Gate fact promoted into this daycare contract.
+    NeedsCareTeamReview {
+        /// Gate carried by this variant.
+        gate: policy::ReviewGate,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Domain vocabulary for package readiness decisions in daycare workflows.
 pub enum PackageReadiness {
+    /// Ready daycare attendance, eligibility, coverage, or package signal.
     Ready,
+    /// Needs front desk collection daycare attendance, eligibility, coverage, or package signal.
     NeedsFrontDeskCollection,
-    NeedsManagerReview { gate: policy::ReviewGate },
+    /// Gate fact promoted into this daycare contract.
+    NeedsManagerReview {
+        /// Gate carried by this variant.
+        gate: policy::ReviewGate,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Domain vocabulary for customer message readiness decisions in daycare workflows.
 pub enum CustomerMessageReadiness {
+    /// No message needed daycare attendance, eligibility, coverage, or package signal.
     NoMessageNeeded,
+    /// Draft needs approval daycare attendance, eligibility, coverage, or package signal.
     DraftNeedsApproval,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Domain vocabulary for readiness decision decisions in daycare workflows.
 pub enum ReadinessDecision {
+    /// Ready to check in daycare attendance, eligibility, coverage, or package signal.
     ReadyToCheckIn,
+    /// Needs front desk collection daycare attendance, eligibility, coverage, or package signal.
     NeedsFrontDeskCollection,
-    NeedsCareTeamReview { gate: policy::ReviewGate },
-    NeedsManagerReview { gate: policy::ReviewGate },
-    BlockedForSafetyOrPolicy { gate: policy::ReviewGate },
+    /// Gate fact promoted into this daycare contract.
+    NeedsCareTeamReview {
+        /// Gate carried by this variant.
+        gate: policy::ReviewGate,
+    },
+    /// Gate fact promoted into this daycare contract.
+    NeedsManagerReview {
+        /// Gate carried by this variant.
+        gate: policy::ReviewGate,
+    },
+    /// Gate fact promoted into this daycare contract.
+    BlockedForSafetyOrPolicy {
+        /// Gate carried by this variant.
+        gate: policy::ReviewGate,
+    },
 }
 
 impl ReadinessDecision {
+    /// Returns the customer message gate for this daycare value.
     pub fn customer_message_gate(&self) -> Option<policy::ReviewGate> {
         match self {
             Self::ReadyToCheckIn
@@ -90,25 +133,34 @@ impl ReadinessDecision {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Domain vocabulary for queue lane decisions in daycare workflows.
 pub enum QueueLane {
+    /// Fast lane daycare attendance, eligibility, coverage, or package signal.
     FastLane,
+    /// Collection lane daycare attendance, eligibility, coverage, or package signal.
     CollectionLane,
+    /// Care team review lane daycare attendance, eligibility, coverage, or package signal.
     CareTeamReviewLane,
+    /// Manager review lane daycare attendance, eligibility, coverage, or package signal.
     ManagerReviewLane,
+    /// Waitlist or policy lane daycare attendance, eligibility, coverage, or package signal.
     WaitlistOrPolicyLane,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Typed queue ticket domain value that keeps raw primitives out of daycare workflows.
 pub struct QueueTicket {
     position: QueuePosition,
     decision: ReadinessDecision,
 }
 
 impl QueueTicket {
+    /// Assembles this daycare value from already-validated domain parts.
     pub const fn new(position: QueuePosition, decision: ReadinessDecision) -> Self {
         Self { position, decision }
     }
 
+    /// Returns this daycare value's lane.
     pub const fn lane(&self) -> QueueLane {
         match self.decision {
             ReadinessDecision::ReadyToCheckIn => QueueLane::FastLane,
@@ -121,9 +173,11 @@ impl QueueTicket {
 }
 
 #[derive(Debug, Clone, Default)]
+/// Typed throughput policy domain value that keeps raw primitives out of daycare workflows.
 pub struct ThroughputPolicy;
 
 impl ThroughputPolicy {
+    /// Returns the evaluate for this daycare value.
     pub fn evaluate(&self, context: &ReadinessContext) -> ReadinessDecision {
         if let CustomerMessageReadiness::DraftNeedsApproval = context.customer_message {
             return ReadinessDecision::NeedsManagerReview {

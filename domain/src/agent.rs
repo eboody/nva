@@ -107,10 +107,16 @@ pub struct PolicyInstruction(String);
 pub struct OutputSchemaName(String);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+/// Typed spec domain value that keeps raw primitives out of agent workflows.
 pub struct Spec {
+    /// Contact or display name used by staff.
     pub name: Name,
+    /// Purpose fact promoted into this agent contract.
     pub purpose: Purpose,
+    /// Allowed tools fact promoted into this agent contract.
     pub allowed_tools: Vec<ToolName>,
+    /// Forbidden actions fact promoted into this agent contract.
     pub forbidden_actions: Vec<ForbiddenAction>,
+    /// Default review gates fact promoted into this agent contract.
     pub default_review_gates: Vec<policy::ReviewGate>,
 }

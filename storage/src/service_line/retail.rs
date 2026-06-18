@@ -21,17 +21,25 @@ impl From<ContractRecord> for domain::retail::Contract {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// Storage-facing retail partner product code.
 pub enum PartnerCode {
+    /// Stable storage code for virbac calm care.
     VirbacCalmCare,
+    /// Stable storage code for purina pro plan veterinary supplements.
     PurinaProPlanVeterinarySupplements,
+    /// Stable storage code for purina en boarding diet.
     PurinaEnBoardingDiet,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// Storage-facing retail product category code.
 pub enum ProductCategoryCode {
+    /// Stable storage code for supplement.
     Supplement,
+    /// Stable storage code for in house diet.
     InHouseDiet,
+    /// Stable storage code for personalized upsell.
     PersonalizedUpsell,
 }
 

@@ -1,17 +1,22 @@
 use serde::{Deserialize, Deserializer, Serialize};
 
+/// Result type returned by fallible money operations.
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+/// Validation failures returned by money domain constructors.
 pub enum Error {
     #[error("money amount must contain at least one minor unit")]
+    /// Signals that amount was blank or missing during money validation.
     EmptyAmount,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+/// Typed minor units domain value that keeps raw primitives out of money workflows.
 pub struct MinorUnits(u32);
 
 impl MinorUnits {
+    /// Validates and creates the money value.
     pub fn try_new(value: u32) -> Result<Self> {
         if value == 0 {
             return Err(Error::EmptyAmount);
@@ -19,6 +24,7 @@ impl MinorUnits {
         Ok(Self(value))
     }
 
+    /// Exposes the validated scalar for serialization and adapter boundaries.
     pub const fn get(self) -> u32 {
         self.0
     }
@@ -34,17 +40,21 @@ impl<'de> Deserialize<'de> for MinorUnits {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Domain vocabulary for currency decisions in money workflows.
 pub enum Currency {
+    /// US dollars, the supported currency for resort charges.
     Usd,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Typed money domain value that keeps raw primitives out of money workflows.
 pub struct Money {
     minor_units: MinorUnits,
     currency: Currency,
 }
 
 impl Money {
+    /// Assembles this money value from already-validated domain parts.
     pub const fn new(minor_units: MinorUnits, currency: Currency) -> Self {
         Self {
             minor_units,
@@ -52,10 +62,12 @@ impl Money {
         }
     }
 
+    /// Returns this money value's minor units.
     pub const fn minor_units(&self) -> MinorUnits {
         self.minor_units
     }
 
+    /// Returns this money value's currency.
     pub const fn currency(&self) -> Currency {
         self.currency
     }

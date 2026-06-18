@@ -14,10 +14,12 @@ fn push_optional<T: core::fmt::Display>(
     }
 }
 
+/// Gingr get endpoint boundary with provider parameters kept explicit.
 pub mod get {
     use super::*;
 
     #[derive(Clone, Debug, Default, PartialEq, Eq)]
+    /// Typed Gingr request/response value for all retail items.
     pub struct AllRetailItems;
 
     impl Request for AllRetailItems {
@@ -35,9 +37,11 @@ pub mod get {
     }
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    /// Typed Gingr request/response value for subscription id.
     pub struct SubscriptionId(u64);
 
     impl SubscriptionId {
+        /// Builds the validated storage wrapper for a known-good value.
         pub fn new(value: u64) -> Self {
             Self(value)
         }
@@ -50,11 +54,13 @@ pub mod get {
     }
 
     #[derive(Clone, Debug, PartialEq, Eq)]
+    /// Typed Gingr request/response value for subscription.
     pub struct Subscription {
         id: SubscriptionId,
     }
 
     impl Subscription {
+        /// Builds the validated storage wrapper for a known-good value.
         pub fn new(id: SubscriptionId) -> Self {
             Self { id }
         }
@@ -75,9 +81,11 @@ pub mod get {
     }
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    /// Typed Gingr request/response value for bill day of month.
     pub struct BillDayOfMonth(u8);
 
     impl BillDayOfMonth {
+        /// Builds the validated storage wrapper for a known-good value.
         pub fn new(value: u8) -> Result<Self> {
             if (1..=31).contains(&value) {
                 Ok(Self(value))
@@ -94,9 +102,11 @@ pub mod get {
     }
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    /// Typed Gingr request/response value for package id.
     pub struct PackageId(u64);
 
     impl PackageId {
+        /// Builds the validated storage wrapper for a known-good value.
         pub fn new(value: u64) -> Self {
             Self(value)
         }
@@ -109,18 +119,21 @@ pub mod get {
     }
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    /// Typed Gingr request/response value for subscription pagination.
     pub struct SubscriptionPagination {
         limit: u64,
         offset: u64,
     }
 
     impl SubscriptionPagination {
+        /// Builds the validated storage wrapper for a known-good value.
         pub fn new(limit: u64, offset: u64) -> Self {
             Self { limit, offset }
         }
     }
 
     #[derive(Clone, Debug, Default, PartialEq, Eq)]
+    /// Typed Gingr request/response value for subscriptions.
     pub struct Subscriptions {
         include_deleted: Option<bool>,
         bill_day_of_month: Option<BillDayOfMonth>,
@@ -131,12 +144,14 @@ pub mod get {
     }
 
     impl Subscriptions {
+        /// Starts a typed builder for this Gingr endpoint request.
         pub fn builder() -> SubscriptionsBuilder {
             SubscriptionsBuilder::default()
         }
     }
 
     #[derive(Clone, Debug, Default)]
+    /// Typed Gingr request/response value for subscriptions builder.
     pub struct SubscriptionsBuilder {
         include_deleted: Option<bool>,
         bill_day_of_month: Option<BillDayOfMonth>,
@@ -147,36 +162,43 @@ pub mod get {
     }
 
     impl SubscriptionsBuilder {
+        /// Includes deleted provider records when Gingr supports that filter.
         pub fn include_deleted(mut self, include_deleted: bool) -> Self {
             self.include_deleted = Some(include_deleted);
             self
         }
 
+        /// Returns or sets the Gingr bill day of month value.
         pub fn bill_day_of_month(mut self, bill_day_of_month: BillDayOfMonth) -> Self {
             self.bill_day_of_month = Some(bill_day_of_month);
             self
         }
 
+        /// Filters the Gingr request to an owner/customer identifier.
         pub fn owner_id(mut self, owner_id: OwnerId) -> Self {
             self.owner_id = Some(owner_id);
             self
         }
 
+        /// Applies provider pagination controls to the request.
         pub fn pagination(mut self, pagination: SubscriptionPagination) -> Self {
             self.pagination = Some(pagination);
             self
         }
 
+        /// Scopes the Gingr endpoint request to a location.
         pub fn location_id(mut self, location_id: LocationId) -> Self {
             self.location_id = Some(location_id);
             self
         }
 
+        /// Filters subscription requests to a package identifier.
         pub fn package_id(mut self, package_id: PackageId) -> Self {
             self.package_id = Some(package_id);
             self
         }
 
+        /// Builds the typed Gingr request after all parameters have been validated.
         pub fn build(self) -> Subscriptions {
             Subscriptions {
                 include_deleted: self.include_deleted,
@@ -214,38 +236,45 @@ pub mod get {
     }
 }
 
+/// Gingr list endpoint boundary with provider parameters kept explicit.
 pub mod list {
     use super::*;
 
     #[derive(Clone, Debug, PartialEq, Eq)]
+    /// Typed Gingr request/response value for transactions.
     pub struct Transactions {
         from_date: Date,
         to_date: Date,
     }
 
     impl Transactions {
+        /// Starts a typed builder for this Gingr endpoint request.
         pub fn builder() -> TransactionsBuilder {
             TransactionsBuilder::default()
         }
     }
 
     #[derive(Clone, Debug, Default)]
+    /// Typed Gingr request/response value for transactions builder.
     pub struct TransactionsBuilder {
         from_date: Option<Date>,
         to_date: Option<Date>,
     }
 
     impl TransactionsBuilder {
+        /// Sets the starting provider date for the Gingr request.
         pub fn from_date(mut self, from_date: Date) -> Self {
             self.from_date = Some(from_date);
             self
         }
 
+        /// Sets the ending provider date for the Gingr request.
         pub fn to_date(mut self, to_date: Date) -> Self {
             self.to_date = Some(to_date);
             self
         }
 
+        /// Builds the typed Gingr request after all parameters have been validated.
         pub fn build(self) -> Result<Transactions> {
             let from_date = self.from_date.ok_or(Error::MissingRequiredParameter {
                 parameter: "from_date",
@@ -288,12 +317,14 @@ pub mod list {
     }
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    /// Typed Gingr request/response value for invoice pagination.
     pub struct InvoicePagination {
         per_page: u64,
         page: u64,
     }
 
     impl InvoicePagination {
+        /// Builds the validated storage wrapper for a known-good value.
         pub fn new(per_page: u64, page: u64) -> Result<Self> {
             if per_page == 0 {
                 return Err(Error::InvalidPagination {
@@ -310,6 +341,7 @@ pub mod list {
     }
 
     #[derive(Clone, Debug, Default, PartialEq, Eq)]
+    /// Typed Gingr request/response value for invoices.
     pub struct Invoices {
         pagination: Option<InvoicePagination>,
         complete: Option<bool>,
@@ -319,12 +351,14 @@ pub mod list {
     }
 
     impl Invoices {
+        /// Starts a typed builder for this Gingr endpoint request.
         pub fn builder() -> InvoicesBuilder {
             InvoicesBuilder::default()
         }
     }
 
     #[derive(Clone, Debug, Default)]
+    /// Typed Gingr request/response value for invoices builder.
     pub struct InvoicesBuilder {
         pagination: Option<InvoicePagination>,
         complete: Option<bool>,
@@ -334,31 +368,37 @@ pub mod list {
     }
 
     impl InvoicesBuilder {
+        /// Applies provider pagination controls to the request.
         pub fn pagination(mut self, pagination: InvoicePagination) -> Self {
             self.pagination = Some(pagination);
             self
         }
 
+        /// Filters invoice results by completion state.
         pub fn complete(mut self, complete: bool) -> Self {
             self.complete = Some(complete);
             self
         }
 
+        /// Restricts invoice results to closed Gingr invoices.
         pub fn closed_only(mut self, closed_only: bool) -> Self {
             self.closed_only = Some(closed_only);
             self
         }
 
+        /// Sets the starting provider date for the Gingr request.
         pub fn from_date(mut self, from_date: Date) -> Self {
             self.from_date = Some(from_date);
             self
         }
 
+        /// Sets the ending provider date for the Gingr request.
         pub fn to_date(mut self, to_date: Date) -> Self {
             self.to_date = Some(to_date);
             self
         }
 
+        /// Builds the typed Gingr request after all parameters have been validated.
         pub fn build(self) -> Result<Invoices> {
             let cutover = cutover_date();
             for date in [&self.from_date, &self.to_date].into_iter().flatten() {
@@ -404,9 +444,11 @@ pub mod list {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Typed Gingr request/response value for transaction id.
 pub struct TransactionId(u64);
 
 impl TransactionId {
+    /// Builds the validated storage wrapper for a known-good value.
     pub fn new(value: u64) -> Self {
         Self(value)
     }
@@ -419,20 +461,25 @@ impl core::fmt::Display for TransactionId {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Classification for whether a Gingr response can be logged or must be quarantined.
 pub enum ResponseSensitivity {
+    /// Response may include payment-related details and must stay log-quarantined.
     PaymentSensitive,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+/// Typed Gingr request/response value for transaction.
 pub struct Transaction {
     id: TransactionId,
 }
 
 impl Transaction {
+    /// Builds the validated storage wrapper for a known-good value.
     pub fn new(id: TransactionId) -> Self {
         Self { id }
     }
 
+    /// Describes whether a response payload should be quarantined from normal logs.
     pub fn sensitivity(&self) -> ResponseSensitivity {
         ResponseSensitivity::PaymentSensitive
     }

@@ -1,12 +1,14 @@
 use super::{AnimalId, FormId, Method, OwnerId, Request, ReservationId, non_empty_text};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+/// Typed Gingr request/response value for provider where clause.
 pub struct ProviderWhereClause {
     field: String,
     value: String,
 }
 
 impl ProviderWhereClause {
+    /// Builds the validated storage wrapper for a known-good value.
     pub fn new(field: impl Into<String>, value: impl Into<String>) -> Self {
         Self {
             field: field.into(),
@@ -20,27 +22,32 @@ impl ProviderWhereClause {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
+/// Typed Gingr request/response value for owners.
 pub struct Owners {
     provider_where_clauses: Vec<ProviderWhereClause>,
 }
 
 impl Owners {
+    /// Starts a typed builder for this Gingr endpoint request.
     pub fn builder() -> OwnersBuilder {
         OwnersBuilder::default()
     }
 }
 
 #[derive(Clone, Debug, Default)]
+/// Typed Gingr request/response value for owners builder.
 pub struct OwnersBuilder {
     provider_where_clauses: Vec<ProviderWhereClause>,
 }
 
 impl OwnersBuilder {
+    /// Applies a raw Gingr where clause while keeping it typed at the boundary.
     pub fn provider_where_clause(mut self, clause: ProviderWhereClause) -> Self {
         self.provider_where_clauses.push(clause);
         self
     }
 
+    /// Builds the typed Gingr request after all parameters have been validated.
     pub fn build(self) -> Owners {
         Owners {
             provider_where_clauses: self.provider_where_clauses,
@@ -66,27 +73,32 @@ impl Request for Owners {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
+/// Typed Gingr request/response value for animals.
 pub struct Animals {
     provider_where_clauses: Vec<ProviderWhereClause>,
 }
 
 impl Animals {
+    /// Starts a typed builder for this Gingr endpoint request.
     pub fn builder() -> AnimalsBuilder {
         AnimalsBuilder::default()
     }
 }
 
 #[derive(Clone, Debug, Default)]
+/// Typed Gingr request/response value for animals builder.
 pub struct AnimalsBuilder {
     provider_where_clauses: Vec<ProviderWhereClause>,
 }
 
 impl AnimalsBuilder {
+    /// Applies a raw Gingr where clause while keeping it typed at the boundary.
     pub fn provider_where_clause(mut self, clause: ProviderWhereClause) -> Self {
         self.provider_where_clauses.push(clause);
         self
     }
 
+    /// Builds the typed Gingr request after all parameters have been validated.
     pub fn build(self) -> Animals {
         Animals {
             provider_where_clauses: self.provider_where_clauses,
@@ -112,9 +124,11 @@ impl Request for Animals {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+/// Typed Gingr request/response value for sensitive lookup.
 pub struct SensitiveLookup(String);
 
 impl SensitiveLookup {
+    /// Builds the validated storage wrapper for a known-good value.
     pub fn new(value: impl Into<String>) -> super::Result<Self> {
         Ok(Self(non_empty_text(value)?))
     }
@@ -125,44 +139,56 @@ impl SensitiveLookup {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+/// Typed Gingr owner lookup strategies, separating sensitive search inputs from normal IDs.
 pub enum OwnerLookup {
+    /// Lookup uses a Gingr owner identifier.
     OwnerId(OwnerId),
+    /// Lookup uses a Gingr animal identifier.
     AnimalId(AnimalId),
+    /// Lookup uses a Gingr reservation identifier.
     ReservationId(ReservationId),
+    /// Lookup uses an owner phone number and should be treated as sensitive.
     Phone(SensitiveLookup),
+    /// Lookup uses an owner email address and should be treated as sensitive.
     Email(SensitiveLookup),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+/// Typed Gingr request/response value for owner.
 pub struct Owner {
     lookup: OwnerLookup,
 }
 
 impl Owner {
+    /// Builds an owner lookup by Gingr owner identifier.
     pub fn by_id(id: OwnerId) -> Self {
         Self {
             lookup: OwnerLookup::OwnerId(id),
         }
     }
 
+    /// Builds an owner lookup by Gingr animal identifier.
     pub fn by_animal(id: AnimalId) -> Self {
         Self {
             lookup: OwnerLookup::AnimalId(id),
         }
     }
 
+    /// Builds an owner lookup by Gingr reservation identifier.
     pub fn by_reservation(id: ReservationId) -> Self {
         Self {
             lookup: OwnerLookup::ReservationId(id),
         }
     }
 
+    /// Builds an owner lookup by phone number.
     pub fn by_phone(phone: SensitiveLookup) -> Self {
         Self {
             lookup: OwnerLookup::Phone(phone),
         }
     }
 
+    /// Builds an owner lookup by email address.
     pub fn by_email(email: SensitiveLookup) -> Self {
         Self {
             lookup: OwnerLookup::Email(email),
@@ -199,12 +225,16 @@ impl Request for Owner {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Gingr owner/animal form classes supported by form search endpoints.
 pub enum FormKind {
+    /// Provider value refers to a Gingr owner/customer.
     Owner,
+    /// Provider value refers to a Gingr animal/pet.
     Animal,
 }
 
 impl FormKind {
+    /// Returns the Gingr form identifier associated with this form class.
     pub const fn form_id(self) -> FormId {
         match self {
             Self::Owner => FormId::new(1),
@@ -224,11 +254,13 @@ impl core::fmt::Display for FormKind {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+/// Typed Gingr request/response value for form.
 pub struct Form {
     kind: FormKind,
 }
 
 impl Form {
+    /// Creates the wrapper from an already validated value.
     pub const fn new(kind: FormKind) -> Self {
         Self { kind }
     }
@@ -248,19 +280,23 @@ impl Request for Form {
     }
 }
 
+/// Gingr custom field endpoint boundary with provider parameters kept explicit.
 pub mod custom_field {
     use super::*;
 
     #[derive(Clone, Debug, PartialEq, Eq)]
+    /// Typed Gingr request/response value for name.
     pub struct Name(String);
 
     impl Name {
+        /// Builds the validated storage wrapper for a known-good value.
         pub fn new(value: impl Into<String>) -> super::super::Result<Self> {
             Ok(Self(non_empty_text(value)?))
         }
     }
 
     #[derive(Clone, Debug, PartialEq, Eq)]
+    /// Typed Gingr request/response value for search.
     pub struct Search {
         form: FormKind,
         field_name: Name,
@@ -268,12 +304,14 @@ pub mod custom_field {
     }
 
     impl Search {
+        /// Starts a typed builder for this Gingr endpoint request.
         pub fn builder() -> SearchBuilder {
             SearchBuilder::default()
         }
     }
 
     #[derive(Clone, Debug, Default)]
+    /// Typed Gingr request/response value for search builder.
     pub struct SearchBuilder {
         form: Option<FormKind>,
         field_name: Option<Name>,
@@ -281,21 +319,25 @@ pub mod custom_field {
     }
 
     impl SearchBuilder {
+        /// Selects the Gingr owner/animal form to search.
         pub fn form(mut self, form: FormKind) -> Self {
             self.form = Some(form);
             self
         }
 
+        /// Selects the provider form field being searched.
         pub fn field_name(mut self, field_name: Name) -> Self {
             self.field_name = Some(field_name);
             self
         }
 
+        /// Sets the provider search string for form lookup.
         pub fn search(mut self, search: SensitiveLookup) -> Self {
             self.search = Some(search);
             self
         }
 
+        /// Builds the typed Gingr request after all parameters have been validated.
         pub fn build(self) -> Search {
             Search {
                 form: self.form.expect("Search requires form"),
@@ -329,12 +371,14 @@ pub mod custom_field {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+/// Typed Gingr request/response value for animal care info.
 pub struct AnimalCareInfo {
     path: &'static str,
     animal_id: AnimalId,
 }
 
 impl AnimalCareInfo {
+    /// Builds an animal-care endpoint request for feeding instructions.
     pub fn feeding(animal_id: AnimalId) -> Self {
         Self {
             path: "/api/v1/get_feeding_info",
@@ -342,6 +386,7 @@ impl AnimalCareInfo {
         }
     }
 
+    /// Builds an animal-care endpoint request for medication instructions.
     pub fn medication(animal_id: AnimalId) -> Self {
         Self {
             path: "/api/v1/get_medication_info",

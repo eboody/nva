@@ -38,6 +38,7 @@ use crate::operations;
 
 pub use snapshot::Id as Snapshot;
 
+/// Snapshot boundary for daily brief contracts.
 pub mod snapshot {
     use super::*;
 
@@ -60,21 +61,31 @@ pub mod snapshot {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Typed resort operating day domain value that keeps raw primitives out of daily brief workflows.
 pub struct ResortOperatingDay {
+    /// Location id fact promoted into this daily brief contract.
     pub location_id: LocationId,
+    /// Date fact promoted into this daily brief contract.
     pub date: NaiveDate,
+    /// Snapshot id fact promoted into this daily brief contract.
     pub snapshot_id: snapshot::Id,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Typed resort domain value that keeps raw primitives out of daily brief workflows.
 pub struct Resort {
+    /// Operating day fact promoted into this daily brief contract.
     pub operating_day: ResortOperatingDay,
+    /// Sections fact promoted into this daily brief contract.
     pub sections: Vec<Section>,
+    /// Recommended actions fact promoted into this daily brief contract.
     pub recommended_actions: Vec<Action>,
+    /// Risks fact promoted into this daily brief contract.
     pub risks: Vec<Risk>,
 }
 
 impl Resort {
+    /// Returns the has manager attention required for this daily brief value.
     pub fn has_manager_attention_required(&self) -> bool {
         self.risks.iter().any(Risk::requires_manager_attention)
             || self
@@ -85,43 +96,61 @@ impl Resort {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Domain vocabulary for section decisions in daily brief workflows.
 pub enum Section {
+    /// Occupancy item surfaced for manager daily-brief triage.
     Occupancy(OccupancySnapshot),
+    /// Arrivals and departures item surfaced for manager daily-brief triage.
     ArrivalsAndDepartures(ArrivalDepartureSnapshot),
+    /// Labor item surfaced for manager daily-brief triage.
     Labor(LaborSnapshot),
+    /// Customer follow ups item surfaced for manager daily-brief triage.
     CustomerFollowUps(Vec<CustomerFollowUp>),
+    /// Pet care watchlist item surfaced for manager daily-brief triage.
     PetCareWatchlist(Vec<PetCareWatch>),
+    /// Revenue opportunities item surfaced for manager daily-brief triage.
     RevenueOpportunities(Vec<RevenueOpportunity>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Typed occupancy snapshot domain value that keeps raw primitives out of daily brief workflows.
 pub struct OccupancySnapshot {
+    /// Boarding capacity fact promoted into this daily brief contract.
     pub boarding_capacity: capacity::Metric,
+    /// Daycare capacity fact promoted into this daily brief contract.
     pub daycare_capacity: capacity::Metric,
+    /// Grooming utilization fact promoted into this daily brief contract.
     pub grooming_utilization: capacity::Metric,
+    /// Training utilization fact promoted into this daily brief contract.
     pub training_utilization: capacity::Metric,
 }
 
+/// Capacity boundary for daily brief contracts.
 pub mod capacity {
     use super::*;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+    /// Typed booked domain value that keeps raw primitives out of daily brief workflows.
     pub struct Booked(u32);
 
     impl Booked {
+        /// Assembles this daily brief value from already-validated domain parts.
         pub const fn new(value: u32) -> Self {
             Self(value)
         }
 
+        /// Exposes the validated scalar for serialization and adapter boundaries.
         pub const fn get(self) -> u32 {
             self.0
         }
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+    /// Typed limit domain value that keeps raw primitives out of daily brief workflows.
     pub struct Limit(u32);
 
     impl Limit {
+        /// Promotes boundary input into a validated daily brief domain value.
         pub const fn try_new(value: u32) -> Result<Self, LimitError> {
             if value == 0 {
                 return Err(LimitError::ZeroCapacity);
@@ -129,6 +158,7 @@ pub mod capacity {
             Ok(Self(value))
         }
 
+        /// Exposes the validated scalar for serialization and adapter boundaries.
         pub const fn get(self) -> u32 {
             self.0
         }
@@ -144,42 +174,52 @@ pub mod capacity {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+    /// Domain vocabulary for limit error decisions in daily brief workflows.
     pub enum LimitError {
         #[error("capacity metrics require an explicit non-zero capacity limit")]
+        /// Zero capacity item surfaced for manager daily-brief triage.
         ZeroCapacity,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+    /// Typed saturation basis points domain value that keeps raw primitives out of daily brief workflows.
     pub struct SaturationBasisPoints(u32);
 
     impl SaturationBasisPoints {
+        /// Assembles this daily brief value from already-validated domain parts.
         pub const fn new(value: u32) -> Self {
             Self(value)
         }
 
+        /// Exposes the validated scalar for serialization and adapter boundaries.
         pub const fn get(self) -> u32 {
             self.0
         }
     }
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    /// Typed metric domain value that keeps raw primitives out of daily brief workflows.
     pub struct Metric {
         booked: Booked,
         capacity: Limit,
     }
 
     impl Metric {
+        /// Assembles this daily brief value from already-validated domain parts.
         pub const fn new(booked: Booked, capacity: Limit) -> Self {
             Self { booked, capacity }
         }
 
+        /// Returns this daily brief value's booked.
         pub const fn booked(&self) -> Booked {
             self.booked
         }
 
+        /// Returns this daily brief value's capacity.
         pub const fn capacity(&self) -> Limit {
             self.capacity
         }
 
+        /// Returns the saturation basis points for this daily brief value.
         pub fn saturation_basis_points(&self) -> SaturationBasisPoints {
             SaturationBasisPoints::new(
                 self.booked.get().saturating_mul(10_000) / self.capacity.get(),
@@ -189,108 +229,166 @@ pub mod capacity {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Typed scheduled staff count domain value that keeps raw primitives out of daily brief workflows.
 pub struct ScheduledStaffCount(u16);
 
 impl ScheduledStaffCount {
+    /// Assembles this daily brief value from already-validated domain parts.
     pub const fn new(value: u16) -> Self {
         Self(value)
     }
 
+    /// Exposes the validated scalar for serialization and adapter boundaries.
     pub const fn get(self) -> u16 {
         self.0
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Typed arrival departure snapshot domain value that keeps raw primitives out of daily brief workflows.
 pub struct ArrivalDepartureSnapshot {
+    /// Check ins fact promoted into this daily brief contract.
     pub check_ins: Vec<entities::reservation::Id>,
+    /// Check outs fact promoted into this daily brief contract.
     pub check_outs: Vec<entities::reservation::Id>,
+    /// Late departure risk fact promoted into this daily brief contract.
     pub late_departure_risk: Vec<entities::reservation::Id>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Typed labor snapshot domain value that keeps raw primitives out of daily brief workflows.
 pub struct LaborSnapshot {
+    /// Scheduled staff count fact promoted into this daily brief contract.
     pub scheduled_staff_count: ScheduledStaffCount,
+    /// Labor risk fact promoted into this daily brief contract.
     pub labor_risk: LaborRisk,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Domain vocabulary for labor risk decisions in daily brief workflows.
 pub enum LaborRisk {
+    /// Understaffed item surfaced for manager daily-brief triage.
     Understaffed,
+    /// On plan item surfaced for manager daily-brief triage.
     OnPlan,
+    /// Overstaffed item surfaced for manager daily-brief triage.
     Overstaffed,
+    /// Provider role or status could not be mapped confidently.
     Unknown,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Typed customer follow up domain value that keeps raw primitives out of daily brief workflows.
 pub struct CustomerFollowUp {
+    /// Customer id fact promoted into this daily brief contract.
     pub customer_id: CustomerId,
+    /// Business reason staff should review before proceeding.
     pub reason: FollowUpReason,
+    /// Due at fact promoted into this daily brief contract.
     pub due_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Domain vocabulary for follow up reason decisions in daily brief workflows.
 pub enum FollowUpReason {
+    /// Missing vaccine proof item surfaced for manager daily-brief triage.
     MissingVaccineProof,
+    /// Deposit not paid item surfaced for manager daily-brief triage.
     DepositNotPaid,
+    /// Reservation change requested item surfaced for manager daily-brief triage.
     ReservationChangeRequested,
+    /// Lead needs response item surfaced for manager daily-brief triage.
     LeadNeedsResponse,
+    /// Post stay check in item surfaced for manager daily-brief triage.
     PostStayCheckIn,
+    /// Review response needed item surfaced for manager daily-brief triage.
     ReviewResponseNeeded,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Typed pet care watch domain value that keeps raw primitives out of daily brief workflows.
 pub struct PetCareWatch {
+    /// Pet receiving the grooming or care service.
     pub pet_id: PetId,
+    /// Business reason staff should review before proceeding.
     pub reason: PetCareWatchReason,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Domain vocabulary for pet care watch reason decisions in daily brief workflows.
 pub enum PetCareWatchReason {
+    /// Medication due item surfaced for manager daily-brief triage.
     MedicationDue,
+    /// Feeding exception item surfaced for manager daily-brief triage.
     FeedingException,
+    /// Anxiety or stress flag item surfaced for manager daily-brief triage.
     AnxietyOrStressFlag,
+    /// Behavior review item surfaced for manager daily-brief triage.
     BehaviorReview,
+    /// Incident follow up item surfaced for manager daily-brief triage.
     IncidentFollowUp,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Typed revenue opportunity domain value that keeps raw primitives out of daily brief workflows.
 pub struct RevenueOpportunity {
+    /// Customer id fact promoted into this daily brief contract.
     pub customer_id: Option<CustomerId>,
+    /// Pet receiving the grooming or care service.
     pub pet_id: Option<PetId>,
+    /// Requested service that drives scheduling and labor estimates.
     pub service: ServiceKind,
+    /// Opportunity fact promoted into this daily brief contract.
     pub opportunity: RevenueOpportunityKind,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Domain vocabulary for revenue opportunity kind decisions in daily brief workflows.
 pub enum RevenueOpportunityKind {
+    /// Exit bath after boarding item surfaced for manager daily-brief triage.
     ExitBathAfterBoarding,
+    /// Grooming rebooking due item surfaced for manager daily-brief triage.
     GroomingRebookingDue,
+    /// Daycare package candidate item surfaced for manager daily-brief triage.
     DaycarePackageCandidate,
+    /// Training consult candidate item surfaced for manager daily-brief triage.
     TrainingConsultCandidate,
+    /// Holiday boarding waitlist fill item surfaced for manager daily-brief triage.
     HolidayBoardingWaitlistFill,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Domain vocabulary for risk decisions in daily brief workflows.
 pub enum Risk {
+    /// Capacity constraint item surfaced for manager daily-brief triage.
     CapacityConstraint {
+        /// Requested service that drives scheduling and labor estimates.
         service: ServiceKind,
     },
+    /// Labor mismatch item surfaced for manager daily-brief triage.
     LaborMismatch {
+        /// Risk fact promoted into this daily brief contract.
         risk: LaborRisk,
     },
+    /// Customer experience risk item surfaced for manager daily-brief triage.
     CustomerExperienceRisk {
+        /// Observation fact promoted into this daily brief contract.
         observation: operations::operational::Observation,
     },
+    /// Pet safety or care risk item surfaced for manager daily-brief triage.
     PetSafetyOrCareRisk {
+        /// Observation fact promoted into this daily brief contract.
         observation: operations::operational::Observation,
     },
+    /// Revenue leakage item surfaced for manager daily-brief triage.
     RevenueLeakage {
+        /// Observation fact promoted into this daily brief contract.
         observation: operations::operational::Observation,
     },
 }
 
 impl Risk {
+    /// Returns the requires manager attention for this daily brief value.
     pub fn requires_manager_attention(&self) -> bool {
         matches!(
             self,
@@ -305,26 +403,39 @@ impl Risk {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Domain vocabulary for action decisions in daily brief workflows.
 pub enum Action {
+    /// Create internal task item surfaced for manager daily-brief triage.
     CreateInternalTask {
+        /// Recommendation fact promoted into this daily brief contract.
         recommendation: operations::operational::Recommendation,
     },
+    /// Draft customer message item surfaced for manager daily-brief triage.
     DraftCustomerMessage {
+        /// Customer id fact promoted into this daily brief contract.
         customer_id: CustomerId,
+        /// Business reason staff should review before proceeding.
         reason: FollowUpReason,
     },
+    /// Escalate to manager item surfaced for manager daily-brief triage.
     EscalateToManager {
+        /// Business reason staff should review before proceeding.
         reason: operations::operational::Observation,
     },
+    /// Suggest schedule review item surfaced for manager daily-brief triage.
     SuggestScheduleReview {
+        /// Risk fact promoted into this daily brief contract.
         risk: LaborRisk,
     },
+    /// Suggest revenue follow up item surfaced for manager daily-brief triage.
     SuggestRevenueFollowUp {
+        /// Opportunity fact promoted into this daily brief contract.
         opportunity: RevenueOpportunityKind,
     },
 }
 
 impl Action {
+    /// Returns the requires manager approval for this daily brief value.
     pub fn requires_manager_approval(&self) -> bool {
         matches!(
             self,

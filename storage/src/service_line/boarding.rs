@@ -20,30 +20,47 @@ impl From<ContractRecord> for domain::boarding::Contract {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// Storage-facing boarding accommodation code.
 pub enum AccommodationCode {
+    /// Stable storage code for classic suite.
     ClassicSuite,
+    /// Stable storage code for luxury suite.
     LuxurySuite,
+    /// Stable storage code for cat condo.
     CatCondo,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// Storage-facing boarding included-care feature code.
 pub enum CareFeatureCode {
+    /// Stable storage code for daily housekeeping.
     DailyHousekeeping,
+    /// Stable storage code for potty walks.
     PottyWalks,
+    /// Stable storage code for bedding.
     Bedding,
+    /// Stable storage code for pawgress report.
     PawgressReport,
+    /// Stable storage code for feeding support.
     FeedingSupport,
+    /// Stable storage code for medication support.
     MedicationSupport,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// Storage-facing boarding add-on code.
 pub enum AddOnCode {
+    /// Stable storage code for playtime.
     Playtime,
+    /// Stable storage code for exit bath.
     ExitBath,
+    /// Stable storage code for premium suite.
     PremiumSuite,
+    /// Stable storage code for grooming.
     Grooming,
+    /// Stable storage code for training session.
     TrainingSession,
 }
 

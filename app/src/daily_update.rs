@@ -10,38 +10,58 @@ use crate::agents::WorkflowAgent;
 use domain::{agent, audit, customer, entities, message, pet, policy, workflow};
 
 #[derive(Debug, thiserror::Error, Clone, PartialEq, Eq)]
+/// Classifies error values that drive the daily update workflow.
 pub enum Error {
     #[error("daily update preview requires a DailyNoteCreated or DailyUpdateNeeded workflow event")]
+    /// Identifies unsupported workflow event as the reason the workflow must stop, retry, or request review.
     UnsupportedWorkflowEvent,
     #[error("daily update preview requires at least one staff note")]
+    /// Identifies missing staff notes as the reason the workflow must stop, retry, or request review.
     MissingStaffNotes,
     #[error("daily update preview requires at least one policy-allowed draft/summarize action")]
+    /// Identifies missing allowed action as the reason the workflow must stop, retry, or request review.
     MissingAllowedAction,
     #[error("daily update preview could not build a validated domain value: {0}")]
+    /// Identifies invalid domain value as the reason the workflow must stop, retry, or request review.
     InvalidDomainValue(String),
 }
 
+/// Result type returned by fallible daily update operations.
 pub type Result<T> = core::result::Result<T, Error>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+/// Mvp preview request carried by the daily update workflow; it packages operational changes into reviewable staff updates instead of free-form agent output.
 pub struct MvpPreviewRequest {
+    /// Event preserved as evidence for audit, review, or agent context.
     pub event: workflow::Event,
+    /// Pet name preserved as evidence for audit, review, or agent context.
     pub pet_name: pet::Name,
+    /// Owner display name preserved as evidence for audit, review, or agent context.
     pub owner_display_name: customer::Name,
+    /// Policy snapshot id preserved as evidence for audit, review, or agent context.
     pub policy_snapshot_id: policy::Id,
+    /// Notes preserved as evidence for audit, review, or agent context.
     pub notes: Vec<entities::CareNote>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Mvp preview carried by the daily update workflow; it packages operational changes into reviewable staff updates instead of free-form agent output.
 pub struct MvpPreview {
+    /// Agent packet preserved as evidence for audit, review, or agent context.
     pub agent_packet: agents::AgentPromptPacket<daily_care_update::Input>,
+    /// Output preserved as evidence for audit, review, or agent context.
     pub output: daily_care_update::Output,
+    /// Owner message draft preserved as evidence for audit, review, or agent context.
     pub owner_message_draft: CustomerMessageDraft,
+    /// Approval preserved as evidence for audit, review, or agent context.
     pub approval: entities::approval::Record,
+    /// Send stub preserved as evidence for audit, review, or agent context.
     pub send_stub: SendStub,
+    /// Audit log preserved as evidence for audit, review, or agent context.
     pub audit_log: Vec<entities::audit::Event>,
 }
 
+/// Daily care notes prepared for staff review before they become operational updates.
 pub mod daily_care_update {
     use serde::{Deserialize, Serialize};
 
@@ -51,41 +71,61 @@ pub mod daily_care_update {
     };
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    /// Input carried by the daily update workflow; it packages operational changes into reviewable staff updates instead of free-form agent output.
     pub struct Input {
+        /// Pet name preserved as evidence for audit, review, or agent context.
         pub pet_name: pet::Name,
+        /// Owner display name preserved as evidence for audit, review, or agent context.
         pub owner_display_name: customer::Name,
+        /// Policy snapshot id preserved as evidence for audit, review, or agent context.
         pub policy_snapshot_id: policy::Id,
+        /// Notes preserved as evidence for audit, review, or agent context.
         pub notes: Vec<entities::CareNote>,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    /// Output carried by the daily update workflow; it packages operational changes into reviewable staff updates instead of free-form agent output.
     pub struct Output {
+        /// Customer message preserved as evidence for audit, review, or agent context.
         pub customer_message: CustomerMessageDraft,
+        /// Internal flags preserved as evidence for audit, review, or agent context.
         pub internal_flags: Vec<InternalFlag>,
         #[serde(flatten)]
+        /// Disposition preserved as evidence for audit, review, or agent context.
         pub disposition: ReviewDisposition,
+        /// Included facts preserved as evidence for audit, review, or agent context.
         pub included_facts: Vec<IncludedFact>,
+        /// Omitted facts preserved as evidence for audit, review, or agent context.
         pub omitted_facts: Vec<OmittedFact>,
     }
 
     #[derive(Debug, Clone, Copy)]
+    /// Agent carried by the daily update workflow; it packages operational changes into reviewable staff updates instead of free-form agent output.
     pub struct Agent;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Classifies review disposition values that drive the daily update workflow.
 pub enum ReviewDisposition {
-    DraftOnlyRequiresReview { reason: ReviewReason },
+    /// Reason preserved as evidence for audit, review, or agent context.
+    DraftOnlyRequiresReview {
+        /// Reason carried by this variant.
+        reason: ReviewReason,
+    },
 }
 
 impl ReviewDisposition {
+    /// Returns the allows live send carried by this daily update workflow value.
     pub const fn allows_live_send(&self) -> bool {
         false
     }
 
+    /// Reports whether the daily update workflow satisfies the requires human review safety condition.
     pub const fn requires_human_review(&self) -> bool {
         true
     }
 
+    /// Returns the review reason carried by this daily update workflow value.
     pub const fn review_reason(&self) -> &ReviewReason {
         match self {
             Self::DraftOnlyRequiresReview { reason } => reason,
@@ -137,86 +177,132 @@ impl<'de> Deserialize<'de> for ReviewDisposition {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Customer message draft carried by the daily update workflow; it packages operational changes into reviewable staff updates instead of free-form agent output.
 pub struct CustomerMessageDraft {
+    /// Body ref preserved as evidence for audit, review, or agent context.
     pub body_ref: message::BodyRef,
+    /// Channel hint preserved as evidence for audit, review, or agent context.
     pub channel_hint: message::Channel,
+    /// Language preserved as evidence for audit, review, or agent context.
     pub language: LanguageTag,
+    /// Tone preserved as evidence for audit, review, or agent context.
     pub tone: ToneLabel,
+    /// Audience preserved as evidence for audit, review, or agent context.
     pub audience: Audience,
+    /// Redaction profile preserved as evidence for audit, review, or agent context.
     pub redaction_profile: RedactionProfile,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Classifies audience values that drive the daily update workflow.
 pub enum Audience {
+    /// Routes daily update work flagged as customer to the right queue, review gate, or agent packet.
     Customer,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Classifies internal flag code values that drive the daily update workflow.
 pub enum InternalFlagCode {
+    /// Uses customer message approval not configured as source-grounded evidence for the deterministic decision.
     CustomerMessageApprovalNotConfigured,
+    /// Uses raw internal note not customer safe as source-grounded evidence for the deterministic decision.
     RawInternalNoteNotCustomerSafe,
+    /// Uses behavior review required as source-grounded evidence for the deterministic decision.
     BehaviorReviewRequired,
+    /// Uses medical or medication review required as source-grounded evidence for the deterministic decision.
     MedicalOrMedicationReviewRequired,
+    /// Uses policy gap requires review as source-grounded evidence for the deterministic decision.
     PolicyGapRequiresReview,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Classifies internal flag severity values that drive the daily update workflow.
 pub enum InternalFlagSeverity {
+    /// Routes daily update work flagged as info to the right queue, review gate, or agent packet.
     Info,
+    /// Routes daily update work flagged as needs staff review to the right queue, review gate, or agent packet.
     NeedsStaffReview,
+    /// Routes daily update work flagged as needs manager review to the right queue, review gate, or agent packet.
     NeedsManagerReview,
+    /// Routes daily update work flagged as do not send to the right queue, review gate, or agent packet.
     DoNotSend,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Classifies recommended flag action values that drive the daily update workflow.
 pub enum RecommendedFlagAction {
+    /// Routes daily update work flagged as staff review to the right queue, review gate, or agent packet.
     StaffReview,
+    /// Routes daily update work flagged as manager review to the right queue, review gate, or agent packet.
     ManagerReview,
+    /// Routes daily update work flagged as suppress update to the right queue, review gate, or agent packet.
     SuppressUpdate,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Internal flag carried by the daily update workflow; it packages operational changes into reviewable staff updates instead of free-form agent output.
 pub struct InternalFlag {
+    /// Code preserved as evidence for audit, review, or agent context.
     pub code: InternalFlagCode,
+    /// Severity preserved as evidence for audit, review, or agent context.
     pub severity: InternalFlagSeverity,
+    /// Message preserved as evidence for audit, review, or agent context.
     pub message: FlagMessage,
+    /// Source note ids preserved as evidence for audit, review, or agent context.
     pub source_note_ids: Vec<entities::care_note::Id>,
+    /// Recommended action preserved as evidence for audit, review, or agent context.
     pub recommended_action: RecommendedFlagAction,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Included fact carried by the daily update workflow; it packages operational changes into reviewable staff updates instead of free-form agent output.
 pub struct IncludedFact {
+    /// Source note id preserved as evidence for audit, review, or agent context.
     pub source_note_id: entities::care_note::Id,
+    /// Summary preserved as evidence for audit, review, or agent context.
     pub summary: FactSummary,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Omitted fact carried by the daily update workflow; it packages operational changes into reviewable staff updates instead of free-form agent output.
 pub struct OmittedFact {
+    /// Source note id preserved as evidence for audit, review, or agent context.
     pub source_note_id: entities::care_note::Id,
+    /// Reason preserved as evidence for audit, review, or agent context.
     pub reason: OmissionReason,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Classifies omission reason values that drive the daily update workflow.
 pub enum OmissionReason {
+    /// Uses internal only as source-grounded evidence for the deterministic decision.
     InternalOnly,
+    /// Uses sensitive requires review as source-grounded evidence for the deterministic decision.
     SensitiveRequiresReview,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Send stub carried by the daily update workflow; it packages operational changes into reviewable staff updates instead of free-form agent output.
 pub struct SendStub {
+    /// Mode preserved as evidence for audit, review, or agent context.
     pub mode: SendMode,
+    /// Blocked by preserved as evidence for audit, review, or agent context.
     pub blocked_by: Vec<policy::ReviewGate>,
+    /// Audit action preserved as evidence for audit, review, or agent context.
     pub audit_action: entities::audit::Action,
 }
 
 impl SendStub {
+    /// Reports whether the daily update workflow satisfies the is blocked until human approval safety condition.
     pub fn is_blocked_until_human_approval(&self) -> bool {
         matches!(self.mode, SendMode::ApprovalRequiredStub) && !self.blocked_by.is_empty()
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Classifies send mode values that drive the daily update workflow.
 pub enum SendMode {
+    /// Routes daily update work flagged as approval required stub to the right queue, review gate, or agent packet.
     ApprovalRequiredStub,
 }
 
@@ -322,6 +408,7 @@ pub struct FlagMessage(String);
 )]
 pub struct FactSummary(String);
 
+/// Builds the mvp preview output for the daily update workflow.
 pub fn build_mvp_preview(request: MvpPreviewRequest) -> Result<MvpPreview> {
     validate_request(&request)?;
 

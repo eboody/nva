@@ -23,21 +23,31 @@ impl From<ContractRecord> for domain::training::Contract {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// Storage-facing training program code, including duration for stay-and-study programs.
 pub enum ProgramRecord {
+    /// Stable storage code for stay and study.
     StayAndStudy {
+        /// Training duration in weeks for stay-and-study programs.
         duration_weeks: StoredProgramDurationWeeks,
     },
+    /// Stable storage code for tutor session.
     TutorSession,
+    /// Stable storage code for group class.
     GroupClass,
+    /// Stable storage code for puppy kindergarten.
     PuppyKindergarten,
+    /// Stable storage code for private lesson.
     PrivateLesson,
+    /// Stable storage code for akc canine good citizen prep.
     AkcCanineGoodCitizenPrep,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+/// Positive training duration persisted in weeks for stay-and-study offerings.
 pub struct StoredProgramDurationWeeks(u8);
 
 impl StoredProgramDurationWeeks {
+    /// Validates and wraps a positive quantity before it is persisted.
     pub const fn try_new(value: u8) -> std::result::Result<Self, StoredProgramDurationWeeksError> {
         if value == 0 {
             return Err(StoredProgramDurationWeeksError::ZeroWeeks);
@@ -45,6 +55,7 @@ impl StoredProgramDurationWeeks {
         Ok(Self(value))
     }
 
+    /// Returns the provider numeric identifier carried by this wrapper.
     pub const fn get(self) -> u8 {
         self.0
     }
@@ -60,8 +71,10 @@ impl<'de> Deserialize<'de> for StoredProgramDurationWeeks {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+/// Validation failures for persisted training-program durations.
 pub enum StoredProgramDurationWeeksError {
     #[error("stored training program duration requires at least one week")]
+    /// Stable storage code for zero weeks.
     ZeroWeeks,
 }
 

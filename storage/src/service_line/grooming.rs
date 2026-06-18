@@ -23,23 +23,36 @@ impl From<ContractRecord> for domain::grooming::Contract {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// Storage-facing grooming service code used by service-offering records.
 pub enum ServiceCode {
+    /// Stable storage code for mini groom.
     MiniGroom,
+    /// Stable storage code for full groom.
     FullGroom,
+    /// Stable storage code for exit bath.
     ExitBath,
+    /// Stable storage code for full bath.
     FullBath,
+    /// Stable storage code for premium bath.
     PremiumBath,
+    /// Stable storage code for nail trim.
     NailTrim,
+    /// Stable storage code for nail dremel.
     NailDremel,
+    /// Stable storage code for ear cleaning.
     EarCleaning,
+    /// Stable storage code for coat skin specific product.
     CoatSkinSpecificProduct,
+    /// Stable storage code for first time grooming offer.
     FirstTimeGroomingOffer,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+/// Positive grooming cadence interval persisted in weeks.
 pub struct StoredCadenceWeeks(u8);
 
 impl StoredCadenceWeeks {
+    /// Validates and wraps a positive quantity before it is persisted.
     pub const fn try_new(value: u8) -> std::result::Result<Self, StoredCadenceWeeksError> {
         if value == 0 {
             return Err(StoredCadenceWeeksError::ZeroWeeks);
@@ -47,6 +60,7 @@ impl StoredCadenceWeeks {
         Ok(Self(value))
     }
 
+    /// Returns the provider numeric identifier carried by this wrapper.
     pub const fn get(self) -> u8 {
         self.0
     }
@@ -62,8 +76,10 @@ impl<'de> Deserialize<'de> for StoredCadenceWeeks {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+/// Validation failures for persisted grooming cadence intervals.
 pub enum StoredCadenceWeeksError {
     #[error("stored grooming cadence requires at least one week")]
+    /// Stable storage code for zero weeks.
     ZeroWeeks,
 }
 

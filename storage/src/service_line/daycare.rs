@@ -19,20 +19,31 @@ impl From<ContractRecord> for domain::daycare::Contract {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// Storage-facing daycare format code used by service-offering records.
 pub enum FormatCode {
+    /// Stable storage code for all day play.
     AllDayPlay,
+    /// Stable storage code for half day play.
     HalfDayPlay,
+    /// Stable storage code for day boarding.
     DayBoarding,
+    /// Stable storage code for day play plus room.
     DayPlayPlusRoom,
+    /// Stable storage code for cat individual playtime.
     CatIndividualPlaytime,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// Storage-facing daycare eligibility rule code.
 pub enum EligibilityRuleCode {
+    /// Stable storage code for temperament review required.
     TemperamentReviewRequired,
+    /// Stable storage code for spay neuter required for group play.
     SpayNeuterRequiredForGroupPlay,
+    /// Stable storage code for vaccine proof required.
     VaccineProofRequired,
+    /// Stable storage code for staff to pet ratio required.
     StaffToPetRatioRequired,
 }
 

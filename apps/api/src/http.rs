@@ -18,6 +18,7 @@ static VACCINE_DOCUMENT_STATE: std::sync::OnceLock<VaccineDocumentState> =
     std::sync::OnceLock::new();
 
 #[derive(Clone)]
+/// Vaccine document state carried by the API shell; it maps HTTP requests onto app workflows without embedding business decisions in the shell.
 pub struct VaccineDocumentState {
     store: Arc<Mutex<VaccineDocumentStore>>,
 }
@@ -270,6 +271,7 @@ struct AuditEvent {
     metadata: BTreeMap<&'static str, String>,
 }
 
+/// Builds the HTTP router that exposes the safe staff-facing workflow API.
 pub fn router() -> Router {
     router_with_state(
         VACCINE_DOCUMENT_STATE
@@ -278,6 +280,7 @@ pub fn router() -> Router {
     )
 }
 
+/// Builds the HTTP router that exposes the safe staff-facing workflow API.
 pub fn router_with_state(state: VaccineDocumentState) -> Router {
     Router::new()
         .route("/healthz", get(healthz))

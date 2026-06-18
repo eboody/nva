@@ -54,11 +54,13 @@ pub struct VaccineName(String);
 )]
 pub struct WorkflowName(String);
 
+/// Automation boundary for policy contracts.
 pub mod automation {
     use serde::{Deserialize, Serialize};
 
     use super::WorkflowName;
 
+    /// Rationale boundary for policy contracts.
     pub mod rationale {
         use nutype::nutype;
 
@@ -83,35 +85,52 @@ pub mod automation {
     pub use rationale::Rationale;
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    /// Domain vocabulary for level decisions in policy workflows.
     pub enum Level {
+        /// Safe to automate policy decision or approval gate.
         SafeToAutomate,
+        /// Draft only policy decision or approval gate.
         DraftOnly,
+        /// Internal task only policy decision or approval gate.
         InternalTaskOnly,
+        /// Manager approval required policy decision or approval gate.
         ManagerApprovalRequired,
+        /// Never automate policy decision or approval gate.
         NeverAutomate,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    /// Typed rule domain value that keeps raw primitives out of policy workflows.
     pub struct Rule {
+        /// Workflow fact promoted into this policy contract.
         pub workflow: WorkflowName,
+        /// Level fact promoted into this policy contract.
         pub level: Level,
+        /// Rationale fact promoted into this policy contract.
         pub rationale: Rationale,
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Typed vaccine requirement domain value that keeps raw primitives out of policy workflows.
 pub struct VaccineRequirement {
+    /// Species fact promoted into this policy contract.
     pub species: Species,
+    /// Requested service that drives scheduling and labor estimates.
     pub service: ServiceKind,
+    /// Vaccines fact promoted into this policy contract.
     pub vaccines: Vec<VaccineName>,
+    /// Source must be licensed vet fact promoted into this policy contract.
     pub source_must_be_licensed_vet: bool,
 }
 
+/// Play boundary for policy contracts.
 pub mod play {
     pub use eligibility::{
         ConservativePolicy, Decision, Eligibility, IneligibilityReason, Policy, Reason,
     };
 
+    /// Eligibility boundary for policy contracts.
     pub mod eligibility {
         use serde::{Deserialize, Serialize};
 
@@ -120,33 +139,47 @@ pub mod play {
         use super::super::ReviewGate;
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+        /// Typed decision domain value that keeps raw primitives out of policy workflows.
         pub struct Decision {
+            /// Eligibility fact promoted into this policy contract.
             pub eligibility: Eligibility,
+            /// Required review fact promoted into this policy contract.
             pub required_review: Option<ReviewGate>,
         }
 
         impl Decision {
+            /// Returns the eligible for group play for this policy value.
             pub fn eligible_for_group_play(&self) -> bool {
                 matches!(self.eligibility, Eligibility::Eligible(_))
             }
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+        /// Domain vocabulary for eligibility decisions in policy workflows.
         pub enum Eligibility {
+            /// Eligible policy decision or approval gate.
             Eligible(Reason),
+            /// Ineligible policy decision or approval gate.
             Ineligible(IneligibilityReason),
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+        /// Domain vocabulary for reason decisions in policy workflows.
         pub enum Reason {
+            /// No conservative hard stop policy decision or approval gate.
             NoConservativeHardStop,
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+        /// Domain vocabulary for ineligibility reason decisions in policy workflows.
         pub enum IneligibilityReason {
+            /// Service does not require group play policy decision or approval gate.
             ServiceDoesNotRequireGroupPlay,
+            /// Species receives individual play policy decision or approval gate.
             SpeciesReceivesIndividualPlay,
+            /// Spay neuter status requires review policy decision or approval gate.
             SpayNeuterStatusRequiresReview,
+            /// Behavior flags require review policy decision or approval gate.
             BehaviorFlagsRequireReview,
         }
 
@@ -162,7 +195,9 @@ pub mod play {
             }
         }
 
+        /// Defines the behavior required from a policy participant in the policy workflow.
         pub trait Policy {
+            /// Returns the pet for this policy value.
             fn decide(&self, pet: &Pet, service: &ServiceKind) -> Decision;
         }
 
@@ -232,18 +267,26 @@ pub mod play {
     }
 }
 
+/// Denial boundary for policy contracts.
 pub mod denial {
     use serde::{Deserialize, Serialize};
 
     use super::play;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    /// Domain vocabulary for reason decisions in policy workflows.
     pub enum Reason {
+        /// Manager approval required policy decision or approval gate.
         ManagerApprovalRequired,
+        /// Medical document review required policy decision or approval gate.
         MedicalDocumentReviewRequired,
+        /// Behavior history requires review before service.
         BehaviorReviewRequired,
+        /// Customer message approval required policy decision or approval gate.
         CustomerMessageApprovalRequired,
+        /// Refund or deposit exception policy decision or approval gate.
         RefundOrDepositException,
+        /// Play eligibility policy decision or approval gate.
         PlayEligibility(play::IneligibilityReason),
     }
 
@@ -265,11 +308,17 @@ pub mod denial {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Domain vocabulary for review gate decisions in policy workflows.
 pub enum ReviewGate {
+    /// Manager approval policy decision or approval gate.
     ManagerApproval,
+    /// Medical document review policy decision or approval gate.
     MedicalDocumentReview,
+    /// Behavior review policy decision or approval gate.
     BehaviorReview,
+    /// Customer message approval policy decision or approval gate.
     CustomerMessageApproval,
+    /// Refund or deposit exception policy decision or approval gate.
     RefundOrDepositException,
 }
 

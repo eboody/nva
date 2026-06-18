@@ -25,8 +25,13 @@
 //! # }
 //! ```
 
+/// Boarding boundary for service line contracts.
 pub mod boarding;
+/// Daycare boundary for service line contracts.
 pub mod daycare;
+/// Grooming boundary for service line contracts.
 pub mod grooming;
+/// Retail boundary for service line contracts.
 pub mod retail;
+/// Training boundary for service line contracts.
 pub mod training;

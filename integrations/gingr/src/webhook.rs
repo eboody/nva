@@ -37,15 +37,19 @@ use sha2::Sha256;
 use std::fmt;
 use subtle::ConstantTimeEq;
 
+/// Shared verification result type used across the webhook boundary.
 pub type VerificationResult<T> = core::result::Result<T, VerificationError>;
+/// Shared parse result type used across the webhook boundary.
 pub type ParseResult<T> = core::result::Result<T, ParseError>;
 
 type HmacSha256 = Hmac<Sha256>;
 
 #[derive(Clone)]
+/// Secret used to validate Gingr webhook signatures before payloads cross the provider boundary.
 pub struct SignatureKey(SecretString);
 
 impl SignatureKey {
+    /// Wraps the shared Gingr webhook secret without exposing it in debug output.
     pub fn from_secret(raw: impl Into<String>) -> Self {
         Self(SecretString::new(raw.into()))
     }
@@ -69,23 +73,38 @@ impl fmt::Display for SignatureKey {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+/// Gingr webhook event names normalized from provider strings while retaining unknown events.
 pub enum EventType {
+    /// Gingr event fired when a reservation checks in.
     CheckIn,
+    /// Gingr event fired when a reservation checks out.
     CheckOut,
+    /// Gingr in-progress check-in event.
     CheckingIn,
+    /// Gingr in-progress check-out event.
     CheckingOut,
+    /// Gingr event for outbound email activity.
     EmailSent,
+    /// Gingr event for a newly created owner record.
     OwnerCreated,
+    /// Gingr event for changes to an owner record.
     OwnerEdited,
+    /// Gingr event for a newly created animal record.
     AnimalCreated,
+    /// Gingr event for changes to an animal record.
     AnimalEdited,
+    /// Gingr event for a newly created incident.
     IncidentCreated,
+    /// Gingr event for changes to an incident.
     IncidentEdited,
+    /// Gingr event for a newly created lead.
     LeadCreated,
+    /// Provider supplied an unrecognized value; preserve it for audit instead of failing closed.
     Unknown(String),
 }
 
 impl EventType {
+    /// Normalizes a provider string into a typed value, preserving unknown provider values.
     pub fn parse(raw: impl AsRef<str>) -> Self {
         match raw.as_ref() {
             "check_in" => Self::CheckIn,
@@ -104,6 +123,7 @@ impl EventType {
         }
     }
 
+    /// Returns the exact Gingr token used when acknowledging or auditing provider events.
     pub fn as_provider_str(&self) -> &str {
         match self {
             Self::CheckIn => "check_in",
@@ -124,16 +144,24 @@ impl EventType {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+/// Gingr webhook entity classes normalized from provider strings while retaining unknown entities.
 pub enum EntityType {
+    /// Webhook entity is a Gingr reservation.
     Reservation,
+    /// Provider value refers to a Gingr owner/customer.
     Owner,
+    /// Provider value refers to a Gingr animal/pet.
     Animal,
+    /// Provider value refers to a Gingr incident.
     Incident,
+    /// Provider value refers to a Gingr lead.
     Lead,
+    /// Provider supplied an unrecognized value; preserve it for audit instead of failing closed.
     Unknown(String),
 }
 
 impl EntityType {
+    /// Normalizes a provider string into a typed value, preserving unknown provider values.
     pub fn parse(raw: impl AsRef<str>) -> Self {
         match raw.as_ref() {
             "reservation" => Self::Reservation,
@@ -145,6 +173,7 @@ impl EntityType {
         }
     }
 
+    /// Returns the exact Gingr token used when acknowledging or auditing provider events.
     pub fn as_provider_str(&self) -> &str {
         match self {
             Self::Reservation => "reservation",
@@ -158,6 +187,7 @@ impl EntityType {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+/// Normalized Gingr entity identifier preserved as text across numeric and string webhook inputs.
 pub struct EntityId(String);
 
 impl EntityId {
@@ -173,6 +203,7 @@ impl EntityId {
         }
     }
 
+    /// Returns the normalized provider or storage string slice.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -185,6 +216,7 @@ impl fmt::Display for EntityId {
 }
 
 #[derive(Clone, PartialEq)]
+/// Raw Gingr webhook envelope before signature verification and required-field promotion.
 pub struct Envelope {
     wire: WireEnvelope,
 }
@@ -205,23 +237,28 @@ impl fmt::Debug for Envelope {
 }
 
 impl Envelope {
+    /// Parses a raw Gingr webhook request body into an unverified envelope.
     pub fn from_json(raw: impl AsRef<str>) -> ParseResult<Self> {
         let wire = serde_json::from_str(raw.as_ref())?;
         Ok(Self { wire })
     }
 
+    /// Returns the raw event type field supplied by Gingr, if present.
     pub fn event_type_input(&self) -> Option<&str> {
         self.wire.webhook_type.as_deref()
     }
 
+    /// Returns the raw entity type field supplied by Gingr, if present.
     pub fn entity_type_input(&self) -> Option<&str> {
         self.wire.entity_type.as_deref()
     }
 
+    /// Returns the signature value supplied with the webhook payload, if present.
     pub fn signature_input(&self) -> Option<&str> {
         self.wire.signature.as_deref()
     }
 
+    /// Validates the webhook signature and promotes required provider fields into typed values.
     pub fn verify(self, key: &SignatureKey) -> VerificationResult<Verified> {
         let webhook_type =
             self.wire
@@ -267,6 +304,7 @@ impl Envelope {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+/// Webhook payload that passed signature validation and required entity/event checks.
 pub struct Verified {
     event_type: EventType,
     entity_id: EntityId,
@@ -275,24 +313,29 @@ pub struct Verified {
 }
 
 impl Verified {
+    /// Returns the normalized Gingr event type for a verified webhook.
     pub fn event_type(&self) -> EventType {
         self.event_type.clone()
     }
 
+    /// Returns the provider entity identifier from the verified webhook.
     pub fn entity_id(&self) -> &EntityId {
         &self.entity_id
     }
 
+    /// Returns the normalized Gingr entity type for a verified webhook.
     pub fn entity_type(&self) -> EntityType {
         self.entity_type.clone()
     }
 
+    /// Returns the verified provider payload for downstream mapping.
     pub fn payload(&self) -> &Payload {
         &self.payload
     }
 }
 
 #[derive(Clone, PartialEq)]
+/// Provider-specific webhook payload body retained for downstream DTO mapping.
 pub struct Payload {
     wire: WireEnvelope,
 }
@@ -313,18 +356,22 @@ impl fmt::Debug for Payload {
 }
 
 impl Payload {
+    /// Returns the Gingr entity payload object carried by the webhook.
     pub fn entity_data(&self) -> &serde_json::Value {
         &self.wire.entity_data
     }
 
+    /// Returns Gingr email metadata when the event includes it.
     pub fn email_data(&self) -> Option<&serde_json::Value> {
         self.wire.email_data.as_ref()
     }
 
+    /// Returns the provider recipient list for email-related webhook events.
     pub fn recipients(&self) -> Option<&Vec<serde_json::Value>> {
         self.wire.recipients.as_ref()
     }
 
+    /// Returns Gingr URL metadata included in the payload, if supplied.
     pub fn provider_url(&self) -> Option<&str> {
         self.wire.webhook_url.as_deref()
     }
@@ -346,32 +393,54 @@ struct WireEnvelope {
 }
 
 #[derive(Debug, thiserror::Error)]
+/// Failures while reading the raw Gingr webhook JSON envelope.
 pub enum ParseError {
     #[error("invalid Gingr webhook JSON: {0}")]
+    /// Raw webhook body could not be parsed as Gingr JSON.
     Json(#[from] serde_json::Error),
 }
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
+/// Reasons a Gingr webhook cannot be trusted or promoted.
 pub enum VerificationError {
     #[error("Gingr webhook is missing required field {field}")]
-    MissingField { field: &'static str },
+    /// Webhook omitted a required provider field.
+    MissingField {
+        /// Field attached to this Gingr error or DTO.
+        field: &'static str,
+    },
     #[error("unsupported Gingr webhook entity_id representation: {observed_type}")]
-    UnsupportedEntityId { observed_type: String },
+    /// Webhook used an entity_id shape this integration cannot normalize.
+    UnsupportedEntityId {
+        /// Observed type attached to this Gingr error or DTO.
+        observed_type: String,
+    },
     #[error("malformed Gingr webhook signature: {reason}")]
-    MalformedSignature { reason: String },
+    /// Webhook signature could not be parsed before comparison.
+    MalformedSignature {
+        /// Provider-facing reason explaining why request construction failed.
+        reason: String,
+    },
     #[error("Gingr webhook signature mismatch")]
+    /// Computed signature did not match the value supplied by Gingr.
     SignatureMismatch,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+/// HTTP acknowledgement categories returned to Gingr after webhook handling.
 pub enum Ack {
+    /// Webhook was accepted and no retry is requested.
     Processed,
+    /// Webhook failed validation in a way Gingr should not retry.
     RejectedPermanently,
+    /// Webhook processing failed transiently and may be retried.
     RetryableFailure,
+    /// Propagates a retryable downstream HTTP status while acknowledging Gingr semantics.
     RetryableStatus(response::HttpStatus),
 }
 
 impl Ack {
+    /// Classifies a failed dependency response as retryable for Gingr acknowledgement.
     pub fn retryable_status(status: response::HttpStatus) -> Self {
         if status.is_gingr_retry_override_allowed() {
             Self::RetryableStatus(status)
@@ -380,6 +449,7 @@ impl Ack {
         }
     }
 
+    /// Maps the acknowledgement category to the HTTP status returned to Gingr.
     pub fn http_status(&self) -> response::HttpStatus {
         match self {
             Self::Processed => response::HttpStatus::OK,

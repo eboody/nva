@@ -3,68 +3,107 @@ use serde::{Deserialize, Serialize};
 use crate::source;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Domain vocabulary for field segment decisions in data quality workflows.
 pub enum FieldSegment {
+    /// Reservation record participating in the workflow.
     Reservation,
+    /// Stay data-quality finding for cleanup or review.
     Stay,
+    /// Source data-quality finding for cleanup or review.
     Source,
+    /// Customer record id data-quality finding for cleanup or review.
     CustomerRecordId,
+    /// Pet record id data-quality finding for cleanup or review.
     PetRecordId,
+    /// Location record id data-quality finding for cleanup or review.
     LocationRecordId,
+    /// Service type record id data-quality finding for cleanup or review.
     ServiceTypeRecordId,
+    /// Status data-quality finding for cleanup or review.
     Status,
+    /// Owner pet relationship data-quality finding for cleanup or review.
     OwnerPetRelationship,
+    /// Record id data-quality finding for cleanup or review.
     RecordId,
+    /// Endpoint data-quality finding for cleanup or review.
     Endpoint,
+    /// Payload hash data-quality finding for cleanup or review.
     PayloadHash,
+    /// Raw payload ref data-quality finding for cleanup or review.
     RawPayloadRef,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Domain vocabulary for reservation field decisions in data quality workflows.
 pub enum ReservationField {
+    /// Customer record id data-quality finding for cleanup or review.
     CustomerRecordId,
+    /// Pet record id data-quality finding for cleanup or review.
     PetRecordId,
+    /// Location record id data-quality finding for cleanup or review.
     LocationRecordId,
+    /// Service type record id data-quality finding for cleanup or review.
     ServiceTypeRecordId,
+    /// Status data-quality finding for cleanup or review.
     Status,
+    /// Owner pet relationship data-quality finding for cleanup or review.
     OwnerPetRelationship,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Domain vocabulary for stay field decisions in data quality workflows.
 pub enum StayField {
+    /// Id data-quality finding for cleanup or review.
     Id,
+    /// Pet record id data-quality finding for cleanup or review.
     PetRecordId,
+    /// Location record id data-quality finding for cleanup or review.
     LocationRecordId,
+    /// Status data-quality finding for cleanup or review.
     Status,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Domain vocabulary for source field decisions in data quality workflows.
 pub enum SourceField {
+    /// Record id data-quality finding for cleanup or review.
     RecordId,
+    /// Endpoint data-quality finding for cleanup or review.
     Endpoint,
+    /// Payload hash data-quality finding for cleanup or review.
     PayloadHash,
+    /// Raw payload ref data-quality finding for cleanup or review.
     RawPayloadRef,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Domain vocabulary for field path decisions in data quality workflows.
 pub enum FieldPath {
+    /// Reservation record participating in the workflow.
     Reservation(ReservationField),
+    /// Stay data-quality finding for cleanup or review.
     Stay(StayField),
+    /// Source data-quality finding for cleanup or review.
     Source(SourceField),
 }
 
 impl FieldPath {
+    /// Returns this data quality value's reservation.
     pub const fn reservation(field: ReservationField) -> Self {
         Self::Reservation(field)
     }
 
+    /// Returns this data quality value's stay.
     pub const fn stay(field: StayField) -> Self {
         Self::Stay(field)
     }
 
+    /// Returns this data quality value's source.
     pub const fn source(field: SourceField) -> Self {
         Self::Source(field)
     }
 
+    /// Returns this data quality value's segments.
     pub const fn segments(&self) -> &'static [FieldSegment] {
         match self {
             Self::Reservation(ReservationField::CustomerRecordId) => {
@@ -105,47 +144,77 @@ impl FieldPath {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Domain vocabulary for kind decisions in data quality workflows.
 pub enum Kind {
+    /// Missing required field data-quality finding for cleanup or review.
     MissingRequiredField {
+        /// Field fact promoted into this data quality contract.
         field: FieldPath,
     },
+    /// Assumption in force data-quality finding for cleanup or review.
     AssumptionInForce {
+        /// Assumption fact promoted into this data quality contract.
         assumption: source::reservation::Assumption,
     },
+    /// Unknown source status data-quality finding for cleanup or review.
     UnknownSourceStatus {
+        /// Provider status text retained before normalization.
         observed: source::ObservedStatus,
     },
+    /// Conflicting timestamps data-quality finding for cleanup or review.
     ConflictingTimestamps,
+    /// Duplicate source record data-quality finding for cleanup or review.
     DuplicateSourceRecord,
+    /// Ambiguous owner pet relationship data-quality finding for cleanup or review.
     AmbiguousOwnerPetRelationship,
+    /// Unmapped service type data-quality finding for cleanup or review.
     UnmappedServiceType,
+    /// Location scope ambiguity data-quality finding for cleanup or review.
     LocationScopeAmbiguity,
+    /// Payment state conflict data-quality finding for cleanup or review.
     PaymentStateConflict,
+    /// Checkout evidence missing data-quality finding for cleanup or review.
     CheckoutEvidenceMissing,
+    /// Unclosed reservation data-quality finding for cleanup or review.
     UnclosedReservation,
+    /// Incomplete pet profile data-quality finding for cleanup or review.
     IncompletePetProfile,
+    /// Missing vaccination record data-quality finding for cleanup or review.
     MissingVaccinationRecord,
+    /// Sensitive payload quarantined data-quality finding for cleanup or review.
     SensitivePayloadQuarantined,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Domain vocabulary for severity decisions in data quality workflows.
 pub enum Severity {
+    /// Informational data-quality finding for cleanup or review.
     Informational,
+    /// Warning data-quality finding for cleanup or review.
     Warning,
+    /// Blocking data-quality finding for cleanup or review.
     Blocking,
+    /// Critical data-quality finding for cleanup or review.
     Critical,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Domain vocabulary for resolution status decisions in data quality workflows.
 pub enum ResolutionStatus {
+    /// Open data-quality finding for cleanup or review.
     Open,
+    /// Acknowledged data-quality finding for cleanup or review.
     Acknowledged,
+    /// Ignored data-quality finding for cleanup or review.
     Ignored,
+    /// Repaired data-quality finding for cleanup or review.
     Repaired,
+    /// Superseded data-quality finding for cleanup or review.
     Superseded,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Typed issue domain value that keeps raw primitives out of data quality workflows.
 pub struct Issue {
     kind: Kind,
     severity: Severity,
@@ -158,6 +227,7 @@ pub struct Issue {
 }
 
 impl Issue {
+    /// Assembles this data quality value from already-validated domain parts.
     pub fn new(
         kind: Kind,
         severity: Severity,
@@ -178,38 +248,47 @@ impl Issue {
         }
     }
 
+    /// Returns the kind for this data quality value.
     pub fn kind(&self) -> Kind {
         self.kind.clone()
     }
 
+    /// Returns this data quality value's severity.
     pub const fn severity(&self) -> Severity {
         self.severity
     }
 
+    /// Returns this data quality value's source system.
     pub const fn source_system(&self) -> source::System {
         self.source_record_ref.system()
     }
 
+    /// Returns this data quality value's source record ref.
     pub const fn source_record_ref(&self) -> &source::RecordRef {
         &self.source_record_ref
     }
 
+    /// Returns this data quality value's provenance.
     pub const fn provenance(&self) -> &source::Provenance {
         &self.provenance
     }
 
+    /// Returns this data quality value's detected at.
     pub const fn detected_at(&self) -> &source::Timestamp {
         &self.detected_at
     }
 
+    /// Returns this data quality value's resolution status.
     pub const fn resolution_status(&self) -> ResolutionStatus {
         self.resolution_status
     }
 
+    /// Returns this data quality value's visible to bi.
     pub const fn visible_to_bi(&self) -> bool {
         self.visible_to_bi
     }
 
+    /// Returns this data quality value's workflow blocking.
     pub const fn workflow_blocking(&self) -> bool {
         self.workflow_blocking
     }

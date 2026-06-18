@@ -34,28 +34,41 @@ use domain::{agent, policy, workflow};
 
 pub use domain::agent::{OutputSchemaName, PolicyInstruction};
 
+/// Shared agent spec type used across the agents boundary.
 pub type AgentSpec = agent::Spec;
 
+/// Defines the behavior required from a workflow agent participant in the agents workflow.
 pub trait WorkflowAgent<Input, Output> {
+    /// Runs the spec step while preserving the agent packet boundary safety boundary.
     fn spec(&self) -> AgentSpec;
+    /// Runs the build prompt packet step while preserving the agent packet boundary safety boundary.
     fn build_prompt_packet(
         &self,
         event: &workflow::Event,
         input: Input,
     ) -> AgentPromptPacket<Input>;
+    /// Runs the output step while preserving the agent packet boundary safety boundary.
     fn validate_output(&self, output: workflow::Result<Output>) -> workflow::Result<Output>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+/// Agent prompt packet carried by the agent packet boundary; it defines packet contracts exchanged with agents across safe drafting boundaries.
 pub struct AgentPromptPacket<T> {
+    /// Workflow name preserved as evidence for audit, review, or agent context.
     pub workflow_name: agent::Name,
+    /// Goal preserved as evidence for audit, review, or agent context.
     pub goal: agent::Purpose,
+    /// Event preserved as evidence for audit, review, or agent context.
     pub event: workflow::Event,
+    /// Input preserved as evidence for audit, review, or agent context.
     pub input: T,
+    /// Policies preserved as evidence for audit, review, or agent context.
     pub policies: Vec<agent::PolicyInstruction>,
+    /// Output schema name preserved as evidence for audit, review, or agent context.
     pub output_schema_name: agent::OutputSchemaName,
 }
 
+/// Produces the baseline agent specs contract for the agents workflow.
 pub fn baseline_agent_specs() -> Vec<AgentSpec> {
     vec![
         spec(

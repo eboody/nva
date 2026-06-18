@@ -87,23 +87,33 @@ redacted_debug!(MedicationSchedule, "MedicationSchedule(<redacted>)");
 redacted_debug!(ReviewReason, "ReviewReason(<redacted>)");
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Named staff or customer contact used for care-plan coordination.
 pub struct ContactRef {
+    /// Contact or display name used by staff.
     pub name: ContactName,
 }
 
 impl ContactRef {
+    /// Assembles this care value from already-validated domain parts.
     pub fn new(name: ContactName) -> Self {
         Self { name }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Whether medication instructions require additional care-team review.
 pub enum MedicationReviewRequirement {
+    /// No deposit or review is needed for this reservation path.
     NotRequired,
-    RequiresReview { reason: ReviewReason },
+    /// Business reason staff should review before proceeding.
+    RequiresReview {
+        /// Reason carried by this variant.
+        reason: ReviewReason,
+    },
 }
 
 impl MedicationReviewRequirement {
+    /// Returns whether care-team review is required before proceeding.
     pub fn requires_review(&self) -> bool {
         matches!(self, Self::RequiresReview { .. })
     }

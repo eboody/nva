@@ -6,15 +6,20 @@ use uuid::Uuid;
 use crate::{booking_triage, checkout_completion, daily_update};
 
 #[derive(Debug, thiserror::Error)]
+/// Classifies error values that drive the local smoke-test workflow.
 pub enum Error {
     #[error("local smoke fixture is not valid JSON: {0}")]
+    /// Identifies invalid fixture as the reason the workflow must stop, retry, or request review.
     InvalidFixture(#[from] serde_json::Error),
     #[error("local smoke fixture is missing a required semantic value: {0}")]
+    /// Identifies invalid domain value as the reason the workflow must stop, retry, or request review.
     InvalidDomainValue(String),
     #[error("local smoke daily-update preview failed: {0}")]
+    /// Identifies daily update as the reason the workflow must stop, retry, or request review.
     DailyUpdate(#[from] daily_update::Error),
 }
 
+/// Result type returned by fallible local smoke operations.
 pub type Result<T> = core::result::Result<T, Error>;
 
 #[derive(Debug, Deserialize)]
@@ -39,6 +44,7 @@ struct PetFixture {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Source event key carried by the local smoke-test workflow; it exercises the local shell with deterministic fixtures and no external side effects.
 pub struct SourceEventKey(String);
 
 impl SourceEventKey {
@@ -60,15 +66,25 @@ impl AsRef<str> for SourceEventKey {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Classifies stage values that drive the local smoke-test workflow.
 pub enum Stage {
+    /// Routes local smoke work flagged as inquiry to the right queue, review gate, or agent packet.
     Inquiry,
+    /// Routes local smoke work flagged as profile to the right queue, review gate, or agent packet.
     Profile,
+    /// Routes local smoke work flagged as vaccine docs to the right queue, review gate, or agent packet.
     VaccineDocs,
+    /// Routes local smoke work flagged as booking triage to the right queue, review gate, or agent packet.
     BookingTriage,
+    /// Routes local smoke work flagged as confirmation draft to the right queue, review gate, or agent packet.
     ConfirmationDraft,
+    /// Routes local smoke work flagged as check in today view to the right queue, review gate, or agent packet.
     CheckInTodayView,
+    /// Routes local smoke work flagged as staff note daily update draft to the right queue, review gate, or agent packet.
     StaffNoteDailyUpdateDraft,
+    /// Routes local smoke work flagged as checkout completion to the right queue, review gate, or agent packet.
     CheckoutCompletion,
+    /// Routes local smoke work flagged as follow up retention to the right queue, review gate, or agent packet.
     FollowUpRetention,
 }
 
@@ -89,6 +105,7 @@ impl Stage {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Smoke boundaries carried by the local smoke-test workflow; it exercises the local shell with deterministic fixtures and no external side effects.
 pub struct SmokeBoundaries {
     draft_only_ai: bool,
     blocks_live_customer_sends: bool,
@@ -106,24 +123,29 @@ impl SmokeBoundaries {
         }
     }
 
+    /// Returns the draft only ai carried by this local smoke-test workflow value.
     pub const fn draft_only_ai(&self) -> bool {
         self.draft_only_ai
     }
 
+    /// Returns the blocks live customer sends carried by this local smoke-test workflow value.
     pub const fn blocks_live_customer_sends(&self) -> bool {
         self.blocks_live_customer_sends
     }
 
+    /// Returns the blocks provider or pms mutations carried by this local smoke-test workflow value.
     pub const fn blocks_provider_or_pms_mutations(&self) -> bool {
         self.blocks_provider_or_pms_mutations
     }
 
+    /// Returns the blocks payment refund or discount actions carried by this local smoke-test workflow value.
     pub const fn blocks_payment_refund_or_discount_actions(&self) -> bool {
         self.blocks_payment_refund_or_discount_actions
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Review evidence ref carried by the local smoke-test workflow; it exercises the local shell with deterministic fixtures and no external side effects.
 pub struct ReviewEvidenceRef(String);
 
 impl ReviewEvidenceRef {
@@ -139,11 +161,13 @@ impl AsRef<str> for ReviewEvidenceRef {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Smoke confirmation draft carried by the local smoke-test workflow; it exercises the local shell with deterministic fixtures and no external side effects.
 pub struct SmokeConfirmationDraft {
     draft: booking_triage::ConfirmationDraft,
 }
 
 impl SmokeConfirmationDraft {
+    /// Reports whether the local smoke-test workflow satisfies the requires customer message approval safety condition.
     pub const fn requires_customer_message_approval(&self) -> bool {
         matches!(
             self.draft.approval_gate(),
@@ -153,6 +177,7 @@ impl SmokeConfirmationDraft {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Reservation label carried by the local smoke-test workflow; it exercises the local shell with deterministic fixtures and no external side effects.
 pub struct ReservationLabel(String);
 
 impl AsRef<str> for ReservationLabel {
@@ -162,68 +187,82 @@ impl AsRef<str> for ReservationLabel {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Today view carried by the local smoke-test workflow; it exercises the local shell with deterministic fixtures and no external side effects.
 pub struct TodayView {
     reservation_labels: Vec<ReservationLabel>,
     status: entities::reservation::Status,
 }
 
 impl TodayView {
+    /// Returns the reservation labels carried by this local smoke-test workflow value.
     pub fn reservation_labels(&self) -> &[ReservationLabel] {
         &self.reservation_labels
     }
 
+    /// Returns the status carried by this local smoke-test workflow value.
     pub const fn status(&self) -> &entities::reservation::Status {
         &self.status
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Checkout completion carried by the local smoke-test workflow; it exercises the local shell with deterministic fixtures and no external side effects.
 pub struct CheckoutCompletion {
     packet: checkout_completion::Packet,
 }
 
 impl CheckoutCompletion {
+    /// Returns the status carried by this local smoke-test workflow value.
     pub fn status(&self) -> entities::reservation::Status {
         self.packet
             .suggested_reservation_status()
             .expect("local smoke checkout completion should suggest checked-out status")
     }
 
+    /// Returns the completion status carried by this local smoke-test workflow value.
     pub const fn completion_status(&self) -> checkout_completion::CompletionStatus {
         self.packet.completion_status()
     }
 
+    /// Returns the required review gates carried by this local smoke-test workflow value.
     pub fn required_review_gates(&self) -> &[policy::ReviewGate] {
         self.packet.required_review_gates()
     }
 
+    /// Returns the blocked actions carried by this local smoke-test workflow value.
     pub fn blocked_actions(&self) -> &[checkout_completion::BlockedAction] {
         self.packet.blocked_actions()
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Classifies retention next action values that drive the local smoke-test workflow.
 pub enum RetentionNextAction {
+    /// Routes local smoke work flagged as draft rebooking reminder for review to the right queue, review gate, or agent packet.
     DraftRebookingReminderForReview,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Retention follow up carried by the local smoke-test workflow; it exercises the local shell with deterministic fixtures and no external side effects.
 pub struct RetentionFollowUp {
     next_action: RetentionNextAction,
     review_gate: policy::ReviewGate,
 }
 
 impl RetentionFollowUp {
+    /// Returns the next action carried by this local smoke-test workflow value.
     pub const fn next_action(&self) -> RetentionNextAction {
         self.next_action
     }
 
+    /// Returns the review gate carried by this local smoke-test workflow value.
     pub fn review_gate(&self) -> policy::ReviewGate {
         self.review_gate.clone()
     }
 }
 
 #[derive(Debug, Clone)]
+/// Full chain evidence carried by the local smoke-test workflow; it exercises the local shell with deterministic fixtures and no external side effects.
 pub struct FullChainEvidence {
     source_event_key: SourceEventKey,
     stages: Vec<Stage>,
@@ -244,42 +283,52 @@ pub struct FullChainEvidence {
 }
 
 impl FullChainEvidence {
+    /// Returns the source event key carried by this local smoke-test workflow value.
     pub const fn source_event_key(&self) -> &SourceEventKey {
         &self.source_event_key
     }
 
+    /// Returns the stage names carried by this local smoke-test workflow value.
     pub fn stage_names(&self) -> Vec<&'static str> {
         self.stages.iter().map(|stage| stage.name()).collect()
     }
 
+    /// Returns the boundaries carried by this local smoke-test workflow value.
     pub const fn boundaries(&self) -> &SmokeBoundaries {
         &self.boundaries
     }
 
+    /// Returns the booking packet carried by this local smoke-test workflow value.
     pub const fn booking_packet(&self) -> &booking_triage::StaffEvaluationPacket {
         &self.booking_packet
     }
 
+    /// Returns the confirmation draft carried by this local smoke-test workflow value.
     pub const fn confirmation_draft(&self) -> &SmokeConfirmationDraft {
         &self.confirmation_draft
     }
 
+    /// Returns the today view carried by this local smoke-test workflow value.
     pub const fn today_view(&self) -> &TodayView {
         &self.today_view
     }
 
+    /// Returns the daily update preview carried by this local smoke-test workflow value.
     pub const fn daily_update_preview(&self) -> &daily_update::MvpPreview {
         &self.daily_update_preview
     }
 
+    /// Returns the checkout completion carried by this local smoke-test workflow value.
     pub const fn checkout_completion(&self) -> &CheckoutCompletion {
         &self.checkout_completion
     }
 
+    /// Returns the retention follow up carried by this local smoke-test workflow value.
     pub const fn retention_follow_up(&self) -> &RetentionFollowUp {
         &self.retention_follow_up
     }
 
+    /// Returns the review gated evidence refs carried by this local smoke-test workflow value.
     pub fn review_gated_evidence_refs(&self) -> &[ReviewEvidenceRef] {
         &self.review_gated_evidence_refs
     }
@@ -304,6 +353,7 @@ struct VaccineDocumentEvidence {
     record: entities::VaccineRecord,
 }
 
+/// Runs the fixture scenario for the local smoke workflow.
 pub fn run_fixture(fixture_json: &str) -> Result<FullChainEvidence> {
     let fixture: InquiryFixture = serde_json::from_str(fixture_json)?;
     let source_event_key = SourceEventKey::parse(fixture.source_event_key)?;

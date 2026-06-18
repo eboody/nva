@@ -1,3 +1,5 @@
+//! Command-line inspection surface for NVA pet-resort agent and tool contracts.
+
 use app::{agents, tools};
 use clap::{Parser, Subcommand};
 
