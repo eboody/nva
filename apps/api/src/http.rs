@@ -412,7 +412,7 @@ async fn capture_manager_daily_brief_action_outcome(
     let reasons = request
         .requested_side_effects
         .iter()
-        .map(|side_effect| manager_daily_brief_requested_side_effect_rejection_reason(side_effect))
+        .map(|side_effect| manager_daily_brief::requested_side_effect_rejection_reason(side_effect))
         .collect::<Vec<_>>();
 
     if !reasons.is_empty() {
@@ -634,7 +634,7 @@ fn validate_manager_daily_brief_submitted_action(
     }
 
     for side_effect in &action.requested_side_effects {
-        reasons.push(manager_daily_brief_requested_side_effect_rejection_reason(
+        reasons.push(manager_daily_brief::requested_side_effect_rejection_reason(
             side_effect,
         ));
     }
@@ -649,25 +649,6 @@ fn required_manager_daily_brief_review_gate(kind: &str) -> Option<&'static str> 
         "approve_retention_follow_up_draft" => Some("customer_message_approval"),
         "investigate_source_data_quality_issue" => Some("manager_approval"),
         _ => None,
-    }
-}
-
-fn manager_daily_brief_side_effect_is_blocked(side_effect: &str) -> bool {
-    matches!(
-        side_effect,
-        "send_customer_message"
-            | "mutate_provider_or_pms_record"
-            | "change_staff_schedule"
-            | "move_refund_discount_or_payment"
-            | "hide_source_data_quality_issue"
-    )
-}
-
-fn manager_daily_brief_requested_side_effect_rejection_reason(side_effect: &str) -> String {
-    if manager_daily_brief_side_effect_is_blocked(side_effect) {
-        format!("blocked_side_effect:{side_effect}")
-    } else {
-        format!("unsupported_side_effect:{side_effect}")
     }
 }
 
@@ -837,7 +818,7 @@ async fn manager_daily_brief_agent_context(
         "data_quality_issues": data_quality_issues,
         "source_refs": source_refs,
         "allowed_agent_actions": packet.safe_agent_actions().iter().map(safe_agent_action_code).collect::<Vec<_>>(),
-        "blocked_actions": packet.blocked_actions().iter().map(blocked_action_code).collect::<Vec<_>>(),
+        "blocked_actions": packet.blocked_actions().iter().map(|action| action.code()).collect::<Vec<_>>(),
         "labor_impact": {
             "before_minutes": packet.before_minutes().get(),
             "after_minutes": packet.after_minutes().get(),
@@ -1632,24 +1613,8 @@ fn manager_daily_brief_blocked_action_codes() -> Vec<&'static str> {
     )
     .blocked_actions()
     .iter()
-    .map(blocked_action_code)
+    .map(|action| action.code())
     .collect()
-}
-
-fn blocked_action_code(action: &manager_daily_brief::BlockedAction) -> &'static str {
-    match action {
-        manager_daily_brief::BlockedAction::ChangeStaffSchedule => "change_staff_schedule",
-        manager_daily_brief::BlockedAction::MutateProviderOrPmsRecord => {
-            "mutate_provider_or_pms_record"
-        }
-        manager_daily_brief::BlockedAction::SendCustomerMessage => "send_customer_message",
-        manager_daily_brief::BlockedAction::MoveRefundDiscountOrPayment => {
-            "move_refund_discount_or_payment"
-        }
-        manager_daily_brief::BlockedAction::HideSourceDataQualityIssue => {
-            "hide_source_data_quality_issue"
-        }
-    }
 }
 
 fn brief_action_kind_code(kind: manager_daily_brief::BriefActionKind) -> &'static str {

@@ -274,6 +274,26 @@ fn manager_daily_brief_retention_action_includes_checkout_and_consent_source_evi
 }
 
 #[test]
+fn manager_daily_brief_draft_side_effect_validation_rejects_known_blocked_effects_with_evidence() {
+    assert_eq!(
+        manager_daily_brief::requested_side_effect_rejection_reason("change_staff_schedule"),
+        "blocked_side_effect:change_staff_schedule"
+    );
+    assert_eq!(
+        manager_daily_brief::requested_side_effect_rejection_reason("send_customer_message"),
+        "blocked_side_effect:send_customer_message"
+    );
+}
+
+#[test]
+fn manager_daily_brief_draft_side_effect_validation_rejects_unknown_effects_fail_closed() {
+    assert_eq!(
+        manager_daily_brief::requested_side_effect_rejection_reason("invent_new_live_side_effect"),
+        "unsupported_side_effect:invent_new_live_side_effect"
+    );
+}
+
+#[test]
 fn manager_daily_brief_outcome_capture_records_feedback_without_external_mutation() {
     let outcome = manager_daily_brief::OutcomeRecord::builder()
         .action_id(

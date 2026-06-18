@@ -252,6 +252,37 @@ pub enum BlockedAction {
     HideSourceDataQualityIssue,
 }
 
+impl BlockedAction {
+    pub const fn code(self) -> &'static str {
+        match self {
+            Self::ChangeStaffSchedule => "change_staff_schedule",
+            Self::MutateProviderOrPmsRecord => "mutate_provider_or_pms_record",
+            Self::SendCustomerMessage => "send_customer_message",
+            Self::MoveRefundDiscountOrPayment => "move_refund_discount_or_payment",
+            Self::HideSourceDataQualityIssue => "hide_source_data_quality_issue",
+        }
+    }
+
+    pub fn from_requested_side_effect_code(code: &str) -> Option<Self> {
+        match code {
+            "change_staff_schedule" => Some(Self::ChangeStaffSchedule),
+            "mutate_provider_or_pms_record" => Some(Self::MutateProviderOrPmsRecord),
+            "send_customer_message" => Some(Self::SendCustomerMessage),
+            "move_refund_discount_or_payment" => Some(Self::MoveRefundDiscountOrPayment),
+            "hide_source_data_quality_issue" => Some(Self::HideSourceDataQualityIssue),
+            _ => None,
+        }
+    }
+}
+
+pub fn requested_side_effect_rejection_reason(side_effect: &str) -> String {
+    if BlockedAction::from_requested_side_effect_code(side_effect).is_some() {
+        format!("blocked_side_effect:{side_effect}")
+    } else {
+        format!("unsupported_side_effect:{side_effect}")
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LaborImpactEstimate {
     before_minutes: LaborMinutes,
