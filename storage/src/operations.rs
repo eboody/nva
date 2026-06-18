@@ -1,8 +1,23 @@
 //! Persistence records for app/domain operational contracts.
 //!
-//! Storage code is allowed to speak in stable record codes, but promotion back into
-//! `domain` values is explicit and source-grounded. This keeps labor-saving
-//! workflows from treating database vocabulary as the business model.
+//! This module documents the storage/public projection boundary for the
+//! pet-resort AI program: portfolio seed facts, service-line offerings, core
+//! service contracts, manager daily-brief labor outcomes, data-quality hygiene
+//! outcomes, and source-system ecosystem records. Storage code is allowed to
+//! speak in stable record codes, flattened optional fields, and JSON payloads,
+//! but promotion back into `domain` values is explicit and source-grounded.
+//!
+//! The boundary is deliberately narrow:
+//!
+//! - `domain` owns business meaning and invariants such as daycare eligibility,
+//!   grooming cadence, training duration, source evidence, and review gates.
+//! - `storage` owns durable representations, discriminator checks, codec errors,
+//!   and idempotent evidence records suitable for Postgres or fixtures.
+//! - `app` and runtime crates decide when a workflow may read or write records;
+//!   storage records never authorize live provider writes or customer messaging.
+//! - `integration` adapters attach `StoredSourceRecordRef` values so a derived
+//!   record can be audited back to Gingr, a warehouse export, or another source
+//!   instead of becoming an invented operational fact.
 //!
 //! ```rust
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -52,11 +67,11 @@ pub use crate::service_line::{
     },
 };
 
-/// Result type returned by fallible operations operations.
+/// Result type returned by fallible storage projection and codec operations.
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, thiserror::Error)]
-/// Errors raised while validating Gingr configuration, request parameters, or DTO mappings.
+/// Errors raised while validating storage records, codecs, or domain-to-storage projection.
 pub enum Error {
     #[error("storage codec error")]
     /// Wraps a storage JSON codec failure without losing the underlying source error.
@@ -72,9 +87,9 @@ pub enum Error {
     #[error("domain value rejected storage field {field:?}: {reason}")]
     /// Signals that a domain value cannot be represented safely in storage.
     InvalidDomainValue {
-        /// Field attached to this Gingr error or DTO.
+        /// Storage field whose value failed projection or validation.
         field: StorageField,
-        /// Provider-facing reason explaining why request construction failed.
+        /// Human-readable reason explaining why the storage projection was unsafe.
         reason: String,
     },
 }
@@ -85,13 +100,13 @@ pub enum CodecError {
     #[error("failed to decode json: {source}")]
     /// JSON could not be decoded into the expected storage record.
     JsonDecode {
-        /// Source attached to this Gingr error or DTO.
+        /// Underlying serde error raised while decoding the stored payload.
         source: serde_json::Error,
     },
     #[error("failed to encode json: {source}")]
     /// Storage record could not be serialized as JSON.
     JsonEncode {
-        /// Source attached to this Gingr error or DTO.
+        /// Underlying serde error raised while encoding the stored payload.
         source: serde_json::Error,
     },
 }
@@ -99,13 +114,13 @@ pub enum CodecError {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Storage record families used in shape-validation diagnostics.
 pub enum RecordKind {
-    /// Stable storage code for pet resort portfolio.
+    /// Portfolio seed facts used to orient multi-brand NVA pet-resort assumptions.
     PetResortPortfolio,
-    /// Stable storage code for service offering.
+    /// Flattened record for one boarding, daycare, grooming, training, or retail offering.
     ServiceOffering,
-    /// Stable storage code for core service contracts.
+    /// Location-level snapshot of enabled service-line contracts.
     CoreServiceContracts,
-    /// Stable storage code for data quality hygiene outcome.
+    /// Labor-evidence record for a data-quality hygiene workflow outcome.
     DataQualityHygieneOutcome,
 }
 
@@ -121,17 +136,17 @@ pub enum ShapeMismatchReason {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Persisted fields that can reject invalid domain values during storage conversion.
 pub enum StorageField {
-    /// Stable storage code for resort count.
+    /// Resort-count field promoted into a positive domain count.
     ResortCount,
-    /// Stable storage code for brand name.
+    /// Freeform brand-name field preserved for non-enumerated pet-resort banners.
     BrandName,
-    /// Stable storage code for grooming cadence weeks.
+    /// Grooming cadence quantity persisted in weeks when cadence is known.
     GroomingCadenceWeeks,
-    /// Stable storage code for training program duration weeks.
+    /// Training program duration quantity persisted in weeks.
     TrainingProgramDurationWeeks,
-    /// Stable storage code for manager daily brief labor minutes.
+    /// Manager daily-brief labor-minute field used for before/after evidence.
     ManagerDailyBriefLaborMinutes,
-    /// Stable storage code for data quality hygiene labor minutes.
+    /// Data-quality hygiene labor-minute field used for before/after evidence.
     DataQualityHygieneLaborMinutes,
 }
 
@@ -211,7 +226,7 @@ pub struct ManagerDailyBriefReportingGroup {
 pub struct StoredManagerDailyBriefLaborMinutes(u16);
 
 impl StoredManagerDailyBriefLaborMinutes {
-    /// Validates and wraps a positive storage quantity before persistence.
+    /// Validates and wraps a non-empty brand name before persistence.
     pub fn try_new(value: u16) -> Result<Self> {
         if value == 0 {
             return Err(Error::InvalidDomainValue {
@@ -223,7 +238,7 @@ impl StoredManagerDailyBriefLaborMinutes {
         Ok(Self(value))
     }
 
-    /// Returns the provider numeric identifier carried by this wrapper.
+    /// Returns the validated numeric quantity carried by this storage wrapper.
     pub const fn get(self) -> u16 {
         self.0
     }
@@ -286,7 +301,7 @@ impl ManagerDailyBriefOutcomeRecord {
         serde_json::to_string(self).map_err(|source| CodecError::JsonEncode { source }.into())
     }
 
-    /// Returns or constructs the Gingr actual minutes saved value.
+    /// Returns the derived minutes saved from before/after labor evidence.
     pub const fn actual_minutes_saved(&self) -> u16 {
         self.before_minutes
             .get()
@@ -405,7 +420,7 @@ impl StoredDataQualityHygieneLaborMinutes {
         Ok(Self(value))
     }
 
-    /// Returns the provider numeric identifier carried by this wrapper.
+    /// Returns the validated resort count carried by this storage wrapper.
     pub const fn get(self) -> u16 {
         self.0
     }
@@ -557,14 +572,14 @@ pub enum BusinessLineCode {
 #[serde(tag = "kind", rename_all = "snake_case")]
 /// Stored pet-resort brand descriptor with code plus display name.
 pub enum PetResortBrandRecord {
-    /// Stable storage code for known.
+    /// Enumerated brand known to the pet-resort context pack.
     Known {
-        /// Code attached to this Gingr error or DTO.
+        /// Stable brand code promoted into a domain brand.
         code: PetResortBrandCode,
     },
-    /// Stable storage code for other.
+    /// Non-enumerated brand preserved with a validated display name.
     Other {
-        /// Name attached to this Gingr error or DTO.
+        /// Validated display name for a brand not yet represented by a stable code.
         name: StoredBrandName,
     },
 }
@@ -1152,7 +1167,7 @@ pub struct CoreServiceContractsRecord {
 }
 
 impl CoreServiceContractsRecord {
-    /// Returns or constructs the Gingr record kind value.
+    /// Returns the stable record family represented by this storage snapshot.
     pub const fn record_kind(&self) -> RecordKind {
         RecordKind::CoreServiceContracts
     }

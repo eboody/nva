@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 pub struct ItemId(u64);
 
 impl ItemId {
-    /// Creates the wrapper from an already validated value.
+    /// Wraps an already-observed Gingr identifier without claiming anything beyond provider provenance.
     pub const fn new(value: u64) -> Self {
         Self(value)
     }
@@ -22,24 +22,24 @@ impl ItemId {
 #[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 /// Gingr retail item DTO with known fields plus quarantined unknown provider keys.
 pub struct Item {
-    /// Persisted id value for this record.
+    /// Provider record identifier observed in the Gingr payload.
     pub id: ItemId,
     #[serde(default)]
-    /// Human-readable display name paired with the stable code.
+    /// Provider display label retained for operator context; NVA-specific naming rules are applied downstream.
     pub name: Option<String>,
     #[serde(default)]
-    /// Persisted sku value for this record.
+    /// Provider SKU/code observed for the retail item and used as retail source evidence.
     pub sku: Option<String>,
     #[serde(default, alias = "retail_category")]
-    /// Persisted category value for this record.
+    /// Provider category label observed for the retail item before NVA retail taxonomy validation.
     pub category: Option<String>,
     #[serde(default)]
-    /// Persisted active value for this record.
+    /// Provider active flag observed for the retail item, not an NVA-approved sellability decision.
     pub active: Option<bool>,
     #[serde(default)]
-    /// Persisted quantity on hand value for this record.
+    /// Provider quantity-on-hand observation for inventory workflows; reconciliation remains downstream.
     pub quantity_on_hand: Option<u32>,
     #[serde(flatten)]
-    /// Persisted unknown value for this record.
+    /// Extra provider fields preserved for audit and future mapping without becoming validated NVA facts.
     pub unknown: BTreeMap<String, serde_json::Value>,
 }

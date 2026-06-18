@@ -18,7 +18,11 @@ static VACCINE_DOCUMENT_STATE: std::sync::OnceLock<VaccineDocumentState> =
     std::sync::OnceLock::new();
 
 #[derive(Clone)]
-/// Vaccine document state carried by the API shell; it maps HTTP requests onto app workflows without embedding business decisions in the shell.
+/// In-memory state carried by the API shell for deterministic workflow demos and tests.
+///
+/// The state stores documents, review packets, inquiry intake records, and labor-evidence
+/// projections so HTTP handlers can demonstrate runtime contracts without connecting to
+/// live databases, customer messaging, or provider write APIs.
 pub struct VaccineDocumentState {
     store: Arc<Mutex<VaccineDocumentStore>>,
 }
@@ -271,7 +275,12 @@ struct AuditEvent {
     metadata: BTreeMap<&'static str, String>,
 }
 
-/// Builds the HTTP router that exposes the safe staff-facing workflow API.
+/// Builds the default staff-facing workflow router with deterministic in-memory state.
+///
+/// Exposed routes are safe runtime surfaces: health/readiness probes, staff inquiry
+/// intake, vaccine document review, manager daily-brief packet/draft/outcome paths,
+/// and data-quality hygiene packet/draft/outcome paths. They return DTO evidence and
+/// review gates rather than performing live customer sends or provider writes.
 pub fn router() -> Router {
     router_with_state(
         VACCINE_DOCUMENT_STATE
@@ -280,7 +289,12 @@ pub fn router() -> Router {
     )
 }
 
-/// Builds the HTTP router that exposes the safe staff-facing workflow API.
+/// Builds the staff-facing workflow router over caller-provided deterministic state.
+///
+/// Tests and local runtimes use this entrypoint to share state across requests while
+/// preserving the same safety contract as [`router`]: handlers may draft, audit, and
+/// persist projections, but live side effects remain blocked unless a future runtime
+/// adapter adds explicit approval and provider gates.
 pub fn router_with_state(state: VaccineDocumentState) -> Router {
     Router::new()
         .route("/healthz", get(healthz))

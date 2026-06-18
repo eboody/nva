@@ -37,19 +37,19 @@ use super::*;
 use crate::{payment, policy};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Typed policy domain value that keeps raw primitives out of boarding workflows.
+/// Deposit-collection policy used before confirming a boarding reservation.
 pub struct Policy {
     rule: DepositRule,
     timing: PaymentTiming,
 }
 
 impl Policy {
-    /// Assembles this boarding value from already-validated domain parts.
+    /// Creates a deposit policy from the resort rule and payment timing.
     pub const fn new(rule: DepositRule, timing: PaymentTiming) -> Self {
         Self { rule, timing }
     }
 
-    /// Returns the readiness for confirmation for this boarding value.
+    /// Determines whether a reservation may be confirmed from deposit evidence or must route to exception review.
     pub fn readiness_for_confirmation(
         &self,
         deposit: Option<&payment::Deposit>,
@@ -77,24 +77,24 @@ impl Policy {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for confirmation readiness decisions in boarding workflows.
+/// Deposit readiness result for boarding reservation confirmation.
 pub enum ConfirmationReadiness {
-    /// Ready boarding policy, stay, capacity, or upsell signal.
+    /// Deposit policy is satisfied, waived by manager, or not required for confirmation.
     Ready,
-    /// Blocked boarding policy, stay, capacity, or upsell signal.
+    /// Confirmation is blocked until staff collect a deposit or approve an exception.
     Blocked {
-        /// Blocker fact promoted into this boarding contract.
+        /// Operational reason confirmation cannot proceed automatically.
         blocker: Blocker,
-        /// Review gate fact promoted into this boarding contract.
+        /// Manager or billing gate required to override the blocked deposit state.
         review_gate: policy::ReviewGate,
     },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for blocker decisions in boarding workflows.
+/// Reasons deposit policy can block boarding confirmation.
 pub enum Blocker {
     /// Deposit must be collected before the booking is secure.
     DepositRequired,
-    /// Reference missing boarding policy, stay, capacity, or upsell signal.
+    /// A payment reference is missing, so staff cannot verify that the deposit was collected.
     ReferenceMissing,
 }

@@ -6,15 +6,15 @@ use super::{Error, ProviderField, Result};
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// Customer mapping candidate produced from Gingr owner contact fields.
 pub struct ContactCandidate {
-    /// Persisted provider owner id value for this record.
+    /// Gingr owner identifier kept as source evidence for the mapped customer.
     pub provider_owner_id: endpoint::OwnerId,
-    /// Persisted full name value for this record.
+    /// Customer name assembled from Gingr owner fields; useful for staff-facing drafts but not proof of legal identity.
     pub full_name: customer::Name,
-    /// Persisted email value for this record.
+    /// Email address observed from Gingr and carried as customer-contact evidence.
     pub email: Option<customer::Email>,
-    /// Persisted mobile phone value for this record.
+    /// Mobile phone observed from Gingr and carried as customer-contact evidence.
     pub mobile_phone: Option<customer::Phone>,
-    /// Persisted preferred contact value for this record.
+    /// Preferred contact channel inferred from provider contact fields for NVA workflow routing.
     pub preferred_contact: entities::ContactChannel,
 }
 

@@ -25,7 +25,7 @@ use crate::policy;
 
 pub use playgroup_id::Id as PlaygroupId;
 
-/// Playgroup id boundary for daycare assignment contracts.
+/// Playgroup identifier boundary for daycare assignment contracts.
 pub mod playgroup_id {
     use super::*;
 
@@ -48,66 +48,66 @@ pub mod playgroup_id {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Typed request domain value that keeps raw primitives out of daycare workflows.
+/// Assignment request that joins pet, service, eligibility, coverage, and target playgroup evidence.
 pub struct Request {
-    /// Pet receiving the grooming or care service.
+    /// Pet being considered for playgroup assignment.
     pub pet_id: PetId,
     /// Requested service that drives scheduling and labor estimates.
     pub service: ServiceVariant,
-    /// Eligibility fact promoted into this daycare contract.
+    /// Group-play eligibility decision that must be clear before assignment.
     pub eligibility: eligibility::GroupPlayDecision,
-    /// Coverage fact promoted into this daycare contract.
+    /// Staffing coverage decision that must be sufficient before assignment.
     pub coverage: coverage::Decision,
-    /// Playgroup fact promoted into this daycare contract.
+    /// Candidate playgroup selected from resort operations data.
     pub playgroup: PlaygroupId,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for decision decisions in daycare workflows.
+/// Playgroup assignment outcome staff can act on or review.
 pub enum Decision {
-    /// Assigned daycare attendance, eligibility, coverage, or package signal.
+    /// Pet may be placed in the requested playgroup.
     Assigned {
-        /// Pet receiving the grooming or care service.
+        /// Pet being considered for playgroup assignment.
         pet_id: PetId,
-        /// Playgroup fact promoted into this daycare contract.
+        /// Candidate playgroup selected from resort operations data.
         playgroup: PlaygroupId,
     },
-    /// Waitlist daycare attendance, eligibility, coverage, or package signal.
+    /// Pet is eligible, but staffing coverage prevents immediate assignment.
     Waitlist {
-        /// Business reason staff should review before proceeding.
+        /// Operational reason the assignment is not automatically clear.
         reason: WaitlistReason,
-        /// Gate fact promoted into this daycare contract.
+        /// Human review gate required before staff override this assignment outcome.
         gate: policy::ReviewGate,
     },
-    /// Blocked daycare attendance, eligibility, coverage, or package signal.
+    /// Pet cannot be assigned until eligibility or safety review clears.
     Blocked {
-        /// Business reason staff should review before proceeding.
+        /// Operational reason the assignment is not automatically clear.
         reason: BlockReason,
-        /// Gate fact promoted into this daycare contract.
+        /// Human review gate required before staff override this assignment outcome.
         gate: policy::ReviewGate,
     },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for waitlist reason decisions in daycare workflows.
+/// Reasons a daycare assignment should waitlist instead of placing the pet.
 pub enum WaitlistReason {
-    /// Staff coverage insufficient daycare attendance, eligibility, coverage, or package signal.
+    /// Staffing ratio or roster evidence does not support another playgroup assignment.
     StaffCoverageInsufficient,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for block reason decisions in daycare workflows.
+/// Reasons assignment is blocked rather than merely waitlisted.
 pub enum BlockReason {
-    /// Eligibility not cleared daycare attendance, eligibility, coverage, or package signal.
+    /// Group-play eligibility is not clear enough for playgroup assignment.
     EligibilityNotCleared,
 }
 
 #[derive(Debug, Clone, Default)]
-/// Typed service domain value that keeps raw primitives out of daycare workflows.
+/// Deterministic daycare assignment service for playgroup placement decisions.
 pub struct Service;
 
 impl Service {
-    /// Returns the assign for this daycare value.
+    /// Assigns, waitlists, or blocks a pet from playgroup placement using eligibility and coverage evidence.
     pub fn assign(&self, request: Request) -> Decision {
         match (&request.eligibility, &request.coverage) {
             (eligibility::GroupPlayDecision::Eligible { .. }, coverage::Decision::Sufficient) => {

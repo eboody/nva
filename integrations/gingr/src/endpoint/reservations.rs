@@ -5,11 +5,11 @@ pub mod reservation {
     use super::*;
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-    /// Typed Gingr request/response value for type id.
+    /// Provider reservation-type identifier used to classify boarding, daycare, grooming, training, or other Gingr service demand.
     pub struct TypeId(u64);
 
     impl TypeId {
-        /// Creates the wrapper from an already validated value.
+        /// Wraps an already-observed Gingr identifier without claiming anything beyond provider provenance.
         pub const fn new(value: u64) -> Self {
             Self(value)
         }
@@ -22,28 +22,28 @@ pub mod reservation {
     }
 
     #[derive(Clone, Debug, Default, PartialEq, Eq)]
-    /// Typed Gingr request/response value for types.
+    /// Request descriptor for Gingr reservation types, the provider lookup table behind service-line classification.
     pub struct Types {
         id: Option<TypeId>,
         active_only: Option<bool>,
     }
 
     impl Types {
-        /// Starts a typed builder for this Gingr endpoint request.
+        /// Starts a builder that makes each provider parameter explicit before request capture.
         pub fn builder() -> TypesBuilder {
             TypesBuilder::default()
         }
     }
 
     #[derive(Clone, Debug, Default)]
-    /// Typed Gingr request/response value for types builder.
+    /// Builder for reservation-type lookup parameters without asserting NVA service-line semantics.
     pub struct TypesBuilder {
         id: Option<TypeId>,
         active_only: Option<bool>,
     }
 
     impl TypesBuilder {
-        /// Filters the request by provider identifier.
+        /// Narrows the provider lookup to one Gingr identifier when supplied.
         pub fn id(mut self, id: TypeId) -> Self {
             self.id = Some(id);
             self
@@ -55,7 +55,7 @@ pub mod reservation {
             self
         }
 
-        /// Builds the typed Gingr request after all parameters have been validated.
+        /// Finalizes the provider request descriptor after required fields are present and wrappers have validated local invariants.
         pub fn build(self) -> Types {
             Types {
                 id: self.id,
@@ -86,32 +86,32 @@ pub mod reservation {
     }
 
     #[derive(Clone, Debug, PartialEq, Eq)]
-    /// Typed Gingr request/response value for widget data.
+    /// Request descriptor for Gingr reservation widget data at a provider timestamp.
     pub struct WidgetData {
         timestamp: Date,
     }
 
     impl WidgetData {
-        /// Starts a typed builder for this Gingr endpoint request.
+        /// Starts a builder that makes each provider parameter explicit before request capture.
         pub fn builder() -> WidgetDataBuilder {
             WidgetDataBuilder::default()
         }
     }
 
     #[derive(Clone, Debug, Default)]
-    /// Typed Gingr request/response value for widget data builder.
+    /// Builder for the reservation-widget timestamp filter.
     pub struct WidgetDataBuilder {
         timestamp: Option<Date>,
     }
 
     impl WidgetDataBuilder {
-        /// Returns or sets the Gingr timestamp value.
+        /// Sets the provider timestamp filter sent to the Gingr endpoint.
         pub fn timestamp(mut self, timestamp: Date) -> Self {
             self.timestamp = Some(timestamp);
             self
         }
 
-        /// Builds the typed Gingr request after all parameters have been validated.
+        /// Finalizes the provider request descriptor after required fields are present and wrappers have validated local invariants.
         pub fn build(self) -> WidgetData {
             WidgetData {
                 timestamp: self.timestamp.expect("WidgetData requires timestamp"),
@@ -134,7 +134,7 @@ pub mod reservation {
     }
 
     #[derive(Clone, Debug, Default, PartialEq, Eq)]
-    /// Typed Gingr request/response value for search filters.
+    /// Optional provider-side reservation filters shared by reservation lookup endpoints.
     pub struct SearchFilters {
         from_date: Option<IsoDate>,
         to_date: Option<IsoDate>,
@@ -147,7 +147,7 @@ pub mod reservation {
     }
 
     impl SearchFilters {
-        /// Starts a typed builder for this Gingr endpoint request.
+        /// Starts a builder that makes each provider parameter explicit before request capture.
         pub fn builder() -> SearchFiltersBuilder {
             SearchFiltersBuilder::default()
         }
@@ -183,61 +183,61 @@ pub mod reservation {
     }
 
     #[derive(Clone, Debug, Default)]
-    /// Typed Gingr request/response value for search filters builder.
+    /// Builder for provider reservation filters such as date, status flags, type IDs, and animal IDs.
     pub struct SearchFiltersBuilder {
         filters: SearchFilters,
     }
 
     impl SearchFiltersBuilder {
-        /// Sets the starting provider date for the Gingr request.
+        /// Sets the inclusive provider start date sent to Gingr.
         pub fn from_date(mut self, date: IsoDate) -> Self {
             self.filters.from_date = Some(date);
             self
         }
 
-        /// Sets the ending provider date for the Gingr request.
+        /// Sets the inclusive provider end date sent to Gingr.
         pub fn to_date(mut self, date: IsoDate) -> Self {
             self.filters.to_date = Some(date);
             self
         }
 
-        /// Returns or sets the Gingr reservation type id value.
+        /// Adds a Gingr reservation-type identifier as a provider filter.
         pub fn reservation_type_id(mut self, id: TypeId) -> Self {
             self.filters.reservation_type_ids.push(id);
             self
         }
 
-        /// Returns or sets the Gingr animal id value.
+        /// Adds a Gingr animal identifier as a provider filter.
         pub fn animal_id(mut self, id: AnimalId) -> Self {
             self.filters.animal_ids.push(id);
             self
         }
 
-        /// Returns or sets the Gingr cancelled only value.
+        /// Requests only provider records Gingr marks as cancelled.
         pub fn cancelled_only(mut self, value: bool) -> Self {
             self.filters.cancelled_only = Some(value);
             self
         }
 
-        /// Returns or sets the Gingr confirmed only value.
+        /// Requests only provider records Gingr marks as confirmed.
         pub fn confirmed_only(mut self, value: bool) -> Self {
             self.filters.confirmed_only = Some(value);
             self
         }
 
-        /// Returns or sets the Gingr completed only value.
+        /// Requests only provider records Gingr marks as completed.
         pub fn completed_only(mut self, value: bool) -> Self {
             self.filters.completed_only = Some(value);
             self
         }
 
-        /// Sets the maximum number of records requested from Gingr.
+        /// Sets the provider result limit so automation does not imply unbounded source coverage.
         pub fn limit(mut self, limit: Limit) -> Self {
             self.filters.limit = Some(limit);
             self
         }
 
-        /// Builds the typed Gingr request after all parameters have been validated.
+        /// Finalizes the provider request descriptor after required fields are present and wrappers have validated local invariants.
         pub fn build(self) -> SearchFilters {
             self.filters
         }
@@ -245,7 +245,7 @@ pub mod reservation {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-/// Typed Gingr request/response value for reservations.
+/// Request descriptor for the `/api/v1/reservations` endpoint used as source evidence for occupancy and check-in workflows.
 pub struct Reservations {
     checked_in: bool,
     range: Option<DateRange>,
@@ -253,7 +253,7 @@ pub struct Reservations {
 }
 
 impl Reservations {
-    /// Returns or sets the Gingr checked in value.
+    /// Starts a reservations request for currently checked-in stays.
     pub fn checked_in() -> Builder {
         Builder {
             checked_in: true,
@@ -262,7 +262,7 @@ impl Reservations {
         }
     }
 
-    /// Returns or sets the Gingr for range value.
+    /// Starts a reservations request for an inclusive provider date range.
     pub fn for_range(range: DateRange) -> Builder {
         Builder {
             checked_in: false,
@@ -273,7 +273,7 @@ impl Reservations {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-/// Typed Gingr request/response value for builder.
+/// Builder for the primary reservations request, including checked-in/range mode and optional location scope.
 pub struct Builder {
     checked_in: bool,
     range: Option<DateRange>,
@@ -281,13 +281,13 @@ pub struct Builder {
 }
 
 impl Builder {
-    /// Returns or sets the Gingr location value.
+    /// Scopes the Gingr request to a provider location identifier.
     pub fn location(mut self, location: LocationId) -> Self {
         self.location = Some(location);
         self
     }
 
-    /// Builds the typed Gingr request after all parameters have been validated.
+    /// Finalizes the provider request descriptor after required fields are present and wrappers have validated local invariants.
     pub fn build(self) -> Reservations {
         Reservations {
             checked_in: self.checked_in,
@@ -352,7 +352,7 @@ pub mod by {
     use super::*;
 
     #[derive(Clone, Debug, PartialEq, Eq)]
-    /// Typed Gingr request/response value for animal.
+    /// Request descriptor for reservations related to one Gingr animal record.
     pub struct Animal {
         animal_id: AnimalId,
         restrict_to: Option<RestrictTo>,
@@ -363,14 +363,14 @@ pub mod by {
         /// Notes that Gingr scopes this lookup to the API user's current location.
         pub const LOCATION_SCOPE_CAVEAT: &'static str = "Reservation data for this endpoint is only pulled for the location the API user is currently logged into.";
 
-        /// Starts a typed builder for this Gingr endpoint request.
+        /// Starts a builder that makes each provider parameter explicit before request capture.
         pub fn builder() -> AnimalBuilder {
             AnimalBuilder::default()
         }
     }
 
     #[derive(Clone, Debug, Default)]
-    /// Typed Gingr request/response value for animal builder.
+    /// Builder for animal-keyed reservation lookups and their provider filters.
     pub struct AnimalBuilder {
         animal_id: Option<AnimalId>,
         restrict_to: Option<RestrictTo>,
@@ -378,25 +378,25 @@ pub mod by {
     }
 
     impl AnimalBuilder {
-        /// Returns or sets the Gingr animal id value.
+        /// Adds a Gingr animal identifier as a provider filter.
         pub fn animal_id(mut self, id: AnimalId) -> Self {
             self.animal_id = Some(id);
             self
         }
 
-        /// Returns or sets the Gingr restrict to value.
+        /// Applies Gingr reservation-scope tokens such as future, past, or wait-listed.
         pub fn restrict_to(mut self, restrict_to: RestrictTo) -> Self {
             self.restrict_to = Some(restrict_to);
             self
         }
 
-        /// Returns or sets the Gingr filter value.
+        /// Adds nested Gingr reservation search filters to the lookup request.
         pub fn filter(mut self, filters: reservation::SearchFilters) -> Self {
             self.filters = Some(filters);
             self
         }
 
-        /// Builds the typed Gingr request after all parameters have been validated.
+        /// Finalizes the provider request descriptor after required fields are present and wrappers have validated local invariants.
         pub fn build(self) -> Animal {
             Animal {
                 animal_id: self.animal_id.expect("Animal requires animal_id"),
@@ -428,7 +428,7 @@ pub mod by {
     }
 
     #[derive(Clone, Debug, PartialEq, Eq)]
-    /// Typed Gingr request/response value for owner.
+    /// Request descriptor for reservations related to one Gingr owner/customer record.
     pub struct Owner {
         owner_id: OwnerId,
         restrict_to: Option<RestrictTo>,
@@ -439,14 +439,14 @@ pub mod by {
         /// Notes that Gingr scopes this lookup to the API user's current location.
         pub const LOCATION_SCOPE_CAVEAT: &'static str = Animal::LOCATION_SCOPE_CAVEAT;
 
-        /// Starts a typed builder for this Gingr endpoint request.
+        /// Starts a builder that makes each provider parameter explicit before request capture.
         pub fn builder() -> OwnerBuilder {
             OwnerBuilder::default()
         }
     }
 
     #[derive(Clone, Debug, Default)]
-    /// Typed Gingr request/response value for owner builder.
+    /// Builder for owner-keyed reservation lookups and their provider filters.
     pub struct OwnerBuilder {
         owner_id: Option<OwnerId>,
         restrict_to: Option<RestrictTo>,
@@ -454,25 +454,25 @@ pub mod by {
     }
 
     impl OwnerBuilder {
-        /// Filters the Gingr request to an owner/customer identifier.
+        /// Narrows the provider request to one Gingr owner/customer identifier.
         pub fn owner_id(mut self, id: OwnerId) -> Self {
             self.owner_id = Some(id);
             self
         }
 
-        /// Returns or sets the Gingr restrict to value.
+        /// Applies Gingr reservation-scope tokens such as future, past, or wait-listed.
         pub fn restrict_to(mut self, restrict_to: RestrictTo) -> Self {
             self.restrict_to = Some(restrict_to);
             self
         }
 
-        /// Returns or sets the Gingr filter value.
+        /// Adds nested Gingr reservation search filters to the lookup request.
         pub fn filter(mut self, filters: reservation::SearchFilters) -> Self {
             self.filters = Some(filters);
             self
         }
 
-        /// Builds the typed Gingr request after all parameters have been validated.
+        /// Finalizes the provider request descriptor after required fields are present and wrappers have validated local invariants.
         pub fn build(self) -> Owner {
             Owner {
                 owner_id: self.owner_id.expect("Owner requires owner_id"),
@@ -505,11 +505,11 @@ pub mod by {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-/// Typed Gingr request/response value for minutes future.
+/// Positive future-minute window used by Gingr back-of-house operational views.
 pub struct MinutesFuture(u64);
 
 impl MinutesFuture {
-    /// Builds the validated storage wrapper for a known-good value.
+    /// Constructs this typed Gingr boundary value after the caller has chosen the provider input to trust.
     pub fn new(value: u64) -> super::Result<Self> {
         if value == 0 {
             return Err(super::Error::InvalidPositiveInteger { value });
@@ -525,7 +525,7 @@ impl core::fmt::Display for MinutesFuture {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-/// Typed Gingr request/response value for back of house.
+/// Request descriptor for Gingr back-of-house views used as raw operational evidence for near-term labor planning.
 pub struct BackOfHouse {
     location: LocationId,
     reservation_type_ids: Vec<reservation::TypeId>,
@@ -534,14 +534,14 @@ pub struct BackOfHouse {
 }
 
 impl BackOfHouse {
-    /// Starts a typed builder for this Gingr endpoint request.
+    /// Starts a builder that makes each provider parameter explicit before request capture.
     pub fn builder() -> BackOfHouseBuilder {
         BackOfHouseBuilder::default()
     }
 }
 
 #[derive(Clone, Debug, Default)]
-/// Typed Gingr request/response value for back of house builder.
+/// Builder for back-of-house location, reservation-type, time-window, and full-day provider filters.
 pub struct BackOfHouseBuilder {
     location: Option<LocationId>,
     reservation_type_ids: Vec<reservation::TypeId>,
@@ -550,31 +550,31 @@ pub struct BackOfHouseBuilder {
 }
 
 impl BackOfHouseBuilder {
-    /// Returns or sets the Gingr location value.
+    /// Scopes the Gingr request to a provider location identifier.
     pub fn location(mut self, location: LocationId) -> Self {
         self.location = Some(location);
         self
     }
 
-    /// Returns or sets the Gingr reservation type id value.
+    /// Adds a Gingr reservation-type identifier as a provider filter.
     pub fn reservation_type_id(mut self, id: reservation::TypeId) -> Self {
         self.reservation_type_ids.push(id);
         self
     }
 
-    /// Returns or sets the Gingr minutes future value.
+    /// Limits back-of-house results to a future provider time window.
     pub fn minutes_future(mut self, minutes: MinutesFuture) -> Self {
         self.minutes_future = Some(minutes);
         self
     }
 
-    /// Returns or sets the Gingr full day value.
+    /// Requests Gingr full-day back-of-house records when the provider supports that flag.
     pub fn full_day(mut self, full_day: bool) -> Self {
         self.full_day = Some(full_day);
         self
     }
 
-    /// Builds the typed Gingr request after all parameters have been validated.
+    /// Finalizes the provider request descriptor after required fields are present and wrappers have validated local invariants.
     pub fn build(self) -> BackOfHouse {
         BackOfHouse {
             location: self.location.expect("BackOfHouse requires location"),
@@ -610,14 +610,14 @@ impl Request for BackOfHouse {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-/// Typed Gingr request/response value for get services by type.
+/// Request descriptor for Gingr service discovery by reservation type; DTO mapping is intentionally not guaranteed here.
 pub struct GetServicesByType {
     type_id: reservation::TypeId,
     location: Option<LocationId>,
 }
 
 impl GetServicesByType {
-    /// Builds the validated storage wrapper for a known-good value.
+    /// Constructs this typed Gingr boundary value after the caller has chosen the provider input to trust.
     pub fn new(type_id: reservation::TypeId) -> Self {
         Self {
             type_id,
@@ -625,7 +625,7 @@ impl GetServicesByType {
         }
     }
 
-    /// Returns or sets the Gingr location value.
+    /// Scopes the Gingr request to a provider location identifier.
     pub fn location(mut self, location: LocationId) -> Self {
         self.location = Some(location);
         self

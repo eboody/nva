@@ -1,3 +1,9 @@
+//! Daycare storage projection codes for play formats and eligibility rules.
+//!
+//! These records preserve source/catalog choices such as all-day play,
+//! day-boarding, and staff-to-pet-ratio checks. Domain workflows decide whether
+//! a pet is eligible and whether a manager review is required.
+
 use serde::{Deserialize, Serialize};
 
 /// Storage shape for a migrated daycare service contract.

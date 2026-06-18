@@ -1,8 +1,17 @@
+//! Policy gates that decide what automation may do safely.
+//!
+//! Policy values encode the operational boundary between labor-saving automation and human review:
+//! group-play eligibility, vaccine requirements, manager approval, medical-document review,
+//! customer-message approval, and refund/deposit exceptions. These types document why an agent may
+//! draft, route, suppress, or escalate work; they do not grant permission to override local resort
+//! policy or invent availability.
+
 use nutype::nutype;
 use serde::{Deserialize, Serialize};
 
 use crate::entities::{ServiceKind, Species};
 
+/// Stable policy identifier used to reference local resort, brand, or portfolio rule sets.
 #[nutype(
     sanitize(trim),
     validate(not_empty, len_char_max = 120),
@@ -20,6 +29,7 @@ use crate::entities::{ServiceKind, Species};
 )]
 pub struct Id(String);
 
+/// Vaccine name as it appears in a requirement, proof document, or source-system mapping.
 #[nutype(
     sanitize(trim),
     validate(not_empty, len_char_max = 80),
@@ -37,6 +47,7 @@ pub struct Id(String);
 )]
 pub struct VaccineName(String);
 
+/// Named workflow that an automation-safety rule governs.
 #[nutype(
     sanitize(trim),
     validate(not_empty, len_char_max = 120),
@@ -54,13 +65,13 @@ pub struct VaccineName(String);
 )]
 pub struct WorkflowName(String);
 
-/// Automation boundary for policy contracts.
+/// Automation-level policy rules that classify workflows as safe, draft-only, internal, or review-gated.
 pub mod automation {
     use serde::{Deserialize, Serialize};
 
     use super::WorkflowName;
 
-    /// Rationale boundary for policy contracts.
+    /// Rationale text explaining the operational reason for an automation policy decision.
     pub mod rationale {
         use nutype::nutype;
 
@@ -85,52 +96,52 @@ pub mod automation {
     pub use rationale::Rationale;
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for level decisions in policy workflows.
+    /// Automation authority level that says whether a workflow may run, draft, create internal tasks, or require approval.
     pub enum Level {
-        /// Safe to automate policy decision or approval gate.
+        /// Safe to automate outcome in the automation authority or human-review policy.
         SafeToAutomate,
-        /// Draft only policy decision or approval gate.
+        /// Draft only outcome in the automation authority or human-review policy.
         DraftOnly,
-        /// Internal task only policy decision or approval gate.
+        /// Internal task only outcome in the automation authority or human-review policy.
         InternalTaskOnly,
-        /// Manager approval required policy decision or approval gate.
+        /// Manager approval required outcome in the automation authority or human-review policy.
         ManagerApprovalRequired,
-        /// Never automate policy decision or approval gate.
+        /// Never automate outcome in the automation authority or human-review policy.
         NeverAutomate,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Typed rule domain value that keeps raw primitives out of policy workflows.
+    /// Automation policy rule tying a workflow name to an authority level and rationale.
     pub struct Rule {
-        /// Workflow fact promoted into this policy contract.
+        /// Policy input workflow used to explain or enforce an automation gate.
         pub workflow: WorkflowName,
-        /// Level fact promoted into this policy contract.
+        /// Policy input level used to explain or enforce an automation gate.
         pub level: Level,
-        /// Rationale fact promoted into this policy contract.
+        /// Policy input rationale used to explain or enforce an automation gate.
         pub rationale: Rationale,
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Typed vaccine requirement domain value that keeps raw primitives out of policy workflows.
+/// Vaccine requirement for a species/service pair, including whether proof must come from a licensed vet source.
 pub struct VaccineRequirement {
-    /// Species fact promoted into this policy contract.
+    /// Policy input species used to explain or enforce an automation gate.
     pub species: Species,
     /// Requested service that drives scheduling and labor estimates.
     pub service: ServiceKind,
-    /// Vaccines fact promoted into this policy contract.
+    /// Policy input vaccines used to explain or enforce an automation gate.
     pub vaccines: Vec<VaccineName>,
-    /// Source must be licensed vet fact promoted into this policy contract.
+    /// Policy input source must be licensed vet used to explain or enforce an automation gate.
     pub source_must_be_licensed_vet: bool,
 }
 
-/// Play boundary for policy contracts.
+/// Group-play eligibility policies used to protect pet safety while avoiding unnecessary manual triage.
 pub mod play {
     pub use eligibility::{
         ConservativePolicy, Decision, Eligibility, IneligibilityReason, Policy, Reason,
     };
 
-    /// Eligibility boundary for policy contracts.
+    /// Decision contract for whether a pet/service combination may enter group-play workflows.
     pub mod eligibility {
         use serde::{Deserialize, Serialize};
 
@@ -139,47 +150,47 @@ pub mod play {
         use super::super::ReviewGate;
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-        /// Typed decision domain value that keeps raw primitives out of policy workflows.
+        /// Group-play eligibility decision plus any review gate that must be satisfied first.
         pub struct Decision {
-            /// Eligibility fact promoted into this policy contract.
+            /// Policy input eligibility used to explain or enforce an automation gate.
             pub eligibility: Eligibility,
-            /// Required review fact promoted into this policy contract.
+            /// Policy input required review used to explain or enforce an automation gate.
             pub required_review: Option<ReviewGate>,
         }
 
         impl Decision {
-            /// Returns the eligible for group play for this policy value.
+            /// Reports whether the policy outcome allows the pet to be treated as a group-play candidate.
             pub fn eligible_for_group_play(&self) -> bool {
                 matches!(self.eligibility, Eligibility::Eligible(_))
             }
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-        /// Domain vocabulary for eligibility decisions in policy workflows.
+        /// Eligibility outcome produced by play-safety policy evaluation.
         pub enum Eligibility {
-            /// Eligible policy decision or approval gate.
+            /// Eligible outcome in the automation authority or human-review policy.
             Eligible(Reason),
-            /// Ineligible policy decision or approval gate.
+            /// Ineligible outcome in the automation authority or human-review policy.
             Ineligible(IneligibilityReason),
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-        /// Domain vocabulary for reason decisions in policy workflows.
+        /// Positive policy reason explaining why no conservative hard stop blocked the workflow.
         pub enum Reason {
-            /// No conservative hard stop policy decision or approval gate.
+            /// No conservative hard stop outcome in the automation authority or human-review policy.
             NoConservativeHardStop,
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-        /// Domain vocabulary for ineligibility reason decisions in policy workflows.
+        /// Safety or service reason that prevents group play or requires staff review.
         pub enum IneligibilityReason {
-            /// Service does not require group play policy decision or approval gate.
+            /// Service does not require group play outcome in the automation authority or human-review policy.
             ServiceDoesNotRequireGroupPlay,
-            /// Species receives individual play policy decision or approval gate.
+            /// Species receives individual play outcome in the automation authority or human-review policy.
             SpeciesReceivesIndividualPlay,
-            /// Spay neuter status requires review policy decision or approval gate.
+            /// Spay neuter status requires review outcome in the automation authority or human-review policy.
             SpayNeuterStatusRequiresReview,
-            /// Behavior flags require review policy decision or approval gate.
+            /// Behavior flags require review outcome in the automation authority or human-review policy.
             BehaviorFlagsRequireReview,
         }
 
@@ -195,7 +206,7 @@ pub mod play {
             }
         }
 
-        /// Defines the behavior required from a policy participant in the policy workflow.
+        /// Contract for policy evaluators that turn pet and service facts into explicit play-safety decisions.
         pub trait Policy {
             /// Returns the pet for this policy value.
             fn decide(&self, pet: &Pet, service: &ServiceKind) -> Decision;
@@ -267,26 +278,26 @@ pub mod play {
     }
 }
 
-/// Denial boundary for policy contracts.
+/// Denial reasons that explain why a workflow is blocked or escalated to review.
 pub mod denial {
     use serde::{Deserialize, Serialize};
 
     use super::play;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for reason decisions in policy workflows.
+    /// Positive policy reason explaining why no conservative hard stop blocked the workflow.
     pub enum Reason {
-        /// Manager approval required policy decision or approval gate.
+        /// Manager approval required outcome in the automation authority or human-review policy.
         ManagerApprovalRequired,
-        /// Medical document review required policy decision or approval gate.
+        /// Medical document review required outcome in the automation authority or human-review policy.
         MedicalDocumentReviewRequired,
         /// Behavior history requires review before service.
         BehaviorReviewRequired,
-        /// Customer message approval required policy decision or approval gate.
+        /// Customer message approval required outcome in the automation authority or human-review policy.
         CustomerMessageApprovalRequired,
-        /// Refund or deposit exception policy decision or approval gate.
+        /// Refund or deposit exception outcome in the automation authority or human-review policy.
         RefundOrDepositException,
-        /// Play eligibility policy decision or approval gate.
+        /// Play eligibility outcome in the automation authority or human-review policy.
         PlayEligibility(play::IneligibilityReason),
     }
 
@@ -308,17 +319,17 @@ pub mod denial {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for review gate decisions in policy workflows.
+/// Human review gate required before automation may proceed with sensitive work.
 pub enum ReviewGate {
-    /// Manager approval policy decision or approval gate.
+    /// Manager approval outcome in the automation authority or human-review policy.
     ManagerApproval,
-    /// Medical document review policy decision or approval gate.
+    /// Medical document review outcome in the automation authority or human-review policy.
     MedicalDocumentReview,
-    /// Behavior review policy decision or approval gate.
+    /// Behavior review outcome in the automation authority or human-review policy.
     BehaviorReview,
-    /// Customer message approval policy decision or approval gate.
+    /// Customer message approval outcome in the automation authority or human-review policy.
     CustomerMessageApproval,
-    /// Refund or deposit exception policy decision or approval gate.
+    /// Refund or deposit exception outcome in the automation authority or human-review policy.
     RefundOrDepositException,
 }
 

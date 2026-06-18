@@ -1,18 +1,23 @@
+//! Boarding accommodation vocabulary for suite/condo matching and species-safe capacity decisions.
+//!
+//! These contracts keep room-type preferences explicit so automation can recommend availability
+//! without inventing unsupported species accommodations or collapsing premium-suite choices.
+
 use super::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for kind decisions in boarding workflows.
+/// Accommodation kinds used when matching a boarding request to room or suite inventory.
 pub enum Kind {
-    /// Classic dog suite boarding policy, stay, capacity, or upsell signal.
+    /// Standard dog boarding suite option used for baseline dog-room capacity.
     ClassicDogSuite,
-    /// Luxury dog suite boarding policy, stay, capacity, or upsell signal.
+    /// Premium dog boarding suite option used for capacity matching and upgrade offers.
     LuxuryDogSuite,
-    /// Cat condo boarding policy, stay, capacity, or upsell signal.
+    /// Cat lodging option that must not be matched to dog boarding requests.
     CatCondo,
 }
 
 impl Kind {
-    /// Returns this boarding value's supports species.
+    /// Reports whether this accommodation can safely serve the requested pet species.
     pub const fn supports_species(self, species: &crate::entities::Species) -> bool {
         matches!(
             (self, species),
@@ -25,16 +30,16 @@ impl Kind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for preference decisions in boarding workflows.
+/// Guest or staff accommodation preference supplied to a boarding capacity check.
 pub enum Preference {
-    /// Specific boarding policy, stay, capacity, or upsell signal.
+    /// A single requested room type that should be evaluated before alternatives.
     Specific(Kind),
-    /// Any of boarding policy, stay, capacity, or upsell signal.
+    /// A bounded list of acceptable room types when the guest can accept alternatives.
     AnyOf(Vec<Kind>),
 }
 
 impl Preference {
-    /// Returns the acceptable kinds for this boarding value.
+    /// Exposes the acceptable accommodation kinds in evaluation order for capacity policy.
     pub fn acceptable_kinds(&self) -> &[Kind] {
         match self {
             Self::Specific(kind) => std::slice::from_ref(kind),

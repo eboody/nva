@@ -7,18 +7,18 @@ use url::Url;
 pub type Result<T> = core::result::Result<T, Error>;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
-/// Errors raised while validating Gingr configuration, request parameters, or DTO mappings.
+/// Errors raised when provider values cannot safely cross this Gingr boundary.
 pub enum Error {
     #[error("invalid Gingr subdomain: {value}")]
     /// Subdomain was empty or contained characters Gingr tenant hosts cannot use.
     InvalidSubdomain {
-        /// Rejected value or provider value associated with this error.
+        /// Original provider/caller value rejected before it could become a typed boundary value.
         value: String,
     },
     #[error("invalid Gingr base URL: {reason}")]
     /// Base URL was not a valid HTTPS Gingr endpoint.
     InvalidBaseUrl {
-        /// Provider-facing reason explaining why request construction failed.
+        /// Boundary-level reason explaining why this provider request or parse step was rejected.
         reason: String,
     },
 }
@@ -28,7 +28,7 @@ pub enum Error {
 pub struct Subdomain(String);
 
 impl Subdomain {
-    /// Normalizes a provider string into a typed value, preserving unknown provider values.
+    /// Parses provider-sourced text into this boundary type without promoting it to an NVA domain fact.
     pub fn parse(raw: impl AsRef<str>) -> Result<Self> {
         let value = raw.as_ref();
         let valid = !value.is_empty()
@@ -71,7 +71,7 @@ impl BaseUrl {
         Self(Url::parse(&raw).expect("constructed Gingr URL is valid"))
     }
 
-    /// Normalizes a provider string into a typed value, preserving unknown provider values.
+    /// Parses provider-sourced text into this boundary type without promoting it to an NVA domain fact.
     pub fn parse(raw: impl AsRef<str>) -> Result<Self> {
         let raw = raw.as_ref();
         let url = Url::parse(raw).map_err(|error| Error::InvalidBaseUrl {
@@ -191,7 +191,7 @@ pub struct Client {
 }
 
 impl Client {
-    /// Builds the validated storage wrapper for a known-good value.
+    /// Constructs this typed Gingr boundary value after the caller has chosen the provider input to trust.
     pub fn new(base_url: BaseUrl, api_key: ApiKey) -> Self {
         Self {
             base_url,

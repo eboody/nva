@@ -1,3 +1,10 @@
+//! Boarding service-line contracts for capacity, stay policy, care handoffs, and upsells.
+//!
+//! This module documents the externally visible boarding rules that labor-saving agents may use
+//! when drafting staff packets, manager briefs, and customer-response recommendations. Source
+//! systems remain authoritative for inventory, payments, and pet care facts; these types preserve
+//! the review gates that prevent unsafe automated promises.
+
 use bon::Builder;
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -7,7 +14,7 @@ use crate::money;
 macro_rules! positive_scalar {
     ($name:ident, $primitive:ty, $error:ident, $message:literal) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-        /// Human-readable name used in boarding workflows.
+        /// Positive scalar used by boarding policy where zero would erase a real labor or stay requirement.
         pub struct $name($primitive);
 
         impl $name {
@@ -36,7 +43,7 @@ macro_rules! positive_scalar {
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-        /// Validation failures returned by boarding domain constructors.
+        /// Validation failure returned when a required positive boarding scalar is zero.
         pub enum $error {
             #[error($message)]
             /// Rejects zero where the pet-resort workflow requires a positive quantity.
@@ -65,7 +72,7 @@ positive_scalar!(
 );
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-/// Typed hour of day domain value that keeps raw primitives out of boarding workflows.
+/// Hour within a resort service day used for boarding arrival and departure windows.
 pub struct HourOfDay(u8);
 
 impl HourOfDay {
@@ -93,18 +100,20 @@ impl<'de> Deserialize<'de> for HourOfDay {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-/// Domain vocabulary for hour of day error decisions in boarding workflows.
+/// Validation errors for boarding service-window hours.
 pub enum HourOfDayError {
     #[error("boarding service-window hour must be between 0 and 23")]
-    /// Outside clock day boarding policy, stay, capacity, or upsell signal.
+    /// Hour was outside the 0–23 clock range and cannot define a service window.
     OutsideClockDay,
 }
 
 /// Accommodation boundary for boarding contracts.
 pub mod accommodation;
 
+/// Room and suite capacity policy for confirm, waitlist, and denial decisions.
 pub mod capacity;
 
+/// Deposit readiness policy for boarding confirmation gates.
 pub mod deposit;
 
 /// Care boundary for boarding contracts.
@@ -114,49 +123,49 @@ pub mod care;
 pub mod upsell;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for room availability decisions in boarding workflows.
+/// Coarse availability status used in boarding contracts and manager briefs.
 pub enum RoomAvailability {
-    /// Open boarding policy, stay, capacity, or upsell signal.
+    /// Rooms are generally available for this contract path.
     Open,
-    /// Limited boarding policy, stay, capacity, or upsell signal.
+    /// Inventory is constrained and staff should treat capacity as a labor/care watch item.
     Limited,
-    /// Waitlist only boarding policy, stay, capacity, or upsell signal.
+    /// New reservations should be routed to waitlist unless a manager approves otherwise.
     WaitlistOnly,
-    /// Closed boarding policy, stay, capacity, or upsell signal.
+    /// Reservations should not be accepted from this contract path.
     Closed,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Typed capacity plan domain value that keeps raw primitives out of boarding workflows.
+/// Capacity posture for a boarding contract, pairing inventory with availability status.
 pub struct CapacityPlan {
     room_inventory: RoomInventory,
-    /// Availability fact promoted into this boarding contract.
+    /// Staff-facing availability status derived from resort capacity evidence.
     pub availability: RoomAvailability,
 }
 
 impl CapacityPlan {
-    /// Assembles this boarding value from already-validated domain parts.
+    /// Creates the boarding value from validated domain parts without re-reading source systems.
     pub const fn new(room_inventory: RoomInventory, availability: RoomAvailability) -> Self {
         Self {
             room_inventory,
             availability,
         }
     }
-    /// Returns this boarding value's room inventory.
+    /// Returns the inventory count represented by this capacity plan.
     pub const fn room_inventory(&self) -> RoomInventory {
         self.room_inventory
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Typed service window domain value that keeps raw primitives out of boarding workflows.
+/// Check-in or check-out window that constrains front-desk staffing and guest promises.
 pub struct ServiceWindow {
     start: HourOfDay,
     end: HourOfDay,
 }
 
 impl ServiceWindow {
-    /// Assembles this boarding value from already-validated domain parts.
+    /// Creates the boarding value from validated domain parts without re-reading source systems.
     pub const fn new(
         start: HourOfDay,
         end: HourOfDay,
@@ -166,57 +175,57 @@ impl ServiceWindow {
         }
         Ok(Self { start, end })
     }
-    /// Returns this boarding value's start.
+    /// Returns the inclusive start hour staff may use for this service window.
     pub const fn start(&self) -> HourOfDay {
         self.start
     }
-    /// Returns this boarding value's end.
+    /// Returns the exclusive end hour after which this service window is closed.
     pub const fn end(&self) -> HourOfDay {
         self.end
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-/// Domain vocabulary for service window error decisions in boarding workflows.
+/// Validation errors for boarding arrival or departure windows.
 pub enum ServiceWindowError {
     #[error("boarding service window end must follow start")]
-    /// End must follow start boarding policy, stay, capacity, or upsell signal.
+    /// The end hour did not follow the start hour, so the window cannot be offered.
     EndMustFollowStart,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for deposit rule decisions in boarding workflows.
+/// Deposit rule used to determine whether a boarding reservation can be confirmed.
 pub enum DepositRule {
     /// No deposit or review is needed for this reservation path.
     NotRequired,
-    /// Amount fact promoted into this boarding contract.
+    /// Required deposit amount sourced from policy or booking evidence.
     Required {
-        /// Amount carried by this variant.
+        /// Money amount staff must collect or have waived before this deposit rule is satisfied.
         amount: money::Money,
     },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for payment timing decisions in boarding workflows.
+/// Payment timing that controls when staff must collect boarding charges or deposits.
 pub enum PaymentTiming {
-    /// Due at booking boarding policy, stay, capacity, or upsell signal.
+    /// Payment is required before the reservation is considered secured.
     DueAtBooking,
-    /// Due at check in boarding policy, stay, capacity, or upsell signal.
+    /// Payment is collected when the pet arrives for the stay.
     DueAtCheckIn,
-    /// Due at checkout boarding policy, stay, capacity, or upsell signal.
+    /// Payment can be collected during departure checkout.
     DueAtCheckout,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for upsell decisions in boarding workflows.
+/// Optional boarding-adjacent services that may appear in staff offer recommendations.
 pub enum Upsell {
     /// Bath offered before departure from boarding.
     ExitBath,
-    /// Training session boarding policy, stay, capacity, or upsell signal.
+    /// Training add-on that can be bundled with a boarding stay after staff review.
     TrainingSession,
-    /// Enrichment play boarding policy, stay, capacity, or upsell signal.
+    /// Additional play or enrichment add-on during the stay.
     EnrichmentPlay,
-    /// Premium bedding boarding policy, stay, capacity, or upsell signal.
+    /// Premium comfort add-on for the boarding room or suite.
     PremiumBedding,
 }
 
@@ -233,37 +242,37 @@ pub mod minimum_stay;
 pub mod cancellation;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Typed contract domain value that keeps raw primitives out of boarding workflows.
+/// Boarding service-line contract combining capacity, stay, payment, handoff, and upsell policy.
 pub struct Contract {
-    /// Capacity fact promoted into this boarding contract.
+    /// Capacity posture staff and automation must honor before confirming stays.
     pub capacity: CapacityPlan,
-    /// Arrival window fact promoted into this boarding contract.
+    /// Guest arrival window used for front-desk staffing and check-in promises.
     pub arrival_window: ServiceWindow,
-    /// Departure window fact promoted into this boarding contract.
+    /// Guest departure window used for checkout staffing and Pawgress/report timing.
     pub departure_window: ServiceWindow,
-    /// Minimum stay fact promoted into this boarding contract.
+    /// Minimum-stay rule for standard, holiday, or multi-pet boarding demand.
     pub minimum_stay: minimum_stay::Policy,
-    /// Cancellation fact promoted into this boarding contract.
+    /// Cancellation policy that governs notice, deposit forfeiture, and manager review.
     pub cancellation: cancellation::Policy,
-    /// Deposit fact promoted into this boarding contract.
+    /// Deposit requirement used before staff or automation treats the booking as secured.
     pub deposit: DepositRule,
-    /// Payment fact promoted into this boarding contract.
+    /// Payment timing that constrains collection workflow and front-desk labor.
     pub payment: PaymentTiming,
-    /// Housekeeping fact promoted into this boarding contract.
+    /// Room-cleaning cadence that feeds labor planning for the stay.
     pub housekeeping: housekeeping::Cadence,
-    /// Handoff fact promoted into this boarding contract.
+    /// Staff handoff checklist required at arrival, medication review, or departure.
     pub handoff: handoff::Requirement,
     #[builder(default)]
-    /// Upsells fact promoted into this boarding contract.
+    /// Optional services that can be offered only through the review-gated recommendation flow.
     pub upsells: Vec<Upsell>,
 }
 
 impl Contract {
-    /// Returns the requires deposit collection for this boarding value.
+    /// Reports whether this contract requires deposit collection before confirmation.
     pub fn requires_deposit_collection(&self) -> bool {
         matches!(self.deposit, DepositRule::Required { .. })
     }
-    /// Returns the standard petsuites for this boarding value.
+    /// Builds the baseline PetSuites-style boarding contract used by examples and tests.
     pub fn standard_petsuites() -> Self {
         Self::builder()
             .capacity(CapacityPlan::new(

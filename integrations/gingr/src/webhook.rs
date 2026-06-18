@@ -104,7 +104,7 @@ pub enum EventType {
 }
 
 impl EventType {
-    /// Normalizes a provider string into a typed value, preserving unknown provider values.
+    /// Parses provider-sourced text into this boundary type without promoting it to an NVA domain fact.
     pub fn parse(raw: impl AsRef<str>) -> Self {
         match raw.as_ref() {
             "check_in" => Self::CheckIn,
@@ -161,7 +161,7 @@ pub enum EntityType {
 }
 
 impl EntityType {
-    /// Normalizes a provider string into a typed value, preserving unknown provider values.
+    /// Parses provider-sourced text into this boundary type without promoting it to an NVA domain fact.
     pub fn parse(raw: impl AsRef<str>) -> Self {
         match raw.as_ref() {
             "reservation" => Self::Reservation,
@@ -406,7 +406,7 @@ pub enum VerificationError {
     #[error("Gingr webhook is missing required field {field}")]
     /// Webhook omitted a required provider field.
     MissingField {
-        /// Field attached to this Gingr error or DTO.
+        /// Provider field required before this mapping can create a source-backed candidate.
         field: &'static str,
     },
     #[error("unsupported Gingr webhook entity_id representation: {observed_type}")]
@@ -418,7 +418,7 @@ pub enum VerificationError {
     #[error("malformed Gingr webhook signature: {reason}")]
     /// Webhook signature could not be parsed before comparison.
     MalformedSignature {
-        /// Provider-facing reason explaining why request construction failed.
+        /// Boundary-level reason explaining why this provider request or parse step was rejected.
         reason: String,
     },
     #[error("Gingr webhook signature mismatch")]

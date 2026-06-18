@@ -1,3 +1,9 @@
+//! Training storage projection codes and validated program-duration quantities.
+//!
+//! Training records preserve program choices such as stay-and-study, tutor
+//! sessions, and AKC prep. Duration is validated before persistence so runtime
+//! workflows cannot report impossible zero-week programs as source evidence.
+
 use serde::{Deserialize, Deserializer, Serialize};
 
 use domain::training::program;

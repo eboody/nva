@@ -1,8 +1,15 @@
 //! Service-line-owned storage records and code tables.
 //!
-//! The `domain::<service-line>` modules own service-line concepts. These modules own the
+//! The `domain::<service-line>` modules own service-line concepts such as
+//! boarding suites, daycare eligibility, grooming rebooking cadence, training
+//! programs, and retail partner products. These modules own the
 //! persistence-facing shapes and explicit promotion/demotion at the storage
 //! boundary.
+//!
+//! Keep provider/source-system identifiers and durable codes here. Keep labor,
+//! safety, eligibility, and customer-facing decisions in domain/app workflows so
+//! runtime surfaces cannot treat a stored code as authority to override review
+//! gates or invent availability.
 //!
 //! ```rust
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {

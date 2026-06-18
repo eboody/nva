@@ -1,28 +1,33 @@
+//! Boarding cancellation policy contracts for notice windows and deposit/refund review.
+//!
+//! Cancellation penalties are represented as deterministic policy values so staff-facing agents can
+//! explain forfeits or manager-review needs without waiving fees or promising exceptions.
+
 use super::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Typed policy domain value that keeps raw primitives out of boarding workflows.
+/// Cancellation policy applied to a boarding reservation before staff waive or charge penalties.
 pub struct Policy {
-    /// Notice fact promoted into this boarding contract.
+    /// Minimum notice the guest must provide before cancellation avoids the configured penalty.
     pub notice: NoticeHours,
-    /// Penalty fact promoted into this boarding contract.
+    /// Operational consequence when the notice window is missed.
     pub penalty: Penalty,
 }
 
 impl Policy {
-    /// Assembles this boarding value from already-validated domain parts.
+    /// Creates a cancellation policy from validated notice and penalty values.
     pub const fn new(notice: NoticeHours, penalty: Penalty) -> Self {
         Self { notice, penalty }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for penalty decisions in boarding workflows.
+/// Penalties a resort may apply when a boarding cancellation misses the notice window.
 pub enum Penalty {
-    /// No additional workflow gate is required.
+    /// No fee, forfeiture, or manager review is required by this cancellation path.
     None,
-    /// Forfeit deposit boarding policy, stay, capacity, or upsell signal.
+    /// The booking deposit should be forfeited unless an approved exception overrides policy.
     ForfeitDeposit,
-    /// Manager review boarding policy, stay, capacity, or upsell signal.
+    /// A manager must review the cancellation before staff promise a fee outcome.
     ManagerReview,
 }

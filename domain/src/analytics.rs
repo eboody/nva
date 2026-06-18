@@ -1,29 +1,40 @@
+//! Source-derived analytics read models for resort operations.
+//!
+//! Analytics facts in this module sit after source ingestion and data-quality validation:
+//! raw Gingr/provider records are preserved as provenance, blocking hygiene findings stop
+//! projection, and nonblocking findings stay attached so manager briefs and labor-cost
+//! dashboards can explain their evidence instead of inventing operational truth.
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Typed projection version domain value that keeps raw primitives out of analytics workflows.
+/// Version tag for a deterministic analytics projection.
+///
+/// This is the read-model side of the source-fact → validated-domain → workflow chain:
+/// it records which projection logic turned provider reservations into labor, demand,
+/// and manager-brief evidence so downstream reports can compare like with like.
 pub struct ProjectionVersion(String);
 
 impl ProjectionVersion {
-    /// Validates and creates the analytics value.
+    /// Promotes a boundary projection-version string into a validated analytics value.
     pub fn try_new(value: impl Into<String>) -> Result<Self> {
         trimmed_non_empty(value, Error::EmptyProjectionVersion).map(Self)
     }
 
-    /// Returns the provider or domain identifier as a string slice.
+    /// Returns the projection-version identifier for storage/read-model boundaries.
     pub fn as_str(&self) -> &str {
         &self.0
     }
 }
 
-/// Stay boundary for analytics contracts.
+/// Projected stay-fact boundary for reservation records that passed validation.
 pub mod stay {
     use serde::{Deserialize, Serialize};
 
     use crate::{analytics, data_quality, source};
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-    /// Provider or source identifier retained as the stable join key.
+    /// Stable analytics id for a projected stay fact, distinct from provider record ids.
     pub struct Id(String);
 
     impl Id {
@@ -39,18 +50,18 @@ pub mod stay {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for data quality status decisions in analytics workflows.
+    /// Whether a stay projection is clean, reviewable, or blocked by source hygiene.
     pub enum DataQualityStatus {
-        /// Complete analytics metric or operational summary dimension.
+        /// Source facts validated cleanly and can feed labor/read-model workflows directly.
         Complete,
-        /// Manager review required analytics metric or operational summary dimension.
+        /// Projection is usable, but nonblocking hygiene issues should be visible to managers.
         ManagerReviewRequired,
-        /// Blocking issues analytics metric or operational summary dimension.
+        /// Source facts are not safe enough to power workflow or labor-cost decisions.
         BlockingIssues,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Typed fact domain value that keeps raw primitives out of analytics workflows.
+    /// Source-derived stay fact used by analytics, manager briefs, and labor planning.
     pub struct Fact {
         id: Id,
         provenance: source::Provenance,
@@ -65,7 +76,10 @@ pub mod stay {
     }
 
     impl Fact {
-        /// Returns the project from source reservation for this analytics value.
+        /// Projects a validated stay fact from a source reservation snapshot.
+        ///
+        /// Blocking data-quality issues return the full issue set instead of producing a
+        /// fact; nonblocking issues stay attached as evidence for reviewable read models.
         pub fn project_from_source_reservation(
             id: Id,
             source_reservation: &source::reservation::Snapshot,
@@ -172,7 +186,7 @@ pub mod stay {
     }
 }
 
-/// Service demand boundary for analytics contracts.
+/// Aggregated service-demand facts used to compare booked work against labor capacity.
 pub mod service_demand {
     use serde::{Deserialize, Serialize};
 
@@ -196,7 +210,7 @@ pub mod service_demand {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-    /// Typed demand units domain value that keeps raw primitives out of analytics workflows.
+    /// Nonzero count of work units for a service line on an operating day.
     pub struct DemandUnits(u32);
 
     impl DemandUnits {
@@ -215,7 +229,7 @@ pub mod service_demand {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Typed fact domain value that keeps raw primitives out of analytics workflows.
+    /// Source-backed service-demand fact for labor planning and exception reporting.
     pub struct Fact {
         id: Id,
         operating_day: operations::operating_day::Key,
@@ -305,7 +319,7 @@ pub mod service_demand {
     /// Validation failures returned by analytics domain constructors.
     pub enum Error {
         #[error("service demand facts require source evidence")]
-        /// Missing source evidence analytics metric or operational summary dimension.
+        /// A demand metric was attempted without source records to prove the underlying work.
         MissingSourceEvidence,
     }
 

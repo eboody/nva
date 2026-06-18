@@ -1,3 +1,10 @@
+//! Temperament and behavior-observation contracts for daycare and care safety.
+//!
+//! These values promote staff/source notes into validated, redacted domain signals before
+//! they influence group-play eligibility, daily-brief watchlists, staffing plans, or
+//! customer communication. Review evidence remains explicit so automation supports staff
+//! judgment instead of overriding safety policy.
+
 use nutype::nutype;
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -7,6 +14,7 @@ use std::fmt;
     validate(not_empty, len_char_max = 1000),
     derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)
 )]
+/// Redacted staff note containing temperament evidence for review workflows.
 pub struct StaffNote(String);
 
 #[nutype(
@@ -14,6 +22,7 @@ pub struct StaffNote(String);
     validate(not_empty, len_char_max = 80),
     derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)
 )]
+/// Provider-specific behavior label retained when no first-class variant exists.
 pub struct BehaviorObservationLabel(String);
 
 impl fmt::Debug for StaffNote {
@@ -43,7 +52,7 @@ pub enum GroupPlayObservation {
 }
 
 impl GroupPlayObservation {
-    /// Returns the needs staff evaluation for this temperament value.
+    /// Returns whether group-play status requires staff evaluation before assignment.
     pub fn needs_staff_evaluation(self) -> bool {
         matches!(self, Self::NeedsIntroAssessment)
     }
@@ -101,7 +110,7 @@ pub enum BehaviorObservation {
 }
 
 impl BehaviorObservation {
-    /// Returns the indicates behavior review evidence for this temperament value.
+    /// Returns whether the observation should create behavior-review evidence.
     pub fn indicates_behavior_review_evidence(&self) -> bool {
         matches!(
             self,

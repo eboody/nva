@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 pub struct CareSummary(String);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Classifies belongings status values that drive the checkout completion workflow.
+/// Decision taxonomy for belongings status in the checkout completion workflow; each value carries operational meaning for source-grounded routing and review.
 pub enum BelongingsStatus {
     /// Labels work as returned to customer for queueing, review, and downstream agent context.
     ReturnedToCustomer,
@@ -30,16 +30,16 @@ pub enum BelongingsStatus {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Classifies departure notes review values that drive the checkout completion workflow.
+/// Decision taxonomy for departure notes review in the checkout completion workflow; each value carries operational meaning for source-grounded routing and review.
 pub enum DepartureNotesReview {
-    /// Routes checkout completion work flagged as staff reviewed to the right queue, review gate, or agent packet.
+    /// Represents staff reviewed in the checkout completion decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     StaffReviewed,
-    /// Routes checkout completion work flagged as manager review required to the right queue, review gate, or agent packet.
+    /// Represents manager review required in the checkout completion decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     ManagerReviewRequired,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Classifies completion status values that drive the checkout completion workflow.
+/// Decision taxonomy for completion status in the checkout completion workflow; each value carries operational meaning for source-grounded routing and review.
 pub enum CompletionStatus {
     /// Labels work as staff verified checkout for queueing, review, and downstream agent context.
     StaffVerifiedCheckout,
@@ -74,18 +74,18 @@ pub enum BlockedAction {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Classifies audit event draft values that drive the checkout completion workflow.
+/// Decision taxonomy for audit event draft in the checkout completion workflow; each value carries operational meaning for source-grounded routing and review.
 pub enum AuditEventDraft {
-    /// Routes checkout completion work flagged as source checkout observed to the right queue, review gate, or agent packet.
+    /// Represents source checkout observed in the checkout completion decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     SourceCheckoutObserved,
     /// Records the staff-submitted handoff payload as received, even when the source status prevents
     /// treating it as checkout-completion evidence.
     StaffHandoffRecorded,
-    /// Routes checkout completion work flagged as staff handoff review requested to the right queue, review gate, or agent packet.
+    /// Represents staff handoff review requested in the checkout completion decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     StaffHandoffReviewRequested,
-    /// Routes checkout completion work flagged as checkout completion suggested to the right queue, review gate, or agent packet.
+    /// Represents checkout completion suggested in the checkout completion decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     CheckoutCompletionSuggested,
-    /// Routes checkout completion work flagged as customer message approval requested to the right queue, review gate, or agent packet.
+    /// Represents customer message approval requested in the checkout completion decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     CustomerMessageApprovalRequested,
 }
 
@@ -100,27 +100,27 @@ pub struct StaffHandoff {
 }
 
 impl StaffHandoff {
-    /// Returns the completed by carried by this checkout completion workflow value.
+    /// Returns the completed by source evidence carried by this checkout completion workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn completed_by(&self) -> &entities::ActorRef {
         &self.completed_by
     }
 
-    /// Returns the completed at carried by this checkout completion workflow value.
+    /// Returns the completed at source evidence carried by this checkout completion workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn completed_at(&self) -> DateTime<Utc> {
         self.completed_at
     }
 
-    /// Returns the belongings status carried by this checkout completion workflow value.
+    /// Returns the belongings status source evidence carried by this checkout completion workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn belongings_status(&self) -> BelongingsStatus {
         self.belongings_status
     }
 
-    /// Returns the care summary carried by this checkout completion workflow value.
+    /// Returns the care summary source evidence carried by this checkout completion workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn care_summary(&self) -> &CareSummary {
         &self.care_summary
     }
 
-    /// Returns the departure notes review carried by this checkout completion workflow value.
+    /// Returns the departure notes review source evidence carried by this checkout completion workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn departure_notes_review(&self) -> DepartureNotesReview {
         self.departure_notes_review
     }
@@ -144,22 +144,22 @@ pub struct Request {
 }
 
 impl Request {
-    /// Returns the reservation id carried by this checkout completion workflow value.
+    /// Returns the reservation id source evidence carried by this checkout completion workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn reservation_id(&self) -> entities::reservation::Id {
         self.reservation_id
     }
 
-    /// Returns the source provenance carried by this checkout completion workflow value.
+    /// Returns the source provenance source evidence carried by this checkout completion workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn source_provenance(&self) -> &source::Provenance {
         &self.source_provenance
     }
 
-    /// Returns the observed source status carried by this checkout completion workflow value.
+    /// Returns the observed source status source evidence carried by this checkout completion workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn observed_source_status(&self) -> source::reservation::Status {
         self.observed_source_status.clone()
     }
 
-    /// Returns the staff handoff carried by this checkout completion workflow value.
+    /// Returns the staff handoff source evidence carried by this checkout completion workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn staff_handoff(&self) -> &StaffHandoff {
         &self.staff_handoff
     }
@@ -180,47 +180,47 @@ pub struct Packet {
 }
 
 impl Packet {
-    /// Returns the reservation id carried by this checkout completion workflow value.
+    /// Returns the reservation id source evidence carried by this checkout completion workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn reservation_id(&self) -> entities::reservation::Id {
         self.reservation_id
     }
 
-    /// Returns the provenance carried by this checkout completion workflow value.
+    /// Returns the provenance source evidence carried by this checkout completion workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn provenance(&self) -> &source::Provenance {
         &self.provenance
     }
 
-    /// Returns the staff handoff carried by this checkout completion workflow value.
+    /// Returns the staff handoff source evidence carried by this checkout completion workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn staff_handoff(&self) -> &StaffHandoff {
         &self.staff_handoff
     }
 
-    /// Returns the completion status carried by this checkout completion workflow value.
+    /// Returns the completion status source evidence carried by this checkout completion workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn completion_status(&self) -> CompletionStatus {
         self.completion_status
     }
 
-    /// Returns the suggested reservation status carried by this checkout completion workflow value.
+    /// Returns the suggested reservation status source evidence carried by this checkout completion workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn suggested_reservation_status(&self) -> Option<entities::reservation::Status> {
         self.suggested_reservation_status.clone()
     }
 
-    /// Returns the required review gates carried by this checkout completion workflow value.
+    /// Returns the required review gates source evidence carried by this checkout completion workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn required_review_gates(&self) -> &[policy::ReviewGate] {
         &self.required_review_gates
     }
 
-    /// Returns the safe agent actions carried by this checkout completion workflow value.
+    /// Returns the safe agent actions source evidence carried by this checkout completion workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn safe_agent_actions(&self) -> &[SafeAgentAction] {
         &self.safe_agent_actions
     }
 
-    /// Returns the blocked actions carried by this checkout completion workflow value.
+    /// Returns the blocked actions source evidence carried by this checkout completion workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn blocked_actions(&self) -> &[BlockedAction] {
         &self.blocked_actions
     }
 
-    /// Returns the audit event drafts carried by this checkout completion workflow value.
+    /// Returns the audit event drafts source evidence carried by this checkout completion workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn audit_event_drafts(&self) -> &[AuditEventDraft] {
         &self.audit_event_drafts
     }
@@ -231,7 +231,7 @@ impl Packet {
 pub struct Workflow;
 
 impl Workflow {
-    /// Builds or derives evaluate data for the checkout completion workflow contract.
+    /// Builds evaluate for the checkout completion workflow contract from validated source facts while preserving review gates and draft-only side-effect boundaries.
     pub fn evaluate(request: Request) -> Packet {
         let completion_status = completion_status_for(&request);
         let suggested_reservation_status = match completion_status {

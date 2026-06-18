@@ -1,7 +1,9 @@
 //! Canonical domain contracts for staff tasking and assignment.
 //!
-//! Staff work is shared across service lines, so `operations` re-exports these
-//! types only as a deprecated compatibility shim.
+//! Staff work is shared across service lines. These contracts turn validated daily-brief,
+//! reservation, pet, and workflow signals into assignable labor, making the cost levers
+//! explicit: what work exists, who/what role owns it, priority, due time, and completion
+//! evidence.
 
 use bon::Builder;
 use chrono::{DateTime, Utc};
@@ -32,11 +34,12 @@ pub mod completion_evidence {
             Deserialize
         )
     )]
+    /// Evidence that a staff task was completed, retained for audit and BI reconciliation.
     pub struct Evidence(String);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Typed task domain value that keeps raw primitives out of staff workflows.
+/// Assignable unit of resort labor generated from validated operational signals.
 pub struct Task {
     /// Location id fact promoted into this staff contract.
     pub location_id: LocationId,
@@ -59,7 +62,7 @@ pub struct Task {
 }
 
 impl Task {
-    /// Returns the requires manager attention for this staff value.
+    /// Returns whether priority, status, or safety-sensitive kind should surface to managers.
     pub fn requires_manager_attention(&self) -> bool {
         matches!(
             self.status,
@@ -75,7 +78,7 @@ impl Task {
         )
     }
 
-    /// Returns the complete with for this staff value.
+    /// Marks the task completed with auditable evidence for workflow/read-model closeout.
     pub fn complete_with(mut self, evidence: completion_evidence::Evidence) -> Self {
         self.status = task::Status::Completed;
         self.completion_evidence = Some(evidence);
@@ -88,7 +91,7 @@ pub mod task {
     use super::*;
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for kind decisions in staff workflows.
+    /// Type of labor a staff task represents across check-in, care, cleanup, and follow-up.
     pub enum Kind {
         /// Check in prep staff role, schedule, or labor-planning signal.
         CheckInPrep {
@@ -145,7 +148,7 @@ pub mod task {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Normalized reservation states observed during source-data ingestion.
+    /// Current workflow state for an assignable staff task.
     pub enum Status {
         /// Open staff role, schedule, or labor-planning signal.
         Open,
@@ -162,7 +165,7 @@ pub mod task {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-    /// Domain vocabulary for priority decisions in staff workflows.
+    /// Priority level used to sequence staff labor and manager attention.
     pub enum Priority {
         /// Estimate is uncertain and may require staff confirmation.
         Low,
@@ -204,7 +207,7 @@ pub mod task {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Kinds of related records that may be attached to source-data lineage.
+/// Resort labor role that can own or be assigned a staff task.
 pub enum Role {
     /// Front desk staff role, schedule, or labor-planning signal.
     FrontDesk,

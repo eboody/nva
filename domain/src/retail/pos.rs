@@ -1,3 +1,5 @@
+//! POS contracts for attaching retail sales to staff transactions or reservation checkout while preserving approval gates.
+
 use bon::Builder;
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -6,7 +8,7 @@ use crate::{entities, policy};
 use super::product::LocationOffering;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-/// Typed quantity domain value that keeps raw primitives out of retail workflows.
+/// Positive sale quantity used to ensure retail checkout never drafts zero-unit line items.
 pub struct Quantity(u32);
 
 impl Quantity {
@@ -34,7 +36,7 @@ impl<'de> Deserialize<'de> for Quantity {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-/// Domain vocabulary for quantity error decisions in retail workflows.
+/// Decision vocabulary for quantity error in retail workflows.
 pub enum QuantityError {
     #[error("retail sale quantity requires at least one unit")]
     /// Rejects zero where the pet-resort workflow requires a positive quantity.
@@ -42,18 +44,18 @@ pub enum QuantityError {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Groomer-assignment policies used when booking grooming work.
+/// POS policy deciding which retail sources are allowed and which price actions need manager review.
 pub enum Policy {
-    /// Standalone sale retail inventory, POS, reorder, or recommendation signal.
+    /// Standalone sale retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     StandaloneSale,
-    /// Integrated with reservation checkout retail inventory, POS, reorder, or recommendation signal.
+    /// Integrated with reservation checkout retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     IntegratedWithReservationCheckout,
-    /// Manager only comp retail inventory, POS, reorder, or recommendation signal.
+    /// Manager only comp retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     ManagerOnlyComp,
 }
 
 impl Policy {
-    /// Returns the evaluate for this retail value.
+    /// Evaluates sale eligibility from offering status, inventory, source, and price-exception policy.
     pub fn evaluate(&self, request: &Request) -> Decision {
         if !request.offering.can_be_sold_to_customer() {
             return Decision::Denied {
@@ -89,90 +91,90 @@ impl Policy {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Typed request domain value that keeps raw primitives out of retail workflows.
+/// Retail sale request combining offering, quantity, source, and price-adjustment context.
 pub struct Request {
-    /// Offering fact promoted into this retail contract.
+    /// Source-derived offering carried by this retail contract.
     pub offering: LocationOffering,
-    /// Quantity fact promoted into this retail contract.
+    /// Source-derived quantity carried by this retail contract.
     pub quantity: Quantity,
-    /// Source fact promoted into this retail contract.
+    /// Source-derived source carried by this retail contract.
     pub source: Source,
-    /// Price adjustment fact promoted into this retail contract.
+    /// Source-derived price adjustment carried by this retail contract.
     pub price_adjustment: PriceAdjustment,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for source decisions in retail workflows.
+/// Source of the retail sale attempt, used to prevent unsupported POS or reservation mutations.
 pub enum Source {
-    /// Standalone staff sale retail inventory, POS, reorder, or recommendation signal.
+    /// Standalone staff sale retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     StandaloneStaffSale {
-        /// Staff id fact promoted into this retail contract.
+        /// Source-derived staff id carried by this retail contract.
         staff_id: entities::StaffId,
     },
-    /// Reservation checkout retail inventory, POS, reorder, or recommendation signal.
+    /// Reservation checkout retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     ReservationCheckout {
-        /// Reservation id fact promoted into this retail contract.
+        /// Source-derived reservation id carried by this retail contract.
         reservation_id: entities::reservation::Id,
     },
-    /// External pos reconciliation retail inventory, POS, reorder, or recommendation signal.
+    /// External pos reconciliation retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     ExternalPosReconciliation,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for price adjustment decisions in retail workflows.
+/// Price adjustment or comp that triggers manager review before checkout mutation.
 pub enum PriceAdjustment {
     /// No additional workflow gate is required.
     None,
     /// Business reason staff should review before proceeding.
     PolicyDiscount {
-        /// Reason carried by this variant.
+        /// Reason value carried by this review or workflow variant.
         reason: PriceExceptionReason,
     },
     /// Business reason staff should review before proceeding.
     ManagerComp {
-        /// Reason carried by this variant.
+        /// Reason value carried by this review or workflow variant.
         reason: PriceExceptionReason,
     },
     /// Business reason staff should review before proceeding.
     RefundOrReversal {
-        /// Reason carried by this variant.
+        /// Reason value carried by this review or workflow variant.
         reason: PriceExceptionReason,
     },
 }
 
 impl PriceAdjustment {
-    /// Returns this retail value's requires manager approval.
+    /// Returns the requires manager approval evidence recorded on this retail contract.
     pub const fn requires_manager_approval(self) -> bool {
         !matches!(self, Self::None)
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for price exception reason decisions in retail workflows.
+/// Decision vocabulary for price exception reason in retail workflows.
 pub enum PriceExceptionReason {
-    /// Complaint recovery retail inventory, POS, reorder, or recommendation signal.
+    /// Complaint recovery retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     ComplaintRecovery,
-    /// Staff courtesy retail inventory, POS, reorder, or recommendation signal.
+    /// Staff courtesy retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     StaffCourtesy,
-    /// Refund correction retail inventory, POS, reorder, or recommendation signal.
+    /// Refund correction retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     RefundCorrection,
-    /// Manager override retail inventory, POS, reorder, or recommendation signal.
+    /// Manager override retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     ManagerOverride,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for decision decisions in retail workflows.
+/// POS decision describing whether a sale draft is allowed, needs review, or is denied.
 pub enum Decision {
-    /// Draft allowed retail inventory, POS, reorder, or recommendation signal.
+    /// Draft allowed retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     DraftAllowed,
-    /// Review required retail inventory, POS, reorder, or recommendation signal.
+    /// Review required retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     ReviewRequired {
         /// Business reason staff should review before proceeding.
         reason: ReviewReason,
-        /// Gate fact promoted into this retail contract.
+        /// Source-derived gate carried by this retail contract.
         gate: policy::ReviewGate,
     },
-    /// Denied retail inventory, POS, reorder, or recommendation signal.
+    /// Denied retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     Denied {
         /// Business reason staff should review before proceeding.
         reason: DenialReason,
@@ -180,21 +182,21 @@ pub enum Decision {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for review reason decisions in retail workflows.
+/// Reason a POS draft must be reviewed before checkout action.
 pub enum ReviewReason {
-    /// Price exception retail inventory, POS, reorder, or recommendation signal.
+    /// Price exception retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     PriceException,
-    /// Reservation checkout attachment retail inventory, POS, reorder, or recommendation signal.
+    /// Reservation checkout attachment retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     ReservationCheckoutAttachment,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for denial reason decisions in retail workflows.
+/// Reason a retail sale is denied before reaching checkout.
 pub enum DenialReason {
-    /// Offering not sellable retail inventory, POS, reorder, or recommendation signal.
+    /// Offering not sellable retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     OfferingNotSellable,
-    /// Inventory unavailable retail inventory, POS, reorder, or recommendation signal.
+    /// Inventory unavailable retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     InventoryUnavailable,
-    /// Source not allowed retail inventory, POS, reorder, or recommendation signal.
+    /// Source not allowed retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     SourceNotAllowed,
 }

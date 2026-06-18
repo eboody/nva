@@ -11,7 +11,7 @@ fn push_optional<T: core::fmt::Display>(
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-/// Typed Gingr request/response value for report card files.
+/// Request descriptor for Gingr report-card file metadata used as source material for Pawgress-style customer updates.
 pub struct ReportCardFiles {
     number_days: Option<u64>,
     limit: Option<u64>,
@@ -19,14 +19,14 @@ pub struct ReportCardFiles {
 }
 
 impl ReportCardFiles {
-    /// Starts a typed builder for this Gingr endpoint request.
+    /// Starts a builder that makes each provider parameter explicit before request capture.
     pub fn builder() -> ReportCardFilesBuilder {
         ReportCardFilesBuilder::default()
     }
 }
 
 #[derive(Clone, Debug, Default)]
-/// Typed Gingr request/response value for report card files builder.
+/// Builder for report-card file lookup filters by owner, animal, reservation, and location.
 pub struct ReportCardFilesBuilder {
     number_days: Option<u64>,
     limit: Option<u64>,
@@ -40,7 +40,7 @@ impl ReportCardFilesBuilder {
         self
     }
 
-    /// Sets the maximum number of records requested from Gingr.
+    /// Sets the provider result limit so automation does not imply unbounded source coverage.
     pub fn limit(mut self, limit: u64) -> Self {
         self.limit = Some(limit);
         self
@@ -52,7 +52,7 @@ impl ReportCardFilesBuilder {
         self
     }
 
-    /// Builds the typed Gingr request after all parameters have been validated.
+    /// Finalizes the provider request descriptor after required fields are present and wrappers have validated local invariants.
     pub fn build(self) -> ReportCardFiles {
         ReportCardFiles {
             number_days: self.number_days,

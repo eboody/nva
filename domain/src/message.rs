@@ -1,53 +1,59 @@
+//! Customer and staff message delivery state.
+//!
+//! Message values distinguish drafts, approvals, queued sends, delivery evidence, and suppression
+//! reasons so automation can assist high-volume pet-parent communication without sending outside the
+//! configured channel, consent, and manager-review boundaries.
+
 use nutype::nutype;
 #[allow(unused_imports)]
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for direction decisions in message workflows.
+/// Direction of a message relative to the resort operation: inbound, outbound draft, queued, or sent.
 pub enum Direction {
-    /// Inbound received customer-message channel, approval, or delivery state.
+    /// Inbound received message direction, channel, approval state, or delivery state.
     InboundReceived,
-    /// Outbound draft customer-message channel, approval, or delivery state.
+    /// Outbound draft message direction, channel, approval state, or delivery state.
     OutboundDraft,
-    /// Outbound queued customer-message channel, approval, or delivery state.
+    /// Outbound queued message direction, channel, approval state, or delivery state.
     OutboundQueued,
-    /// Outbound sent customer-message channel, approval, or delivery state.
+    /// Outbound sent message direction, channel, approval state, or delivery state.
     OutboundSent,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for channel decisions in message workflows.
+/// Message channel used for customer, staff, portal, phone-note, or internal communication.
 pub enum Channel {
-    /// Email customer-message channel, approval, or delivery state.
+    /// Email message direction, channel, approval state, or delivery state.
     Email,
-    /// Sms customer-message channel, approval, or delivery state.
+    /// Sms message direction, channel, approval state, or delivery state.
     Sms,
-    /// Phone note customer-message channel, approval, or delivery state.
+    /// Phone note message direction, channel, approval state, or delivery state.
     PhoneNote,
-    /// Portal customer-message channel, approval, or delivery state.
+    /// Portal message direction, channel, approval state, or delivery state.
     Portal,
-    /// Internal customer-message channel, approval, or delivery state.
+    /// Internal message direction, channel, approval state, or delivery state.
     Internal,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Normalized reservation states observed during source-data ingestion.
+/// Normalized lifecycle states used to reconcile source-system data with domain workflows.
 pub enum Status {
-    /// Draft created customer-message channel, approval, or delivery state.
+    /// Draft created message direction, channel, approval state, or delivery state.
     DraftCreated,
-    /// Approval requested customer-message channel, approval, or delivery state.
+    /// Approval requested message direction, channel, approval state, or delivery state.
     ApprovalRequested,
-    /// Approved to queue customer-message channel, approval, or delivery state.
+    /// Approved to queue message direction, channel, approval state, or delivery state.
     ApprovedToQueue,
-    /// Queued customer-message channel, approval, or delivery state.
+    /// Queued message direction, channel, approval state, or delivery state.
     Queued,
-    /// Send attempted customer-message channel, approval, or delivery state.
+    /// Send attempted message direction, channel, approval state, or delivery state.
     SendAttempted,
-    /// Delivered customer-message channel, approval, or delivery state.
+    /// Delivered message direction, channel, approval state, or delivery state.
     Delivered,
     /// Deposit collection was attempted but did not succeed.
     Failed,
-    /// Suppressed customer-message channel, approval, or delivery state.
+    /// Suppressed message direction, channel, approval state, or delivery state.
     Suppressed,
     /// Reservation is no longer active.
     Cancelled,

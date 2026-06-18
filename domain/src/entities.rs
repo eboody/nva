@@ -1,3 +1,10 @@
+//! Core pet-resort entities and operational records.
+//!
+//! These structs and enums are the normalized domain facts used by workflow, policy, storage, and
+//! source adapters. They should be read as external contracts: every field is either a source-backed
+//! fact, a reviewable derived state, or a safety/labor signal used to reduce manual resort work
+//! without bypassing manager, medical, behavior, payment, or customer-message gates.
+
 use chrono::{DateTime, NaiveDate, Utc};
 use nutype::nutype;
 #[allow(unused_imports)]
@@ -12,18 +19,18 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Typed location id domain value that keeps raw primitives out of entities workflows.
+/// Stable identifier for a resort location across source imports, policies, reports, and workflows.
 pub struct LocationId(pub Uuid);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Typed customer id domain value that keeps raw primitives out of entities workflows.
+/// Stable identifier for the customer/account responsible for pets, reservations, messages, and payments.
 pub struct CustomerId(pub Uuid);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Typed pet id domain value that keeps raw primitives out of entities workflows.
+/// Stable identifier for a pet whose care, temperament, vaccine, and reservation facts drive safety decisions.
 pub struct PetId(pub Uuid);
 
-/// Reservation boundary for entities contracts.
+/// Reservation-facing source vocabulary embedded in core entity records.
 pub mod reservation {
     use serde::{Deserialize, Serialize};
     use uuid::Uuid;
@@ -35,50 +42,50 @@ pub mod reservation {
     pub struct Id(pub Uuid);
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Normalized reservation states observed during source-data ingestion.
+    /// Normalized lifecycle states used to reconcile source-system data with domain workflows.
     pub enum Status {
-        /// Inquiry category on a core customer, pet, reservation, or audit record.
+        /// Inquiry state or source category preserved for normalized resort records.
         Inquiry,
         /// Reservation has been requested but not yet confirmed.
         Requested,
-        /// Missing info category on a core customer, pet, reservation, or audit record.
+        /// Missing info state or source category preserved for normalized resort records.
         MissingInfo,
-        /// Vaccine pending category on a core customer, pet, reservation, or audit record.
+        /// Vaccine pending state or source category preserved for normalized resort records.
         VaccinePending,
-        /// Special review category on a core customer, pet, reservation, or audit record.
+        /// Special review state or source category preserved for normalized resort records.
         SpecialReview,
-        /// Waitlisted category on a core customer, pet, reservation, or audit record.
+        /// Waitlisted state or source category preserved for normalized resort records.
         Waitlisted,
-        /// Offered category on a core customer, pet, reservation, or audit record.
+        /// Offered state or source category preserved for normalized resort records.
         Offered,
         /// Reservation has been accepted by the resort.
         Confirmed,
         /// Pet has arrived and is in care.
         CheckedIn,
-        /// Active category on a core customer, pet, reservation, or audit record.
+        /// Active state or source category preserved for normalized resort records.
         Active,
         /// Pet has left care and the stay is complete.
         CheckedOut,
         /// Reservation is no longer active.
         Cancelled,
-        /// Rejected category on a core customer, pet, reservation, or audit record.
+        /// Rejected state or source category preserved for normalized resort records.
         Rejected,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for source decisions in entities workflows.
+    /// Origin channel for a reservation or operational fact before it becomes trusted domain evidence.
     pub enum Source {
-        /// Portal category on a core customer, pet, reservation, or audit record.
+        /// Portal state or source category preserved for normalized resort records.
         Portal(PortalProvider),
-        /// Website form category on a core customer, pet, reservation, or audit record.
+        /// Website form state or source category preserved for normalized resort records.
         WebsiteForm,
-        /// Phone transcript category on a core customer, pet, reservation, or audit record.
+        /// Phone transcript state or source category preserved for normalized resort records.
         PhoneTranscript,
-        /// Sms category on a core customer, pet, reservation, or audit record.
+        /// Sms state or source category preserved for normalized resort records.
         Sms,
-        /// Email category on a core customer, pet, reservation, or audit record.
+        /// Email state or source category preserved for normalized resort records.
         Email,
-        /// Staff created category on a core customer, pet, reservation, or audit record.
+        /// Staff created state or source category preserved for normalized resort records.
         StaffCreated,
     }
 }
@@ -100,6 +107,7 @@ pub mod reservation {
 )]
 pub struct StaffId(String);
 
+/// Manager identifier used when approvals, overrides, or escalations require accountable leadership.
 #[nutype(
     sanitize(trim),
     validate(not_empty, len_char_max = 120),
@@ -118,28 +126,28 @@ pub struct StaffId(String);
 pub struct ManagerId(String);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Typed location domain value that keeps raw primitives out of entities workflows.
+/// Resort location record that scopes local capabilities, timezone, brand, and policy references.
 pub struct Location {
-    /// Id fact promoted into this entities contract.
+    /// Source-backed id carried by this normalized pet-resort entity.
     pub id: LocationId,
-    /// Brand fact promoted into this entities contract.
+    /// Source-backed brand carried by this normalized pet-resort entity.
     pub brand: Brand,
     /// Contact or display name used by staff.
     pub name: location::Name,
-    /// Timezone fact promoted into this entities contract.
+    /// Source-backed timezone carried by this normalized pet-resort entity.
     pub timezone: location::Timezone,
-    /// Capabilities fact promoted into this entities contract.
+    /// Source-backed capabilities carried by this normalized pet-resort entity.
     pub capabilities: Vec<ServiceKind>,
-    /// Policies fact promoted into this entities contract.
+    /// Source-backed policies carried by this normalized pet-resort entity.
     pub policies: LocationPolicyRefs,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for brand decisions in entities workflows.
+/// Brand family used to group multi-site operating records without losing local resort identity.
 pub enum Brand {
-    /// Nva pet resorts category on a core customer, pet, reservation, or audit record.
+    /// Nva pet resorts state or source category preserved for normalized resort records.
     NvaPetResorts,
-    /// Pet suites category on a core customer, pet, reservation, or audit record.
+    /// Pet suites state or source category preserved for normalized resort records.
     PetSuites,
     /// Contact or display name used by staff.
     NeighborhoodPetResort {
@@ -149,44 +157,44 @@ pub enum Brand {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Typed location policy refs domain value that keeps raw primitives out of entities workflows.
+/// References to the local policy set that controls automation, vaccine, and play-safety decisions.
 pub struct LocationPolicyRefs {
-    /// Vaccine policy id fact promoted into this entities contract.
+    /// Source-backed vaccine policy ID carried by this normalized pet-resort entity.
     pub vaccine_policy_id: policy::Id,
-    /// Deposit policy id fact promoted into this entities contract.
+    /// Source-backed deposit policy ID carried by this normalized pet-resort entity.
     pub deposit_policy_id: policy::Id,
-    /// Playgroup policy id fact promoted into this entities contract.
+    /// Source-backed playgroup policy ID carried by this normalized pet-resort entity.
     pub playgroup_policy_id: policy::Id,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Typed customer domain value that keeps raw primitives out of entities workflows.
+/// Customer/account profile used for reservation ownership, consent-sensitive messaging, and follow-up work.
 pub struct Customer {
-    /// Id fact promoted into this entities contract.
+    /// Source-backed id carried by this normalized pet-resort entity.
     pub id: CustomerId,
-    /// Full name fact promoted into this entities contract.
+    /// Source-backed full name carried by this normalized pet-resort entity.
     pub full_name: customer::Name,
-    /// Email fact promoted into this entities contract.
+    /// Source-backed email carried by this normalized pet-resort entity.
     pub email: Option<customer::Email>,
-    /// Mobile phone fact promoted into this entities contract.
+    /// Source-backed mobile phone carried by this normalized pet-resort entity.
     pub mobile_phone: Option<customer::Phone>,
-    /// Preferred contact fact promoted into this entities contract.
+    /// Source-backed preferred contact carried by this normalized pet-resort entity.
     pub preferred_contact: ContactChannel,
-    /// Portal account fact promoted into this entities contract.
+    /// Source-backed portal account carried by this normalized pet-resort entity.
     pub portal_account: Option<PortalAccountRef>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Typed portal account ref domain value that keeps raw primitives out of entities workflows.
+/// Link to the customer portal account that supplied or owns source records.
 pub struct PortalAccountRef {
-    /// Provider fact promoted into this entities contract.
+    /// Source-backed provider carried by this normalized pet-resort entity.
     pub provider: PortalProvider,
-    /// External customer id fact promoted into this entities contract.
+    /// Source-backed external customer ID carried by this normalized pet-resort entity.
     pub external_customer_id: portal::CustomerId,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for portal provider decisions in entities workflows.
+/// Portal provider that owns the account or operational record.
 pub enum PortalProvider {
     /// Gingr reservation and pet-care operating system.
     Gingr,
@@ -195,45 +203,45 @@ pub enum PortalProvider {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for contact channel decisions in entities workflows.
+/// Customer contact channel preference or observed route used by draft/message workflows.
 pub enum ContactChannel {
-    /// Email category on a core customer, pet, reservation, or audit record.
+    /// Email state or source category preserved for normalized resort records.
     Email,
-    /// Sms category on a core customer, pet, reservation, or audit record.
+    /// Sms state or source category preserved for normalized resort records.
     Sms,
-    /// Phone category on a core customer, pet, reservation, or audit record.
+    /// Phone state or source category preserved for normalized resort records.
     Phone,
-    /// Portal category on a core customer, pet, reservation, or audit record.
+    /// Portal state or source category preserved for normalized resort records.
     Portal,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Typed pet domain value that keeps raw primitives out of entities workflows.
+/// Pet profile carrying identity, species, age, sex, sterilization, temperament, and care facts for safe service decisions.
 pub struct Pet {
-    /// Id fact promoted into this entities contract.
+    /// Source-backed id carried by this normalized pet-resort entity.
     pub id: PetId,
-    /// Customer id fact promoted into this entities contract.
+    /// Source-backed customer ID carried by this normalized pet-resort entity.
     pub customer_id: CustomerId,
     /// Contact or display name used by staff.
     pub name: pet::Name,
-    /// Species fact promoted into this entities contract.
+    /// Source-backed species carried by this normalized pet-resort entity.
     pub species: Species,
-    /// Birth date fact promoted into this entities contract.
+    /// Source-backed birth date carried by this normalized pet-resort entity.
     pub birth_date: Option<NaiveDate>,
-    /// Sex fact promoted into this entities contract.
+    /// Source-backed sex carried by this normalized pet-resort entity.
     pub sex: Option<Sex>,
-    /// Spay neuter status fact promoted into this entities contract.
+    /// Source-backed spay neuter status carried by this normalized pet-resort entity.
     pub spay_neuter_status: SpayNeuterStatus,
     #[builder(default)]
-    /// Temperament fact promoted into this entities contract.
+    /// Source-backed temperament carried by this normalized pet-resort entity.
     pub temperament: TemperamentProfile,
     #[builder(default)]
-    /// Care profile fact promoted into this entities contract.
+    /// Source-backed care profile carried by this normalized pet-resort entity.
     pub care_profile: CareProfile,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for species decisions in entities workflows.
+/// Pet species category used by boarding/daycare/play policies and labor planning.
 pub enum Species {
     /// Dog guest, using dog-specific policy and capacity rules.
     Dog,
@@ -244,7 +252,7 @@ pub enum Species {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for sex decisions in entities workflows.
+/// Recorded pet sex when the source system supplies it.
 pub enum Sex {
     /// Female pet sex recorded for profile and policy context.
     Female,
@@ -255,7 +263,7 @@ pub enum Sex {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for spay neuter status decisions in entities workflows.
+/// Spay/neuter status used by group-play eligibility, safety review, and policy gating.
 pub enum SpayNeuterStatus {
     /// Pet has been spayed for policy and playgroup eligibility checks.
     Spayed,
@@ -268,95 +276,95 @@ pub enum SpayNeuterStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder, Default)]
-/// Typed temperament profile domain value that keeps raw primitives out of entities workflows.
+/// Temperament evidence used to decide group-play, individual care, and behavior-review routing.
 pub struct TemperamentProfile {
     #[builder(default)]
-    /// Group play observation fact promoted into this entities contract.
+    /// Source-backed group play observation carried by this normalized pet-resort entity.
     pub group_play_observation: temperament::GroupPlayObservation,
     #[builder(default)]
-    /// People orientation fact promoted into this entities contract.
+    /// Source-backed people orientation carried by this normalized pet-resort entity.
     pub people_orientation: temperament::PeopleOrientation,
     #[builder(default)]
-    /// Rating fact promoted into this entities contract.
+    /// Source-backed rating carried by this normalized pet-resort entity.
     pub rating: temperament::Rating,
     #[builder(default)]
-    /// Behavior observations fact promoted into this entities contract.
+    /// Source-backed behavior observations carried by this normalized pet-resort entity.
     pub behavior_observations: Vec<temperament::BehaviorObservation>,
     #[builder(default)]
-    /// Staff notes fact promoted into this entities contract.
+    /// Source-backed staff notes carried by this normalized pet-resort entity.
     pub staff_notes: Vec<temperament::StaffNote>,
 }
 
 impl TemperamentProfile {
-    /// Returns the needs staff play evaluation for this entities value.
+    /// Reports whether temperament facts require staff evaluation before group play or similar services.
     pub fn needs_staff_play_evaluation(&self) -> bool {
         self.group_play_observation.needs_staff_evaluation()
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
-/// Typed care profile domain value that keeps raw primitives out of entities workflows.
+/// Feeding, medication, handling, and special-care summary used for staff handoffs and briefings.
 pub struct CareProfile {
-    /// Feeding instructions fact promoted into this entities contract.
+    /// Source-backed feeding instructions carried by this normalized pet-resort entity.
     pub feeding_instructions: Option<care::FeedingInstruction>,
-    /// Medications fact promoted into this entities contract.
+    /// Source-backed medications carried by this normalized pet-resort entity.
     pub medications: Vec<MedicationInstruction>,
-    /// Allergies fact promoted into this entities contract.
+    /// Source-backed allergies carried by this normalized pet-resort entity.
     pub allergies: Vec<care::AllergyName>,
-    /// Medical conditions fact promoted into this entities contract.
+    /// Source-backed medical conditions carried by this normalized pet-resort entity.
     pub medical_conditions: Vec<care::MedicalConditionName>,
-    /// Emergency contact fact promoted into this entities contract.
+    /// Source-backed emergency contact carried by this normalized pet-resort entity.
     pub emergency_contact: Option<care::ContactRef>,
-    /// Veterinarian contact fact promoted into this entities contract.
+    /// Source-backed veterinarian contact carried by this normalized pet-resort entity.
     pub veterinarian_contact: Option<care::ContactRef>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Typed medication instruction domain value that keeps raw primitives out of entities workflows.
+/// Medication instruction that must remain explicit for care safety and shift handoff evidence.
 pub struct MedicationInstruction {
     /// Contact or display name used by staff.
     pub name: care::MedicationName,
-    /// Dose fact promoted into this entities contract.
+    /// Source-backed dose carried by this normalized pet-resort entity.
     pub dose: care::MedicationDose,
-    /// Schedule fact promoted into this entities contract.
+    /// Source-backed schedule carried by this normalized pet-resort entity.
     pub schedule: care::MedicationSchedule,
-    /// Review requirement fact promoted into this entities contract.
+    /// Source-backed review requirement carried by this normalized pet-resort entity.
     pub review_requirement: care::MedicationReviewRequirement,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Typed reservation domain value that keeps raw primitives out of entities workflows.
+/// Reservation record tying customer, pet, service, status, deposit, add-ons, and safety stops together.
 pub struct Reservation {
-    /// Id fact promoted into this entities contract.
+    /// Source-backed id carried by this normalized pet-resort entity.
     pub id: reservation::Id,
-    /// Location id fact promoted into this entities contract.
+    /// Source-backed location ID carried by this normalized pet-resort entity.
     pub location_id: LocationId,
-    /// Customer id fact promoted into this entities contract.
+    /// Source-backed customer ID carried by this normalized pet-resort entity.
     pub customer_id: CustomerId,
-    /// Pet ids fact promoted into this entities contract.
+    /// Source-backed pet IDs carried by this normalized pet-resort entity.
     pub pet_ids: Vec<PetId>,
     /// Requested service that drives scheduling and labor estimates.
     pub service: ServiceKind,
-    /// Status fact promoted into this entities contract.
+    /// Source-backed status carried by this normalized pet-resort entity.
     pub status: reservation::Status,
-    /// Starts at fact promoted into this entities contract.
+    /// Source-backed starts at carried by this normalized pet-resort entity.
     pub starts_at: DateTime<Utc>,
-    /// Ends at fact promoted into this entities contract.
+    /// Source-backed ends at carried by this normalized pet-resort entity.
     pub ends_at: DateTime<Utc>,
-    /// Deposit fact promoted into this entities contract.
+    /// Source-backed deposit carried by this normalized pet-resort entity.
     pub deposit: Option<Deposit>,
-    /// Source fact promoted into this entities contract.
+    /// Source-backed source carried by this normalized pet-resort entity.
     pub source: reservation::Source,
     #[builder(default)]
-    /// Requested add ons fact promoted into this entities contract.
+    /// Source-backed requested add ons carried by this normalized pet-resort entity.
     pub requested_add_ons: Vec<AddOn>,
     #[builder(default)]
-    /// Hard stops fact promoted into this entities contract.
+    /// Source-backed hard stops carried by this normalized pet-resort entity.
     pub hard_stops: Vec<HardStop>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for service kind decisions in entities workflows.
+/// Resort service line used for labor planning, capacity, policy, upsell, and workflow routing.
 pub enum ServiceKind {
     /// Overnight stay service line.
     Boarding,
@@ -378,7 +386,7 @@ pub type Deposit = payment::Deposit;
 pub type PaymentStatus = payment::DepositStatus;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for add on decisions in entities workflows.
+/// Optional reservation add-ons that affect labor, revenue, care planning, or customer follow-up.
 pub enum AddOn {
     /// Group-play add-on or accommodation feature.
     GroupPlay,
@@ -397,15 +405,15 @@ pub enum AddOn {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for hard stop decisions in entities workflows.
+/// Non-ignorable condition that blocks or routes a reservation before staff or customer action proceeds.
 pub enum HardStop {
-    /// Missing required vaccine category on a core customer, pet, reservation, or audit record.
+    /// Missing required vaccine state or source category preserved for normalized resort records.
     MissingRequiredVaccine(policy::VaccineName),
-    /// Ineligible for group play category on a core customer, pet, reservation, or audit record.
+    /// Ineligible for group play state or source category preserved for normalized resort records.
     IneligibleForGroupPlay(policy::play::IneligibilityReason),
     /// Pet is in heat and requires policy handling.
     InHeat,
-    /// Age below minimum weeks category on a core customer, pet, reservation, or audit record.
+    /// Age below minimum weeks state or source category preserved for normalized resort records.
     AgeBelowMinimumWeeks(crate::reservation::AgeThreshold),
     /// Medical or medication information requires review before service.
     MedicalOrMedicationReviewRequired,
@@ -416,14 +424,14 @@ pub enum HardStop {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Typed document id domain value that keeps raw primitives out of entities workflows.
+/// Stable identifier for a document artifact used as vaccine, waiver, medical, or incident evidence.
 pub struct DocumentId(pub Uuid);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Typed vaccine record id domain value that keeps raw primitives out of entities workflows.
+/// Stable identifier for a vaccine compliance record tied to a pet and proof document.
 pub struct VaccineRecordId(pub Uuid);
 
-/// Care note boundary for entities contracts.
+/// Care-note vocabulary for staff-visible, customer-visible, and internal handoff notes.
 pub mod care_note {
     use nutype::nutype;
     #[allow(unused_imports)]
@@ -437,7 +445,7 @@ pub mod care_note {
     pub struct Id(pub Uuid);
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for subject decisions in entities workflows.
+    /// Subject that a care, document, incident, audit, or message record is about.
     pub enum Subject {
         /// Pet record participating in the workflow.
         Pet(PetId),
@@ -448,32 +456,32 @@ pub mod care_note {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for kind decisions in entities workflows.
+    /// Care-note category used to route safety, feeding, medication, behavior, and staff handoff information.
     pub enum Kind {
-        /// Feeding category on a core customer, pet, reservation, or audit record.
+        /// Feeding state or source category preserved for normalized resort records.
         Feeding,
-        /// Medication category on a core customer, pet, reservation, or audit record.
+        /// Medication state or source category preserved for normalized resort records.
         Medication,
-        /// Medical category on a core customer, pet, reservation, or audit record.
+        /// Medical state or source category preserved for normalized resort records.
         Medical,
-        /// Behavior category on a core customer, pet, reservation, or audit record.
+        /// Behavior state or source category preserved for normalized resort records.
         Behavior,
         /// Grooming service line or care-note category.
         Grooming,
         /// Training service line or care-note category.
         Training,
-        /// General category on a core customer, pet, reservation, or audit record.
+        /// General state or source category preserved for normalized resort records.
         General,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for visibility decisions in entities workflows.
+    /// Visibility boundary that determines whether a care note may be shown to customers or only staff.
     pub enum Visibility {
-        /// Internal only category on a core customer, pet, reservation, or audit record.
+        /// Internal only state or source category preserved for normalized resort records.
         InternalOnly,
-        /// Customer visible category on a core customer, pet, reservation, or audit record.
+        /// Customer visible state or source category preserved for normalized resort records.
         CustomerVisible,
-        /// Customer visible after review category on a core customer, pet, reservation, or audit record.
+        /// Customer visible after review state or source category preserved for normalized resort records.
         CustomerVisibleAfterReview,
     }
 
@@ -496,14 +504,14 @@ pub mod care_note {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Typed incident id domain value that keeps raw primitives out of entities workflows.
+/// Stable identifier for a pet, customer, or operational incident requiring evidence and follow-up.
 pub struct IncidentId(pub Uuid);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Typed message id domain value that keeps raw primitives out of entities workflows.
+/// Stable identifier for a customer or internal message workflow.
 pub struct MessageId(pub Uuid);
 
-/// Approval boundary for entities contracts.
+/// Approval record vocabulary for review-gated automation outcomes.
 pub mod approval {
     use bon::Builder;
     use chrono::{DateTime, Utc};
@@ -519,49 +527,49 @@ pub mod approval {
     pub struct Id(pub Uuid);
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-    /// Typed record domain value that keeps raw primitives out of entities workflows.
+    /// Approval record showing who decided, what target was reviewed, and what lifecycle state resulted.
     pub struct Record {
-        /// Id fact promoted into this entities contract.
+        /// Source-backed id carried by this normalized pet-resort entity.
         pub id: Id,
-        /// Target fact promoted into this entities contract.
+        /// Source-backed target carried by this normalized pet-resort entity.
         pub target: Target,
-        /// Gate fact promoted into this entities contract.
+        /// Source-backed gate carried by this normalized pet-resort entity.
         pub gate: policy::ReviewGate,
-        /// Lifecycle fact promoted into this entities contract.
+        /// Source-backed lifecycle carried by this normalized pet-resort entity.
         pub lifecycle: Lifecycle,
-        /// Requested by fact promoted into this entities contract.
+        /// Source-backed requested by carried by this normalized pet-resort entity.
         pub requested_by: ActorRef,
-        /// Requested at fact promoted into this entities contract.
+        /// Source-backed requested at carried by this normalized pet-resort entity.
         pub requested_at: DateTime<Utc>,
         #[builder(default)]
-        /// Audit refs fact promoted into this entities contract.
+        /// Source-backed audit refs carried by this normalized pet-resort entity.
         pub audit_refs: Vec<crate::audit::EventId>,
     }
 
     impl Record {
-        /// Returns the status for this entities value.
+        /// Returns the normalized operational status represented by this record.
         pub fn status(&self) -> Status {
             self.lifecycle.status()
         }
 
-        /// Returns the is applicable for this entities value.
+        /// Reports whether this approval gate currently applies to the target workflow.
         pub fn is_applicable(&self) -> bool {
             matches!(self.lifecycle, Lifecycle::Approved { .. })
         }
 
-        /// Returns the is terminal decision for this entities value.
+        /// Reports whether the review lifecycle has reached an approval, rejection, or non-applicable endpoint.
         pub fn is_terminal_decision(&self) -> bool {
             self.lifecycle.is_terminal_decision()
         }
 
-        /// Returns the decision actor and time for this entities value.
+        /// Returns the accountable actor and timestamp when the review reached a terminal decision.
         pub fn decision_actor_and_time(&self) -> Option<(&ActorRef, DateTime<Utc>)> {
             self.lifecycle.decision_actor_and_time()
         }
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for target decisions in entities workflows.
+    /// Operational artifact that an approval gate is allowed to approve, reject, or mark non-applicable.
     pub enum Target {
         /// Reservation record participating in the workflow.
         Reservation(reservation::Id),
@@ -576,32 +584,32 @@ pub mod approval {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for lifecycle decisions in entities workflows.
+    /// Approval lifecycle state for draft, requested, approved, rejected, or non-applicable review gates.
     pub enum Lifecycle {
-        /// Approval requested category on a core customer, pet, reservation, or audit record.
+        /// Approval requested state or source category preserved for normalized resort records.
         ApprovalRequested,
-        /// Approved category on a core customer, pet, reservation, or audit record.
+        /// Approved state or source category preserved for normalized resort records.
         Approved {
-            /// Decided by fact promoted into this entities contract.
+            /// Source-backed decided by carried by this normalized pet-resort entity.
             decided_by: ActorRef,
-            /// Decided at fact promoted into this entities contract.
+            /// Source-backed decided at carried by this normalized pet-resort entity.
             decided_at: DateTime<Utc>,
         },
-        /// Rejected category on a core customer, pet, reservation, or audit record.
+        /// Rejected state or source category preserved for normalized resort records.
         Rejected {
-            /// Decided by fact promoted into this entities contract.
+            /// Source-backed decided by carried by this normalized pet-resort entity.
             decided_by: ActorRef,
-            /// Decided at fact promoted into this entities contract.
+            /// Source-backed decided at carried by this normalized pet-resort entity.
             decided_at: DateTime<Utc>,
         },
         /// Reservation is no longer active.
         Cancelled,
-        /// Superseded category on a core customer, pet, reservation, or audit record.
+        /// Superseded state or source category preserved for normalized resort records.
         Superseded,
     }
 
     impl Lifecycle {
-        /// Returns the status for this entities value.
+        /// Returns the normalized operational status represented by this record.
         pub fn status(&self) -> Status {
             match self {
                 Self::ApprovalRequested => Status::ApprovalRequested,
@@ -612,12 +620,12 @@ pub mod approval {
             }
         }
 
-        /// Returns the is terminal decision for this entities value.
+        /// Reports whether the review lifecycle has reached an approval, rejection, or non-applicable endpoint.
         pub fn is_terminal_decision(&self) -> bool {
             matches!(self, Self::Approved { .. } | Self::Rejected { .. })
         }
 
-        /// Returns the decision actor and time for this entities value.
+        /// Returns the accountable actor and timestamp when the review reached a terminal decision.
         pub fn decision_actor_and_time(&self) -> Option<(&ActorRef, DateTime<Utc>)> {
             match self {
                 Self::Approved {
@@ -634,55 +642,55 @@ pub mod approval {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Normalized reservation states observed during source-data ingestion.
+    /// Normalized lifecycle states used to reconcile source-system data with domain workflows.
     pub enum Status {
-        /// Approval requested category on a core customer, pet, reservation, or audit record.
+        /// Approval requested state or source category preserved for normalized resort records.
         ApprovalRequested,
-        /// Approved category on a core customer, pet, reservation, or audit record.
+        /// Approved state or source category preserved for normalized resort records.
         Approved,
-        /// Rejected category on a core customer, pet, reservation, or audit record.
+        /// Rejected state or source category preserved for normalized resort records.
         Rejected,
         /// Reservation is no longer active.
         Cancelled,
-        /// Superseded category on a core customer, pet, reservation, or audit record.
+        /// Superseded state or source category preserved for normalized resort records.
         Superseded,
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Typed document domain value that keeps raw primitives out of entities workflows.
+/// Document record tying storage, classification, source, scan, redaction, and review status together.
 pub struct Document {
-    /// Id fact promoted into this entities contract.
+    /// Source-backed id carried by this normalized pet-resort entity.
     pub id: DocumentId,
-    /// Location id fact promoted into this entities contract.
+    /// Source-backed location ID carried by this normalized pet-resort entity.
     pub location_id: LocationId,
-    /// Subject fact promoted into this entities contract.
+    /// Source-backed subject carried by this normalized pet-resort entity.
     pub subject: DocumentSubject,
-    /// Classification fact promoted into this entities contract.
+    /// Source-backed classification carried by this normalized pet-resort entity.
     pub classification: document::Classification,
-    /// Source fact promoted into this entities contract.
+    /// Source-backed source carried by this normalized pet-resort entity.
     pub source: document::Source,
-    /// Uploaded by actor fact promoted into this entities contract.
+    /// Source-backed uploaded by actor carried by this normalized pet-resort entity.
     pub uploaded_by_actor: ActorRef,
-    /// Uploaded at fact promoted into this entities contract.
+    /// Source-backed uploaded at carried by this normalized pet-resort entity.
     pub uploaded_at: DateTime<Utc>,
-    /// Original file fact promoted into this entities contract.
+    /// Source-backed original file carried by this normalized pet-resort entity.
     pub original_file: document::OriginalFile,
-    /// Storage ref fact promoted into this entities contract.
+    /// Source-backed storage ref carried by this normalized pet-resort entity.
     pub storage_ref: document::StorageRef,
-    /// Virus scan status fact promoted into this entities contract.
+    /// Source-backed virus scan status carried by this normalized pet-resort entity.
     pub virus_scan_status: document::VirusScanStatus,
-    /// Pii redaction status fact promoted into this entities contract.
+    /// Source-backed pii redaction status carried by this normalized pet-resort entity.
     pub pii_redaction_status: document::PiiRedactionStatus,
-    /// Verification status fact promoted into this entities contract.
+    /// Source-backed verification status carried by this normalized pet-resort entity.
     pub verification_status: document::Status,
     #[builder(default)]
-    /// Audit refs fact promoted into this entities contract.
+    /// Source-backed audit refs carried by this normalized pet-resort entity.
     pub audit_refs: Vec<crate::audit::EventId>,
 }
 
 impl Document {
-    /// Returns the requires human review before use for this entities value.
+    /// Reports whether the document must be reviewed before agents or staff treat it as usable evidence.
     pub fn requires_human_review_before_use(&self) -> bool {
         matches!(
             self.verification_status,
@@ -696,7 +704,7 @@ impl Document {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for document subject decisions in entities workflows.
+/// Entity or workflow subject a document is evidence for.
 pub enum DocumentSubject {
     /// Customer record participating in the workflow.
     Customer(CustomerId),
@@ -709,31 +717,31 @@ pub enum DocumentSubject {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Typed vaccine record domain value that keeps raw primitives out of entities workflows.
+/// Vaccine compliance record linking pet, vaccine name, expiration, proof document, and review status.
 pub struct VaccineRecord {
-    /// Id fact promoted into this entities contract.
+    /// Source-backed id carried by this normalized pet-resort entity.
     pub id: VaccineRecordId,
     /// Pet receiving the grooming or care service.
     pub pet_id: PetId,
-    /// Vaccine name fact promoted into this entities contract.
+    /// Source-backed vaccine name carried by this normalized pet-resort entity.
     pub vaccine_name: policy::VaccineName,
-    /// Source document id fact promoted into this entities contract.
+    /// Source-backed source document ID carried by this normalized pet-resort entity.
     pub source_document_id: DocumentId,
-    /// Status fact promoted into this entities contract.
+    /// Source-backed status carried by this normalized pet-resort entity.
     pub status: vaccine::Status,
-    /// Effective on fact promoted into this entities contract.
+    /// Source-backed effective on carried by this normalized pet-resort entity.
     pub effective_on: NaiveDate,
-    /// Expires on fact promoted into this entities contract.
+    /// Source-backed expires on carried by this normalized pet-resort entity.
     pub expires_on: Option<NaiveDate>,
-    /// Review gate fact promoted into this entities contract.
+    /// Source-backed review gate carried by this normalized pet-resort entity.
     pub review_gate: policy::ReviewGate,
     #[builder(default)]
-    /// Audit refs fact promoted into this entities contract.
+    /// Source-backed audit refs carried by this normalized pet-resort entity.
     pub audit_refs: Vec<crate::audit::EventId>,
 }
 
 impl VaccineRecord {
-    /// Returns the requires human review before compliance for this entities value.
+    /// Reports whether vaccine proof is still unverified, rejected, or otherwise unsafe for compliance automation.
     pub fn requires_human_review_before_compliance(&self) -> bool {
         matches!(
             self.status,
@@ -746,29 +754,29 @@ impl VaccineRecord {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Typed care note domain value that keeps raw primitives out of entities workflows.
+/// Care note with author, visibility, subject, body, source, and review-sensitive timestamps.
 pub struct CareNote {
-    /// Id fact promoted into this entities contract.
+    /// Source-backed id carried by this normalized pet-resort entity.
     pub id: care_note::Id,
-    /// Subject fact promoted into this entities contract.
+    /// Source-backed subject carried by this normalized pet-resort entity.
     pub subject: care_note::Subject,
-    /// Kind fact promoted into this entities contract.
+    /// Source-backed kind carried by this normalized pet-resort entity.
     pub kind: care_note::Kind,
-    /// Visibility fact promoted into this entities contract.
+    /// Source-backed visibility carried by this normalized pet-resort entity.
     pub visibility: care_note::Visibility,
-    /// Body fact promoted into this entities contract.
+    /// Source-backed body carried by this normalized pet-resort entity.
     pub body: care_note::Body,
-    /// Author fact promoted into this entities contract.
+    /// Source-backed author carried by this normalized pet-resort entity.
     pub author: ActorRef,
-    /// Recorded at fact promoted into this entities contract.
+    /// Source-backed recorded at carried by this normalized pet-resort entity.
     pub recorded_at: DateTime<Utc>,
     #[builder(default)]
-    /// Audit refs fact promoted into this entities contract.
+    /// Source-backed audit refs carried by this normalized pet-resort entity.
     pub audit_refs: Vec<crate::audit::EventId>,
 }
 
 impl CareNote {
-    /// Returns the is customer visible without review for this entities value.
+    /// Reports whether this care note may be surfaced to customers without an additional approval gate.
     pub fn is_customer_visible_without_review(&self) -> bool {
         matches!(self.visibility, care_note::Visibility::CustomerVisible)
             && !matches!(
@@ -779,36 +787,36 @@ impl CareNote {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Typed incident domain value that keeps raw primitives out of entities workflows.
+/// Incident record used for manager attention, safety follow-up, customer messaging, and audit evidence.
 pub struct Incident {
-    /// Id fact promoted into this entities contract.
+    /// Source-backed id carried by this normalized pet-resort entity.
     pub id: IncidentId,
-    /// Location id fact promoted into this entities contract.
+    /// Source-backed location ID carried by this normalized pet-resort entity.
     pub location_id: LocationId,
-    /// Primary subject fact promoted into this entities contract.
+    /// Source-backed primary subject carried by this normalized pet-resort entity.
     pub primary_subject: IncidentSubject,
-    /// Category fact promoted into this entities contract.
+    /// Source-backed category carried by this normalized pet-resort entity.
     pub category: incident::Category,
-    /// Severity fact promoted into this entities contract.
+    /// Source-backed severity carried by this normalized pet-resort entity.
     pub severity: incident::Severity,
-    /// Status fact promoted into this entities contract.
+    /// Source-backed status carried by this normalized pet-resort entity.
     pub status: incident::Status,
-    /// Reported by fact promoted into this entities contract.
+    /// Source-backed reported by carried by this normalized pet-resort entity.
     pub reported_by: ActorRef,
-    /// Reported at fact promoted into this entities contract.
+    /// Source-backed reported at carried by this normalized pet-resort entity.
     pub reported_at: DateTime<Utc>,
-    /// Summary fact promoted into this entities contract.
+    /// Source-backed summary carried by this normalized pet-resort entity.
     pub summary: incident::Summary,
     #[builder(default)]
-    /// Required review gates fact promoted into this entities contract.
+    /// Source-backed required review gates carried by this normalized pet-resort entity.
     pub required_review_gates: Vec<policy::ReviewGate>,
     #[builder(default)]
-    /// Audit refs fact promoted into this entities contract.
+    /// Source-backed audit refs carried by this normalized pet-resort entity.
     pub audit_refs: Vec<crate::audit::EventId>,
 }
 
 impl Incident {
-    /// Returns the requires manager attention for this entities value.
+    /// Reports whether the incident is still active enough to require manager attention.
     pub fn requires_manager_attention(&self) -> bool {
         matches!(
             self.status,
@@ -823,7 +831,7 @@ impl Incident {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for incident subject decisions in entities workflows.
+/// Entity or workflow subject affected by an incident.
 pub enum IncidentSubject {
     /// Pet record participating in the workflow.
     Pet(PetId),
@@ -836,29 +844,29 @@ pub enum IncidentSubject {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Typed message domain value that keeps raw primitives out of entities workflows.
+/// Customer/internal message record that tracks subject, channel, draft/reference body, approval, and delivery state.
 pub struct Message {
-    /// Id fact promoted into this entities contract.
+    /// Source-backed id carried by this normalized pet-resort entity.
     pub id: MessageId,
-    /// Subject fact promoted into this entities contract.
+    /// Source-backed subject carried by this normalized pet-resort entity.
     pub subject: MessageSubject,
-    /// Direction fact promoted into this entities contract.
+    /// Source-backed direction carried by this normalized pet-resort entity.
     pub direction: message::Direction,
-    /// Channel fact promoted into this entities contract.
+    /// Source-backed channel carried by this normalized pet-resort entity.
     pub channel: message::Channel,
-    /// Status fact promoted into this entities contract.
+    /// Source-backed status carried by this normalized pet-resort entity.
     pub status: message::Status,
-    /// Body ref fact promoted into this entities contract.
+    /// Source-backed body ref carried by this normalized pet-resort entity.
     pub body_ref: message::BodyRef,
-    /// Approval gate fact promoted into this entities contract.
+    /// Source-backed approval gate carried by this normalized pet-resort entity.
     pub approval_gate: Option<policy::ReviewGate>,
     #[builder(default)]
-    /// Audit refs fact promoted into this entities contract.
+    /// Source-backed audit refs carried by this normalized pet-resort entity.
     pub audit_refs: Vec<crate::audit::EventId>,
 }
 
 impl Message {
-    /// Returns the requires approval before send for this entities value.
+    /// Reports whether the message is still a draft or awaiting approval before any outbound send.
     pub fn requires_approval_before_send(&self) -> bool {
         self.approval_gate.is_some()
             || matches!(self.status, message::Status::ApprovalRequested)
@@ -867,7 +875,7 @@ impl Message {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for message subject decisions in entities workflows.
+/// Entity or workflow subject that a message refers to.
 pub enum MessageSubject {
     /// Customer record participating in the workflow.
     Customer(CustomerId),
@@ -881,7 +889,7 @@ pub enum MessageSubject {
     Approval(approval::Id),
 }
 
-/// Audit boundary for entities contracts.
+/// Audit vocabulary for source-backed event trails across automated and staff actions.
 pub mod audit {
     use chrono::{DateTime, Utc};
     use nutype::nutype;
@@ -895,22 +903,22 @@ pub mod audit {
     };
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Typed event domain value that keeps raw primitives out of entities workflows.
+    /// Audit event capturing actor, subject, action, timestamp, and metadata evidence.
     pub struct Event {
-        /// At fact promoted into this entities contract.
+        /// Source-backed at carried by this normalized pet-resort entity.
         pub at: DateTime<Utc>,
-        /// Actor fact promoted into this entities contract.
+        /// Source-backed actor carried by this normalized pet-resort entity.
         pub actor: super::ActorRef,
-        /// Subject fact promoted into this entities contract.
+        /// Source-backed subject carried by this normalized pet-resort entity.
         pub subject: Subject,
-        /// Action fact promoted into this entities contract.
+        /// Source-backed action carried by this normalized pet-resort entity.
         pub action: Action,
-        /// Metadata fact promoted into this entities contract.
+        /// Source-backed metadata carried by this normalized pet-resort entity.
         pub metadata: BTreeMap<MetadataKey, MetadataValue>,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for subject decisions in entities workflows.
+    /// Subject that a care, document, incident, audit, or message record is about.
     pub enum Subject {
         /// Customer record participating in the workflow.
         Customer(CustomerId),
@@ -924,7 +932,7 @@ pub mod audit {
         Document(DocumentId),
         /// Vaccination document or status record under review.
         VaccineRecord(VaccineRecordId),
-        /// Care note category on a core customer, pet, reservation, or audit record.
+        /// Care note state or source category preserved for normalized resort records.
         CareNote(care_note::Id),
         /// Incident record participating in the workflow.
         Incident(IncidentId),
@@ -932,46 +940,47 @@ pub mod audit {
         Message(MessageId),
         /// Approval decision record participating in audit history.
         Approval(approval::Id),
-        /// Workflow event category on a core customer, pet, reservation, or audit record.
+        /// Workflow event state or source category preserved for normalized resort records.
         WorkflowEvent(crate::workflow::EventId),
         /// External system object referenced from domain history.
         External {
-            /// Provider fact promoted into this entities contract.
+            /// Source-backed provider carried by this normalized pet-resort entity.
             provider: crate::workflow::external::Provider,
-            /// Id fact promoted into this entities contract.
+            /// Source-backed id carried by this normalized pet-resort entity.
             id: crate::workflow::external::Id,
         },
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for action decisions in entities workflows.
+    /// Auditable action category produced by staff, source ingestion, policy, approval, or automation.
     pub enum Action {
-        /// Customer profile updated category on a core customer, pet, reservation, or audit record.
+        /// Customer profile updated state or source category preserved for normalized resort records.
         CustomerProfileUpdated,
-        /// Pet profile updated category on a core customer, pet, reservation, or audit record.
+        /// Pet profile updated state or source category preserved for normalized resort records.
         PetProfileUpdated,
-        /// Reservation status suggested category on a core customer, pet, reservation, or audit record.
+        /// Reservation status suggested state or source category preserved for normalized resort records.
         ReservationStatusSuggested,
-        /// Reservation status changed category on a core customer, pet, reservation, or audit record.
+        /// Reservation status changed state or source category preserved for normalized resort records.
         ReservationStatusChanged,
-        /// Policy decision recorded category on a core customer, pet, reservation, or audit record.
+        /// Policy decision recorded state or source category preserved for normalized resort records.
         PolicyDecisionRecorded,
-        /// Document received category on a core customer, pet, reservation, or audit record.
+        /// Document received state or source category preserved for normalized resort records.
         DocumentReceived,
-        /// Vaccine record review requested category on a core customer, pet, reservation, or audit record.
+        /// Vaccine record review requested state or source category preserved for normalized resort records.
         VaccineRecordReviewRequested,
-        /// Incident status changed category on a core customer, pet, reservation, or audit record.
+        /// Incident status changed state or source category preserved for normalized resort records.
         IncidentStatusChanged,
-        /// Message approval requested category on a core customer, pet, reservation, or audit record.
+        /// Message approval requested state or source category preserved for normalized resort records.
         MessageApprovalRequested,
-        /// Approval decision recorded category on a core customer, pet, reservation, or audit record.
+        /// Approval decision recorded state or source category preserved for normalized resort records.
         ApprovalDecisionRecorded,
-        /// Workflow event recorded category on a core customer, pet, reservation, or audit record.
+        /// Workflow event recorded state or source category preserved for normalized resort records.
         WorkflowEventRecorded,
         /// Extension point for provider-specific values not modeled directly.
         Extension(ActionLabel),
     }
 
+    /// Human-readable audit action label for imported or locally defined operational events.
     #[nutype(
         sanitize(trim),
         validate(not_empty, len_char_max = 160),
@@ -989,6 +998,7 @@ pub mod audit {
     )]
     pub struct ActionLabel(String);
 
+    /// Audit metadata key used to preserve source evidence without flattening it into prose.
     #[nutype(
         sanitize(trim),
         validate(not_empty, len_char_max = 80),
@@ -1006,6 +1016,7 @@ pub mod audit {
     )]
     pub struct MetadataKey(String);
 
+    /// Audit metadata value attached to an event for review, reporting, or source repair.
     #[nutype(
         sanitize(trim),
         validate(not_empty, len_char_max = 500),
@@ -1025,23 +1036,23 @@ pub mod audit {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for actor ref decisions in entities workflows.
+/// Actor that performed or is accountable for an audited action.
 pub enum ActorRef {
     /// Customer record participating in the workflow.
     Customer(CustomerId),
-    /// Staff id fact promoted into this entities contract.
+    /// Source-backed staff ID carried by this normalized pet-resort entity.
     Staff {
         /// Staff id carried by this variant.
         staff_id: StaffId,
     },
-    /// Manager id fact promoted into this entities contract.
+    /// Source-backed manager ID carried by this normalized pet-resort entity.
     Manager {
         /// Manager id carried by this variant.
         manager_id: ManagerId,
     },
-    /// System category on a core customer, pet, reservation, or audit record.
+    /// System state or source category preserved for normalized resort records.
     System,
-    /// Workflow fact promoted into this entities contract.
+    /// Source-backed workflow carried by this normalized pet-resort entity.
     Agent {
         /// Workflow carried by this variant.
         workflow: agent::Name,

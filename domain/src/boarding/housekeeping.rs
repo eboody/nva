@@ -1,12 +1,16 @@
+//! Boarding housekeeping cadence policies for room resets and turnover planning.
+//!
+//! Cadences make the labor commitment of a boarding stay visible to planners and manager briefs.
+
 use super::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for cadence decisions in boarding workflows.
+/// Housekeeping cadence required by a boarding room or suite stay.
 pub enum Cadence {
-    /// Daily room reset boarding policy, stay, capacity, or upsell signal.
+    /// Room should be reset daily during the stay.
     DailyRoomReset,
-    /// Twice daily for extended stay boarding policy, stay, capacity, or upsell signal.
+    /// Extended stay needs twice-daily cleaning attention for labor planning.
     TwiceDailyForExtendedStay,
-    /// Turnover only boarding policy, stay, capacity, or upsell signal.
+    /// Cleaning work is limited to post-departure room turnover.
     TurnoverOnly,
 }

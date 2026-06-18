@@ -1,21 +1,23 @@
+//! Vendor contracts for partner products and external catalog-management flags.
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for partner decisions in retail workflows.
+/// Retail partner product line used for recommendation and catalog relationship documentation.
 pub enum Partner {
-    /// Virbac calm care retail inventory, POS, reorder, or recommendation signal.
+    /// Virbac calm care retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     VirbacCalmCare,
-    /// Purina pro plan veterinary supplements retail inventory, POS, reorder, or recommendation signal.
+    /// Purina pro plan veterinary supplements retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     PurinaProPlanVeterinarySupplements,
-    /// Purina en boarding diet retail inventory, POS, reorder, or recommendation signal.
+    /// Purina en boarding diet retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     PurinaEnBoardingDiet,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Typed catalog relationship domain value that keeps raw primitives out of retail workflows.
+/// Relationship between a partner product line and whether an external vendor manages the catalog facts.
 pub struct CatalogRelationship {
-    /// Partner fact promoted into this retail contract.
+    /// Source-derived partner carried by this retail contract.
     pub partner: Partner,
-    /// External catalog managed fact promoted into this retail contract.
+    /// Source-derived external catalog managed carried by this retail contract.
     pub external_catalog_managed: bool,
 }

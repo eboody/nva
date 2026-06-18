@@ -12,12 +12,12 @@ pub const SCHEMA_VERSION: &str = "data-quality-hygiene-context-v1";
 pub struct IssueRef(String);
 
 impl IssueRef {
-    /// Builds or derives try new data for the data-quality hygiene workflow contract.
+    /// Builds try new for the data-quality hygiene workflow contract from validated source facts while preserving review gates and draft-only side-effect boundaries.
     pub fn try_new(value: impl Into<String>) -> Result<Self> {
         trimmed_non_empty(value, Error::EmptyIssueRef).map(Self)
     }
 
-    /// Returns the as str carried by this data-quality hygiene workflow value.
+    /// Returns the as str source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -28,12 +28,12 @@ impl IssueRef {
 pub struct ActionId(String);
 
 impl ActionId {
-    /// Builds or derives try new data for the data-quality hygiene workflow contract.
+    /// Builds try new for the data-quality hygiene workflow contract from validated source facts while preserving review gates and draft-only side-effect boundaries.
     pub fn try_new(value: impl Into<String>) -> Result<Self> {
         trimmed_non_empty(value, Error::EmptyActionId).map(Self)
     }
 
-    /// Returns the as str carried by this data-quality hygiene workflow value.
+    /// Returns the as str source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -44,12 +44,12 @@ impl ActionId {
 pub struct ContextPacketId(String);
 
 impl ContextPacketId {
-    /// Builds or derives try new data for the data-quality hygiene workflow contract.
+    /// Builds try new for the data-quality hygiene workflow contract from validated source facts while preserving review gates and draft-only side-effect boundaries.
     pub fn try_new(value: impl Into<String>) -> Result<Self> {
         trimmed_non_empty(value, Error::EmptyContextPacketId).map(Self)
     }
 
-    /// Returns the as str carried by this data-quality hygiene workflow value.
+    /// Returns the as str source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -60,12 +60,12 @@ impl ContextPacketId {
 pub struct CorrelationId(String);
 
 impl CorrelationId {
-    /// Builds or derives try new data for the data-quality hygiene workflow contract.
+    /// Builds try new for the data-quality hygiene workflow contract from validated source facts while preserving review gates and draft-only side-effect boundaries.
     pub fn try_new(value: impl Into<String>) -> Result<Self> {
         trimmed_non_empty(value, Error::EmptyCorrelationId).map(Self)
     }
 
-    /// Returns the as str carried by this data-quality hygiene workflow value.
+    /// Returns the as str source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -76,7 +76,7 @@ impl CorrelationId {
 pub struct ActionRationale(String);
 
 impl ActionRationale {
-    /// Builds or derives try new data for the data-quality hygiene workflow contract.
+    /// Builds try new for the data-quality hygiene workflow contract from validated source facts while preserving review gates and draft-only side-effect boundaries.
     pub fn try_new(value: impl Into<String>) -> Result<Self> {
         trimmed_non_empty(value, Error::EmptyActionRationale).map(Self)
     }
@@ -87,7 +87,7 @@ impl ActionRationale {
 pub struct LaborMinutes(u16);
 
 impl LaborMinutes {
-    /// Builds or derives try new data for the data-quality hygiene workflow contract.
+    /// Builds try new for the data-quality hygiene workflow contract from validated source facts while preserving review gates and draft-only side-effect boundaries.
     pub const fn try_new(value: u16) -> Result<Self> {
         if value == 0 {
             return Err(Error::ZeroLaborMinutes);
@@ -95,7 +95,7 @@ impl LaborMinutes {
         Ok(Self(value))
     }
 
-    /// Returns the get carried by this data-quality hygiene workflow value.
+    /// Returns the get source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn get(self) -> u16 {
         self.0
     }
@@ -106,74 +106,74 @@ impl LaborMinutes {
 pub struct AggregateLaborMinutes(u16);
 
 impl AggregateLaborMinutes {
-    /// Builds or derives new data for the data-quality hygiene workflow contract.
+    /// Builds new for the data-quality hygiene workflow contract from validated source facts while preserving review gates and draft-only side-effect boundaries.
     pub const fn new(value: u16) -> Self {
         Self(value)
     }
 
-    /// Returns the get carried by this data-quality hygiene workflow value.
+    /// Returns the get source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn get(self) -> u16 {
         self.0
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Classifies hygiene persona values that drive the data-quality hygiene workflow.
+/// Decision taxonomy for hygiene persona in the data-quality hygiene workflow; each value carries operational meaning for source-grounded routing and review.
 pub enum HygienePersona {
-    /// Routes data-quality hygiene work flagged as general manager to the right queue, review gate, or agent packet.
+    /// Represents general manager in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     GeneralManager,
-    /// Routes data-quality hygiene work flagged as assistant general manager to the right queue, review gate, or agent packet.
+    /// Represents assistant general manager in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     AssistantGeneralManager,
-    /// Routes data-quality hygiene work flagged as front desk lead to the right queue, review gate, or agent packet.
+    /// Represents front desk lead in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     FrontDeskLead,
-    /// Routes data-quality hygiene work flagged as front desk agent to the right queue, review gate, or agent packet.
+    /// Represents front desk agent in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     FrontDeskAgent,
-    /// Routes data-quality hygiene work flagged as regional operator to the right queue, review gate, or agent packet.
+    /// Represents regional operator in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     RegionalOperator,
-    /// Routes data-quality hygiene work flagged as operations analyst to the right queue, review gate, or agent packet.
+    /// Represents operations analyst in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     OperationsAnalyst,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Classifies candidate kind values that drive the data-quality hygiene workflow.
+/// Decision taxonomy for candidate kind in the data-quality hygiene workflow; each value carries operational meaning for source-grounded routing and review.
 pub enum CandidateKind {
-    /// Routes data-quality hygiene work flagged as source issue to the right queue, review gate, or agent packet.
+    /// Represents source issue in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     SourceIssue,
-    /// Routes data-quality hygiene work flagged as duplicate candidate to the right queue, review gate, or agent packet.
+    /// Represents duplicate candidate in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     DuplicateCandidate,
-    /// Routes data-quality hygiene work flagged as profile gap to the right queue, review gate, or agent packet.
+    /// Represents profile gap in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     ProfileGap,
-    /// Routes data-quality hygiene work flagged as service line mapping to the right queue, review gate, or agent packet.
+    /// Represents service line mapping in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     ServiceLineMapping,
-    /// Routes data-quality hygiene work flagged as source freshness to the right queue, review gate, or agent packet.
+    /// Represents source freshness in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     SourceFreshness,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Classifies source freshness values that drive the data-quality hygiene workflow.
+/// Decision taxonomy for source freshness in the data-quality hygiene workflow; each value carries operational meaning for source-grounded routing and review.
 pub enum SourceFreshness {
-    /// Routes data-quality hygiene work flagged as current to the right queue, review gate, or agent packet.
+    /// Represents current in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     Current,
-    /// Routes data-quality hygiene work flagged as stale to the right queue, review gate, or agent packet.
+    /// Represents stale in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     Stale,
-    /// Routes data-quality hygiene work flagged as conflicting to the right queue, review gate, or agent packet.
+    /// Represents conflicting in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     Conflicting,
-    /// Routes data-quality hygiene work flagged as missing to the right queue, review gate, or agent packet.
+    /// Represents missing in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     Missing,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Classifies sensitivity values that drive the data-quality hygiene workflow.
+/// Decision taxonomy for sensitivity in the data-quality hygiene workflow; each value carries operational meaning for source-grounded routing and review.
 pub enum Sensitivity {
-    /// Routes data-quality hygiene work flagged as standard operational evidence to the right queue, review gate, or agent packet.
+    /// Represents standard operational evidence in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     StandardOperationalEvidence,
-    /// Routes data-quality hygiene work flagged as vaccine evidence to the right queue, review gate, or agent packet.
+    /// Represents vaccine evidence in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     VaccineEvidence,
-    /// Routes data-quality hygiene work flagged as incident or behavior evidence to the right queue, review gate, or agent packet.
+    /// Represents incident or behavior evidence in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     IncidentOrBehaviorEvidence,
-    /// Routes data-quality hygiene work flagged as payment evidence to the right queue, review gate, or agent packet.
+    /// Represents payment evidence in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     PaymentEvidence,
-    /// Routes data-quality hygiene work flagged as quarantined sensitive payload to the right queue, review gate, or agent packet.
+    /// Represents quarantined sensitive payload in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     QuarantinedSensitivePayload,
 }
 
@@ -190,32 +190,32 @@ pub struct Candidate {
 }
 
 impl Candidate {
-    /// Returns the id carried by this data-quality hygiene workflow value.
+    /// Returns the id source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn id(&self) -> &IssueRef {
         &self.id
     }
 
-    /// Returns the kind carried by this data-quality hygiene workflow value.
+    /// Returns the kind source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn kind(&self) -> CandidateKind {
         self.kind
     }
 
-    /// Returns the issue carried by this data-quality hygiene workflow value.
+    /// Returns the issue source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn issue(&self) -> &data_quality::Issue {
         &self.issue
     }
 
-    /// Returns the source record refs carried by this data-quality hygiene workflow value.
+    /// Returns the source record refs source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn source_record_refs(&self) -> &[source::RecordRef] {
         &self.source_record_refs
     }
 
-    /// Returns the source freshness carried by this data-quality hygiene workflow value.
+    /// Returns the source freshness source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn source_freshness(&self) -> SourceFreshness {
         self.source_freshness
     }
 
-    /// Returns the sensitivity carried by this data-quality hygiene workflow value.
+    /// Returns the sensitivity source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn sensitivity(&self) -> Sensitivity {
         self.sensitivity
     }
@@ -231,51 +231,51 @@ impl Candidate {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Classifies action kind values that drive the data-quality hygiene workflow.
+/// Decision taxonomy for action kind in the data-quality hygiene workflow; each value carries operational meaning for source-grounded routing and review.
 pub enum ActionKind {
-    /// Routes data-quality hygiene work flagged as investigate missing source evidence to the right queue, review gate, or agent packet.
+    /// Represents investigate missing source evidence in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     InvestigateMissingSourceEvidence,
-    /// Routes data-quality hygiene work flagged as reconcile duplicate customer or pet candidate to the right queue, review gate, or agent packet.
+    /// Represents reconcile duplicate customer or pet candidate in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     ReconcileDuplicateCustomerOrPetCandidate,
-    /// Routes data-quality hygiene work flagged as complete missing pet or customer profile fields to the right queue, review gate, or agent packet.
+    /// Represents complete missing pet or customer profile fields in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     CompleteMissingPetOrCustomerProfileFields,
-    /// Routes data-quality hygiene work flagged as review stale vaccination source freshness to the right queue, review gate, or agent packet.
+    /// Represents review stale vaccination source freshness in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     ReviewStaleVaccinationSourceFreshness,
-    /// Routes data-quality hygiene work flagged as normalize ambiguous service line naming to the right queue, review gate, or agent packet.
+    /// Represents normalize ambiguous service line naming in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     NormalizeAmbiguousServiceLineNaming,
-    /// Routes data-quality hygiene work flagged as review checkout or unclosed reservation evidence to the right queue, review gate, or agent packet.
+    /// Represents review checkout or unclosed reservation evidence in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     ReviewCheckoutOrUnclosedReservationEvidence,
-    /// Routes data-quality hygiene work flagged as escalate sensitive or quarantined payload to the right queue, review gate, or agent packet.
+    /// Represents escalate sensitive or quarantined payload in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     EscalateSensitiveOrQuarantinedPayload,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Classifies action priority values that drive the data-quality hygiene workflow.
+/// Decision taxonomy for action priority in the data-quality hygiene workflow; each value carries operational meaning for source-grounded routing and review.
 pub enum ActionPriority {
-    /// Routes data-quality hygiene work flagged as high to the right queue, review gate, or agent packet.
+    /// Represents high in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     High,
-    /// Routes data-quality hygiene work flagged as medium to the right queue, review gate, or agent packet.
+    /// Represents medium in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     Medium,
-    /// Routes data-quality hygiene work flagged as low to the right queue, review gate, or agent packet.
+    /// Represents low in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     Low,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Classifies removed manual work values that drive the data-quality hygiene workflow.
+/// Decision taxonomy for removed manual work in the data-quality hygiene workflow; each value carries operational meaning for source-grounded routing and review.
 pub enum RemovedManualWork {
-    /// Routes data-quality hygiene work flagged as missing evidence investigation to the right queue, review gate, or agent packet.
+    /// Represents missing evidence investigation in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     MissingEvidenceInvestigation,
-    /// Routes data-quality hygiene work flagged as duplicate candidate reconciliation to the right queue, review gate, or agent packet.
+    /// Represents duplicate candidate reconciliation in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     DuplicateCandidateReconciliation,
-    /// Routes data-quality hygiene work flagged as incomplete profile cleanup preparation to the right queue, review gate, or agent packet.
+    /// Represents incomplete profile cleanup preparation in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     IncompleteProfileCleanupPreparation,
-    /// Routes data-quality hygiene work flagged as source freshness review to the right queue, review gate, or agent packet.
+    /// Represents source freshness review in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     SourceFreshnessReview,
-    /// Routes data-quality hygiene work flagged as service line normalization review to the right queue, review gate, or agent packet.
+    /// Represents service line normalization review in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     ServiceLineNormalizationReview,
-    /// Routes data-quality hygiene work flagged as checkout evidence review to the right queue, review gate, or agent packet.
+    /// Represents checkout evidence review in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     CheckoutEvidenceReview,
-    /// Routes data-quality hygiene work flagged as sensitive payload escalation to the right queue, review gate, or agent packet.
+    /// Represents sensitive payload escalation in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     SensitivePayloadEscalation,
 }
 
@@ -319,7 +319,7 @@ pub struct LaborImpactEstimate {
 }
 
 impl LaborImpactEstimate {
-    /// Builds or derives new data for the data-quality hygiene workflow contract.
+    /// Builds new for the data-quality hygiene workflow contract from validated source facts while preserving review gates and draft-only side-effect boundaries.
     pub const fn new(before_minutes: LaborMinutes, after_minutes: LaborMinutes) -> Self {
         Self {
             before_minutes,
@@ -327,17 +327,17 @@ impl LaborImpactEstimate {
         }
     }
 
-    /// Returns the before minutes carried by this data-quality hygiene workflow value.
+    /// Returns the before minutes source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn before_minutes(&self) -> LaborMinutes {
         self.before_minutes
     }
 
-    /// Returns the after minutes carried by this data-quality hygiene workflow value.
+    /// Returns the after minutes source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn after_minutes(&self) -> LaborMinutes {
         self.after_minutes
     }
 
-    /// Returns the minutes saved carried by this data-quality hygiene workflow value.
+    /// Returns the minutes saved source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn minutes_saved(&self) -> u16 {
         self.before_minutes.0.saturating_sub(self.after_minutes.0)
     }
@@ -362,52 +362,52 @@ pub struct Action {
 }
 
 impl Action {
-    /// Returns the id carried by this data-quality hygiene workflow value.
+    /// Returns the id source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn id(&self) -> &ActionId {
         &self.id
     }
 
-    /// Returns the kind carried by this data-quality hygiene workflow value.
+    /// Returns the kind source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn kind(&self) -> ActionKind {
         self.kind
     }
 
-    /// Returns the priority carried by this data-quality hygiene workflow value.
+    /// Returns the priority source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn priority(&self) -> ActionPriority {
         self.priority
     }
 
-    /// Returns the owner persona carried by this data-quality hygiene workflow value.
+    /// Returns the owner persona source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn owner_persona(&self) -> HygienePersona {
         self.owner_persona
     }
 
-    /// Returns the removed manual work carried by this data-quality hygiene workflow value.
+    /// Returns the removed manual work source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn removed_manual_work(&self) -> RemovedManualWork {
         self.removed_manual_work
     }
 
-    /// Returns the rationale carried by this data-quality hygiene workflow value.
+    /// Returns the rationale source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn rationale(&self) -> &ActionRationale {
         &self.rationale
     }
 
-    /// Returns the source record refs carried by this data-quality hygiene workflow value.
+    /// Returns the source record refs source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn source_record_refs(&self) -> &[source::RecordRef] {
         &self.source_record_refs
     }
 
-    /// Returns the issue refs carried by this data-quality hygiene workflow value.
+    /// Returns the issue refs source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn issue_refs(&self) -> &[IssueRef] {
         &self.issue_refs
     }
 
-    /// Returns the required review gates carried by this data-quality hygiene workflow value.
+    /// Returns the required review gates source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn required_review_gates(&self) -> &[policy::ReviewGate] {
         &self.required_review_gates
     }
 
-    /// Returns the labor impact carried by this data-quality hygiene workflow value.
+    /// Returns the labor impact source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn labor_impact(&self) -> &LaborImpactEstimate {
         &self.labor_impact
     }
@@ -429,22 +429,22 @@ pub struct Request {
 }
 
 impl Request {
-    /// Returns the location id carried by this data-quality hygiene workflow value.
+    /// Returns the location id source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn location_id(&self) -> entities::LocationId {
         self.location_id
     }
 
-    /// Returns the operating day carried by this data-quality hygiene workflow value.
+    /// Returns the operating day source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn operating_day(&self) -> operations::operating_day::Date {
         self.operating_day
     }
 
-    /// Returns the prepared for carried by this data-quality hygiene workflow value.
+    /// Returns the prepared for source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn prepared_for(&self) -> HygienePersona {
         self.prepared_for
     }
 
-    /// Returns the candidates carried by this data-quality hygiene workflow value.
+    /// Returns the candidates source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn candidates(&self) -> &[Candidate] {
         &self.candidates
     }
@@ -469,82 +469,82 @@ pub struct Packet {
 }
 
 impl Packet {
-    /// Returns the workflow carried by this data-quality hygiene workflow value.
+    /// Returns the workflow source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn workflow(&self) -> &'static str {
         self.workflow
     }
 
-    /// Returns the schema version carried by this data-quality hygiene workflow value.
+    /// Returns the schema version source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn schema_version(&self) -> &'static str {
         self.schema_version
     }
 
-    /// Returns the context packet id carried by this data-quality hygiene workflow value.
+    /// Returns the context packet id source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn context_packet_id(&self) -> &ContextPacketId {
         &self.context_packet_id
     }
 
-    /// Returns the correlation id carried by this data-quality hygiene workflow value.
+    /// Returns the correlation id source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn correlation_id(&self) -> &CorrelationId {
         &self.correlation_id
     }
 
-    /// Returns the location id carried by this data-quality hygiene workflow value.
+    /// Returns the location id source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn location_id(&self) -> entities::LocationId {
         self.location_id
     }
 
-    /// Returns the operating day carried by this data-quality hygiene workflow value.
+    /// Returns the operating day source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn operating_day(&self) -> operations::operating_day::Date {
         self.operating_day
     }
 
-    /// Returns the prepared for carried by this data-quality hygiene workflow value.
+    /// Returns the prepared for source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn prepared_for(&self) -> HygienePersona {
         self.prepared_for
     }
 
-    /// Returns the candidates carried by this data-quality hygiene workflow value.
+    /// Returns the candidates source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn candidates(&self) -> &[Candidate] {
         &self.candidates
     }
 
-    /// Returns the actions carried by this data-quality hygiene workflow value.
+    /// Returns the actions source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn actions(&self) -> &[Action] {
         &self.actions
     }
 
-    /// Returns the safe agent actions carried by this data-quality hygiene workflow value.
+    /// Returns the safe agent actions source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn safe_agent_actions(&self) -> &[SafeAgentAction] {
         &self.safe_agent_actions
     }
 
-    /// Returns the blocked actions carried by this data-quality hygiene workflow value.
+    /// Returns the blocked actions source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn blocked_actions(&self) -> &[BlockedAction] {
         &self.blocked_actions
     }
 
-    /// Returns the before minutes carried by this data-quality hygiene workflow value.
+    /// Returns the before minutes source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn before_minutes(&self) -> AggregateLaborMinutes {
         self.before_minutes
     }
 
-    /// Returns the after minutes carried by this data-quality hygiene workflow value.
+    /// Returns the after minutes source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn after_minutes(&self) -> AggregateLaborMinutes {
         self.after_minutes
     }
 
-    /// Returns the minutes saved carried by this data-quality hygiene workflow value.
+    /// Returns the minutes saved source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn minutes_saved(&self) -> u16 {
         self.before_minutes.0.saturating_sub(self.after_minutes.0)
     }
 
-    /// Returns the all actions are source grounded carried by this data-quality hygiene workflow value.
+    /// Returns the all actions are source grounded source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn all_actions_are_source_grounded(&self) -> bool {
         self.actions.iter().all(Action::is_source_grounded)
     }
 
-    /// Returns the validate draft carried by this data-quality hygiene workflow value.
+    /// Returns the validate draft source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn validate_draft(&self, draft: &DraftSubmission) -> DraftValidation {
         let mut rejection_reasons = Vec::new();
 
@@ -576,7 +576,7 @@ pub struct DraftAction {
 }
 
 impl DraftAction {
-    /// Builds or derives from action data for the data-quality hygiene workflow contract.
+    /// Builds from action for the data-quality hygiene workflow contract from validated source facts while preserving review gates and draft-only side-effect boundaries.
     pub fn from_action(action: Action) -> Self {
         Self {
             action_id: action.id,
@@ -589,13 +589,13 @@ impl DraftAction {
         }
     }
 
-    /// Returns the with requested side effect carried by this data-quality hygiene workflow value.
+    /// Returns the with requested side effect source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn with_requested_side_effect(mut self, side_effect: impl Into<String>) -> Self {
         self.requested_side_effects.push(side_effect.into());
         self
     }
 
-    /// Returns the with attempted ambiguity resolution carried by this data-quality hygiene workflow value.
+    /// Returns the with attempted ambiguity resolution source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn with_attempted_ambiguity_resolution(mut self) -> Self {
         self.attempted_ambiguity_resolution = true;
         self
@@ -623,14 +623,14 @@ impl DraftValidation {
         self.rejection_reasons.is_empty()
     }
 
-    /// Returns the rejection reasons carried by this data-quality hygiene workflow value.
+    /// Returns the rejection reasons source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn rejection_reasons(&self) -> &[DraftRejectionReason] {
         &self.rejection_reasons
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Classifies draft rejection reason values that drive the data-quality hygiene workflow.
+/// Decision taxonomy for draft rejection reason in the data-quality hygiene workflow; each value carries operational meaning for source-grounded routing and review.
 pub enum DraftRejectionReason {
     /// Uses stale or unknown context packet as source-grounded evidence for the deterministic decision.
     StaleOrUnknownContextPacket,
@@ -655,7 +655,7 @@ pub enum DraftRejectionReason {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Classifies feedback outcome values that drive the data-quality hygiene workflow.
+/// Decision taxonomy for feedback outcome in the data-quality hygiene workflow; each value carries operational meaning for source-grounded routing and review.
 pub enum FeedbackOutcome {
     /// Records a completed result so follow-up impact is auditable.
     Completed,
@@ -685,64 +685,64 @@ pub struct OutcomeRecord {
 }
 
 impl OutcomeRecord {
-    /// Returns the action id carried by this data-quality hygiene workflow value.
+    /// Returns the action id source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn action_id(&self) -> &ActionId {
         &self.action_id
     }
 
-    /// Returns the recorded by carried by this data-quality hygiene workflow value.
+    /// Returns the recorded by source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn recorded_by(&self) -> &entities::ActorRef {
         &self.recorded_by
     }
 
-    /// Returns the outcome carried by this data-quality hygiene workflow value.
+    /// Returns the outcome source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn outcome(&self) -> FeedbackOutcome {
         self.outcome
     }
 
-    /// Returns the before minutes carried by this data-quality hygiene workflow value.
+    /// Returns the before minutes source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn before_minutes(&self) -> LaborMinutes {
         self.before_minutes
     }
 
-    /// Returns the actual minutes carried by this data-quality hygiene workflow value.
+    /// Returns the actual minutes source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn actual_minutes(&self) -> LaborMinutes {
         self.actual_minutes
     }
 
-    /// Returns the actual minutes saved carried by this data-quality hygiene workflow value.
+    /// Returns the actual minutes saved source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn actual_minutes_saved(&self) -> u16 {
         self.before_minutes.0.saturating_sub(self.actual_minutes.0)
     }
 
-    /// Returns the source record refs carried by this data-quality hygiene workflow value.
+    /// Returns the source record refs source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn source_record_refs(&self) -> &[source::RecordRef] {
         &self.source_record_refs
     }
 
-    /// Returns the issue refs carried by this data-quality hygiene workflow value.
+    /// Returns the issue refs source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn issue_refs(&self) -> &[IssueRef] {
         &self.issue_refs
     }
 
-    /// Returns the reviewed resolution status carried by this data-quality hygiene workflow value.
+    /// Returns the reviewed resolution status source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn reviewed_resolution_status(&self) -> Option<data_quality::ResolutionStatus> {
         self.reviewed_resolution_status
     }
 
-    /// Returns the records feedback without external mutation carried by this data-quality hygiene workflow value.
+    /// Returns the records feedback without external mutation source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn records_feedback_without_external_mutation(&self) -> bool {
         true
     }
 
-    /// Returns the blocked actions carried by this data-quality hygiene workflow value.
+    /// Returns the blocked actions source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn blocked_actions(&self) -> Vec<BlockedAction> {
         blocked_actions_for()
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-/// Classifies error values that drive the data-quality hygiene workflow.
+/// Decision taxonomy for error in the data-quality hygiene workflow; each value carries operational meaning for source-grounded routing and review.
 pub enum Error {
     #[error("issue ref cannot be empty")]
     /// Identifies empty issue ref as the reason the workflow must stop, retry, or request review.
@@ -772,7 +772,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub struct Workflow;
 
 impl Workflow {
-    /// Builds or derives evaluate data for the data-quality hygiene workflow contract.
+    /// Builds evaluate for the data-quality hygiene workflow contract from validated source facts while preserving review gates and draft-only side-effect boundaries.
     pub fn evaluate(request: Request) -> Packet {
         let actions = request
             .candidates

@@ -1,9 +1,16 @@
+//! Data-quality findings that guard the source-fact → domain → workflow chain.
+//!
+//! These contracts keep messy provider facts visible instead of silently normalizing them:
+//! blocking issues stop unsafe automation, reviewable issues remain attached to analytics
+//! facts and manager briefs, and BI-visible status lets labor-cost reports explain when
+//! data hygiene—not actual demand or staffing—is driving an apparent exception.
+
 use serde::{Deserialize, Serialize};
 
 use crate::source;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for field segment decisions in data quality workflows.
+/// Path segment vocabulary for source fields that can fail validation.
 pub enum FieldSegment {
     /// Reservation record participating in the workflow.
     Reservation,
@@ -34,7 +41,7 @@ pub enum FieldSegment {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for reservation field decisions in data quality workflows.
+/// Reservation fields whose absence or ambiguity can block workflow projections.
 pub enum ReservationField {
     /// Customer record id data-quality finding for cleanup or review.
     CustomerRecordId,
@@ -51,7 +58,7 @@ pub enum ReservationField {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for stay field decisions in data quality workflows.
+/// Stay/read-model fields checked before analytics and labor views trust a record.
 pub enum StayField {
     /// Id data-quality finding for cleanup or review.
     Id,
@@ -64,7 +71,7 @@ pub enum StayField {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for source field decisions in data quality workflows.
+/// Source-ingestion metadata fields needed to preserve provenance and auditability.
 pub enum SourceField {
     /// Record id data-quality finding for cleanup or review.
     RecordId,
@@ -77,7 +84,7 @@ pub enum SourceField {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for field path decisions in data quality workflows.
+/// Semantic path to the source field that produced a data-quality issue.
 pub enum FieldPath {
     /// Reservation record participating in the workflow.
     Reservation(ReservationField),
@@ -88,22 +95,22 @@ pub enum FieldPath {
 }
 
 impl FieldPath {
-    /// Returns this data quality value's reservation.
+    /// Builds a reservation-field path for a source-data-quality issue.
     pub const fn reservation(field: ReservationField) -> Self {
         Self::Reservation(field)
     }
 
-    /// Returns this data quality value's stay.
+    /// Builds a stay/read-model-field path for a source-data-quality issue.
     pub const fn stay(field: StayField) -> Self {
         Self::Stay(field)
     }
 
-    /// Returns this data quality value's source.
+    /// Builds a source-metadata-field path for a source-data-quality issue.
     pub const fn source(field: SourceField) -> Self {
         Self::Source(field)
     }
 
-    /// Returns this data quality value's segments.
+    /// Returns stable path segments for repair queues, BI dimensions, and manager review.
     pub const fn segments(&self) -> &'static [FieldSegment] {
         match self {
             Self::Reservation(ReservationField::CustomerRecordId) => {
@@ -144,7 +151,7 @@ impl FieldPath {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for kind decisions in data quality workflows.
+/// Kind of hygiene defect found while validating source facts.
 pub enum Kind {
     /// Missing required field data-quality finding for cleanup or review.
     MissingRequiredField {
@@ -186,7 +193,7 @@ pub enum Kind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for severity decisions in data quality workflows.
+/// Severity of a hygiene defect and its effect on read-model or workflow safety.
 pub enum Severity {
     /// Informational data-quality finding for cleanup or review.
     Informational,
@@ -199,7 +206,7 @@ pub enum Severity {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for resolution status decisions in data quality workflows.
+/// Lifecycle state for a data-quality issue as staff acknowledge or repair it.
 pub enum ResolutionStatus {
     /// Open data-quality finding for cleanup or review.
     Open,
@@ -214,7 +221,7 @@ pub enum ResolutionStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Typed issue domain value that keeps raw primitives out of data quality workflows.
+/// Evidence-backed data-quality issue attached to source records and derived facts.
 pub struct Issue {
     kind: Kind,
     severity: Severity,
@@ -227,7 +234,7 @@ pub struct Issue {
 }
 
 impl Issue {
-    /// Assembles this data quality value from already-validated domain parts.
+    /// Creates an open data-quality issue from provenance and validated issue metadata.
     pub fn new(
         kind: Kind,
         severity: Severity,
@@ -288,7 +295,7 @@ impl Issue {
         self.visible_to_bi
     }
 
-    /// Returns this data quality value's workflow blocking.
+    /// Returns whether this issue must stop automation or projection into labor workflows.
     pub const fn workflow_blocking(&self) -> bool {
         self.workflow_blocking
     }

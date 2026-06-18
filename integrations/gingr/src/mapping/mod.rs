@@ -65,20 +65,20 @@ pub enum ProviderField {
 }
 
 #[derive(Debug, thiserror::Error, Clone, PartialEq, Eq)]
-/// Errors raised while validating Gingr configuration, request parameters, or DTO mappings.
+/// Errors raised when provider values cannot safely cross this Gingr boundary.
 pub enum Error {
     #[error("missing required Gingr provider field: {field}")]
     /// DTO mapping cannot proceed because Gingr omitted a required field.
     MissingRequiredProviderField {
-        /// Field attached to this Gingr error or DTO.
+        /// Provider field required before this mapping can create a source-backed candidate.
         field: ProviderField,
     },
     #[error("invalid domain value promoted from Gingr provider field {field}: {reason}")]
     /// Signals that a domain value cannot be represented safely in storage.
     InvalidDomainValue {
-        /// Storage field that was missing, invalid, or rejected.
+        /// Provider field whose promoted value failed NVA domain validation.
         field: ProviderField,
-        /// Human-readable or typed reason explaining why storage conversion failed.
+        /// Validation reason returned by the downstream domain type or mapper.
         reason: String,
     },
 }

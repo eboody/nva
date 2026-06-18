@@ -1,59 +1,70 @@
-//! Typed foundation for a 170-location pet-resort workflow/agent platform.
+//! Typed domain contracts for NVA Pet Resorts labor-cost automation.
 //!
-//! This crate intentionally models *business contracts* before implementation details:
-//! entities, workflow events, agent identity values, and policy decisions.
+//! The crate is the code-derived source of truth for a 170-location pet-resort operating model:
+//! customers, pets, reservations, source-system provenance, safety policies, payment/deposit
+//! states, documents, messages, workflow events, and audit evidence. Types in this crate describe
+//! what an agent or adapter may know and what must remain draft/review-gated before any live staff,
+//! customer, payment, medical, or capacity action.
 
-/// Crate-level agent surface for the Gingr integration boundary.
+/// Agent prompt and packet contracts for review-gated operating workflows.
 pub mod agent;
-/// Crate-level analytics surface for the Gingr integration boundary.
+/// Analytics contracts for labor, revenue, occupancy, and exception reporting.
 pub mod analytics;
-/// Crate-level audit surface for the Gingr integration boundary.
+/// Audit contracts that preserve evidence for source facts and automation decisions.
 pub mod audit;
-/// Crate-level boarding surface for the Gingr integration boundary.
+/// Boarding contracts for accommodation, deposits, handoffs, housekeeping, and upsells.
 pub mod boarding;
-/// Crate-level care surface for the Gingr integration boundary.
+/// Care-profile contracts for feeding, medication, handling, and pet-safety notes.
 pub mod care;
-/// Crate-level customer surface for the Gingr integration boundary.
+/// Customer identity/contact value contracts for portal and messaging workflows.
 pub mod customer;
+/// Manager daily-briefing contracts for occupancy, staffing, risk, and action summaries.
 pub mod daily_brief;
-/// Crate-level data quality surface for the Gingr integration boundary.
+/// Data-quality contracts for repairing uncertain source records before automation uses them.
 pub mod data_quality;
+/// Daycare contracts for eligibility, attendance, yard assignment, coverage, and throughput.
 pub mod daycare;
-/// Crate-level document surface for the Gingr integration boundary.
+/// Document intake, verification, storage, and retention contracts.
 pub mod document;
-/// Crate-level entities surface for the Gingr integration boundary.
+/// Normalized core entity contracts for locations, customers, pets, reservations, and records.
 pub mod entities;
-/// Crate-level grooming surface for the Gingr integration boundary.
+/// Grooming contracts for appointments, services, estimates, rebooking, and history.
 pub mod grooming;
-/// Crate-level incident surface for the Gingr integration boundary.
+/// Incident contracts for safety events, evidence, escalation, and follow-up.
 pub mod incident;
+/// Lead intake and follow-up contracts for prospective customer conversion workflows.
 pub mod lead;
-/// Crate-level location surface for the Gingr integration boundary.
+/// Location contracts that scope local resort capability, policy, and timezone facts.
 pub mod location;
-/// Crate-level message surface for the Gingr integration boundary.
+/// Message contracts for draft, approval, queueing, delivery, and suppression state.
 pub mod message;
-/// Crate-level money surface for the Gingr integration boundary.
+/// Money contracts for typed resort charges and deposits.
 pub mod money;
+/// Operations contracts for service offerings, capacity, labor, and location execution.
 pub mod operations;
+/// Payment contracts for deposits, references, collection, waiver, and refund state.
 pub mod payment;
-/// Crate-level pet surface for the Gingr integration boundary.
+/// Pet identity and care-label contracts used across reservations and safety workflows.
 pub mod pet;
-/// Crate-level policy surface for the Gingr integration boundary.
+/// Policy contracts that decide what is safe to automate and what must be reviewed.
 pub mod policy;
-/// Crate-level portal surface for the Gingr integration boundary.
+/// Portal account contracts for provider/customer access boundaries.
 pub mod portal;
+/// Reputation contracts for review monitoring, response drafting, and escalation workflows.
 pub mod reputation;
-/// Crate-level reservation surface for the Gingr integration boundary.
+/// Reservation contracts for age rules, add-ons, transitions, and service eligibility.
 pub mod reservation;
-/// Crate-level retail surface for the Gingr integration boundary.
+/// Retail contracts for POS, inventory, recommendations, vendors, and reorder signals.
 pub mod retail;
+/// Source-system provenance contracts for Gingr/import facts and normalization assumptions.
 pub mod source;
+/// Staff contracts for scheduling, roles, training, and shift/labor context.
 pub mod staff;
-/// Crate-level temperament surface for the Gingr integration boundary.
+/// Temperament contracts for group-play safety and behavior review evidence.
 pub mod temperament;
-/// Crate-level training surface for the Gingr integration boundary.
+/// Training contracts for programs, progress, trainer availability, and upsell workflows.
 pub mod training;
-/// Crate-level vaccine surface for the Gingr integration boundary.
+/// Vaccine contracts for compliance, proof, expiry, and review requirements.
 pub mod vaccine;
-/// Crate-level workflow surface for the Gingr integration boundary.
+/// Workflow contracts for tasks, events, reviews, and recommended actions.
 pub mod workflow;

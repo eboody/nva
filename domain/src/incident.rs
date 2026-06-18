@@ -1,3 +1,9 @@
+//! Incident categories and review states for pet-safety workflows.
+//!
+//! Incident facts are source-derived evidence that must stay review-gated: they can create
+//! staff follow-up, manager escalation, reputation response, and daily-brief risk entries,
+//! but they should not trigger unapproved customer, legal, or medical commitments.
+
 use nutype::nutype;
 #[allow(unused_imports)]
 use serde::{Deserialize, Serialize};
@@ -26,18 +32,18 @@ pub enum Category {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Domain vocabulary for severity decisions in incident workflows.
 pub enum Severity {
-    /// Estimate is uncertain and may require staff confirmation.
+    /// Low-severity incident that still remains visible for trend and labor follow-up.
     Low,
-    /// Estimate is usable but should be treated with moderate uncertainty.
+    /// Medium-severity incident requiring normal manager awareness and documentation.
     Medium,
-    /// Estimate is reliable enough for normal scheduling.
+    /// High-severity incident that should drive manager review and follow-up labor.
     High,
     /// Critical incident category for safety and customer follow-up.
     Critical,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Normalized reservation states observed during source-data ingestion.
+/// Review lifecycle for incidents as they move from source report to resolution.
 pub enum Status {
     /// Reported incident category for safety and customer follow-up.
     Reported,
@@ -72,4 +78,5 @@ pub enum Status {
         Deserialize
     )
 )]
+/// Redacted incident summary used as evidence for review, not autonomous advice.
 pub struct Summary(String);

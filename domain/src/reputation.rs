@@ -1,7 +1,9 @@
 //! Canonical domain contracts for reputation-review triage.
 //!
-//! Review signals and escalation decisions cut across service lines;
-//! `operations` retains deprecated legacy compatibility re-exports.
+//! Review signals and escalation decisions cut across service lines. A provider
+//! review becomes a validated reputation signal, then drives manager/reputation
+//! workflow only through explicit escalation states so customer-facing responses,
+//! injury/safety themes, and legal-sensitive cases stay human-gated.
 
 use nutype::nutype;
 #[allow(unused_imports)]
@@ -25,6 +27,7 @@ use crate::operations;
         Deserialize
     )
 )]
+/// Validated external review platform name used as reputation-source evidence.
 pub struct PlatformName(String);
 
 #[nutype(
@@ -42,10 +45,11 @@ pub struct PlatformName(String);
         Deserialize
     )
 )]
+/// Stable provider review id retained for traceability and deduplication.
 pub struct Id(String);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Typed signal domain value that keeps raw primitives out of reputation workflows.
+/// Source-derived review signal for guest-experience trend and response workflows.
 pub struct Signal {
     /// Location id fact promoted into this reputation contract.
     pub location_id: LocationId,
@@ -98,7 +102,7 @@ pub enum Theme {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for escalation decisions in reputation workflows.
+/// Review-response gate that decides whether automation may draft or must escalate.
 pub enum Escalation {
     /// No additional workflow gate is required.
     None,

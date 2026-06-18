@@ -6,9 +6,9 @@ use super::{Error, ProviderField, Result};
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// Pet mapping candidate produced from Gingr animal name fields.
 pub struct NameCandidate {
-    /// Persisted provider animal id value for this record.
+    /// Gingr animal identifier kept as source evidence for the mapped pet.
     pub provider_animal_id: endpoint::AnimalId,
-    /// Human-readable display name paired with the stable code.
+    /// Provider display label retained for operator context; NVA-specific naming rules are applied downstream.
     pub name: pet::Name,
 }
 

@@ -1,7 +1,13 @@
-//! Operations owns portfolio, technology, KPI, and cross-service operating-context
-//! contracts. Service-specific daily brief, lead, reputation, staff, grooming,
-//! training, and retail vocabulary lives in those owner modules; this module keeps
-//! those namespaces visible instead of re-exporting compatibility synonyms.
+//! Portfolio and cross-service operating contracts for pet-resort automation.
+//!
+//! This module models the external source-of-truth chain at the broad operations layer:
+//! portfolio facts, Gingr/adjacent-system access patterns, service-line offerings,
+//! pain areas, and labor/capacity optimization levers become validated domain vocabulary
+//! before analytics, daily briefs, staff tasks, or agent workflows can use them.
+//!
+//! Service-specific daily brief, lead, reputation, staff, grooming, training, and retail
+//! vocabulary lives in those owner modules; this module keeps the shared operations
+//! namespace visible without flattening source facts into vague strings.
 
 use bon::Builder;
 use chrono::NaiveDate;
@@ -25,6 +31,11 @@ use crate::entities::LocationId;
         Deserialize
     )
 )]
+/// Validated operations metric label used for KPI/read-model dimensions.
+///
+/// Metric names label source-derived facts such as labor-to-revenue risk,
+/// occupancy, utilization, or conversion measures without treating free text as
+/// authoritative workflow state.
 pub struct MetricName(String);
 
 /// Operating day boundary for operations contracts.
@@ -93,7 +104,7 @@ pub mod operating_day {
     pub type Result<T> = std::result::Result<T, Error>;
 }
 
-/// Operational boundary for operations contracts.
+/// Operational observations and recommendations produced from validated source facts.
 pub mod operational {
     use super::*;
 
@@ -112,6 +123,11 @@ pub mod operational {
             Deserialize
         )
     )]
+    /// Human-readable operational observation attached to evidence-backed workflows.
+    ///
+    /// Observations describe what a source/read-model chain found—such as labor
+    /// mismatch, customer-experience risk, or revenue leakage—without granting
+    /// an agent authority to act without the target workflow gate.
     pub struct Observation(String);
 
     #[nutype(
@@ -129,10 +145,15 @@ pub mod operational {
             Deserialize
         )
     )]
+    /// Human-readable recommendation proposed for staff or manager review.
+    ///
+    /// Recommendations are labor-cost levers only after the surrounding workflow
+    /// decides whether they remain drafts, become staff tasks, or require manager
+    /// approval.
     pub struct Recommendation(String);
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for pain area decisions in operations workflows.
+    /// Portfolio pain area that can become a bounded automation or labor-improvement lane.
     pub enum PainArea {
         /// Labor efficiency operations signal for labor, capacity, or task planning.
         LaborEfficiency,
@@ -149,12 +170,12 @@ pub mod operational {
     }
 }
 
-/// Pet resort boundary for operations contracts.
+/// Portfolio facts for the NVA Pet Resorts operating context.
 pub mod pet_resort {
     use super::*;
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-    /// Typed portfolio domain value that keeps raw primitives out of operations workflows.
+    /// Validated portfolio context used to scope cross-resort automation and reporting.
     pub struct Portfolio {
         /// Operator fact promoted into this operations contract.
         pub operator: Operator,
@@ -262,7 +283,7 @@ pub mod pet_resort {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-/// Typed resort count domain value that keeps raw primitives out of operations workflows.
+/// Nonzero count of resorts in the operating portfolio.
 pub struct ResortCount(u16);
 
 impl ResortCount {
@@ -298,7 +319,7 @@ pub enum ResortCountError {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for service offering decisions in operations workflows.
+/// Service offering whose source facts drive capacity, labor, upsell, and care workflows.
 pub enum ServiceOffering {
     /// Overnight stay service line.
     Boarding {
@@ -337,7 +358,7 @@ pub enum ServiceOffering {
     },
 }
 
-/// Lodging offer boundary for operations contracts.
+/// Boarding/lodging offer vocabulary that affects room capacity and care labor.
 pub mod lodging_offer {
     use super::*;
 
@@ -386,7 +407,7 @@ pub mod lodging_offer {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for daycare format decisions in operations workflows.
+/// Daycare format whose eligibility and supervision needs affect staffing.
 pub enum DaycareFormat {
     /// All day play operations signal for labor, capacity, or task planning.
     AllDayPlay,
@@ -401,7 +422,7 @@ pub enum DaycareFormat {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for daycare eligibility rule decisions in operations workflows.
+/// Daycare rule that gates group-play workflow and protects staffing/safety decisions.
 pub enum DaycareEligibilityRule {
     /// Temperament review required operations signal for labor, capacity, or task planning.
     TemperamentReviewRequired,
@@ -414,7 +435,7 @@ pub enum DaycareEligibilityRule {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Typed technology ecosystem domain value that keeps raw primitives out of operations workflows.
+/// Validated technology/source-system context for integrations and read models.
 pub struct TechnologyEcosystem {
     /// Core portal fact promoted into this operations contract.
     pub core_portal: service_core::OperatingSystem,
@@ -425,7 +446,7 @@ pub struct TechnologyEcosystem {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for data access pattern decisions in operations workflows.
+/// Way operational source facts can enter the platform before validation.
 pub enum DataAccessPattern {
     /// Api operations signal for labor, capacity, or task planning.
     Api,
@@ -442,7 +463,7 @@ pub enum DataAccessPattern {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for adjacent system decisions in operations workflows.
+/// Adjacent enterprise system that can provide labor, revenue, marketing, or review evidence.
 pub enum AdjacentSystem {
     /// Avature recruiting operations signal for labor, capacity, or task planning.
     AvatureRecruiting,
@@ -475,7 +496,7 @@ pub enum AdjacentSystem {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for ai use case decisions in operations workflows.
+/// Bounded AI use case mapped to a measurable workflow and human-approval boundary.
 pub enum AiUseCase {
     /// Resort manager daily briefing operations signal for labor, capacity, or task planning.
     ResortManagerDailyBriefing,
@@ -520,7 +541,7 @@ pub enum AiUseCase {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for data quality issue decisions in operations workflows.
+/// Portfolio-level hygiene issue type that can explain unreliable labor/read-model signals.
 pub enum DataQualityIssue {
     /// Missing pet vaccination records operations signal for labor, capacity, or task planning.
     MissingPetVaccinationRecords,
@@ -543,7 +564,7 @@ pub enum DataQualityIssue {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for operating function decisions in operations workflows.
+/// Resort operating function whose workload can be reduced or coordinated by automation.
 pub enum OperatingFunction {
     /// Front desk operations signal for labor, capacity, or task planning.
     FrontDesk,
@@ -566,7 +587,7 @@ pub enum OperatingFunction {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for staff training workflow decisions in operations workflows.
+/// Training/standards workflow where AI can reduce lookup or documentation labor.
 pub enum StaffTrainingWorkflow {
     /// New hire onboarding operations signal for labor, capacity, or task planning.
     NewHireOnboarding,
@@ -591,7 +612,7 @@ pub enum StaffTrainingWorkflow {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for customer communication workflow decisions in operations workflows.
+/// High-volume customer communication workflow suitable for drafting or triage.
 pub enum CustomerCommunicationWorkflow {
     /// Availability question operations signal for labor, capacity, or task planning.
     AvailabilityQuestion,
@@ -620,7 +641,7 @@ pub enum CustomerCommunicationWorkflow {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for capacity constraint kind decisions in operations workflows.
+/// Constraint that limits capacity utilization or creates labor mismatch risk.
 pub enum CapacityConstraintKind {
     /// Room or suite availability operations signal for labor, capacity, or task planning.
     RoomOrSuiteAvailability,
@@ -641,7 +662,7 @@ pub enum CapacityConstraintKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for optimization opportunity decisions in operations workflows.
+/// Labor, capacity, or revenue optimization lever supported by validated source facts.
 pub enum OptimizationOpportunity {
     /// Demand forecasting operations signal for labor, capacity, or task planning.
     DemandForecasting,
@@ -661,7 +682,7 @@ pub enum OptimizationOpportunity {
     RevenueOptimizationWithoutCareDegradation,
 }
 
-/// Service core boundary for operations contracts.
+/// Core service-line boundary joining source systems to service contracts.
 pub mod service_core {
     use super::*;
 
@@ -677,7 +698,7 @@ pub mod service_core {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-    /// Typed service contracts domain value that keeps raw primitives out of operations workflows.
+    /// Service-line contract bundle for one resort/location's operating model.
     pub struct ServiceContracts {
         /// Location id fact promoted into this operations contract.
         pub location_id: LocationId,
@@ -694,7 +715,7 @@ pub mod service_core {
     }
 
     impl ServiceContracts {
-        /// Returns the core services for this operations value.
+        /// Returns the five service lines whose demand and staffing drive daily labor plans.
         pub fn core_services(&self) -> [ServiceLine; 5] {
             [
                 ServiceLine::Boarding,
@@ -707,7 +728,7 @@ pub mod service_core {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-    /// Domain vocabulary for service line decisions in operations workflows.
+    /// Core pet-resort service line used to partition demand, capacity, and labor metrics.
     pub enum ServiceLine {
         /// Overnight stay service line.
         Boarding,

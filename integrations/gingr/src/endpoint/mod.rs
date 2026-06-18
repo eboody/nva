@@ -50,18 +50,18 @@ use std::fmt;
 pub type Result<T> = core::result::Result<T, Error>;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
-/// Errors raised while validating Gingr configuration, request parameters, or DTO mappings.
+/// Errors raised when provider values cannot safely cross this Gingr boundary.
 pub enum Error {
     #[error("invalid Gingr date {value:?}: expected YYYY-MM-DD")]
     /// Provider date did not match the endpoint date format.
     InvalidDate {
-        /// Rejected value or provider value associated with this error.
+        /// Original provider/caller value rejected before it could become a typed boundary value.
         value: String,
     },
     #[error("invalid Gingr ISO date {value:?}: expected YYYY-MM-DD")]
     /// Provider ISO date could not be parsed for a Gingr request.
     InvalidIsoDate {
-        /// Rejected value or provider value associated with this error.
+        /// Original provider/caller value rejected before it could become a typed boundary value.
         value: String,
     },
     #[error("invalid Gingr date range: start {start} must not be after end {end}")]
@@ -78,7 +78,7 @@ pub enum Error {
     #[error("invalid Gingr positive integer {value}: expected non-zero value")]
     /// Provider integer wrapper rejected zero or an invalid value.
     InvalidPositiveInteger {
-        /// Rejected value or provider value associated with this error.
+        /// Original provider/caller value rejected before it could become a typed boundary value.
         value: u64,
     },
     #[error("invalid Gingr text value: expected non-empty text")]
@@ -87,7 +87,7 @@ pub enum Error {
     #[error("missing required Gingr endpoint parameter {parameter}")]
     /// Typed request builder is missing a required Gingr parameter.
     MissingRequiredParameter {
-        /// Parameter attached to this Gingr error or DTO.
+        /// Name of the provider parameter missing from a typed endpoint builder.
         parameter: &'static str,
     },
     #[error("invalid Gingr legacy date boundary for {date}: {boundary}")]
@@ -101,13 +101,13 @@ pub enum Error {
     #[error("invalid Gingr pagination: {reason}")]
     /// Pagination parameters would produce an invalid Gingr request.
     InvalidPagination {
-        /// Provider-facing reason explaining why request construction failed.
+        /// Boundary-level reason explaining why this provider request or parse step was rejected.
         reason: &'static str,
     },
     #[error("invalid Gingr subscription bill day {value}: expected 1..=31")]
     /// Subscription bill day was outside Gingr-supported month bounds.
     InvalidBillDayOfMonth {
-        /// Rejected value or provider value associated with this error.
+        /// Original provider/caller value rejected before it could become a typed boundary value.
         value: u8,
     },
 }
@@ -122,11 +122,11 @@ pub enum Method {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-/// Typed Gingr request/response value for date.
+/// Gingr endpoint date formatted as `YYYY-MM-DD` for provider query/form parameters.
 pub struct Date(NaiveDate);
 
 impl Date {
-    /// Normalizes a provider string into a typed value, preserving unknown provider values.
+    /// Parses provider-sourced text into this boundary type without promoting it to an NVA domain fact.
     pub fn parse(raw: impl AsRef<str>) -> Result<Self> {
         let raw = raw.as_ref();
         NaiveDate::parse_from_str(raw, "%Y-%m-%d")
@@ -149,11 +149,11 @@ impl fmt::Display for Date {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-/// Typed Gingr request/response value for iso date.
+/// Gingr ISO-style date filter formatted as `YYYY-MM-DD` where endpoints use nested params.
 pub struct IsoDate(NaiveDate);
 
 impl IsoDate {
-    /// Normalizes a provider string into a typed value, preserving unknown provider values.
+    /// Parses provider-sourced text into this boundary type without promoting it to an NVA domain fact.
     pub fn parse(raw: impl AsRef<str>) -> Result<Self> {
         let raw = raw.as_ref();
         NaiveDate::parse_from_str(raw, "%Y-%m-%d")
@@ -171,14 +171,14 @@ impl fmt::Display for IsoDate {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-/// Typed Gingr request/response value for date range.
+/// Inclusive Gingr date window, capped at the request range this crate explicitly validates.
 pub struct DateRange {
     start: Date,
     end: Date,
 }
 
 impl DateRange {
-    /// Builds the validated storage wrapper for a known-good value.
+    /// Constructs this typed Gingr boundary value after the caller has chosen the provider input to trust.
     pub fn new(start: Date, end: Date) -> Result<Self> {
         if start > end {
             return Err(Error::ReversedDateRange { start, end });
@@ -219,7 +219,7 @@ macro_rules! id_type {
         pub struct $name(u64);
 
         impl $name {
-            /// Creates the wrapper from an already validated value.
+            /// Wraps an already-observed Gingr identifier without claiming anything beyond provider provenance.
             pub const fn new(value: u64) -> Self {
                 Self(value)
             }
@@ -247,11 +247,11 @@ id_type!(FormId);
 id_type!(ReferenceId);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-/// Typed Gingr request/response value for path.
+/// Static Gingr API path emitted by an endpoint descriptor.
 pub struct Path(&'static str);
 
 impl Path {
-    /// Creates the wrapper from an already validated value.
+    /// Wraps an already-observed Gingr identifier without claiming anything beyond provider provenance.
     pub const fn new(value: &'static str) -> Self {
         Self(value)
     }
@@ -275,11 +275,11 @@ impl fmt::Display for Path {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-/// Typed Gingr request/response value for limit.
+/// Positive provider record limit used to bound Gingr list/search responses.
 pub struct Limit(u64);
 
 impl Limit {
-    /// Builds the validated storage wrapper for a known-good value.
+    /// Constructs this typed Gingr boundary value after the caller has chosen the provider input to trust.
     pub fn new(value: u64) -> Result<Self> {
         if value == 0 {
             return Err(Error::InvalidPositiveInteger { value });
@@ -296,18 +296,18 @@ impl fmt::Display for Limit {
 
 /// Defines the behavior required from a request participant in the endpoint workflow.
 pub trait Request {
-    /// Describes how a typed parameter is encoded for Gingr.
+    /// Describes the provider wire contract for this Gingr request.
     fn method(&self) -> Method;
-    /// Describes how a typed parameter is encoded for Gingr.
+    /// Describes the provider wire contract for this Gingr request.
     fn path(&self) -> &'static str;
-    /// Describes how a typed parameter is encoded for Gingr.
+    /// Describes the provider wire contract for this Gingr request.
     fn parameters(&self) -> Vec<(String, String)>;
-    /// Describes how a typed parameter is encoded for Gingr.
+    /// Describes the provider wire contract for this Gingr request.
     fn sensitive_parameter_names(&self) -> &'static [&'static str] {
         &[]
     }
 
-    /// Describes how a typed parameter is encoded for Gingr.
+    /// Describes the provider wire contract for this Gingr request.
     fn request_parts(&self) -> transport::RequestParts {
         transport::RequestParts::builder()
             .method(self.method())

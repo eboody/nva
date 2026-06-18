@@ -25,7 +25,7 @@ pub struct RequestParts {
 }
 
 impl RequestParts {
-    /// Starts a typed builder for this Gingr endpoint request.
+    /// Starts a builder that makes each provider parameter explicit before request capture.
     pub fn builder() -> RequestPartsBuilder {
         RequestPartsBuilder::default()
     }
@@ -133,7 +133,7 @@ impl RequestPartsBuilder {
         self
     }
 
-    /// Builds the typed Gingr request after all parameters have been validated.
+    /// Finalizes the provider request descriptor after required fields are present and wrappers have validated local invariants.
     pub fn build(self) -> RequestParts {
         RequestParts {
             method: self.method.expect("request method is required"),
@@ -209,7 +209,7 @@ pub struct Client<T = HttpTransport> {
 }
 
 impl Client<HttpTransport> {
-    /// Builds the validated storage wrapper for a known-good value.
+    /// Constructs this typed Gingr boundary value after the caller has chosen the provider input to trust.
     pub fn new(config: config::Client) -> Self {
         Self {
             config,

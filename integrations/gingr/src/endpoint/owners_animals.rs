@@ -1,14 +1,14 @@
 use super::{AnimalId, FormId, Method, OwnerId, Request, ReservationId, non_empty_text};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-/// Typed Gingr request/response value for provider where clause.
+/// Opaque provider `where` clause string passed to Gingr owner/animal search endpoints.
 pub struct ProviderWhereClause {
     field: String,
     value: String,
 }
 
 impl ProviderWhereClause {
-    /// Builds the validated storage wrapper for a known-good value.
+    /// Constructs this typed Gingr boundary value after the caller has chosen the provider input to trust.
     pub fn new(field: impl Into<String>, value: impl Into<String>) -> Self {
         Self {
             field: field.into(),
@@ -22,20 +22,20 @@ impl ProviderWhereClause {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-/// Typed Gingr request/response value for owners.
+/// Request descriptor for Gingr owner/customer search results.
 pub struct Owners {
     provider_where_clauses: Vec<ProviderWhereClause>,
 }
 
 impl Owners {
-    /// Starts a typed builder for this Gingr endpoint request.
+    /// Starts a builder that makes each provider parameter explicit before request capture.
     pub fn builder() -> OwnersBuilder {
         OwnersBuilder::default()
     }
 }
 
 #[derive(Clone, Debug, Default)]
-/// Typed Gingr request/response value for owners builder.
+/// Builder for provider-side owner search filters and explicit sensitive lookup values.
 pub struct OwnersBuilder {
     provider_where_clauses: Vec<ProviderWhereClause>,
 }
@@ -47,7 +47,7 @@ impl OwnersBuilder {
         self
     }
 
-    /// Builds the typed Gingr request after all parameters have been validated.
+    /// Finalizes the provider request descriptor after required fields are present and wrappers have validated local invariants.
     pub fn build(self) -> Owners {
         Owners {
             provider_where_clauses: self.provider_where_clauses,
@@ -73,20 +73,20 @@ impl Request for Owners {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-/// Typed Gingr request/response value for animals.
+/// Request descriptor for Gingr animal/pet search results.
 pub struct Animals {
     provider_where_clauses: Vec<ProviderWhereClause>,
 }
 
 impl Animals {
-    /// Starts a typed builder for this Gingr endpoint request.
+    /// Starts a builder that makes each provider parameter explicit before request capture.
     pub fn builder() -> AnimalsBuilder {
         AnimalsBuilder::default()
     }
 }
 
 #[derive(Clone, Debug, Default)]
-/// Typed Gingr request/response value for animals builder.
+/// Builder for provider-side animal search filters and explicit sensitive lookup values.
 pub struct AnimalsBuilder {
     provider_where_clauses: Vec<ProviderWhereClause>,
 }
@@ -98,7 +98,7 @@ impl AnimalsBuilder {
         self
     }
 
-    /// Builds the typed Gingr request after all parameters have been validated.
+    /// Finalizes the provider request descriptor after required fields are present and wrappers have validated local invariants.
     pub fn build(self) -> Animals {
         Animals {
             provider_where_clauses: self.provider_where_clauses,
@@ -124,11 +124,11 @@ impl Request for Animals {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-/// Typed Gingr request/response value for sensitive lookup.
+/// Sensitive lookup term such as email or phone that must be redacted from request diagnostics.
 pub struct SensitiveLookup(String);
 
 impl SensitiveLookup {
-    /// Builds the validated storage wrapper for a known-good value.
+    /// Constructs this typed Gingr boundary value after the caller has chosen the provider input to trust.
     pub fn new(value: impl Into<String>) -> super::Result<Self> {
         Ok(Self(non_empty_text(value)?))
     }
@@ -154,7 +154,7 @@ pub enum OwnerLookup {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-/// Typed Gingr request/response value for owner.
+/// Request descriptor for one Gingr owner/customer record by provider ID.
 pub struct Owner {
     lookup: OwnerLookup,
 }
@@ -254,13 +254,13 @@ impl core::fmt::Display for FormKind {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-/// Typed Gingr request/response value for form.
+/// Request descriptor for a Gingr form definition by provider form ID.
 pub struct Form {
     kind: FormKind,
 }
 
 impl Form {
-    /// Creates the wrapper from an already validated value.
+    /// Wraps an already-observed Gingr identifier without claiming anything beyond provider provenance.
     pub const fn new(kind: FormKind) -> Self {
         Self { kind }
     }
@@ -285,18 +285,18 @@ pub mod custom_field {
     use super::*;
 
     #[derive(Clone, Debug, PartialEq, Eq)]
-    /// Typed Gingr request/response value for name.
+    /// Non-empty provider custom-field name used for Gingr custom-field search.
     pub struct Name(String);
 
     impl Name {
-        /// Builds the validated storage wrapper for a known-good value.
+        /// Constructs this typed Gingr boundary value after the caller has chosen the provider input to trust.
         pub fn new(value: impl Into<String>) -> super::super::Result<Self> {
             Ok(Self(non_empty_text(value)?))
         }
     }
 
     #[derive(Clone, Debug, PartialEq, Eq)]
-    /// Typed Gingr request/response value for search.
+    /// Request descriptor for Gingr custom-field search across provider owner or animal fields.
     pub struct Search {
         form: FormKind,
         field_name: Name,
@@ -304,14 +304,14 @@ pub mod custom_field {
     }
 
     impl Search {
-        /// Starts a typed builder for this Gingr endpoint request.
+        /// Starts a builder that makes each provider parameter explicit before request capture.
         pub fn builder() -> SearchBuilder {
             SearchBuilder::default()
         }
     }
 
     #[derive(Clone, Debug, Default)]
-    /// Typed Gingr request/response value for search builder.
+    /// Builder for custom-field searches that keeps field name, text value, and optional location explicit.
     pub struct SearchBuilder {
         form: Option<FormKind>,
         field_name: Option<Name>,
@@ -337,7 +337,7 @@ pub mod custom_field {
             self
         }
 
-        /// Builds the typed Gingr request after all parameters have been validated.
+        /// Finalizes the provider request descriptor after required fields are present and wrappers have validated local invariants.
         pub fn build(self) -> Search {
             Search {
                 form: self.form.expect("Search requires form"),
@@ -371,7 +371,7 @@ pub mod custom_field {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-/// Typed Gingr request/response value for animal care info.
+/// Request descriptor for Gingr feeding or medication info tied to one animal record.
 pub struct AnimalCareInfo {
     path: &'static str,
     animal_id: AnimalId,

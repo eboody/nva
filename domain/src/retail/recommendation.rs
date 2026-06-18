@@ -1,3 +1,5 @@
+//! Retail recommendation contracts for personalized upsell candidates, review gates, and safe customer copy.
+
 use bon::Builder;
 use serde::{Deserialize, Serialize};
 
@@ -7,7 +9,7 @@ use crate::policy;
 use super::inventory::Availability;
 use super::product::Product;
 
-/// Rationale boundary for retail recommendation contracts.
+/// Rationale boundary for human-readable evidence explaining why a retail recommendation exists.
 pub mod rationale {
     use nutype::nutype;
     #[allow(unused_imports)]
@@ -32,82 +34,82 @@ pub mod rationale {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for rule decisions in retail workflows.
+/// Recommendation rule that names the operational event that can produce an upsell candidate.
 pub enum Rule {
     /// No additional workflow gate is required.
     None,
-    /// Anxiety support after boarding retail inventory, POS, reorder, or recommendation signal.
+    /// Anxiety support after boarding retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     AnxietySupportAfterBoarding,
-    /// Diet support after boarding retail inventory, POS, reorder, or recommendation signal.
+    /// Diet support after boarding retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     DietSupportAfterBoarding,
-    /// Coat care after grooming retail inventory, POS, reorder, or recommendation signal.
+    /// Coat care after grooming retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     CoatCareAfterGrooming,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Typed candidate domain value that keeps raw primitives out of retail workflows.
+/// Retail recommendation candidate containing customer/pet context, product, rationale, inventory, preference, and care-safety signals.
 pub struct Candidate {
-    /// Customer id fact promoted into this retail contract.
+    /// Source-derived customer id carried by this retail contract.
     pub customer_id: CustomerId,
     /// Pet receiving the grooming or care service.
     pub pet_id: PetId,
-    /// Location id fact promoted into this retail contract.
+    /// Source-derived location id carried by this retail contract.
     pub location_id: LocationId,
-    /// Product fact promoted into this retail contract.
+    /// Source-derived product carried by this retail contract.
     pub product: Product,
     /// Business reason staff should review before proceeding.
     pub reason: Reason,
-    /// Rationale fact promoted into this retail contract.
+    /// Source-derived rationale carried by this retail contract.
     pub rationale: rationale::Text,
-    /// Care sensitivity fact promoted into this retail contract.
+    /// Source-derived care sensitivity carried by this retail contract.
     pub care_sensitivity: CareSensitivity,
-    /// Inventory fact promoted into this retail contract.
+    /// Source-derived inventory carried by this retail contract.
     pub inventory: Availability,
-    /// Customer preference fact promoted into this retail contract.
+    /// Source-derived customer preference carried by this retail contract.
     pub customer_preference: Preference,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for reason decisions in retail workflows.
+/// Business reason for recommending a product, kept separate from customer-facing copy.
 pub enum Reason {
-    /// Anxiety or stress support retail inventory, POS, reorder, or recommendation signal.
+    /// Anxiety or stress support retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     AnxietyOrStressSupport,
-    /// Boarding diet continuity retail inventory, POS, reorder, or recommendation signal.
+    /// Boarding diet continuity retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     BoardingDietContinuity,
-    /// Coat or skin care after grooming retail inventory, POS, reorder, or recommendation signal.
+    /// Coat or skin care after grooming retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     CoatOrSkinCareAfterGrooming,
-    /// Prior purchase replenishment retail inventory, POS, reorder, or recommendation signal.
+    /// Prior purchase replenishment retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     PriorPurchaseReplenishment,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for care sensitivity decisions in retail workflows.
+/// Care-sensitivity status that decides whether supplement/diet/product recommendations need care or manager review.
 pub enum CareSensitivity {
-    /// No known care conflict retail inventory, POS, reorder, or recommendation signal.
+    /// No known care conflict retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     NoKnownCareConflict,
-    /// Supplement or diet review required retail inventory, POS, reorder, or recommendation signal.
+    /// Supplement or diet review required retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     SupplementOrDietReviewRequired,
-    /// Care plan conflict retail inventory, POS, reorder, or recommendation signal.
+    /// Care plan conflict retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     CarePlanConflict,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for preference decisions in retail workflows.
+/// Customer preference state used to suppress opted-out recommendations and review unknown consent.
 pub enum Preference {
-    /// Allows retail recommendations retail inventory, POS, reorder, or recommendation signal.
+    /// Allows retail recommendations retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     AllowsRetailRecommendations,
-    /// Opted out retail inventory, POS, reorder, or recommendation signal.
+    /// Opted out retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     OptedOut,
     /// Estimate confidence is unknown and must be reviewed.
     UnknownRequiresReview,
 }
 
 #[derive(Debug, Clone, Default)]
-/// Typed policy domain value that keeps raw primitives out of retail workflows.
+/// Represents the policy concept as a typed retail operational contract instead of a raw primitive.
 pub struct Policy;
 
 impl Policy {
-    /// Returns the evaluate for this retail value.
+    /// Evaluates recommendation or customer copy safety without bypassing preference, inventory, or care-review gates.
     pub fn evaluate(&self, candidate: &Candidate) -> Decision {
         if matches!(candidate.customer_preference, Preference::OptedOut) {
             return Decision::Suppressed {
@@ -134,25 +136,25 @@ impl Policy {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for decision decisions in retail workflows.
+/// Recommendation decision that either drafts an internal candidate, requires review, or suppresses the upsell.
 pub enum Decision {
-    /// Draft internal candidate retail inventory, POS, reorder, or recommendation signal.
+    /// Draft internal candidate retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     DraftInternalCandidate,
-    /// Staff review required retail inventory, POS, reorder, or recommendation signal.
+    /// Staff review required retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     StaffReviewRequired {
         /// Business reason staff should review before proceeding.
         reason: ReviewReason,
-        /// Gate fact promoted into this retail contract.
+        /// Source-derived gate carried by this retail contract.
         gate: policy::ReviewGate,
     },
-    /// Manager review required retail inventory, POS, reorder, or recommendation signal.
+    /// Manager review required retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     ManagerReviewRequired {
         /// Business reason staff should review before proceeding.
         reason: ReviewReason,
-        /// Gate fact promoted into this retail contract.
+        /// Source-derived gate carried by this retail contract.
         gate: policy::ReviewGate,
     },
-    /// Suppressed retail inventory, POS, reorder, or recommendation signal.
+    /// Suppressed retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     Suppressed {
         /// Business reason staff should review before proceeding.
         reason: SuppressionReason,
@@ -160,26 +162,26 @@ pub enum Decision {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for review reason decisions in retail workflows.
+/// Decision vocabulary for review reason in retail workflows.
 pub enum ReviewReason {
-    /// Care sensitive product retail inventory, POS, reorder, or recommendation signal.
+    /// Care sensitive product retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     CareSensitiveProduct,
-    /// Care plan conflict retail inventory, POS, reorder, or recommendation signal.
+    /// Care plan conflict retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     CarePlanConflict,
-    /// Unknown customer preference retail inventory, POS, reorder, or recommendation signal.
+    /// Unknown customer preference retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     UnknownCustomerPreference,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for suppression reason decisions in retail workflows.
+/// Reason a recommendation is suppressed before staff/customer use.
 pub enum SuppressionReason {
-    /// Customer opted out retail inventory, POS, reorder, or recommendation signal.
+    /// Customer opted out retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     CustomerOptedOut,
-    /// Inventory unavailable retail inventory, POS, reorder, or recommendation signal.
+    /// Inventory unavailable retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     InventoryUnavailable,
 }
 
-/// Customer copy boundary for retail recommendation contracts.
+/// Customer-copy boundary that prevents unsafe retail claims from leaving draft/review state.
 pub mod customer_copy {
     use nutype::nutype;
     use serde::{Deserialize, Serialize};
@@ -204,11 +206,11 @@ pub mod customer_copy {
     pub struct SafeCopy(String);
 
     #[derive(Debug, Clone, Default)]
-    /// Typed policy domain value that keeps raw primitives out of retail workflows.
+    /// Represents the policy concept as a typed retail operational contract instead of a raw primitive.
     pub struct Policy;
 
     impl Policy {
-        /// Returns the evaluate for this retail value.
+        /// Evaluates recommendation or customer copy safety without bypassing preference, inventory, or care-review gates.
         pub fn evaluate(&self, copy: &SafeCopy) -> Decision {
             let normalized = copy.clone().into_inner().to_lowercase();
             if ["treat", "diagnos", "cure", "prescrib", "medical"]
@@ -228,28 +230,28 @@ pub mod customer_copy {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for decision decisions in retail workflows.
+    /// Recommendation decision that either drafts an internal candidate, requires review, or suppresses the upsell.
     pub enum Decision {
-        /// Draft requires approval retail inventory, POS, reorder, or recommendation signal.
+        /// Draft requires approval retail operational signal for inventory, POS, reorder, recommendation, or review handling.
         DraftRequiresApproval {
-            /// Gate fact promoted into this retail contract.
+            /// Source-derived gate carried by this retail contract.
             gate: policy::ReviewGate,
         },
-        /// Rejected retail inventory, POS, reorder, or recommendation signal.
+        /// Rejected retail operational signal for inventory, POS, reorder, recommendation, or review handling.
         Rejected {
             /// Business reason staff should review before proceeding.
             reason: RejectionReason,
-            /// Gate fact promoted into this retail contract.
+            /// Source-derived gate carried by this retail contract.
             gate: policy::ReviewGate,
         },
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for rejection reason decisions in retail workflows.
+    /// Decision vocabulary for rejection reason in retail workflows.
     pub enum RejectionReason {
-        /// Medical claim retail inventory, POS, reorder, or recommendation signal.
+        /// Medical claim retail operational signal for inventory, POS, reorder, recommendation, or review handling.
         MedicalClaim,
-        /// Unsupported promise retail inventory, POS, reorder, or recommendation signal.
+        /// Unsupported promise retail operational signal for inventory, POS, reorder, recommendation, or review handling.
         UnsupportedPromise,
     }
 }

@@ -54,25 +54,57 @@ pub mod error;
 pub use error::{Error, ExternalFailure, Resource, ResourceId, Result};
 
 #[async_trait]
-/// Defines the behavior required from a customer store participant in the tools workflow.
+/// Read-only customer/reservation evidence store exposed to app workflows.
+///
+/// Implementations fetch source-grounded customer, pet, and reservation records
+/// for deterministic workflow evaluation. The trait is a read boundary: returned
+/// facts may be summarized or used to prepare review packets, but callers must
+/// use separate draft/review ports for any customer message, booking update, or
+/// provider-system write.
 pub trait CustomerStore: Send + Sync {
-    /// Runs the id step while preserving the agent tool workflow safety boundary.
+    /// Fetches the customer record identified by `id` as app-owned evidence.
+    ///
+    /// The returned customer can ground triage, retention, or communication
+    /// drafts. A missing record should surface as [`Error::NotFound`], and this
+    /// read must not create, edit, merge, or contact the customer.
     async fn get_customer(&self, id: CustomerId) -> Result<Customer>;
-    /// Runs the id step while preserving the agent tool workflow safety boundary.
+    /// Fetches the pet profile identified by `id` for policy and care-context checks.
+    ///
+    /// The result may inform vaccine, temperament, service-line, or daily-care
+    /// review packets. It is evidence only; it must not change pet profile fields
+    /// or treat incomplete data as permission to invent missing facts.
     async fn get_pet(&self, id: PetId) -> Result<Pet>;
-    /// Runs the id step while preserving the agent tool workflow safety boundary.
+    /// Fetches the reservation identified by `id` for source-grounded workflow state.
+    ///
+    /// The result may drive booking triage, daily updates, checkout completion,
+    /// or retention follow-up decisions. It must not confirm, cancel, check in,
+    /// check out, or otherwise mutate the reservation.
     async fn get_reservation(&self, id: reservation::Id) -> Result<Reservation>;
 }
 
 #[async_trait]
-/// Defines the behavior required from a reservation system participant in the tools workflow.
+/// Reservation-system port for read checks and review-held draft updates.
+///
+/// This trait separates source availability checks and draft reservation updates
+/// from live provider/PMS mutation. Implementations may consult external systems
+/// or create internal draft records, but workflow code must still apply review
+/// gates before any booking promise, status change, deposit, or customer message.
 pub trait ReservationSystem: Send + Sync {
-    /// Runs the check availability step while preserving the agent tool workflow safety boundary.
+    /// Checks capacity/policy availability without confirming a booking.
+    ///
+    /// The request carries location, optional reservation context, and service
+    /// notes. The outcome should identify available/unavailable/review-required
+    /// evidence, including any capacity snapshot id, and must not reserve space
+    /// unless the implementation explicitly models that as a review-safe hold.
     async fn check_availability(
         &self,
         request: availability::Request,
     ) -> Result<availability::Outcome>;
-    /// Runs the draft reservation update step while preserving the agent tool workflow safety boundary.
+    /// Persists a proposed reservation status change as a draft for review.
+    ///
+    /// The returned draft id identifies the review artifact. Implementations must
+    /// not write the proposed status to the provider/PMS or represent the draft as
+    /// a customer-visible booking decision before the required app/human gates run.
     async fn draft_reservation_update(
         &self,
         request: draft_update::Request,
@@ -80,9 +112,17 @@ pub trait ReservationSystem: Send + Sync {
 }
 
 #[async_trait]
-/// Defines the behavior required from a agent runtime participant in the tools workflow.
+/// Structured agent runtime used only after deterministic app context is built.
+///
+/// Implementations execute a model/tool runner against typed input and return a
+/// typed workflow result for validation. The runtime is not a shortcut around
+/// source evidence, review gates, or blocked live actions.
 pub trait AgentRuntime: Send + Sync {
-    /// Runs the t in step while preserving the agent tool workflow safety boundary.
+    /// Runs one typed agent call for a workflow event and input packet.
+    ///
+    /// The call returns a structured workflow result for the app validator to
+    /// accept or reject. Even successful output remains draft/evidence until the
+    /// owning workflow applies policy gates.
     async fn run_structured<TIn, TOut>(
         &self,
         event: workflow::Event,
@@ -98,13 +138,17 @@ pub mod availability {
     use super::*;
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Input contract for building the workflow packet from source-grounded records.
+    /// Availability lookup input for a location/service request.
+    ///
+    /// This packet supplies enough source context for an adapter to check capacity
+    /// or policy hard-stops while keeping the workflow in read/draft mode.
     pub struct Request {
-        /// Location id preserved as evidence for audit, review, or agent context.
+        /// Resort/location whose capacity or policy should be checked.
         pub location_id: LocationId,
-        /// Reservation id preserved as evidence for audit, review, or agent context.
+        /// Reservation context when the check is for an existing booking workflow.
         pub reservation_id: Option<reservation::Id>,
-        /// Service notes preserved as evidence for audit, review, or agent context.
+        /// Staff/customer service notes that clarify requested dates, service line,
+        /// pet constraints, or missing information for the availability check.
         pub service_notes: ServiceNotes,
     }
 
@@ -126,53 +170,53 @@ pub mod availability {
     pub struct ServiceNotes(String);
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Outcome carried by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
+    /// Availability decision returned to the app as source evidence, not a booking promise.
     pub struct Outcome {
-        /// Decision preserved as evidence for audit, review, or agent context.
+        /// Deterministic availability result and the evidence required to explain it.
         pub decision: Decision,
     }
 
     impl Outcome {
-        /// Reports whether the agent tool workflow satisfies the is available safety condition.
+        /// Reports whether capacity was found without implying customer-visible confirmation.
         pub fn is_available(&self) -> bool {
             matches!(self.decision, Decision::Available { .. })
         }
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Classifies decision values that drive the agent tool workflow.
+    /// Availability result used to decide whether staff may review a draft offer.
     pub enum Decision {
-        /// Routes agent tool work flagged as available to the right queue, review gate, or agent packet.
+        /// Capacity evidence exists for a reviewable booking offer.
         Available {
-            /// Reason preserved as evidence for audit, review, or agent context.
+            /// Why the adapter considers the requested service/date capacity available.
             reason: SuccessReason,
-            /// Capacity snapshot id preserved as evidence for audit, review, or agent context.
+            /// Snapshot or hold identifier staff can inspect before relying on the result.
             capacity_snapshot_id: CapacitySnapshotId,
         },
-        /// Routes agent tool work flagged as unavailable to the right queue, review gate, or agent packet.
+        /// Capacity or policy evidence prevents a safe draft offer without review.
         Unavailable {
-            /// Reason preserved as evidence for audit, review, or agent context.
+            /// Reason the workflow should deny, defer, or escalate the draft offer.
             reason: DenialReason,
         },
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Classifies success reason values that drive the agent tool workflow.
+    /// Positive availability evidence reasons.
     pub enum SuccessReason {
-        /// Uses capacity held as source-grounded evidence for the deterministic decision.
+        /// A capacity snapshot or review-safe hold exists for staff to evaluate.
         CapacityHeld,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Classifies denial reason values that drive the agent tool workflow.
+    /// Negative or escalation availability evidence reasons.
     pub enum DenialReason {
-        /// Uses capacity unavailable as source-grounded evidence for the deterministic decision.
+        /// Source capacity data shows no safe space/service availability.
         CapacityUnavailable,
-        /// Uses policy hard stop as source-grounded evidence for the deterministic decision.
+        /// A deterministic policy rule blocks the requested booking path.
         PolicyHardStop,
-        /// Uses missing required information as source-grounded evidence for the deterministic decision.
+        /// Staff/customer information is incomplete, so the workflow cannot infer availability.
         MissingRequiredInformation,
-        /// Uses requires human review as source-grounded evidence for the deterministic decision.
+        /// The adapter found ambiguity that requires staff or manager review.
         RequiresHumanReview,
     }
 
@@ -201,26 +245,26 @@ pub mod draft_update {
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     /// Input contract for building the workflow packet from source-grounded records.
     pub struct Request {
-        /// Reservation id preserved as evidence for audit, review, or agent context.
+        /// Source-derived Reservation id retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
         pub reservation_id: reservation::Id,
-        /// Proposed status preserved as evidence for audit, review, or agent context.
+        /// Source-derived Proposed status retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
         pub proposed_status: reservation::Status,
-        /// Rationale preserved as evidence for audit, review, or agent context.
+        /// Source-derived Rationale retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
         pub rationale: Rationale,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Classifies rationale values that drive the agent tool workflow.
+    /// Decision taxonomy for rationale in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
     pub enum Rationale {
-        /// Routes agent tool work flagged as capacity unavailable to the right queue, review gate, or agent packet.
+        /// Represents capacity unavailable in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
         CapacityUnavailable,
-        /// Routes agent tool work flagged as policy hard stop to the right queue, review gate, or agent packet.
+        /// Represents policy hard stop in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
         PolicyHardStop,
-        /// Routes agent tool work flagged as missing required information to the right queue, review gate, or agent packet.
+        /// Represents missing required information in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
         MissingRequiredInformation,
-        /// Routes agent tool work flagged as manager review required to the right queue, review gate, or agent packet.
+        /// Represents manager review required in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
         ManagerReviewRequired,
-        /// Routes agent tool work flagged as customer accepted offer to the right queue, review gate, or agent packet.
+        /// Represents customer accepted offer in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
         CustomerAcceptedOffer,
     }
 
@@ -253,9 +297,9 @@ pub mod portal {
     use super::*;
 
     #[async_trait]
-    /// Defines the behavior required from a lookup participant in the tools workflow.
+    /// Read-only provider lookup port for turning external identifiers into reviewable app evidence.
     pub trait Lookup: Send + Sync {
-        /// Runs the request step while preserving the agent tool workflow safety boundary.
+        /// Resolves the request into source-grounded lookup evidence without editing provider records or contacting customers.
         async fn lookup(&self, request: lookup::Request) -> Result<lookup::Outcome>;
     }
 
@@ -266,37 +310,37 @@ pub mod portal {
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
         /// Input contract for building the workflow packet from source-grounded records.
         pub struct Request {
-            /// Provider preserved as evidence for audit, review, or agent context.
+            /// Source-derived Provider retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub provider: Provider,
-            /// Account preserved as evidence for audit, review, or agent context.
+            /// Source-derived Account retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub account: AccountId,
-            /// Criteria preserved as evidence for audit, review, or agent context.
+            /// Source-derived Criteria retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub criteria: Criteria,
-            /// Include preserved as evidence for audit, review, or agent context.
+            /// Source-derived Include retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub include: Vec<Include>,
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
         /// Outcome carried by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
         pub struct Outcome {
-            /// Provider preserved as evidence for audit, review, or agent context.
+            /// Source-derived Provider retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub provider: Provider,
-            /// Matched preserved as evidence for audit, review, or agent context.
+            /// Source-derived Matched retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub matched: Match,
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-        /// Classifies match values that drive the agent tool workflow.
+        /// Decision taxonomy for match in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
         pub enum Match {
-            /// Routes agent tool work flagged as customer to the right queue, review gate, or agent packet.
+            /// Represents customer in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
             Customer(CustomerId),
-            /// Routes agent tool work flagged as pet to the right queue, review gate, or agent packet.
+            /// Represents pet in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
             Pet(PetId),
-            /// Routes agent tool work flagged as reservation to the right queue, review gate, or agent packet.
+            /// Represents reservation in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
             Reservation(reservation::Id),
-            /// Routes agent tool work flagged as not found to the right queue, review gate, or agent packet.
+            /// Represents not found in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
             NotFound,
-            /// Candidates preserved as evidence for audit, review, or agent context.
+            /// Source-derived Candidates retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             Ambiguous {
                 /// Candidates carried by this variant.
                 candidates: Vec<ExternalRecordId>,
@@ -304,36 +348,36 @@ pub mod portal {
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-        /// Classifies criteria values that drive the agent tool workflow.
+        /// Decision taxonomy for criteria in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
         pub enum Criteria {
-            /// Routes agent tool work flagged as customer to the right queue, review gate, or agent packet.
+            /// Represents customer in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
             Customer(CustomerId),
-            /// Routes agent tool work flagged as pet to the right queue, review gate, or agent packet.
+            /// Represents pet in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
             Pet(PetId),
-            /// Routes agent tool work flagged as reservation to the right queue, review gate, or agent packet.
+            /// Represents reservation in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
             Reservation(reservation::Id),
-            /// Routes agent tool work flagged as external to the right queue, review gate, or agent packet.
+            /// Represents external in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
             External(ExternalRecordId),
         }
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Classifies provider values that drive the agent tool workflow.
+    /// Decision taxonomy for provider in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
     pub enum Provider {
-        /// Routes agent tool work flagged as gingr to the right queue, review gate, or agent packet.
+        /// Represents gingr in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
         Gingr,
-        /// Routes agent tool work flagged as pms to the right queue, review gate, or agent packet.
+        /// Represents pms in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
         Pms,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Classifies include values that drive the agent tool workflow.
+    /// Decision taxonomy for include in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
     pub enum Include {
-        /// Routes agent tool work flagged as customer contact to the right queue, review gate, or agent packet.
+        /// Represents customer contact in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
         CustomerContact,
-        /// Routes agent tool work flagged as pet profile to the right queue, review gate, or agent packet.
+        /// Represents pet profile in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
         PetProfile,
-        /// Routes agent tool work flagged as reservation ledger to the right queue, review gate, or agent packet.
+        /// Represents reservation ledger in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
         ReservationLedger,
     }
 
@@ -379,14 +423,14 @@ pub mod payment {
     #[async_trait]
     /// Defines the behavior required from a gateway participant in the tools workflow.
     pub trait Gateway: Send + Sync {
-        /// Runs the authorize step while preserving the agent tool workflow safety boundary.
+        /// Evaluates whether a payment operation is policy-authorized without moving money or changing invoices.
         async fn authorize(
             &self,
             request: authorization::Request,
         ) -> Result<authorization::provider::Result>;
-        /// Runs the request step while preserving the agent tool workflow safety boundary.
+        /// Resolves the request into source-grounded lookup evidence without editing provider records or contacting customers.
         async fn refund(&self, request: refund::Request) -> Result<refund::provider::Result>;
-        /// Runs the record deposit step while preserving the agent tool workflow safety boundary.
+        /// Records a reviewed deposit artifact after authorization while keeping payment movement behind explicit policy gates.
         async fn record_deposit(
             &self,
             request: deposit::RecordRequest,
@@ -394,27 +438,27 @@ pub mod payment {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Classifies subject values that drive the agent tool workflow.
+    /// Decision taxonomy for subject in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
     pub enum Subject {
-        /// Routes agent tool work flagged as reservation deposit to the right queue, review gate, or agent packet.
+        /// Represents reservation deposit in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
         ReservationDeposit(reservation::Id),
-        /// Routes agent tool work flagged as reservation balance to the right queue, review gate, or agent packet.
+        /// Represents reservation balance in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
         ReservationBalance(reservation::Id),
-        /// Routes agent tool work flagged as customer account to the right queue, review gate, or agent packet.
+        /// Represents customer account in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
         CustomerAccount(CustomerId),
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Classifies capture policy values that drive the agent tool workflow.
+    /// Decision taxonomy for capture policy in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
     pub enum CapturePolicy {
-        /// Routes agent tool work flagged as authorize only to the right queue, review gate, or agent packet.
+        /// Represents authorize only in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
         AuthorizeOnly,
-        /// Routes agent tool work flagged as capture immediately to the right queue, review gate, or agent packet.
+        /// Represents capture immediately in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
         CaptureImmediately,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Classifies review reason values that drive the agent tool workflow.
+    /// Decision taxonomy for review reason in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
     pub enum ReviewReason {
         /// Uses amount mismatch as source-grounded evidence for the deterministic decision.
         AmountMismatch,
@@ -448,13 +492,13 @@ pub mod payment {
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
         /// Input contract for building the workflow packet from source-grounded records.
         pub struct Request {
-            /// Subject preserved as evidence for audit, review, or agent context.
+            /// Source-derived Subject retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub subject: Subject,
-            /// Amount preserved as evidence for audit, review, or agent context.
+            /// Source-derived Amount retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub amount: Money,
-            /// Capture policy preserved as evidence for audit, review, or agent context.
+            /// Source-derived Capture policy retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub capture_policy: CapturePolicy,
-            /// Idempotency key preserved as evidence for audit, review, or agent context.
+            /// Source-derived Idempotency key retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub idempotency_key: IdempotencyKey,
         }
 
@@ -465,29 +509,29 @@ pub mod payment {
             pub use authorization_id::Id as AuthorizationId;
 
             #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-            /// Classifies result values that drive the agent tool workflow.
+            /// Decision taxonomy for result in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
             pub enum Result {
-                /// Routes agent tool work flagged as authorized to the right queue, review gate, or agent packet.
+                /// Represents authorized in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
                 Authorized {
-                    /// Authorization id preserved as evidence for audit, review, or agent context.
+                    /// Source-derived Authorization id retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
                     authorization_id: AuthorizationId,
-                    /// Amount preserved as evidence for audit, review, or agent context.
+                    /// Source-derived Amount retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
                     amount: Money,
                 },
-                /// Routes agent tool work flagged as declined to the right queue, review gate, or agent packet.
+                /// Represents declined in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
                 Declined {
-                    /// Reason preserved as evidence for audit, review, or agent context.
+                    /// Source-derived Reason retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
                     reason: DeclineReason,
                 },
-                /// Routes agent tool work flagged as requires human review to the right queue, review gate, or agent packet.
+                /// Represents requires human review in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
                 RequiresHumanReview {
-                    /// Reason preserved as evidence for audit, review, or agent context.
+                    /// Source-derived Reason retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
                     reason: ReviewReason,
                 },
             }
 
             #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-            /// Classifies decline reason values that drive the agent tool workflow.
+            /// Decision taxonomy for decline reason in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
             pub enum DeclineReason {
                 /// Uses card declined as source-grounded evidence for the deterministic decision.
                 CardDeclined,
@@ -530,18 +574,18 @@ pub mod payment {
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
         /// Input contract for building the workflow packet from source-grounded records.
         pub struct Request {
-            /// Payment reference preserved as evidence for audit, review, or agent context.
+            /// Source-derived Payment reference retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub payment_reference: domain::payment::Reference,
-            /// Amount preserved as evidence for audit, review, or agent context.
+            /// Source-derived Amount retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub amount: Money,
-            /// Reason preserved as evidence for audit, review, or agent context.
+            /// Source-derived Reason retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub reason: Reason,
-            /// Idempotency key preserved as evidence for audit, review, or agent context.
+            /// Source-derived Idempotency key retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub idempotency_key: IdempotencyKey,
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-        /// Classifies reason values that drive the agent tool workflow.
+        /// Decision taxonomy for reason in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
         pub enum Reason {
             /// Uses reservation canceled as source-grounded evidence for the deterministic decision.
             ReservationCanceled,
@@ -558,14 +602,14 @@ pub mod payment {
             pub use refund_id::Id as RefundId;
 
             #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-            /// Classifies result values that drive the agent tool workflow.
+            /// Decision taxonomy for result in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
             pub enum Result {
-                /// Refund id preserved as evidence for audit, review, or agent context.
+                /// Source-derived Refund id retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
                 Accepted {
                     /// Refund id carried by this variant.
                     refund_id: RefundId,
                 },
-                /// Reason preserved as evidence for audit, review, or agent context.
+                /// Source-derived Reason retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
                 Rejected {
                     /// Reason carried by this variant.
                     reason: RejectionReason,
@@ -573,7 +617,7 @@ pub mod payment {
             }
 
             #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-            /// Classifies rejection reason values that drive the agent tool workflow.
+            /// Decision taxonomy for rejection reason in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
             pub enum RejectionReason {
                 /// Uses payment not found as source-grounded evidence for the deterministic decision.
                 PaymentNotFound,
@@ -616,20 +660,20 @@ pub mod payment {
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
         /// Record request carried by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
         pub struct RecordRequest {
-            /// Reservation id preserved as evidence for audit, review, or agent context.
+            /// Source-derived Reservation id retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub reservation_id: reservation::Id,
-            /// Payment reference preserved as evidence for audit, review, or agent context.
+            /// Source-derived Payment reference retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub payment_reference: domain::payment::Reference,
-            /// Amount preserved as evidence for audit, review, or agent context.
+            /// Source-derived Amount retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub amount: Money,
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
         /// Record result carried by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
         pub struct RecordResult {
-            /// Reservation id preserved as evidence for audit, review, or agent context.
+            /// Source-derived Reservation id retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub reservation_id: reservation::Id,
-            /// Deposit status preserved as evidence for audit, review, or agent context.
+            /// Source-derived Deposit status retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub deposit_status: domain::payment::DepositStatus,
         }
     }
@@ -642,38 +686,38 @@ pub mod messaging {
     #[async_trait]
     /// Defines the behavior required from a drafting participant in the tools workflow.
     pub trait Drafting: Send + Sync {
-        /// Runs the request step while preserving the agent tool workflow safety boundary.
+        /// Resolves the request into source-grounded lookup evidence without editing provider records or contacting customers.
         async fn draft_message(&self, request: draft::Request) -> Result<draft::Result>;
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Classifies delivery channel values that drive the agent tool workflow.
+    /// Decision taxonomy for delivery channel in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
     pub enum DeliveryChannel {
-        /// Routes agent tool work flagged as email to the right queue, review gate, or agent packet.
+        /// Represents email in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
         Email,
-        /// Routes agent tool work flagged as sms to the right queue, review gate, or agent packet.
+        /// Represents sms in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
         Sms,
-        /// Routes agent tool work flagged as portal to the right queue, review gate, or agent packet.
+        /// Represents portal in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
         Portal,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Classifies recipient values that drive the agent tool workflow.
+    /// Decision taxonomy for recipient in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
     pub enum Recipient {
-        /// Routes agent tool work flagged as customer to the right queue, review gate, or agent packet.
+        /// Represents customer in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
         Customer(CustomerId),
-        /// Routes agent tool work flagged as staff to the right queue, review gate, or agent packet.
+        /// Represents staff in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
         Staff(domain::entities::StaffId),
-        /// Routes agent tool work flagged as manager to the right queue, review gate, or agent packet.
+        /// Represents manager in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
         Manager(domain::entities::ManagerId),
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Classifies review policy values that drive the agent tool workflow.
+    /// Decision taxonomy for review policy in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
     pub enum ReviewPolicy {
-        /// Routes agent tool work flagged as draft only to the right queue, review gate, or agent packet.
+        /// Represents draft only in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
         DraftOnly,
-        /// Routes agent tool work flagged as manager approval required to the right queue, review gate, or agent packet.
+        /// Represents manager approval required in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
         ManagerApprovalRequired,
     }
 
@@ -684,27 +728,27 @@ pub mod messaging {
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
         /// Input contract for building the workflow packet from source-grounded records.
         pub struct Request {
-            /// Channel preserved as evidence for audit, review, or agent context.
+            /// Source-derived Channel retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub channel: DeliveryChannel,
-            /// Recipient preserved as evidence for audit, review, or agent context.
+            /// Source-derived Recipient retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub recipient: Recipient,
-            /// Body preserved as evidence for audit, review, or agent context.
+            /// Source-derived Body retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub body: message_body::Body,
-            /// Review preserved as evidence for audit, review, or agent context.
+            /// Source-derived Review retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub review: ReviewPolicy,
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
         /// Result carried by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
         pub struct Result {
-            /// Draft id preserved as evidence for audit, review, or agent context.
+            /// Source-derived Draft id retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub draft_id: draft_update::draft::Id,
-            /// Status preserved as evidence for audit, review, or agent context.
+            /// Source-derived Status retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub status: Status,
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-        /// Classifies status values that drive the agent tool workflow.
+        /// Decision taxonomy for status in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
         pub enum Status {
             /// Labels work as drafted for queueing, review, and downstream agent context.
             Drafted,
@@ -746,9 +790,9 @@ pub mod documents {
         #[async_trait]
         /// Defines the behavior required from a intake participant in the tools workflow.
         pub trait Intake: Send + Sync {
-            /// Runs the request step while preserving the agent tool workflow safety boundary.
+            /// Resolves the request into source-grounded lookup evidence without editing provider records or contacting customers.
             async fn intake_document(&self, request: IntakeRequest) -> Result<IntakeResult>;
-            /// Runs the request step while preserving the agent tool workflow safety boundary.
+            /// Resolves the request into source-grounded lookup evidence without editing provider records or contacting customers.
             async fn extract_ocr(&self, request: super::ocr::Request)
             -> Result<super::ocr::Result>;
         }
@@ -756,55 +800,55 @@ pub mod documents {
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
         /// Intake request carried by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
         pub struct IntakeRequest {
-            /// Document preserved as evidence for audit, review, or agent context.
+            /// Source-derived Document retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub document: reference::Ref,
-            /// Source preserved as evidence for audit, review, or agent context.
+            /// Source-derived Source retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub source: Source,
-            /// Expected content preserved as evidence for audit, review, or agent context.
+            /// Source-derived Expected content retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub expected_content: ExpectedContent,
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
         /// Intake result carried by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
         pub struct IntakeResult {
-            /// Document preserved as evidence for audit, review, or agent context.
+            /// Source-derived Document retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub document: reference::Ref,
-            /// Classification preserved as evidence for audit, review, or agent context.
+            /// Source-derived Classification retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub classification: Classification,
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-        /// Classifies source values that drive the agent tool workflow.
+        /// Decision taxonomy for source in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
         pub enum Source {
-            /// Routes agent tool work flagged as customer upload to the right queue, review gate, or agent packet.
+            /// Represents customer upload in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
             CustomerUpload,
-            /// Routes agent tool work flagged as staff scan to the right queue, review gate, or agent packet.
+            /// Represents staff scan in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
             StaffScan,
-            /// Routes agent tool work flagged as portal import to the right queue, review gate, or agent packet.
+            /// Represents portal import in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
             PortalImport,
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-        /// Classifies expected content values that drive the agent tool workflow.
+        /// Decision taxonomy for expected content in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
         pub enum ExpectedContent {
-            /// Routes agent tool work flagged as vaccine proof to the right queue, review gate, or agent packet.
+            /// Represents vaccine proof in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
             VaccineProof,
-            /// Routes agent tool work flagged as medication instructions to the right queue, review gate, or agent packet.
+            /// Represents medication instructions in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
             MedicationInstructions,
-            /// Routes agent tool work flagged as boarding agreement to the right queue, review gate, or agent packet.
+            /// Represents boarding agreement in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
             BoardingAgreement,
-            /// Routes agent tool work flagged as incident report to the right queue, review gate, or agent packet.
+            /// Represents incident report in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
             IncidentReport,
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-        /// Classifies classification values that drive the agent tool workflow.
+        /// Decision taxonomy for classification in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
         pub enum Classification {
-            /// Routes agent tool work flagged as matches expected content to the right queue, review gate, or agent packet.
+            /// Represents matches expected content in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
             MatchesExpectedContent,
-            /// Routes agent tool work flagged as mismatch to the right queue, review gate, or agent packet.
+            /// Represents mismatch in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
             Mismatch,
-            /// Routes agent tool work flagged as unreadable to the right queue, review gate, or agent packet.
+            /// Represents unreadable in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
             Unreadable,
         }
 
@@ -838,21 +882,21 @@ pub mod documents {
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
         /// Input contract for building the workflow packet from source-grounded records.
         pub struct Request {
-            /// Document preserved as evidence for audit, review, or agent context.
+            /// Source-derived Document retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub document: super::document::reference::Ref,
-            /// Expected content preserved as evidence for audit, review, or agent context.
+            /// Source-derived Expected content retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub expected_content: super::document::ExpectedContent,
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-        /// Classifies result values that drive the agent tool workflow.
+        /// Decision taxonomy for result in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
         pub enum Result {
-            /// Text preserved as evidence for audit, review, or agent context.
+            /// Source-derived Text retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             Extracted {
                 /// Text carried by this variant.
                 text: extracted_text::Text,
             },
-            /// Reason preserved as evidence for audit, review, or agent context.
+            /// Source-derived Reason retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             NeedsHumanReview {
                 /// Reason carried by this variant.
                 reason: ReviewReason,
@@ -860,7 +904,7 @@ pub mod documents {
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-        /// Classifies review reason values that drive the agent tool workflow.
+        /// Decision taxonomy for review reason in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
         pub enum ReviewReason {
             /// Uses low confidence as source-grounded evidence for the deterministic decision.
             LowConfidence,
@@ -901,30 +945,30 @@ pub mod media {
     #[async_trait]
     /// Defines the behavior required from a capture participant in the tools workflow.
     pub trait Capture: Send + Sync {
-        /// Runs the request step while preserving the agent tool workflow safety boundary.
+        /// Resolves the request into source-grounded lookup evidence without editing provider records or contacting customers.
         async fn request_snapshot(&self, request: SnapshotRequest) -> Result<SnapshotResult>;
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     /// Snapshot request carried by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
     pub struct SnapshotRequest {
-        /// Location id preserved as evidence for audit, review, or agent context.
+        /// Source-derived Location id retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
         pub location_id: LocationId,
-        /// Camera id preserved as evidence for audit, review, or agent context.
+        /// Source-derived Camera id retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
         pub camera_id: CameraId,
-        /// Purpose preserved as evidence for audit, review, or agent context.
+        /// Source-derived Purpose retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
         pub purpose: CapturePurpose,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Classifies snapshot result values that drive the agent tool workflow.
+    /// Decision taxonomy for snapshot result in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
     pub enum SnapshotResult {
-        /// Media ref preserved as evidence for audit, review, or agent context.
+        /// Source-derived Media ref retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
         Captured {
             /// Media ref carried by this variant.
             media_ref: Ref,
         },
-        /// Reason preserved as evidence for audit, review, or agent context.
+        /// Source-derived Reason retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
         Unavailable {
             /// Reason carried by this variant.
             reason: UnavailableReason,
@@ -932,18 +976,18 @@ pub mod media {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Classifies capture purpose values that drive the agent tool workflow.
+    /// Decision taxonomy for capture purpose in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
     pub enum CapturePurpose {
-        /// Routes agent tool work flagged as pet status check to the right queue, review gate, or agent packet.
+        /// Represents pet status check in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
         PetStatusCheck(PetId),
-        /// Routes agent tool work flagged as facility safety check to the right queue, review gate, or agent packet.
+        /// Represents facility safety check in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
         FacilitySafetyCheck,
-        /// Routes agent tool work flagged as incident review to the right queue, review gate, or agent packet.
+        /// Represents incident review in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
         IncidentReview(reservation::Id),
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Classifies unavailable reason values that drive the agent tool workflow.
+    /// Decision taxonomy for unavailable reason in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
     pub enum UnavailableReason {
         /// Uses camera offline as source-grounded evidence for the deterministic decision.
         CameraOffline,
@@ -995,12 +1039,12 @@ pub mod hermes {
     #[async_trait]
     /// Defines the behavior required from a automation hooks participant in the tools workflow.
     pub trait AutomationHooks: Send + Sync {
-        /// Runs the draft task step while preserving the agent tool workflow safety boundary.
+        /// Creates an internal task draft for staff review rather than directly assigning labor or changing schedules.
         async fn draft_task(
             &self,
             request: task::DraftRequest,
         ) -> Result<task::kanban::DraftResult>;
-        /// Runs the draft schedule step while preserving the agent tool workflow safety boundary.
+        /// Creates a schedule-change draft for manager review rather than mutating staff rosters.
         async fn draft_schedule(
             &self,
             request: schedule::DraftRequest,
@@ -1014,13 +1058,13 @@ pub mod hermes {
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
         /// Draft request carried by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
         pub struct DraftRequest {
-            /// Title preserved as evidence for audit, review, or agent context.
+            /// Source-derived Title retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub title: workflow::task::Title,
-            /// Body preserved as evidence for audit, review, or agent context.
+            /// Source-derived Body retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub body: workflow::task::Body,
-            /// Queue preserved as evidence for audit, review, or agent context.
+            /// Source-derived Queue retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub queue: QueueName,
-            /// Trigger preserved as evidence for audit, review, or agent context.
+            /// Source-derived Trigger retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub trigger: Trigger,
         }
 
@@ -1033,9 +1077,9 @@ pub mod hermes {
             #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
             /// Draft result carried by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
             pub struct DraftResult {
-                /// Task id preserved as evidence for audit, review, or agent context.
+                /// Source-derived Task id retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
                 pub task_id: TaskId,
-                /// Status preserved as evidence for audit, review, or agent context.
+                /// Source-derived Status retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
                 pub status: DraftStatus,
             }
 
@@ -1070,31 +1114,31 @@ pub mod hermes {
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
         /// Draft request carried by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
         pub struct DraftRequest {
-            /// Name preserved as evidence for audit, review, or agent context.
+            /// Source-derived Name retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub name: Name,
-            /// Cadence preserved as evidence for audit, review, or agent context.
+            /// Source-derived Cadence retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub cadence: Cadence,
-            /// Queue preserved as evidence for audit, review, or agent context.
+            /// Source-derived Queue retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub queue: QueueName,
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
         /// Draft result carried by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
         pub struct DraftResult {
-            /// Schedule id preserved as evidence for audit, review, or agent context.
+            /// Source-derived Schedule id retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub schedule_id: Id,
-            /// Status preserved as evidence for audit, review, or agent context.
+            /// Source-derived Status retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub status: DraftStatus,
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-        /// Classifies cadence values that drive the agent tool workflow.
+        /// Decision taxonomy for cadence in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
         pub enum Cadence {
-            /// Routes agent tool work flagged as daily to the right queue, review gate, or agent packet.
+            /// Represents daily in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
             Daily,
-            /// Routes agent tool work flagged as hourly to the right queue, review gate, or agent packet.
+            /// Represents hourly in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
             Hourly,
-            /// Routes agent tool work flagged as manual only to the right queue, review gate, or agent packet.
+            /// Represents manual only in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
             ManualOnly,
         }
 
@@ -1134,18 +1178,18 @@ pub mod hermes {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Classifies trigger values that drive the agent tool workflow.
+    /// Decision taxonomy for trigger in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
     pub enum Trigger {
-        /// Routes agent tool work flagged as workflow review to the right queue, review gate, or agent packet.
+        /// Represents workflow review in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
         WorkflowReview,
-        /// Routes agent tool work flagged as operations brief to the right queue, review gate, or agent packet.
+        /// Represents operations brief in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
         OperationsBrief,
-        /// Routes agent tool work flagged as integration failure to the right queue, review gate, or agent packet.
+        /// Represents integration failure in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
         IntegrationFailure,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Classifies draft status values that drive the agent tool workflow.
+    /// Decision taxonomy for draft status in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
     pub enum DraftStatus {
         /// Labels work as drafted for queueing, review, and downstream agent context.
         Drafted,
@@ -1172,26 +1216,26 @@ pub mod hermes {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Classifies external tool candidate values that drive the agent tool workflow.
+/// Decision taxonomy for external tool candidate in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
 pub enum ExternalToolCandidate {
-    /// Routes agent tool work flagged as gingr portal to the right queue, review gate, or agent packet.
+    /// Represents gingr portal in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     GingrPortal,
-    /// Routes agent tool work flagged as payment provider to the right queue, review gate, or agent packet.
+    /// Represents payment provider in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     PaymentProvider,
-    /// Routes agent tool work flagged as sms provider to the right queue, review gate, or agent packet.
+    /// Represents sms provider in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     SmsProvider,
-    /// Routes agent tool work flagged as email provider to the right queue, review gate, or agent packet.
+    /// Represents email provider in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     EmailProvider,
-    /// Routes agent tool work flagged as file storage to the right queue, review gate, or agent packet.
+    /// Represents file storage in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     FileStorage,
-    /// Routes agent tool work flagged as ocr or document ai to the right queue, review gate, or agent packet.
+    /// Represents ocr or document ai in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     OcrOrDocumentAi,
-    /// Routes agent tool work flagged as camera or webcam provider to the right queue, review gate, or agent packet.
+    /// Represents camera or webcam provider in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     CameraOrWebcamProvider,
-    /// Routes agent tool work flagged as hermes kanban to the right queue, review gate, or agent packet.
+    /// Represents hermes kanban in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     HermesKanban,
-    /// Routes agent tool work flagged as hermes cron or webhook to the right queue, review gate, or agent packet.
+    /// Represents hermes cron or webhook in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     HermesCronOrWebhook,
-    /// Routes agent tool work flagged as postgres to the right queue, review gate, or agent packet.
+    /// Represents postgres in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     Postgres,
 }

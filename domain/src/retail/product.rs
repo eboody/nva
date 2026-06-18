@@ -1,3 +1,5 @@
+//! Product catalog contracts for SKUs, categories, location offerings, and sellability rules.
+
 use bon::Builder;
 use nutype::nutype;
 use serde::{Deserialize, Serialize};
@@ -7,18 +9,18 @@ use crate::entities::LocationId;
 use super::{inventory, pos, reorder};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for category decisions in retail workflows.
+/// Product category used to distinguish supplements, boarding diets, and personalized upsell items.
 pub enum Category {
-    /// Supplement retail inventory, POS, reorder, or recommendation signal.
+    /// Supplement retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     Supplement,
-    /// In house diet retail inventory, POS, reorder, or recommendation signal.
+    /// In house diet retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     InHouseDiet,
-    /// Personalized upsell retail inventory, POS, reorder, or recommendation signal.
+    /// Personalized upsell retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     PersonalizedUpsell,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-/// Typed sku domain value that keeps raw primitives out of retail workflows.
+/// Non-empty SKU identifier promoted from POS/catalog data for inventory and reorder workflows.
 pub struct Sku(String);
 
 impl Sku {
@@ -52,10 +54,10 @@ impl<'de> Deserialize<'de> for Sku {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-/// Domain vocabulary for sku error decisions in retail workflows.
+/// Decision vocabulary for sku error in retail workflows.
 pub enum SkuError {
     #[error("retail SKU cannot be empty")]
-    /// Empty retail inventory, POS, reorder, or recommendation signal.
+    /// Empty retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     Empty,
 }
 
@@ -77,10 +79,10 @@ pub enum SkuError {
 pub struct Name(String);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Typed product domain value that keeps raw primitives out of retail workflows.
+/// Retail product with a SKU and category used across POS, inventory, and recommendation contracts.
 pub struct Product {
     sku: Sku,
-    /// Category fact promoted into this retail contract.
+    /// Source-derived category carried by this retail contract.
     pub category: Category,
 }
 
@@ -90,55 +92,55 @@ impl Product {
         Self { sku, category }
     }
 
-    /// Returns the sku for this retail value.
+    /// Returns the sku evidence recorded on this retail contract.
     pub fn sku(&self) -> &Sku {
         &self.sku
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for offering status decisions in retail workflows.
+/// Location-level offering status used to prevent inactive or discontinued products from being sold.
 pub enum OfferingStatus {
-    /// Active retail inventory, POS, reorder, or recommendation signal.
+    /// Active retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     Active,
-    /// Inactive retail inventory, POS, reorder, or recommendation signal.
+    /// Inactive retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     Inactive,
-    /// Discontinued retail inventory, POS, reorder, or recommendation signal.
+    /// Discontinued retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     Discontinued,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for usage decisions in retail workflows.
+/// Usage policy distinguishing customer-sellable items from in-house consumables such as boarding diets.
 pub enum Usage {
-    /// Customer sellable retail inventory, POS, reorder, or recommendation signal.
+    /// Customer sellable retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     CustomerSellable,
-    /// In house consumable retail inventory, POS, reorder, or recommendation signal.
+    /// In house consumable retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     InHouseConsumable,
-    /// Sellable and in house consumable retail inventory, POS, reorder, or recommendation signal.
+    /// Sellable and in house consumable retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     SellableAndInHouseConsumable,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Typed location offering domain value that keeps raw primitives out of retail workflows.
+/// Location-specific product offering with POS, inventory, and reorder policies attached.
 pub struct LocationOffering {
-    /// Location id fact promoted into this retail contract.
+    /// Source-derived location id carried by this retail contract.
     pub location_id: LocationId,
-    /// Product fact promoted into this retail contract.
+    /// Source-derived product carried by this retail contract.
     pub product: Product,
-    /// Status fact promoted into this retail contract.
+    /// Source-derived status carried by this retail contract.
     pub status: OfferingStatus,
-    /// Usage fact promoted into this retail contract.
+    /// Source-derived usage carried by this retail contract.
     pub usage: Usage,
-    /// Pos fact promoted into this retail contract.
+    /// Source-derived pos carried by this retail contract.
     pub pos: pos::Policy,
-    /// Inventory fact promoted into this retail contract.
+    /// Source-derived inventory carried by this retail contract.
     pub inventory: inventory::Policy,
-    /// Reorder fact promoted into this retail contract.
+    /// Source-derived reorder carried by this retail contract.
     pub reorder: reorder::Policy,
 }
 
 impl LocationOffering {
-    /// Returns the can be sold to customer for this retail value.
+    /// Reports whether the product is active and customer-sellable at this location.
     pub fn can_be_sold_to_customer(&self) -> bool {
         matches!(self.status, OfferingStatus::Active)
             && matches!(
@@ -147,7 +149,7 @@ impl LocationOffering {
             )
     }
 
-    /// Returns the has available sale units for this retail value.
+    /// Checks tracked inventory before allowing a POS sale draft for the requested quantity.
     pub fn has_available_sale_units(&self, quantity: pos::Quantity) -> bool {
         match self.inventory {
             inventory::Policy::NotTracked => true,

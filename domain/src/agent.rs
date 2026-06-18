@@ -107,16 +107,39 @@ pub struct PolicyInstruction(String);
 pub struct OutputSchemaName(String);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Typed spec domain value that keeps raw primitives out of agent workflows.
+/// Domain contract for one bounded automation agent.
+///
+/// A spec describes what an agent is meant to help with, which narrow tools may
+/// be exposed to it, which live operational actions are outside its authority,
+/// and which deterministic review gates must remain in the app workflow.
 pub struct Spec {
-    /// Contact or display name used by staff.
+    /// Stable workflow-facing agent name.
+    ///
+    /// This is an identifier such as `manager-daily-brief` or `booking-triage`,
+    /// not a human display label. It connects prompt packets, outputs, and audit
+    /// evidence back to the spec that constrained the agent run.
     pub name: Name,
-    /// Purpose fact promoted into this agent contract.
+    /// Business purpose for the agent's draft or evidence work.
+    ///
+    /// The purpose should state the resort operation being supported, such as
+    /// summarizing labor risk, drafting customer-safe follow-up, or routing
+    /// vaccine-document ambiguity; it does not grant live-action authority.
     pub purpose: Purpose,
-    /// Allowed tools fact promoted into this agent contract.
+    /// Tool names the runtime may expose to this agent.
+    ///
+    /// These should be read-only, draft-only, or task-creation surfaces scoped to
+    /// the workflow. They are the positive capability list for context building,
+    /// not permission to bypass review gates or mutate source systems.
     pub allowed_tools: Vec<ToolName>,
-    /// Forbidden actions fact promoted into this agent contract.
+    /// Live or unsafe actions the agent must not perform directly.
+    ///
+    /// Examples include confirming bookings, promising availability, changing
+    /// labor schedules, waiving deposits, diagnosing pets, or sending customer
+    /// messages without approval.
     pub forbidden_actions: Vec<ForbiddenAction>,
-    /// Default review gates fact promoted into this agent contract.
+    /// Human or deterministic app review gates required for the workflow.
+    ///
+    /// These gates keep manager approval, customer-message approval, medical
+    /// document review, and similar authority outside the model-generated output.
     pub default_review_gates: Vec<policy::ReviewGate>,
 }

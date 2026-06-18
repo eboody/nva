@@ -1,7 +1,11 @@
 //! Canonical domain contracts for cross-service resort daily briefs.
 //!
 //! Brief sections, occupancy, labor, revenue, watchlists, and recommended manager actions
-//! are owned here rather than hidden behind broader operations vocabulary.
+//! are owned here rather than hidden behind broader operations vocabulary. A daily brief
+//! is the manager-facing read model in the source-fact → validated-domain → workflow
+//! chain: it exposes labor-cost levers such as scheduled staff count, utilization,
+//! over/understaffing, follow-up queues, safety watchlists, and revenue opportunities
+//! without taking live customer or staffing action on its own.
 //!
 //! ```
 //! use domain::{daily_brief, entities};
@@ -61,7 +65,7 @@ pub mod snapshot {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Typed resort operating day domain value that keeps raw primitives out of daily brief workflows.
+/// Source snapshot key for one resort's manager brief on an operating day.
 pub struct ResortOperatingDay {
     /// Location id fact promoted into this daily brief contract.
     pub location_id: LocationId,
@@ -72,7 +76,7 @@ pub struct ResortOperatingDay {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Typed resort domain value that keeps raw primitives out of daily brief workflows.
+/// Manager-facing daily brief assembled from validated operational read models.
 pub struct Resort {
     /// Operating day fact promoted into this daily brief contract.
     pub operating_day: ResortOperatingDay,
@@ -85,7 +89,7 @@ pub struct Resort {
 }
 
 impl Resort {
-    /// Returns the has manager attention required for this daily brief value.
+    /// Returns whether risks or proposed actions require manager attention before work starts.
     pub fn has_manager_attention_required(&self) -> bool {
         self.risks.iter().any(Risk::requires_manager_attention)
             || self
@@ -96,7 +100,7 @@ impl Resort {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for section decisions in daily brief workflows.
+/// Section of the daily brief that turns source/read-model evidence into manager focus.
 pub enum Section {
     /// Occupancy item surfaced for manager daily-brief triage.
     Occupancy(OccupancySnapshot),
@@ -113,7 +117,7 @@ pub enum Section {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Typed occupancy snapshot domain value that keeps raw primitives out of daily brief workflows.
+/// Occupancy/utilization snapshot used to compare booked demand with service capacity.
 pub struct OccupancySnapshot {
     /// Boarding capacity fact promoted into this daily brief contract.
     pub boarding_capacity: capacity::Metric,
@@ -125,12 +129,12 @@ pub struct OccupancySnapshot {
     pub training_utilization: capacity::Metric,
 }
 
-/// Capacity boundary for daily brief contracts.
+/// Capacity metrics used by daily briefs to expose utilization and labor-pressure signals.
 pub mod capacity {
     use super::*;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-    /// Typed booked domain value that keeps raw primitives out of daily brief workflows.
+    /// Number of booked units contributing to a capacity metric.
     pub struct Booked(u32);
 
     impl Booked {
@@ -146,7 +150,7 @@ pub mod capacity {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-    /// Typed limit domain value that keeps raw primitives out of daily brief workflows.
+    /// Nonzero service capacity limit used as the denominator for utilization.
     pub struct Limit(u32);
 
     impl Limit {
@@ -182,7 +186,7 @@ pub mod capacity {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-    /// Typed saturation basis points domain value that keeps raw primitives out of daily brief workflows.
+    /// Capacity saturation expressed in basis points for stable BI/reporting comparisons.
     pub struct SaturationBasisPoints(u32);
 
     impl SaturationBasisPoints {
@@ -197,7 +201,7 @@ pub mod capacity {
         }
     }
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Typed metric domain value that keeps raw primitives out of daily brief workflows.
+    /// Booked-vs-capacity metric that makes service utilization visible to managers.
     pub struct Metric {
         booked: Booked,
         capacity: Limit,
@@ -229,7 +233,7 @@ pub mod capacity {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Typed scheduled staff count domain value that keeps raw primitives out of daily brief workflows.
+/// Count of scheduled staff used to reason about over/understaffing labor risk.
 pub struct ScheduledStaffCount(u16);
 
 impl ScheduledStaffCount {
@@ -245,7 +249,7 @@ impl ScheduledStaffCount {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Typed arrival departure snapshot domain value that keeps raw primitives out of daily brief workflows.
+/// Check-in/check-out workload snapshot for front-desk and care-team planning.
 pub struct ArrivalDepartureSnapshot {
     /// Check ins fact promoted into this daily brief contract.
     pub check_ins: Vec<entities::reservation::Id>,
@@ -256,7 +260,7 @@ pub struct ArrivalDepartureSnapshot {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Typed labor snapshot domain value that keeps raw primitives out of daily brief workflows.
+/// Labor summary comparing scheduled staff against expected demand and risk.
 pub struct LaborSnapshot {
     /// Scheduled staff count fact promoted into this daily brief contract.
     pub scheduled_staff_count: ScheduledStaffCount,
@@ -265,7 +269,7 @@ pub struct LaborSnapshot {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for labor risk decisions in daily brief workflows.
+/// Staffing posture surfaced as a labor-cost and service-quality lever.
 pub enum LaborRisk {
     /// Understaffed item surfaced for manager daily-brief triage.
     Understaffed,
@@ -278,7 +282,7 @@ pub enum LaborRisk {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Typed customer follow up domain value that keeps raw primitives out of daily brief workflows.
+/// Customer follow-up item generated from validated operational evidence.
 pub struct CustomerFollowUp {
     /// Customer id fact promoted into this daily brief contract.
     pub customer_id: CustomerId,
@@ -306,7 +310,7 @@ pub enum FollowUpReason {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Typed pet care watch domain value that keeps raw primitives out of daily brief workflows.
+/// Pet care/safety watch item that protects staff handoff and manager review.
 pub struct PetCareWatch {
     /// Pet receiving the grooming or care service.
     pub pet_id: PetId,
@@ -330,7 +334,7 @@ pub enum PetCareWatchReason {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Typed revenue opportunity domain value that keeps raw primitives out of daily brief workflows.
+/// Revenue opportunity that may justify staff follow-up without bypassing approval gates.
 pub struct RevenueOpportunity {
     /// Customer id fact promoted into this daily brief contract.
     pub customer_id: Option<CustomerId>,
@@ -358,7 +362,7 @@ pub enum RevenueOpportunityKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for risk decisions in daily brief workflows.
+/// Manager-visible risk derived from occupancy, labor, customer, care, or revenue evidence.
 pub enum Risk {
     /// Capacity constraint item surfaced for manager daily-brief triage.
     CapacityConstraint {
@@ -388,7 +392,7 @@ pub enum Risk {
 }
 
 impl Risk {
-    /// Returns the requires manager attention for this daily brief value.
+    /// Returns whether this risk should interrupt normal staff workflow for manager review.
     pub fn requires_manager_attention(&self) -> bool {
         matches!(
             self,
@@ -403,7 +407,7 @@ impl Risk {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for action decisions in daily brief workflows.
+/// Proposed action that remains draft/recommendation until the workflow gate approves it.
 pub enum Action {
     /// Create internal task item surfaced for manager daily-brief triage.
     CreateInternalTask {
@@ -435,7 +439,7 @@ pub enum Action {
 }
 
 impl Action {
-    /// Returns the requires manager approval for this daily brief value.
+    /// Returns whether this action affects staffing/escalation enough to require approval.
     pub fn requires_manager_approval(&self) -> bool {
         matches!(
             self,

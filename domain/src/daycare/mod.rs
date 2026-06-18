@@ -24,7 +24,7 @@ use crate::entities::{CustomerId, PetId};
 macro_rules! positive_scalar {
     ($name:ident, $primitive:ty, $error:ident, $message:literal) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-        /// Human-readable name used in daycare workflows.
+        /// Positive scalar used by daycare policy where zero would hide real staffing, pet-count, queue, or package volume.
         pub struct $name($primitive);
 
         impl $name {
@@ -53,7 +53,7 @@ macro_rules! positive_scalar {
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-        /// Validation failures returned by daycare domain constructors.
+        /// Validation failure returned when a required positive daycare scalar is zero.
         pub enum $error {
             #[error($message)]
             /// Rejects zero where the pet-resort workflow requires a positive quantity.
@@ -82,22 +82,22 @@ positive_scalar!(
 );
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for service variant decisions in daycare workflows.
+/// Daycare service variant requested by a customer or reservation workflow.
 pub enum ServiceVariant {
-    /// All day play daycare attendance, eligibility, coverage, or package signal.
+    /// Full-day dog group-play service requiring eligibility and staffing-ratio checks.
     AllDayPlay,
-    /// Half day play daycare attendance, eligibility, coverage, or package signal.
+    /// Partial-day dog group-play service requiring eligibility and staffing-ratio checks.
     HalfDayPlay,
     /// Daytime boarding care with lodging-style supervision.
     DayBoarding,
-    /// Day play plus room daycare attendance, eligibility, coverage, or package signal.
+    /// Hybrid daycare offering that combines play with room-based rest or supervision.
     DayPlayPlusRoom,
-    /// Cat individual playtime daycare attendance, eligibility, coverage, or package signal.
+    /// Cat enrichment service that remains separate from dog group-play eligibility rules.
     CatIndividualPlaytime,
 }
 
 impl ServiceVariant {
-    /// Returns this daycare value's care mode.
+    /// Maps the customer-facing service variant to the care mode used by eligibility and staffing policy.
     pub const fn care_mode(self) -> CareMode {
         match self {
             Self::AllDayPlay | Self::HalfDayPlay => CareMode::DogGroupPlay,
@@ -109,15 +109,15 @@ impl ServiceVariant {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for care mode decisions in daycare workflows.
+/// Operational care mode that determines whether group-play, individual care, or cat enrichment rules apply.
 pub enum CareMode {
-    /// Dog group play daycare attendance, eligibility, coverage, or package signal.
+    /// Dog group-play mode requiring temperament, vaccine, and staffing-ratio clearance.
     DogGroupPlay,
-    /// Dog individual day boarding daycare attendance, eligibility, coverage, or package signal.
+    /// Individual dog supervision mode for pets not suited to group play or needing quieter care.
     DogIndividualDayBoarding,
-    /// Dog hybrid play and room daycare attendance, eligibility, coverage, or package signal.
+    /// Mixed dog care mode combining group-play eligibility with room-based supervision.
     DogHybridPlayAndRoom,
-    /// Cat individual enrichment daycare attendance, eligibility, coverage, or package signal.
+    /// Individual cat enrichment mode outside dog playgroup assignment.
     CatIndividualEnrichment,
 }
 
@@ -136,95 +136,95 @@ pub mod package_opportunity;
 pub mod front_desk;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for attendance policy decisions in daycare workflows.
+/// Attendance policy controlling whether daycare check-in is drop-in, reserved, or waitlisted.
 pub enum AttendancePolicy {
-    /// Drop in allowed daycare attendance, eligibility, coverage, or package signal.
+    /// Staff may accept unscheduled daycare arrivals if other gates are clear.
     DropInAllowed,
-    /// Reservation required daycare attendance, eligibility, coverage, or package signal.
+    /// Staff should require a reservation before admitting daycare attendance.
     ReservationRequired,
-    /// Capacity managed waitlist daycare attendance, eligibility, coverage, or package signal.
+    /// Capacity constraints require staff to route new daycare demand through a waitlist.
     CapacityManagedWaitlist,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for package policy decisions in daycare workflows.
+/// Daycare payment/package model used for collection and recommendation workflows.
 pub enum PackagePolicy {
-    /// Pay per visit daycare attendance, eligibility, coverage, or package signal.
+    /// Customer pays each visit without a prepaid package or membership covering attendance.
     PayPerVisit,
-    /// Visits fact promoted into this daycare contract.
+    /// Prepaid visit count available to apply against daycare attendance.
     PrepaidPasses {
         /// Visits carried by this variant.
         visits: PackageVisits,
     },
-    /// Membership daycare attendance, eligibility, coverage, or package signal.
+    /// Customer has a membership covering the daycare attendance path.
     Membership,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Typed staff pet ratio domain value that keeps raw primitives out of daycare workflows.
+/// Staff-to-pet ratio used to decide whether group-play coverage is sufficient.
 pub struct StaffPetRatio {
     staff: StaffCount,
     pets: PetCount,
 }
 impl StaffPetRatio {
-    /// Assembles this daycare value from already-validated domain parts.
+    /// Creates the daycare value from validated domain parts without trusting raw source primitives.
     pub const fn new(staff: StaffCount, pets: PetCount) -> Self {
         Self { staff, pets }
     }
-    /// Returns this daycare value's pets per staff.
+    /// Returns the allowed pet count per staff member for coverage checks.
     pub const fn pets_per_staff(&self) -> PetCount {
         self.pets
     }
-    /// Returns this daycare value's staff.
+    /// Returns the staff side of the ratio used by coverage checks.
     pub const fn staff(&self) -> StaffCount {
         self.staff
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for group assignment rule decisions in daycare workflows.
+/// Rule used to choose or restrict daycare group assignment.
 pub enum GroupAssignmentRule {
-    /// Temperament and size matched daycare attendance, eligibility, coverage, or package signal.
+    /// Assign pets only to groups matched by temperament and size evidence.
     TemperamentAndSizeMatched,
-    /// Individual play only daycare attendance, eligibility, coverage, or package signal.
+    /// Restrict the pet to individual play instead of group assignment.
     IndividualPlayOnly,
-    /// Senior or low energy group daycare attendance, eligibility, coverage, or package signal.
+    /// Route the pet to a calmer group suited to senior or low-energy needs.
     SeniorOrLowEnergyGroup,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for eligibility requirement decisions in daycare workflows.
+/// Evidence requirements that must be satisfied before daycare care modes proceed.
 pub enum EligibilityRequirement {
-    /// Temperament assessment daycare attendance, eligibility, coverage, or package signal.
+    /// Current temperament assessment is required before group-play admission.
     TemperamentAssessment,
-    /// Vaccines current daycare attendance, eligibility, coverage, or package signal.
+    /// Vaccine proof must be current before daycare admission.
     VaccinesCurrent,
-    /// Spay neuter for group play daycare attendance, eligibility, coverage, or package signal.
+    /// Spay/neuter status must be reviewed for dog group-play eligibility.
     SpayNeuterForGroupPlay,
-    /// Staff ratio available daycare attendance, eligibility, coverage, or package signal.
+    /// Staffing coverage must satisfy the configured ratio before attendance proceeds.
     StaffRatioAvailable,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Typed contract domain value that keeps raw primitives out of daycare workflows.
+/// Daycare service-line contract combining attendance, package, ratio, assignment, incident, and eligibility policy.
 pub struct Contract {
-    /// Attendance fact promoted into this daycare contract.
+    /// Attendance gate controlling reservations, drop-ins, and waitlist routing.
     pub attendance: AttendancePolicy,
-    /// Package fact promoted into this daycare contract.
+    /// Package or payment model used for front-desk collection and sales opportunities.
     pub package: PackagePolicy,
-    /// Ratio fact promoted into this daycare contract.
+    /// Staff-to-pet ratio that defines safe coverage for daycare operations.
     pub ratio: StaffPetRatio,
-    /// Group assignment fact promoted into this daycare contract.
+    /// Assignment rule that protects playgroup fit and care safety.
     pub group_assignment: GroupAssignmentRule,
-    /// Incident fact promoted into this daycare contract.
+    /// Incident handling policy that can require manager review or customer notice.
     pub incident: incident::Policy,
     #[builder(default)]
-    /// Eligibility fact promoted into this daycare contract.
+    /// Eligibility requirements that must be evidenced before group-play automation proceeds.
     pub eligibility: Vec<EligibilityRequirement>,
 }
 
 impl Contract {
-    /// Returns the requires staff review before group play for this daycare value.
+    /// Reports whether this contract requires staff review before admitting a pet to group play.
     pub fn requires_staff_review_before_group_play(&self) -> bool {
         self.eligibility
             .contains(&EligibilityRequirement::TemperamentAssessment)
@@ -233,7 +233,7 @@ impl Contract {
                 GroupAssignmentRule::TemperamentAndSizeMatched
             )
     }
-    /// Returns the standard petsuites for this daycare value.
+    /// Builds the baseline PetSuites-style daycare contract used by examples and tests.
     pub fn standard_petsuites() -> Self {
         Self::builder()
             .attendance(AttendancePolicy::ReservationRequired)

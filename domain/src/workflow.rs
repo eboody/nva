@@ -1,3 +1,10 @@
+//! Workflow events and outcomes for reviewable resort operations.
+//!
+//! Workflows connect source-derived facts to staff-visible tasks, customer-message drafts, policy
+//! context, and recommended next actions. They preserve evidence and review reasons so AI agents can
+//! reduce manual triage while keeping live care, labor, payment, and customer communications inside
+//! explicit approval boundaries.
+
 use chrono::{DateTime, Utc};
 use nutype::nutype;
 #[allow(unused_imports)]
@@ -7,7 +14,7 @@ use uuid::Uuid;
 use crate::{entities, policy};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Typed event id domain value that keeps raw primitives out of workflow workflows.
+/// Stable identifier for a workflow event emitted by an agent, adapter, or staff-facing process.
 pub struct EventId(pub Uuid);
 
 #[nutype(
@@ -27,6 +34,7 @@ pub struct EventId(pub Uuid);
 )]
 pub struct Summary(String);
 
+/// Risk marker surfaced when a workflow may affect pet safety, labor cost, payment, or customer trust.
 #[nutype(
     sanitize(trim),
     validate(not_empty, len_char_max = 160),
@@ -44,6 +52,7 @@ pub struct Summary(String);
 )]
 pub struct RiskFlag(String);
 
+/// Evidence note proving what source fact, review, or staff action verified a workflow outcome.
 #[nutype(
     sanitize(trim),
     validate(not_empty, len_char_max = 500),
@@ -61,6 +70,7 @@ pub struct RiskFlag(String);
 )]
 pub struct VerificationNote(String);
 
+/// Review explanation recorded when automation must stop at a manager, medical, or customer-message gate.
 #[nutype(
     sanitize(trim),
     validate(not_empty, len_char_max = 300),
@@ -78,12 +88,13 @@ pub struct VerificationNote(String);
 )]
 pub struct ReviewReason(String);
 
-/// External boundary for workflow contracts.
+/// External workflow-provider vocabulary retained before promotion into domain tasks or messages.
 pub mod external {
     use nutype::nutype;
     #[allow(unused_imports)]
     use serde::{Deserialize, Serialize};
 
+    /// External workflow provider or system name that supplied a task, message, or status update.
     #[nutype(
         sanitize(trim),
         validate(not_empty, len_char_max = 120),
@@ -101,6 +112,7 @@ pub mod external {
     )]
     pub struct Provider(String);
 
+    /// External workflow identifier used to correlate provider tasks and status updates.
     #[nutype(
         sanitize(trim),
         validate(not_empty, len_char_max = 120),
@@ -119,12 +131,13 @@ pub mod external {
     pub struct Id(String);
 }
 
-/// Task boundary for workflow contracts.
+/// Provider task fields used to create staff work without losing source evidence.
 pub mod task {
     use nutype::nutype;
     #[allow(unused_imports)]
     use serde::{Deserialize, Serialize};
 
+    /// Staff-visible task title summarizing the operational work item.
     #[nutype(
         sanitize(trim),
         validate(not_empty, len_char_max = 160),
@@ -142,6 +155,7 @@ pub mod task {
     )]
     pub struct Title(String);
 
+    /// Task or message body text that carries source evidence and review instructions.
     #[nutype(
         sanitize(trim),
         validate(not_empty, len_char_max = 2000),
@@ -160,7 +174,7 @@ pub mod task {
     pub struct Body(String);
 }
 
-/// Message boundary for workflow contracts.
+/// Provider message fields used before normalization into customer-message workflows.
 pub mod message {
     use nutype::nutype;
     #[allow(unused_imports)]
@@ -201,14 +215,14 @@ pub mod message {
     pub struct Body(String);
 }
 
-/// Status update boundary for workflow contracts.
+/// Provider status-update fields used to reconcile external task or message progress.
 pub mod status_update {
     use crate::entities;
     use nutype::nutype;
     #[allow(unused_imports)]
     use serde::{Deserialize, Serialize};
 
-    /// Reason boundary for workflow contracts.
+    /// Provider-supplied status reason text preserved as review evidence.
     pub mod reason {
         use super::*;
 
@@ -233,7 +247,7 @@ pub mod status_update {
     pub use reason::Reason;
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for transition intent decisions in workflow workflows.
+    /// Intended reservation transition requested by a workflow before policy and review checks are applied.
     pub enum TransitionIntent {
         /// Request medical review workflow state, command, or review outcome.
         RequestMedicalReview,
@@ -250,18 +264,18 @@ pub mod status_update {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Typed reservation domain value that keeps raw primitives out of workflow workflows.
+    /// Workflow-scoped reservation transition request with target state, reason, and review intent.
     pub struct Reservation {
-        /// Status fact promoted into this workflow contract.
+        /// Workflow status value preserved for staff review and audit evidence.
         pub status: entities::reservation::Status,
-        /// Intent fact promoted into this workflow contract.
+        /// Workflow intent value preserved for staff review and audit evidence.
         pub intent: TransitionIntent,
         /// Business reason staff should review before proceeding.
         pub reason: Reason,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for target decisions in workflow workflows.
+    /// Workflow target that a task, event, or recommended action is about.
     pub enum Target {
         /// Reservation record participating in the workflow.
         Reservation(Reservation),
@@ -269,26 +283,26 @@ pub mod status_update {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Typed event domain value that keeps raw primitives out of workflow workflows.
+/// Workflow event that records what changed, who/what it concerns, and what evidence/risk came with it.
 pub struct Event {
-    /// Event id fact promoted into this workflow contract.
+    /// Workflow event ID value preserved for staff review and audit evidence.
     pub event_id: EventId,
-    /// Event type fact promoted into this workflow contract.
+    /// Workflow event type value preserved for staff review and audit evidence.
     pub event_type: EventType,
-    /// Occurred at fact promoted into this workflow contract.
+    /// Workflow occurred at value preserved for staff review and audit evidence.
     pub occurred_at: DateTime<Utc>,
-    /// Actor fact promoted into this workflow contract.
+    /// Workflow actor value preserved for staff review and audit evidence.
     pub actor: entities::ActorRef,
-    /// Location id fact promoted into this workflow contract.
+    /// Workflow location ID value preserved for staff review and audit evidence.
     pub location_id: entities::LocationId,
-    /// Subject fact promoted into this workflow contract.
+    /// Workflow subject value preserved for staff review and audit evidence.
     pub subject: Subject,
-    /// Policy context fact promoted into this workflow contract.
+    /// Workflow policy context value preserved for staff review and audit evidence.
     pub policy_context: PolicyContext,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for event type decisions in workflow workflows.
+/// Event category emitted by triage, policy, review, external sync, or source ingestion.
 pub enum EventType {
     /// Inquiry received workflow state, command, or review outcome.
     InquiryReceived,
@@ -321,7 +335,7 @@ pub enum EventType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for subject decisions in workflow workflows.
+/// Subject of a workflow event or recommendation.
 pub enum Subject {
     /// Customer record participating in the workflow.
     Customer(entities::CustomerId),
@@ -331,26 +345,26 @@ pub enum Subject {
     Reservation(entities::reservation::Id),
     /// External system object referenced from domain history.
     External {
-        /// Provider fact promoted into this workflow contract.
+        /// Workflow provider value preserved for staff review and audit evidence.
         provider: external::Provider,
-        /// Id fact promoted into this workflow contract.
+        /// Workflow id value preserved for staff review and audit evidence.
         id: external::Id,
     },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Typed policy context domain value that keeps raw primitives out of workflow workflows.
+/// Policy context attached to a workflow so reviewers can see allowed actions and required gates.
 pub struct PolicyContext {
-    /// Allowed actions fact promoted into this workflow contract.
+    /// Workflow allowed actions value preserved for staff review and audit evidence.
     pub allowed_actions: Vec<AllowedAction>,
-    /// Automation level fact promoted into this workflow contract.
+    /// Workflow automation level value preserved for staff review and audit evidence.
     pub automation_level: policy::automation::Level,
-    /// Required reviews fact promoted into this workflow contract.
+    /// Workflow required reviews value preserved for staff review and audit evidence.
     pub required_reviews: Vec<policy::ReviewGate>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for allowed action decisions in workflow workflows.
+/// Action an automation policy permits for a workflow outcome.
 pub enum AllowedAction {
     /// Read entities workflow state, command, or review outcome.
     ReadEntities,
@@ -371,26 +385,26 @@ pub enum AllowedAction {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Typed result domain value that keeps raw primitives out of workflow workflows.
+/// Workflow result carrying status, summary, recommended action, and verification notes for staff review.
 pub struct Result<T> {
-    /// Status fact promoted into this workflow contract.
+    /// Workflow status value preserved for staff review and audit evidence.
     pub status: Status,
-    /// Summary fact promoted into this workflow contract.
+    /// Workflow summary value preserved for staff review and audit evidence.
     pub summary: Summary,
-    /// Structured output fact promoted into this workflow contract.
+    /// Workflow structured output value preserved for staff review and audit evidence.
     pub structured_output: Option<T>,
-    /// Recommended actions fact promoted into this workflow contract.
+    /// Workflow recommended actions value preserved for staff review and audit evidence.
     pub recommended_actions: Vec<RecommendedAction>,
-    /// Risk flags fact promoted into this workflow contract.
+    /// Workflow risk flags value preserved for staff review and audit evidence.
     pub risk_flags: Vec<RiskFlag>,
-    /// Verification fact promoted into this workflow contract.
+    /// Workflow verification value preserved for staff review and audit evidence.
     pub verification: Vec<VerificationNote>,
-    /// Human review reason fact promoted into this workflow contract.
+    /// Workflow human review reason value preserved for staff review and audit evidence.
     pub human_review_reason: Option<ReviewReason>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Normalized reservation states observed during source-data ingestion.
+/// Normalized lifecycle states used to reconcile source-system data with domain workflows.
 pub enum Status {
     /// Completed workflow state, command, or review outcome.
     Completed,
@@ -405,25 +419,25 @@ pub enum Status {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for recommended action decisions in workflow workflows.
+/// Recommended next action for staff, managers, or automation after evaluating a workflow.
 pub enum RecommendedAction {
     /// Internal task workflow state, command, or review outcome.
     InternalTask {
-        /// Title fact promoted into this workflow contract.
+        /// Workflow title value preserved for staff review and audit evidence.
         title: task::Title,
-        /// Body fact promoted into this workflow contract.
+        /// Workflow body value preserved for staff review and audit evidence.
         body: task::Body,
     },
     /// Draft message workflow state, command, or review outcome.
     DraftMessage {
-        /// Channel fact promoted into this workflow contract.
+        /// Workflow channel value preserved for staff review and audit evidence.
         channel: message::Channel,
-        /// Body fact promoted into this workflow contract.
+        /// Workflow body value preserved for staff review and audit evidence.
         body: message::Body,
     },
     /// Update status workflow state, command, or review outcome.
     UpdateStatus {
-        /// Target fact promoted into this workflow contract.
+        /// Workflow target value preserved for staff review and audit evidence.
         target: status_update::Target,
     },
     /// Request human review workflow state, command, or review outcome.

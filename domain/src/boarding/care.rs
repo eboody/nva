@@ -1,12 +1,17 @@
+//! Boarding care-plan readiness for feeding, medication, and medical-document review gates.
+//!
+//! The policy turns pet care profiles into check-in readiness evidence, keeping automation focused
+//! on surfacing missing instructions and review requirements rather than making medical judgments.
+
 use super::*;
 use crate::{entities, policy};
 
 #[derive(Debug, Clone, Default)]
-/// Typed policy domain value that keeps raw primitives out of boarding workflows.
+/// Boarding care-readiness policy for feeding instructions and medication review.
 pub struct Policy;
 
 impl Policy {
-    /// Returns the plan for pet for this boarding value.
+    /// Builds the pet-specific check-in care plan and review gates from the source care profile.
     pub fn plan_for_pet(&self, pet_id: PetId, profile: &entities::CareProfile) -> Plan {
         let mut gates = Vec::new();
         if profile.feeding_instructions.is_none() {
@@ -30,24 +35,24 @@ impl Policy {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Typed plan domain value that keeps raw primitives out of boarding workflows.
+/// Pet-specific boarding care plan used by staff before check-in.
 pub struct Plan {
     pet_id: PetId,
     gates: Vec<ReviewGate>,
 }
 
 impl Plan {
-    /// Returns this boarding value's pet id.
+    /// Returns the pet whose boarding care readiness is represented by this plan.
     pub const fn pet_id(&self) -> PetId {
         self.pet_id
     }
 
-    /// Returns the gates for this boarding value.
+    /// Returns unresolved care gates staff must clear before check-in.
     pub fn gates(&self) -> &[ReviewGate] {
         &self.gates
     }
 
-    /// Returns the readiness for this boarding value.
+    /// Summarizes whether the plan is ready for check-in or blocked by review gates.
     pub fn readiness(&self) -> Readiness {
         if self.gates.is_empty() {
             Readiness::ReadyForCheckIn
@@ -58,35 +63,35 @@ impl Plan {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for readiness decisions in boarding workflows.
+/// Check-in readiness outcome for a boarding care plan.
 pub enum Readiness {
-    /// Ready for check in boarding policy, stay, capacity, or upsell signal.
+    /// Feeding and medication evidence is sufficient for staff to proceed with check-in.
     ReadyForCheckIn,
-    /// Blocked boarding policy, stay, capacity, or upsell signal.
+    /// One or more care gates must be resolved before check-in proceeds.
     Blocked,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Typed review gate domain value that keeps raw primitives out of boarding workflows.
+/// Specific care-review gate created from missing or sensitive boarding profile evidence.
 pub struct ReviewGate {
-    /// Business reason staff should review before proceeding.
+    /// Care-profile reason that triggered the gate.
     pub reason: GateReason,
-    /// Gate fact promoted into this boarding contract.
+    /// Human review category required to clear this care issue.
     pub gate: policy::ReviewGate,
 }
 
 impl ReviewGate {
-    /// Assembles this boarding value from already-validated domain parts.
+    /// Creates a care-review gate with the operational reason and required review category.
     pub const fn new(reason: GateReason, gate: policy::ReviewGate) -> Self {
         Self { reason, gate }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for gate reason decisions in boarding workflows.
+/// Reasons a boarding care plan requires staff or medical-document review.
 pub enum GateReason {
-    /// Missing feeding instruction boarding policy, stay, capacity, or upsell signal.
+    /// The source care profile lacks feeding instructions for the boarding stay.
     MissingFeedingInstruction,
-    /// Medication requires review boarding policy, stay, capacity, or upsell signal.
+    /// At least one medication instruction requires staff or medical-document review.
     MedicationRequiresReview,
 }

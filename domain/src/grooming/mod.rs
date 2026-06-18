@@ -1,3 +1,7 @@
+//! Grooming service-line contracts for pet-resort labor planning, rebooking, reminders, and safe customer-facing grooming automation.
+//!
+//! This module models mini/full grooms, baths, coat/skin add-ons, groomer assignment, duration estimates, no-show consequences, service history, and reminder cadence as source-derived operational facts. AI or adapter code may draft estimates, reminders, and rebooking prompts through these types, but manager/groomer/care review gates preserve the boundary between recommendation and live scheduling or customer messaging.
+
 use bon::Builder;
 use chrono::NaiveDate;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -7,7 +11,7 @@ use crate::entities::{CustomerId, LocationId, PetId, StaffId};
 macro_rules! positive_scalar {
     ($name:ident, $primitive:ty, $error:ident, $message:literal) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-        /// Human-readable name used in grooming workflows.
+        /// Positive grooming quantity used where a zero-minute appointment or zero-length operational value would create impossible schedule math.
         pub struct $name($primitive);
 
         impl $name {
@@ -46,27 +50,27 @@ macro_rules! positive_scalar {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Grooming services and add-ons that affect scheduling, pricing, and labor time.
+/// Grooming services and add-ons that drive groomer calendar load, checkout upsells, duration estimates, and follow-up reminders.
 pub enum Service {
-    /// Mini groom grooming service, assignment, estimate, or review signal.
+    /// Mini groom request that typically consumes less groomer time but still needs coat/history context.
     MiniGroom,
-    /// Full groom grooming service, assignment, estimate, or review signal.
+    /// Full groom request that drives the heaviest groomer labor estimate and style-history review.
     FullGroom,
     /// Bath offered before departure from boarding.
     ExitBath,
-    /// Full bath grooming service, assignment, estimate, or review signal.
+    /// Full bath appointment that may stand alone or attach to daycare/boarding checkout.
     FullBath,
-    /// Premium bath grooming service, assignment, estimate, or review signal.
+    /// Premium bath that can justify product/style-note capture and higher checkout value.
     PremiumBath,
-    /// Nail trim grooming service, assignment, estimate, or review signal.
+    /// Nail trim add-on that affects short-slot grooming capacity.
     NailTrim,
-    /// Nail dremel grooming service, assignment, estimate, or review signal.
+    /// Nail Dremel add-on that should respect pet handling notes and appointment timing.
     NailDremel,
-    /// Ear cleaning grooming service, assignment, estimate, or review signal.
+    /// Ear-cleaning add-on whose care sensitivity may require staff review before customer claims.
     EarCleaning,
-    /// Coat skin specific product grooming service, assignment, estimate, or review signal.
+    /// Coat/skin product add-on that should remain a product recommendation unless care review approves stronger claims.
     CoatSkinSpecificProduct,
-    /// First time grooming offer grooming service, assignment, estimate, or review signal.
+    /// First-time grooming offer used to convert new/lapsed guests without bypassing scheduling constraints.
     FirstTimeGroomingOffer,
 }
 
@@ -77,33 +81,33 @@ positive_scalar!(
     "grooming appointment estimate requires at least one minute"
 );
 
-/// Calendar boundary for grooming contracts.
+/// Groomer-calendar policy boundary for assigning grooming work without inventing availability.
 pub mod calendar {
     use super::*;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Groomer-assignment policies used when booking grooming work.
+    /// Groomer-assignment policy used to decide whether a request can draft directly or needs manager/groomer review.
     pub enum Policy {
-        /// Any qualified groomer grooming service, assignment, estimate, or review signal.
+        /// Any qualified groomer may take the appointment if the schedule system shows capacity.
         AnyQualifiedGroomer,
-        /// Groomer specific grooming service, assignment, estimate, or review signal.
+        /// A specific groomer is required because of guest history, owner request, or service complexity.
         GroomerSpecific,
-        /// First available with manager override grooming service, assignment, estimate, or review signal.
+        /// First-available assignment is allowed only with a manager override when ordinary matching cannot satisfy demand.
         FirstAvailableWithManagerOverride,
     }
 }
-/// Breed coat boundary for grooming contracts.
+/// Breed/coat boundary for converting pet profile facts into labor-time estimates.
 pub mod breed_coat {
     use super::*;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
     /// Breed and coat groupings used to estimate grooming labor time.
     pub enum BreedCategory {
-        /// Short coat grooming service, assignment, estimate, or review signal.
+        /// Short-coat category with lower expected grooming labor when no history indicates otherwise.
         ShortCoat,
-        /// Double coat grooming service, assignment, estimate, or review signal.
+        /// Double-coat category that may require extra drying/deshedding time.
         DoubleCoat,
-        /// Doodle grooming service, assignment, estimate, or review signal.
+        /// Doodle or similar coat category where matting/style history often changes the estimate.
         Doodle,
         /// Cat guest, using cat-specific policy and accommodation rules.
         Cat,
@@ -112,20 +116,20 @@ pub mod breed_coat {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
     /// Coat condition signals that affect grooming time and review needs.
     pub enum CoatCondition {
-        /// Maintained grooming service, assignment, estimate, or review signal.
+        /// Maintained coat condition suitable for standard estimates.
         Maintained,
-        /// Thick undercoat grooming service, assignment, estimate, or review signal.
+        /// Thick undercoat condition that increases labor estimate and may alter product recommendations.
         ThickUndercoat,
-        /// Matted grooming service, assignment, estimate, or review signal.
+        /// Matted coat condition that requires groomer review before accepting a duration estimate.
         Matted,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Estimated grooming duration derived from breed, coat, and service context.
+    /// Duration estimate input derived from breed and coat facts for groomer calendar planning.
     pub struct TimeEstimate {
-        /// Breed category used when estimating grooming effort.
+        /// Breed/coat class used to translate pet profile data into groomer labor demand.
         pub breed: BreedCategory,
-        /// Coat condition used when estimating grooming effort.
+        /// Coat condition that can raise confidence risk or trigger groomer review.
         pub coat: CoatCondition,
         minutes: AppointmentMinutes,
     }
@@ -144,50 +148,50 @@ pub mod breed_coat {
             }
         }
 
-        /// Returns this grooming value's minutes.
+        /// Returns the minutes evidence recorded on this grooming contract.
         pub const fn minutes(&self) -> AppointmentMinutes {
             self.minutes
         }
     }
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Historical grooming notes that should be preserved for future visits.
+/// Service-history retention requirement that protects rebooking quality and safe handling across visits.
 pub enum HistoryRequirement {
-    /// Keep service notes grooming service, assignment, estimate, or review signal.
+    /// Preserve service notes so future estimates can cite source history rather than invent timing.
     KeepServiceNotes,
-    /// Keep style notes and photos grooming service, assignment, estimate, or review signal.
+    /// Preserve style notes/photos so groomers can reproduce customer preferences at the next cadence.
     KeepStyleNotesAndPhotos,
-    /// Keep medical handling notes grooming service, assignment, estimate, or review signal.
+    /// Preserve medical or handling notes and route sensitive interpretation through care review.
     KeepMedicalHandlingNotes,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Inputs required to estimate grooming time before scheduling.
+/// Source-derived request used to estimate grooming duration before a schedule mutation is proposed.
 pub struct EstimationRequest {
     /// Pet receiving the grooming or care service.
     pub pet_id: PetId,
     /// Requested service that drives scheduling and labor estimates.
     pub service: Service,
-    /// Breed category used when estimating grooming effort.
+    /// Breed/coat class used to translate pet profile data into groomer labor demand.
     pub breed: breed_coat::BreedCategory,
-    /// Coat condition used when estimating grooming effort.
+    /// Coat condition that can raise confidence risk or trigger groomer review.
     pub coat: breed_coat::CoatCondition,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Evidence source used to explain a grooming time estimate.
+/// Evidence basis that explains why a grooming duration was chosen for scheduling review.
 pub enum EstimateBasis {
-    /// Breed coat policy grooming service, assignment, estimate, or review signal.
+    /// Estimate came from the location contract for breed/coat combinations.
     BreedCoatPolicy,
-    /// Groomer history grooming service, assignment, estimate, or review signal.
+    /// Estimate came from prior groomer history for this pet.
     GroomerHistory,
-    /// Location default grooming service, assignment, estimate, or review signal.
+    /// Estimate fell back to a location default when stronger source facts were unavailable.
     LocationDefault,
-    /// Provider default grooming service, assignment, estimate, or review signal.
+    /// Estimate came from provider defaults and should not override local policy silently.
     ProviderDefault,
-    /// Manual staff override grooming service, assignment, estimate, or review signal.
+    /// Estimate was overridden by staff and should be auditable as a human-entered fact.
     ManualStaffOverride,
-    /// Ai suggested pending review grooming service, assignment, estimate, or review signal.
+    /// Estimate was suggested by automation and must remain pending review before schedule use.
     AiSuggestedPendingReview,
 }
 
@@ -205,17 +209,17 @@ pub enum EstimateConfidence {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Staff review lane required before accepting a grooming estimate.
+/// Review lane that determines whether a grooming estimate may be used for calendar execution.
 pub enum ReviewRequirement {
     /// No additional workflow gate is required.
     None,
-    /// Staff review grooming service, assignment, estimate, or review signal.
+    /// General staff review is required before this estimate becomes actionable.
     StaffReview,
-    /// Groomer review grooming service, assignment, estimate, or review signal.
+    /// Groomer review is required because coat/history/service complexity affects labor time.
     GroomerReview,
-    /// Manager review grooming service, assignment, estimate, or review signal.
+    /// Manager review is required before accepting an exceptional estimate or schedule choice.
     ManagerReview,
-    /// Care review grooming service, assignment, estimate, or review signal.
+    /// Care/medical-document review is required before acting on sensitive handling information.
     CareReview,
 }
 
@@ -233,7 +237,7 @@ impl ReviewRequirement {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Typed duration estimate domain value that keeps raw primitives out of grooming workflows.
+/// Grooming duration decision with evidence, confidence, and the review gate needed before calendar use.
 pub struct DurationEstimate {
     minutes: AppointmentMinutes,
     basis: EstimateBasis,
@@ -256,22 +260,22 @@ impl DurationEstimate {
         }
     }
 
-    /// Returns this grooming value's minutes.
+    /// Returns the minutes evidence recorded on this grooming contract.
     pub const fn minutes(&self) -> AppointmentMinutes {
         self.minutes
     }
 
-    /// Returns this grooming value's basis.
+    /// Returns the basis evidence recorded on this grooming contract.
     pub const fn basis(&self) -> EstimateBasis {
         self.basis
     }
 
-    /// Returns this grooming value's confidence.
+    /// Returns the confidence evidence recorded on this grooming contract.
     pub const fn confidence(&self) -> EstimateConfidence {
         self.confidence
     }
 
-    /// Returns this grooming value's review.
+    /// Returns the review evidence recorded on this grooming contract.
     pub const fn review(&self) -> ReviewRequirement {
         self.review
     }
@@ -283,11 +287,11 @@ impl DurationEstimate {
 }
 
 #[derive(Debug, Clone, Default)]
-/// Typed estimation policy domain value that keeps raw primitives out of grooming workflows.
+/// Policy object that chooses a grooming duration from pet history first, then contracted breed/coat defaults.
 pub struct EstimationPolicy;
 
 impl EstimationPolicy {
-    /// Returns the estimate for this grooming value.
+    /// Estimates appointment minutes from source history or contract defaults and records any required review gate.
     pub fn estimate(
         &self,
         request: EstimationRequest,
@@ -342,23 +346,23 @@ impl EstimationPolicy {
     }
 }
 
-/// No show boundary for grooming contracts.
+/// No-show and late-cancel boundary for protecting groomer capacity and rebooking policy.
 pub mod no_show {
     use super::*;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for rule decisions in grooming workflows.
+    /// Decision vocabulary for rule in grooming workflows.
     pub enum Rule {
-        /// Note history only grooming service, assignment, estimate, or review signal.
+        /// Note history only grooming operational signal for schedule, estimate, history, or review handling.
         NoteHistoryOnly,
-        /// Require deposit for rebooking grooming service, assignment, estimate, or review signal.
+        /// Require deposit for rebooking grooming operational signal for schedule, estimate, history, or review handling.
         RequireDepositForRebooking,
-        /// Manager review before rebooking grooming service, assignment, estimate, or review signal.
+        /// Manager review before rebooking grooming operational signal for schedule, estimate, history, or review handling.
         ManagerReviewBeforeRebooking,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-    /// Typed count domain value that keeps raw primitives out of grooming workflows.
+    /// Represents the count concept as a typed grooming operational contract instead of a raw primitive.
     pub struct Count(u16);
 
     impl Count {
@@ -374,7 +378,7 @@ pub mod no_show {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-    /// Typed late cancel count domain value that keeps raw primitives out of grooming workflows.
+    /// Represents the late cancel count concept as a typed grooming operational contract instead of a raw primitive.
     pub struct LateCancelCount(u16);
 
     impl LateCancelCount {
@@ -390,11 +394,11 @@ pub mod no_show {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Typed history domain value that keeps raw primitives out of grooming workflows.
+    /// Represents the history concept as a typed grooming operational contract instead of a raw primitive.
     pub struct History {
-        /// No shows fact promoted into this grooming contract.
+        /// Source-derived no shows carried by this grooming contract.
         pub no_shows: Count,
-        /// Late cancels fact promoted into this grooming contract.
+        /// Source-derived late cancels carried by this grooming contract.
         pub late_cancels: LateCancelCount,
     }
 
@@ -407,42 +411,42 @@ pub mod no_show {
             }
         }
 
-        /// Returns this grooming value's repeat behavior count.
+        /// Returns the repeat behavior count evidence recorded on this grooming contract.
         pub const fn repeat_behavior_count(&self) -> u16 {
             self.no_shows.get().saturating_add(self.late_cancels.get())
         }
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for decision decisions in grooming workflows.
+    /// Decision vocabulary for workflow outcomes in grooming workflows.
     pub enum Decision {
-        /// Clear to rebook grooming service, assignment, estimate, or review signal.
+        /// Clear to rebook grooming operational signal for schedule, estimate, history, or review handling.
         ClearToRebook,
-        /// Gate fact promoted into this grooming contract.
+        /// Source-derived gate carried by this grooming contract.
         DepositRequired {
-            /// Gate carried by this variant.
+            /// Gate value carried by this review or workflow variant.
             gate: crate::policy::ReviewGate,
         },
-        /// Gate fact promoted into this grooming contract.
+        /// Source-derived gate carried by this grooming contract.
         ManagerReviewRequired {
-            /// Gate carried by this variant.
+            /// Gate value carried by this review or workflow variant.
             gate: crate::policy::ReviewGate,
         },
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Typed evaluation domain value that keeps raw primitives out of grooming workflows.
+    /// Represents the evaluation concept as a typed grooming operational contract instead of a raw primitive.
     pub struct Evaluation {
-        /// Customer id fact promoted into this grooming contract.
+        /// Source-derived customer id carried by this grooming contract.
         pub customer_id: CustomerId,
         /// Pet receiving the grooming or care service.
         pub pet_id: PetId,
-        /// History fact promoted into this grooming contract.
+        /// Source-derived history carried by this grooming contract.
         pub history: History,
     }
 
     #[derive(Debug, Clone)]
-    /// Typed policy domain value that keeps raw primitives out of grooming workflows.
+    /// Represents the policy concept as a typed grooming operational contract instead of a raw primitive.
     pub struct Policy {
         rule: Rule,
     }
@@ -453,7 +457,7 @@ pub mod no_show {
             Self { rule }
         }
 
-        /// Returns the evaluate for this grooming value.
+        /// Evaluates grooming source facts into a rebooking or review decision.
         pub fn evaluate(
             &self,
             customer_id: CustomerId,
@@ -508,47 +512,47 @@ pub mod history {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for care reference decisions in grooming workflows.
+    /// Decision vocabulary for care reference in grooming workflows.
     pub enum CareReference {
-        /// Sensitive skin product grooming service, assignment, estimate, or review signal.
+        /// Sensitive skin product grooming operational signal for schedule, estimate, history, or review handling.
         SensitiveSkinProduct,
-        /// Medicated product requires review grooming service, assignment, estimate, or review signal.
+        /// Medicated product requires review grooming operational signal for schedule, estimate, history, or review handling.
         MedicatedProductRequiresReview,
-        /// Handling or medical concern grooming service, assignment, estimate, or review signal.
+        /// Handling or medical concern grooming operational signal for schedule, estimate, history, or review handling.
         HandlingOrMedicalConcern,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for service outcome decisions in grooming workflows.
+    /// Decision vocabulary for service outcome in grooming workflows.
     pub enum ServiceOutcome {
-        /// Completed grooming service, assignment, estimate, or review signal.
+        /// Completed grooming operational signal for schedule, estimate, history, or review handling.
         Completed,
-        /// No show grooming service, assignment, estimate, or review signal.
+        /// No show grooming operational signal for schedule, estimate, history, or review handling.
         NoShow,
-        /// Late cancelled grooming service, assignment, estimate, or review signal.
+        /// Late cancelled grooming operational signal for schedule, estimate, history, or review handling.
         LateCancelled,
-        /// Needs follow up grooming service, assignment, estimate, or review signal.
+        /// Needs follow up grooming operational signal for schedule, estimate, history, or review handling.
         NeedsFollowUp,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for approval state decisions in grooming workflows.
+    /// Decision vocabulary for approval state in grooming workflows.
     pub enum ApprovalState {
-        /// Draft grooming service, assignment, estimate, or review signal.
+        /// Draft grooming operational signal for schedule, estimate, history, or review handling.
         Draft,
-        /// Gate fact promoted into this grooming contract.
+        /// Source-derived gate carried by this grooming contract.
         ReviewRequired {
-            /// Gate carried by this variant.
+            /// Gate value carried by this review or workflow variant.
             gate: crate::policy::ReviewGate,
         },
-        /// Groomer id fact promoted into this grooming contract.
+        /// Source-derived groomer id carried by this grooming contract.
         ApprovedByGroomer {
-            /// Groomer id carried by this variant.
+            /// Groomer id value carried by this review or workflow variant.
             groomer_id: StaffId,
         },
-        /// Gate fact promoted into this grooming contract.
+        /// Source-derived gate carried by this grooming contract.
         Rejected {
-            /// Gate carried by this variant.
+            /// Gate value carried by this review or workflow variant.
             gate: crate::policy::ReviewGate,
         },
     }
@@ -561,19 +565,19 @@ pub mod history {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-    /// Typed service history entry domain value that keeps raw primitives out of grooming workflows.
+    /// Represents the service history entry concept as a typed grooming operational contract instead of a raw primitive.
     pub struct ServiceHistoryEntry {
         /// Pet receiving the grooming or care service.
         pub pet_id: PetId,
-        /// Location id fact promoted into this grooming contract.
+        /// Source-derived location id carried by this grooming contract.
         pub location_id: LocationId,
         /// Requested service that drives scheduling and labor estimates.
         pub service: super::Service,
-        /// Completed on fact promoted into this grooming contract.
+        /// Source-derived completed on carried by this grooming contract.
         pub completed_on: NaiveDate,
-        /// Outcome fact promoted into this grooming contract.
+        /// Source-derived outcome carried by this grooming contract.
         pub outcome: ServiceOutcome,
-        /// Approval fact promoted into this grooming contract.
+        /// Source-derived approval carried by this grooming contract.
         pub approval: ApprovalState,
         #[builder(default)]
         style_notes: Vec<style_note::StyleNote>,
@@ -583,17 +587,17 @@ pub mod history {
     }
 
     impl ServiceHistoryEntry {
-        /// Returns the style notes for this grooming value.
+        /// Returns the style notes evidence recorded on this grooming contract.
         pub fn style_notes(&self) -> &[style_note::StyleNote] {
             &self.style_notes
         }
 
-        /// Returns the care refs for this grooming value.
+        /// Returns the care refs evidence recorded on this grooming contract.
         pub fn care_refs(&self) -> &[CareReference] {
             &self.care_refs
         }
 
-        /// Returns this grooming value's duration.
+        /// Returns the duration evidence recorded on this grooming contract.
         pub const fn duration(&self) -> Option<AppointmentMinutes> {
             self.duration
         }
@@ -605,12 +609,12 @@ pub mod history {
     }
 }
 
-/// Rebooking boundary for grooming contracts.
+/// Rebooking cadence boundary for identifying due, overdue, or history-insufficient grooming follow-up.
 pub mod rebooking {
     use super::*;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-    /// Typed cadence weeks domain value that keeps raw primitives out of grooming workflows.
+    /// Represents the cadence weeks concept as a typed grooming operational contract instead of a raw primitive.
     pub struct CadenceWeeks(u8);
 
     impl CadenceWeeks {
@@ -638,15 +642,15 @@ pub mod rebooking {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-    /// Domain vocabulary for cadence weeks error decisions in grooming workflows.
+    /// Decision vocabulary for cadence weeks error in grooming workflows.
     pub enum CadenceWeeksError {
         #[error("grooming cadence requires at least one week")]
-        /// Zero weeks grooming service, assignment, estimate, or review signal.
+        /// Zero weeks grooming operational signal for schedule, estimate, history, or review handling.
         ZeroWeeks,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-    /// Typed ordinary cadence weeks domain value that keeps raw primitives out of grooming workflows.
+    /// Represents the ordinary cadence weeks concept as a typed grooming operational contract instead of a raw primitive.
     pub struct OrdinaryCadenceWeeks(u8);
 
     impl OrdinaryCadenceWeeks {
@@ -674,21 +678,21 @@ pub mod rebooking {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-    /// Domain vocabulary for ordinary cadence weeks error decisions in grooming workflows.
+    /// Decision vocabulary for ordinary cadence weeks error in grooming workflows.
     pub enum OrdinaryCadenceWeeksError {
         #[error("ordinary grooming rebooking cadence must be between 2 and 8 weeks")]
-        /// Outside ordinary grooming band grooming service, assignment, estimate, or review signal.
+        /// Outside ordinary grooming band grooming operational signal for schedule, estimate, history, or review handling.
         OutsideOrdinaryGroomingBand,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for cadence decisions in grooming workflows.
+    /// Decision vocabulary for cadence in grooming workflows.
     pub enum Cadence {
-        /// Every weeks grooming service, assignment, estimate, or review signal.
+        /// Every weeks grooming operational signal for schedule, estimate, history, or review handling.
         EveryWeeks(CadenceWeeks),
-        /// As needed grooming service, assignment, estimate, or review signal.
+        /// As needed grooming operational signal for schedule, estimate, history, or review handling.
         AsNeeded,
-        /// Groomer recommended grooming service, assignment, estimate, or review signal.
+        /// Groomer recommended grooming operational signal for schedule, estimate, history, or review handling.
         GroomerRecommended,
         /// Provider role or status could not be mapped confidently.
         Unknown,
@@ -697,46 +701,46 @@ pub mod rebooking {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
     /// Normalized reservation states observed during source-data ingestion.
     pub enum Status {
-        /// Due later grooming service, assignment, estimate, or review signal.
+        /// Due later grooming operational signal for schedule, estimate, history, or review handling.
         DueLater,
-        /// Due now grooming service, assignment, estimate, or review signal.
+        /// Due now grooming operational signal for schedule, estimate, history, or review handling.
         DueNow,
-        /// Overdue grooming service, assignment, estimate, or review signal.
+        /// Overdue grooming operational signal for schedule, estimate, history, or review handling.
         Overdue,
-        /// Needs groomer recommendation grooming service, assignment, estimate, or review signal.
+        /// Needs groomer recommendation grooming operational signal for schedule, estimate, history, or review handling.
         NeedsGroomerRecommendation,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for rationale decisions in grooming workflows.
+    /// Decision vocabulary for rationale in grooming workflows.
     pub enum Rationale {
-        /// Last completed service cadence grooming service, assignment, estimate, or review signal.
+        /// Last completed service cadence grooming operational signal for schedule, estimate, history, or review handling.
         LastCompletedServiceCadence,
-        /// No completed history grooming service, assignment, estimate, or review signal.
+        /// No completed history grooming operational signal for schedule, estimate, history, or review handling.
         NoCompletedHistory,
-        /// Groomer recommended cadence required grooming service, assignment, estimate, or review signal.
+        /// Groomer recommended cadence required grooming operational signal for schedule, estimate, history, or review handling.
         GroomerRecommendedCadenceRequired,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Typed recommendation domain value that keeps raw primitives out of grooming workflows.
+    /// Represents the recommendation concept as a typed grooming operational contract instead of a raw primitive.
     pub struct Recommendation {
         /// Pet receiving the grooming or care service.
         pub pet_id: PetId,
-        /// Due on fact promoted into this grooming contract.
+        /// Source-derived due on carried by this grooming contract.
         pub due_on: Option<NaiveDate>,
-        /// Status fact promoted into this grooming contract.
+        /// Source-derived status carried by this grooming contract.
         pub status: Status,
-        /// Rationale fact promoted into this grooming contract.
+        /// Source-derived rationale carried by this grooming contract.
         pub rationale: Rationale,
     }
 
     #[derive(Debug, Clone, Default)]
-    /// Typed policy domain value that keeps raw primitives out of grooming workflows.
+    /// Represents the policy concept as a typed grooming operational contract instead of a raw primitive.
     pub struct Policy;
 
     impl Policy {
-        /// Returns the recommend from history for this grooming value.
+        /// Returns the recommend from history evidence recorded on this grooming contract.
         pub fn recommend_from_history(
             &self,
             pet_id: PetId,
@@ -789,73 +793,73 @@ pub mod rebooking {
     }
 }
 
-/// Reminder boundary for grooming contracts.
+/// Reminder boundary for drafting appointment confirmations, prep instructions, and cadence winback messages.
 pub mod reminder {
     use super::*;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for rule decisions in grooming workflows.
+    /// Decision vocabulary for rule in grooming workflows.
     pub enum Rule {
-        /// One week before grooming service, assignment, estimate, or review signal.
+        /// One week before grooming operational signal for schedule, estimate, history, or review handling.
         OneWeekBefore,
-        /// Forty eight hours before grooming service, assignment, estimate, or review signal.
+        /// Forty eight hours before grooming operational signal for schedule, estimate, history, or review handling.
         FortyEightHoursBefore,
-        /// Morning of grooming service, assignment, estimate, or review signal.
+        /// Morning of grooming operational signal for schedule, estimate, history, or review handling.
         MorningOf,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for kind decisions in grooming workflows.
+    /// Decision vocabulary for kind in grooming workflows.
     pub enum Kind {
-        /// Appointment confirmation grooming service, assignment, estimate, or review signal.
+        /// Appointment confirmation grooming operational signal for schedule, estimate, history, or review handling.
         AppointmentConfirmation,
-        /// Prep instructions grooming service, assignment, estimate, or review signal.
+        /// Prep instructions grooming operational signal for schedule, estimate, history, or review handling.
         PrepInstructions,
-        /// Morning of grooming service, assignment, estimate, or review signal.
+        /// Morning of grooming operational signal for schedule, estimate, history, or review handling.
         MorningOf,
-        /// Rebooking due grooming service, assignment, estimate, or review signal.
+        /// Rebooking due grooming operational signal for schedule, estimate, history, or review handling.
         RebookingDue,
-        /// Lapsed cadence winback grooming service, assignment, estimate, or review signal.
+        /// Lapsed cadence winback grooming operational signal for schedule, estimate, history, or review handling.
         LapsedCadenceWinback,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for consent decisions in grooming workflows.
+    /// Decision vocabulary for consent in grooming workflows.
     pub enum Consent {
-        /// Granted grooming service, assignment, estimate, or review signal.
+        /// Granted grooming operational signal for schedule, estimate, history, or review handling.
         Granted,
-        /// Not granted grooming service, assignment, estimate, or review signal.
+        /// Not granted grooming operational signal for schedule, estimate, history, or review handling.
         NotGranted,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for send boundary decisions in grooming workflows.
+    /// Decision vocabulary for send boundary in grooming workflows.
     pub enum SendBoundary {
-        /// Draft requires approval grooming service, assignment, estimate, or review signal.
+        /// Draft requires approval grooming operational signal for schedule, estimate, history, or review handling.
         DraftRequiresApproval,
-        /// Ready for approved send grooming service, assignment, estimate, or review signal.
+        /// Ready for approved send grooming operational signal for schedule, estimate, history, or review handling.
         ReadyForApprovedSend,
-        /// Suppressed until consent grooming service, assignment, estimate, or review signal.
+        /// Suppressed until consent grooming operational signal for schedule, estimate, history, or review handling.
         SuppressedUntilConsent,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Typed plan domain value that keeps raw primitives out of grooming workflows.
+    /// Represents the plan concept as a typed grooming operational contract instead of a raw primitive.
     pub struct Plan {
-        /// Customer id fact promoted into this grooming contract.
+        /// Source-derived customer id carried by this grooming contract.
         pub customer_id: CustomerId,
-        /// Kind fact promoted into this grooming contract.
+        /// Source-derived kind carried by this grooming contract.
         pub kind: Kind,
         boundary: SendBoundary,
     }
 
     impl Plan {
-        /// Returns this grooming value's send boundary.
+        /// Returns the send boundary evidence recorded on this grooming contract.
         pub const fn send_boundary(&self) -> SendBoundary {
             self.boundary
         }
 
-        /// Returns this grooming value's customer message gate.
+        /// Returns the customer message review gate recorded on this grooming contract.
         pub const fn customer_message_gate(&self) -> Option<crate::policy::ReviewGate> {
             match self.boundary {
                 SendBoundary::DraftRequiresApproval => {
@@ -867,11 +871,11 @@ pub mod reminder {
     }
 
     #[derive(Debug, Clone, Default)]
-    /// Typed policy domain value that keeps raw primitives out of grooming workflows.
+    /// Represents the policy concept as a typed grooming operational contract instead of a raw primitive.
     pub struct Policy;
 
     impl Policy {
-        /// Returns this grooming value's plan.
+        /// Builds a grooming reminder plan from customer consent and reminder purpose.
         pub const fn plan(&self, customer_id: CustomerId, kind: Kind, consent: Consent) -> Plan {
             let boundary = match consent {
                 Consent::Granted => SendBoundary::DraftRequiresApproval,
@@ -887,33 +891,33 @@ pub mod reminder {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Typed contract domain value that keeps raw primitives out of grooming workflows.
+/// Location grooming contract tying calendar assignment, estimate policy, no-show rules, rebooking cadence, reminders, and history retention together.
 pub struct Contract {
-    /// Calendar fact promoted into this grooming contract.
+    /// Source-derived calendar carried by this grooming contract.
     pub calendar: calendar::Policy,
     #[builder(default)]
-    /// Time estimates fact promoted into this grooming contract.
+    /// Source-derived time estimates carried by this grooming contract.
     pub time_estimates: Vec<breed_coat::TimeEstimate>,
-    /// No show fact promoted into this grooming contract.
+    /// Source-derived no show carried by this grooming contract.
     pub no_show: no_show::Rule,
-    /// Rebooking fact promoted into this grooming contract.
+    /// Source-derived rebooking carried by this grooming contract.
     pub rebooking: rebooking::Cadence,
     #[builder(default)]
-    /// Reminders fact promoted into this grooming contract.
+    /// Source-derived reminders carried by this grooming contract.
     pub reminders: Vec<reminder::Rule>,
-    /// History fact promoted into this grooming contract.
+    /// Source-derived history carried by this grooming contract.
     pub history: HistoryRequirement,
 }
 
 impl Contract {
-    /// Returns the requires deposit after no show for this grooming value.
+    /// Reports whether prior no-shows should trigger a deposit or manager review before rebooking.
     pub fn requires_deposit_after_no_show(&self) -> bool {
         matches!(
             self.no_show,
             no_show::Rule::RequireDepositForRebooking | no_show::Rule::ManagerReviewBeforeRebooking
         )
     }
-    /// Returns the standard petsuites for this grooming value.
+    /// Builds a representative PetSuites-style grooming contract for docs/tests without claiming it is live policy.
     pub fn standard_petsuites() -> Self {
         Self::builder()
             .calendar(calendar::Policy::GroomerSpecific)

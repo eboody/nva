@@ -1,7 +1,14 @@
+//! Vaccination-document review states for compliance-gated resort workflows.
+//!
+//! Vaccine facts move from uploaded/source documents into explicit review states before
+//! daycare, boarding, or customer-response workflows can rely on them. This keeps staff
+//! labor for missing/expired proofs visible and prevents automation from inventing
+//! compliance clearance.
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Normalized reservation states observed during source-data ingestion.
+/// Review lifecycle for vaccination evidence before it can satisfy care requirements.
 pub enum Status {
     /// Suggested extracted vaccination-document state for compliance review.
     SuggestedExtracted,

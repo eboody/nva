@@ -26,124 +26,124 @@ use super::*;
 use crate::policy;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Typed attendance visit count domain value that keeps raw primitives out of daycare workflows.
+/// Count of recent daycare visits used to score pass or membership opportunities.
 pub struct AttendanceVisitCount(u16);
 
 impl AttendanceVisitCount {
-    /// Assembles this daycare value from already-validated domain parts.
+    /// Creates an attendance visit count from source-derived history.
     pub const fn new(value: u16) -> Self {
         Self(value)
     }
 
-    /// Exposes the validated scalar for serialization and adapter boundaries.
+    /// Returns the raw visit count for reporting, scoring, and serialization.
     pub const fn get(self) -> u16 {
         self.0
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for care eligibility decisions in daycare workflows.
+/// Care eligibility state used before recommending daycare packages.
 pub enum CareEligibility {
-    /// Cleared daycare attendance, eligibility, coverage, or package signal.
+    /// Care and safety gates are clear enough to consider package recommendations.
     Cleared,
-    /// Blocked by safety review daycare attendance, eligibility, coverage, or package signal.
+    /// Safety or care review blocks sales recommendations until staff clear it.
     BlockedBySafetyReview,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for package state decisions in daycare workflows.
+/// Existing package coverage state for a customer and pet.
 pub enum PackageState {
-    /// Pay per visit daycare attendance, eligibility, coverage, or package signal.
+    /// Customer currently pays per visit and may benefit from a package recommendation.
     PayPerVisit,
-    /// Already covered daycare attendance, eligibility, coverage, or package signal.
+    /// Existing package or membership already covers the daycare need.
     AlreadyCovered,
-    /// Provider role or status could not be mapped confidently.
+    /// Package coverage could not be mapped confidently, so recommendations should not assume need.
     Unknown,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for payment state decisions in daycare workflows.
+/// Billing state used to suppress recommendations when collection or review is needed.
 pub enum PaymentState {
-    /// Current daycare attendance, eligibility, coverage, or package signal.
+    /// Payment status is current enough to allow staff-reviewed recommendations.
     Current,
-    /// Needs billing review daycare attendance, eligibility, coverage, or package signal.
+    /// Billing state requires review before staff suggest another package or membership.
     NeedsBillingReview,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Typed evidence domain value that keeps raw primitives out of daycare workflows.
+/// Source evidence used to classify daycare package or membership opportunities.
 pub struct Evidence {
-    /// Customer id fact promoted into this daycare contract.
+    /// Customer account that would receive the package recommendation.
     pub customer_id: CustomerId,
-    /// Pet receiving the grooming or care service.
+    /// Pet whose attendance history and care eligibility drive the recommendation.
     pub pet_id: PetId,
-    /// Attendance visits fact promoted into this daycare contract.
+    /// Recent visit count used as the demand signal for package scoring.
     pub attendance_visits: AttendanceVisitCount,
-    /// Eligibility fact promoted into this daycare contract.
+    /// Care/safety eligibility that can suppress recommendations.
     pub eligibility: CareEligibility,
-    /// Package state fact promoted into this daycare contract.
+    /// Existing package coverage used to avoid duplicate sales prompts.
     pub package_state: PackageState,
-    /// Payment state fact promoted into this daycare contract.
+    /// Billing readiness used to suppress recommendations needing collection review.
     pub payment_state: PaymentState,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for decision decisions in daycare workflows.
+/// Package-opportunity decision staff may review before contacting a customer.
 pub enum Decision {
-    /// Recommend staff review daycare attendance, eligibility, coverage, or package signal.
+    /// Recommendation is promising enough to show staff, but customer messaging remains approval-gated.
     RecommendStaffReview {
-        /// Score fact promoted into this daycare contract.
+        /// Opportunity strength derived from attendance history.
         score: OpportunityScore,
-        /// Gate fact promoted into this daycare contract.
+        /// Review gate required before staff use or send a recommendation.
         gate: policy::ReviewGate,
     },
-    /// Suppressed daycare attendance, eligibility, coverage, or package signal.
+    /// Recommendation is intentionally hidden because safety, care, or billing review comes first.
     Suppressed {
-        /// Business reason staff should review before proceeding.
+        /// Reason evidence does not allow a direct package recommendation.
         reason: SuppressionReason,
-        /// Gate fact promoted into this daycare contract.
+        /// Review gate required before staff use or send a recommendation.
         gate: policy::ReviewGate,
     },
-    /// No opportunity daycare attendance, eligibility, coverage, or package signal.
+    /// Evidence does not justify a package recommendation.
     NoOpportunity {
-        /// Business reason staff should review before proceeding.
+        /// Reason evidence does not allow a direct package recommendation.
         reason: NoOpportunityReason,
     },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for opportunity score decisions in daycare workflows.
+/// Strength of a daycare package opportunity from recent attendance evidence.
 pub enum OpportunityScore {
-    /// Moderate daycare attendance, eligibility, coverage, or package signal.
+    /// Attendance history suggests a possible package fit, but not enough for the strongest score.
     Moderate,
-    /// Strong daycare attendance, eligibility, coverage, or package signal.
+    /// Attendance history strongly suggests staff should review a package or membership offer.
     Strong,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for suppression reason decisions in daycare workflows.
+/// Reasons daycare package recommendations are suppressed before staff review.
 pub enum SuppressionReason {
-    /// Safety or care review required daycare attendance, eligibility, coverage, or package signal.
+    /// Care or behavior review must be handled before sales recommendations.
     SafetyOrCareReviewRequired,
-    /// Payment or billing review required daycare attendance, eligibility, coverage, or package signal.
+    /// Billing issue must be handled before sales recommendations.
     PaymentOrBillingReviewRequired,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for no opportunity reason decisions in daycare workflows.
+/// Reasons evidence does not indicate a new daycare package opportunity.
 pub enum NoOpportunityReason {
-    /// Already covered daycare attendance, eligibility, coverage, or package signal.
+    /// Existing package or membership already covers the daycare need.
     AlreadyCovered,
-    /// Not enough attendance history daycare attendance, eligibility, coverage, or package signal.
+    /// Recent visits are too low to justify a package recommendation.
     NotEnoughAttendanceHistory,
 }
 
 #[derive(Debug, Clone, Default)]
-/// Typed policy domain value that keeps raw primitives out of daycare workflows.
+/// Deterministic policy that scores daycare package opportunities from evidence.
 pub struct Policy;
 
 impl Policy {
-    /// Returns the classify for this daycare value.
+    /// Classifies package opportunity evidence into recommend, suppress, or no-opportunity outcomes.
     pub fn classify(&self, evidence: &Evidence) -> Decision {
         if matches!(evidence.eligibility, CareEligibility::BlockedBySafetyReview) {
             return Decision::Suppressed {

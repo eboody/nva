@@ -1,7 +1,7 @@
 use super::{AnimalId, Method, Request, SpeciesId};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-/// Typed Gingr request/response value for get locations.
+/// Request descriptor for Gingr location reference data used to scope resort operations.
 pub struct GetLocations;
 
 impl Request for GetLocations {
@@ -45,20 +45,20 @@ simple_reference_endpoint!(GetBreeds, "/api/v1/get_breeds");
 simple_reference_endpoint!(GetTemperaments, "/api/v1/get_temperaments");
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-/// Typed Gingr request/response value for get vets.
+/// Request descriptor for Gingr veterinarian reference data observed by location and active flag.
 pub struct GetVets {
     include_all_information: bool,
 }
 
 impl GetVets {
-    /// Starts a typed builder for this Gingr endpoint request.
+    /// Starts a builder that makes each provider parameter explicit before request capture.
     pub fn builder() -> GetVetsBuilder {
         GetVetsBuilder::default()
     }
 }
 
 #[derive(Clone, Debug, Default)]
-/// Typed Gingr request/response value for get vets builder.
+/// Builder for veterinarian lookup filters by provider location and active-only flag.
 pub struct GetVetsBuilder {
     include_all_information: bool,
 }
@@ -70,7 +70,7 @@ impl GetVetsBuilder {
         self
     }
 
-    /// Builds the typed Gingr request after all parameters have been validated.
+    /// Finalizes the provider request descriptor after required fields are present and wrappers have validated local invariants.
     pub fn build(self) -> GetVets {
         GetVets {
             include_all_information: self.include_all_information,
@@ -97,13 +97,13 @@ impl Request for GetVets {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-/// Typed Gingr request/response value for get immunization types.
+/// Request descriptor for Gingr immunization/vaccine type reference data.
 pub struct GetImmunizationTypes {
     species: SpeciesId,
 }
 
 impl GetImmunizationTypes {
-    /// Creates the wrapper from an already validated value.
+    /// Wraps an already-observed Gingr identifier without claiming anything beyond provider provenance.
     pub const fn new(species: SpeciesId) -> Self {
         Self { species }
     }
@@ -124,13 +124,13 @@ impl Request for GetImmunizationTypes {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-/// Typed Gingr request/response value for get animal immunizations.
+/// Request descriptor for Gingr animal immunization records; medical interpretation remains outside this boundary.
 pub struct GetAnimalImmunizations {
     animal: AnimalId,
 }
 
 impl GetAnimalImmunizations {
-    /// Creates the wrapper from an already validated value.
+    /// Wraps an already-observed Gingr identifier without claiming anything beyond provider provenance.
     pub const fn new(animal: AnimalId) -> Self {
         Self { animal }
     }

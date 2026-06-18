@@ -19,35 +19,35 @@ use super::*;
 use crate::{entities, policy};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Groomer-assignment policies used when booking grooming work.
+/// Daycare incident handling policy that determines notes, customer notice, and group-play suspension.
 pub enum Policy {
-    /// Staff note only daycare attendance, eligibility, coverage, or package signal.
+    /// Incident is recorded as a staff note without extra customer or manager workflow.
     StaffNoteOnly,
-    /// Manager review and customer notice daycare attendance, eligibility, coverage, or package signal.
+    /// Incident requires manager review and customer-message approval before follow-up.
     ManagerReviewAndCustomerNotice,
-    /// Suspend group play pending review daycare attendance, eligibility, coverage, or package signal.
+    /// Incident should suspend group play until manager review clears the pet.
     SuspendGroupPlayPendingReview,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for severity decisions in daycare workflows.
+/// Severity classification supplied to the incident classifier.
 pub enum Severity {
-    /// Staff note only daycare attendance, eligibility, coverage, or package signal.
+    /// Incident is recorded as a staff note without extra customer or manager workflow.
     StaffNoteOnly,
-    /// Owner notice daycare attendance, eligibility, coverage, or package signal.
+    /// Incident requires customer notice but does not itself suspend group play.
     OwnerNotice,
-    /// Manager review daycare attendance, eligibility, coverage, or package signal.
+    /// Incident requires manager review before staff close the disposition.
     ManagerReview,
-    /// Suspend group play daycare attendance, eligibility, coverage, or package signal.
+    /// Incident should suspend group play pending manager review.
     SuspendGroupPlay,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for restriction decisions in daycare workflows.
+/// Operational restriction created by a daycare incident disposition.
 pub enum Restriction {
-    /// No additional workflow gate is required.
+    /// Incident creates no active restriction on future daycare attendance.
     None,
-    /// Pet receiving the grooming or care service.
+    /// Pet whose group-play access is suspended pending manager review.
     SuspendedPendingManagerReview {
         /// Pet id carried by this variant.
         pet_id: PetId,
@@ -55,34 +55,34 @@ pub enum Restriction {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Typed disposition domain value that keeps raw primitives out of daycare workflows.
+/// Classified incident outcome carrying restriction and review-gate evidence.
 pub struct Disposition {
-    /// Pet receiving the grooming or care service.
+    /// Pet whose group-play access is suspended pending manager review.
     pub pet_id: PetId,
-    /// Severity fact promoted into this daycare contract.
+    /// Severity used to choose restriction and review gates.
     pub severity: Severity,
     restriction: Restriction,
     required_gate: Option<policy::ReviewGate>,
 }
 
 impl Disposition {
-    /// Returns this daycare value's restriction.
+    /// Returns the operational restriction that eligibility policy must honor.
     pub const fn restriction(&self) -> Restriction {
         self.restriction
     }
 
-    /// Returns the required gate for this daycare value.
+    /// Returns the human review gate required before the incident disposition can be cleared.
     pub fn required_gate(&self) -> Option<policy::ReviewGate> {
         self.required_gate.clone()
     }
 }
 
 #[derive(Debug, Clone, Default)]
-/// Typed classifier domain value that keeps raw primitives out of daycare workflows.
+/// Deterministic classifier that maps incident severity to restrictions and review gates.
 pub struct Classifier;
 
 impl Classifier {
-    /// Returns the classify for this daycare value.
+    /// Classifies an incident severity for a pet into a disposition staff can act on.
     pub fn classify(&self, pet_id: entities::PetId, severity: Severity) -> Disposition {
         let (restriction, required_gate) = match severity {
             Severity::StaffNoteOnly => (Restriction::None, None),

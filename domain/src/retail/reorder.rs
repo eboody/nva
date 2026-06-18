@@ -1,3 +1,5 @@
+//! Reorder contracts for stock-threshold decisions and manager/vendor workflow creation.
+
 use serde::{Deserialize, Serialize};
 
 use crate::entities::LocationId;
@@ -7,18 +9,18 @@ use super::inventory::Position;
 use super::product::Sku;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Groomer-assignment policies used when booking grooming work.
+/// Reorder policy deciding whether low stock creates a manager review, staff task, or vendor notice.
 pub enum Policy {
-    /// Manual review retail inventory, POS, reorder, or recommendation signal.
+    /// Manual review retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     ManualReview,
-    /// Auto create manager task retail inventory, POS, reorder, or recommendation signal.
+    /// Auto create manager task retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     AutoCreateManagerTask,
-    /// Vendor managed retail inventory, POS, reorder, or recommendation signal.
+    /// Vendor managed retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     VendorManaged,
 }
 
 impl Policy {
-    /// Returns the evaluate for this retail value.
+    /// Evaluates an inventory position against the policy and emits only threshold-backed reorder actions.
     pub fn evaluate(&self, position: &Position) -> Decision {
         if !position.is_at_or_below_reorder_threshold() {
             return Decision::NoAction;
@@ -43,31 +45,31 @@ impl Policy {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for decision decisions in retail workflows.
+/// Reorder decision produced when available units are at or below threshold.
 pub enum Decision {
-    /// No action retail inventory, POS, reorder, or recommendation signal.
+    /// No action retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     NoAction,
-    /// Create staff task retail inventory, POS, reorder, or recommendation signal.
+    /// Create staff task retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     CreateStaffTask {
-        /// Location id fact promoted into this retail contract.
+        /// Source-derived location id carried by this retail contract.
         location_id: LocationId,
-        /// Sku fact promoted into this retail contract.
+        /// Source-derived sku carried by this retail contract.
         sku: Sku,
         /// Business reason staff should review before proceeding.
         reason: Reason,
-        /// Gate fact promoted into this retail contract.
+        /// Source-derived gate carried by this retail contract.
         gate: policy::ReviewGate,
     },
-    /// Manager review required retail inventory, POS, reorder, or recommendation signal.
+    /// Manager review required retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     ManagerReviewRequired {
         /// Business reason staff should review before proceeding.
         reason: Reason,
-        /// Gate fact promoted into this retail contract.
+        /// Source-derived gate carried by this retail contract.
         gate: policy::ReviewGate,
     },
-    /// Vendor managed notice retail inventory, POS, reorder, or recommendation signal.
+    /// Vendor managed notice retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     VendorManagedNotice {
-        /// Sku fact promoted into this retail contract.
+        /// Source-derived sku carried by this retail contract.
         sku: Sku,
         /// Business reason staff should review before proceeding.
         reason: Reason,
@@ -75,12 +77,12 @@ pub enum Decision {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for reason decisions in retail workflows.
+/// Business reason explaining why reorder action or vendor notice is needed.
 pub enum Reason {
-    /// At or below threshold retail inventory, POS, reorder, or recommendation signal.
+    /// At or below threshold retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     AtOrBelowThreshold,
-    /// Vendor backorder retail inventory, POS, reorder, or recommendation signal.
+    /// Vendor backorder retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     VendorBackorder,
-    /// Forecasted boarding diet depletion retail inventory, POS, reorder, or recommendation signal.
+    /// Forecasted boarding diet depletion retail operational signal for inventory, POS, reorder, recommendation, or review handling.
     ForecastedBoardingDietDepletion,
 }

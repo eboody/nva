@@ -1,3 +1,10 @@
+//! Care-plan and medical-instruction value objects for safe resort workflows.
+//!
+//! Care data is sensitive source evidence: these values promote provider/customer facts
+//! into redacted, validated domain types before staff tasks, daily briefs, or customer
+//! messaging can use them. Review requirements make medication and special-handling labor
+//! explicit instead of hiding the work in free-text notes.
+
 use nutype::nutype;
 #[allow(unused_imports)]
 use serde::{Deserialize, Serialize};
@@ -8,6 +15,7 @@ use std::fmt;
     validate(not_empty, len_char_max = 1000),
     derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)
 )]
+/// Redacted feeding instructions that can create care tasks and labor requirements.
 pub struct FeedingInstruction(String);
 
 #[nutype(
@@ -15,6 +23,7 @@ pub struct FeedingInstruction(String);
     validate(not_empty, len_char_max = 120),
     derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)
 )]
+/// Redacted allergy label that guards unsafe care or grooming recommendations.
 pub struct AllergyName(String);
 
 #[nutype(
@@ -22,6 +31,7 @@ pub struct AllergyName(String);
     validate(not_empty, len_char_max = 160),
     derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)
 )]
+/// Redacted medical-condition label requiring careful human handling.
 pub struct MedicalConditionName(String);
 
 #[nutype(
@@ -29,6 +39,7 @@ pub struct MedicalConditionName(String);
     validate(not_empty, len_char_max = 1000),
     derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)
 )]
+/// Redacted medical note retained as evidence, not as autonomous medical advice.
 pub struct MedicalNote(String);
 
 #[nutype(
@@ -36,6 +47,7 @@ pub struct MedicalNote(String);
     validate(not_empty, len_char_max = 160),
     derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)
 )]
+/// Redacted staff/customer contact name for care-plan coordination.
 pub struct ContactName(String);
 
 #[nutype(
@@ -43,6 +55,7 @@ pub struct ContactName(String);
     validate(not_empty, len_char_max = 160),
     derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)
 )]
+/// Redacted medication name used to schedule administration work safely.
 pub struct MedicationName(String);
 
 #[nutype(
@@ -50,6 +63,7 @@ pub struct MedicationName(String);
     validate(not_empty, len_char_max = 160),
     derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)
 )]
+/// Redacted medication dose retained for staff review and audit trails.
 pub struct MedicationDose(String);
 
 #[nutype(
@@ -57,6 +71,7 @@ pub struct MedicationDose(String);
     validate(not_empty, len_char_max = 400),
     derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)
 )]
+/// Redacted medication schedule that can drive labor and shift-handoff tasks.
 pub struct MedicationSchedule(String);
 
 #[nutype(
@@ -64,6 +79,7 @@ pub struct MedicationSchedule(String);
     validate(not_empty, len_char_max = 400),
     derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)
 )]
+/// Redacted reason explaining why care-team review is required before action.
 pub struct ReviewReason(String);
 
 macro_rules! redacted_debug {
@@ -103,7 +119,7 @@ impl ContactRef {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Whether medication instructions require additional care-team review.
 pub enum MedicationReviewRequirement {
-    /// No deposit or review is needed for this reservation path.
+    /// Medication instructions do not add a review gate beyond normal staff handling.
     NotRequired,
     /// Business reason staff should review before proceeding.
     RequiresReview {

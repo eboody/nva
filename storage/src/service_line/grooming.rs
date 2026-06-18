@@ -1,3 +1,9 @@
+//! Grooming storage projection codes and validated cadence quantities.
+//!
+//! Grooming records can persist service codes and known repeat cadence in weeks
+//! for rebooking workflows. Unknown or groomer-recommended cadence remains a
+//! domain decision rather than a fabricated storage value.
+
 use serde::{Deserialize, Deserializer, Serialize};
 
 use domain::grooming::rebooking;

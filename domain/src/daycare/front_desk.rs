@@ -33,39 +33,39 @@ positive_scalar!(
 );
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Typed readiness context domain value that keeps raw primitives out of daycare workflows.
+/// Combined daycare check-in evidence used to route a front-desk queue ticket.
 pub struct ReadinessContext {
-    /// Reservation id fact promoted into this daycare contract.
+    /// Reservation being prepared for check-in or staff review.
     pub reservation_id: entities::reservation::Id,
     /// Requested service that drives scheduling and labor estimates.
     pub service: ServiceVariant,
-    /// Eligibility fact promoted into this daycare contract.
+    /// Eligibility readiness for the requested daycare care mode.
     pub eligibility: EligibilityReadiness,
-    /// Coverage fact promoted into this daycare contract.
+    /// Staffing coverage state that may block or route check-in.
     pub coverage: coverage::Decision,
-    /// Care fact promoted into this daycare contract.
+    /// Care-team readiness for special handling, medical, or behavior review.
     pub care: CareReadiness,
-    /// Package fact promoted into this daycare contract.
+    /// Package/payment readiness controlling collection or manager review at check-in.
     pub package: PackageReadiness,
-    /// Customer message fact promoted into this daycare contract.
+    /// Customer-message approval state for any drafted daycare communication.
     pub customer_message: CustomerMessageReadiness,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for eligibility readiness decisions in daycare workflows.
+/// Eligibility readiness category used by front-desk routing.
 pub enum EligibilityReadiness {
     /// Group-play add-on or accommodation feature.
     GroupPlay(eligibility::GroupPlayDecision),
-    /// Individual care ready daycare attendance, eligibility, coverage, or package signal.
+    /// Individual-care service does not need group-play clearance for check-in.
     IndividualCareReady,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for care readiness decisions in daycare workflows.
+/// Care-team readiness state for daycare check-in.
 pub enum CareReadiness {
-    /// Ready daycare attendance, eligibility, coverage, or package signal.
+    /// Care evidence is clear enough for check-in to proceed.
     Ready,
-    /// Gate fact promoted into this daycare contract.
+    /// Human review gate required before this readiness state can proceed.
     NeedsCareTeamReview {
         /// Gate carried by this variant.
         gate: policy::ReviewGate,
@@ -73,13 +73,13 @@ pub enum CareReadiness {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for package readiness decisions in daycare workflows.
+/// Package/payment readiness state used to route daycare front-desk work.
 pub enum PackageReadiness {
-    /// Ready daycare attendance, eligibility, coverage, or package signal.
+    /// Care evidence is clear enough for check-in to proceed.
     Ready,
-    /// Needs front desk collection daycare attendance, eligibility, coverage, or package signal.
+    /// Front desk must collect payment, package visits, or missing account information.
     NeedsFrontDeskCollection,
-    /// Gate fact promoted into this daycare contract.
+    /// Human review gate required before this readiness state can proceed.
     NeedsManagerReview {
         /// Gate carried by this variant.
         gate: policy::ReviewGate,
@@ -87,32 +87,32 @@ pub enum PackageReadiness {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for customer message readiness decisions in daycare workflows.
+/// Approval status for daycare customer-message drafts.
 pub enum CustomerMessageReadiness {
-    /// No message needed daycare attendance, eligibility, coverage, or package signal.
+    /// No customer-facing message is required for this check-in path.
     NoMessageNeeded,
-    /// Draft needs approval daycare attendance, eligibility, coverage, or package signal.
+    /// A drafted customer message must be approved before it is sent or used.
     DraftNeedsApproval,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for readiness decision decisions in daycare workflows.
+/// Front-desk routing outcome for a daycare check-in ticket.
 pub enum ReadinessDecision {
-    /// Ready to check in daycare attendance, eligibility, coverage, or package signal.
+    /// Ticket can move through the fast lane without extra collection or review.
     ReadyToCheckIn,
-    /// Needs front desk collection daycare attendance, eligibility, coverage, or package signal.
+    /// Front desk must collect payment, package visits, or missing account information.
     NeedsFrontDeskCollection,
-    /// Gate fact promoted into this daycare contract.
+    /// Human review gate required before this readiness state can proceed.
     NeedsCareTeamReview {
         /// Gate carried by this variant.
         gate: policy::ReviewGate,
     },
-    /// Gate fact promoted into this daycare contract.
+    /// Human review gate required before this readiness state can proceed.
     NeedsManagerReview {
         /// Gate carried by this variant.
         gate: policy::ReviewGate,
     },
-    /// Gate fact promoted into this daycare contract.
+    /// Human review gate required before this readiness state can proceed.
     BlockedForSafetyOrPolicy {
         /// Gate carried by this variant.
         gate: policy::ReviewGate,
@@ -120,7 +120,7 @@ pub enum ReadinessDecision {
 }
 
 impl ReadinessDecision {
-    /// Returns the customer message gate for this daycare value.
+    /// Returns any approval gate tied specifically to customer-message handling for this decision.
     pub fn customer_message_gate(&self) -> Option<policy::ReviewGate> {
         match self {
             Self::ReadyToCheckIn
@@ -133,34 +133,34 @@ impl ReadinessDecision {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for queue lane decisions in daycare workflows.
+/// Physical or operational lane used to sort daycare front-desk work.
 pub enum QueueLane {
-    /// Fast lane daycare attendance, eligibility, coverage, or package signal.
+    /// Queue lane for check-ins with all readiness gates clear.
     FastLane,
-    /// Collection lane daycare attendance, eligibility, coverage, or package signal.
+    /// Queue lane for tickets needing payment or package collection.
     CollectionLane,
-    /// Care team review lane daycare attendance, eligibility, coverage, or package signal.
+    /// Queue lane for tickets needing care-team or behavior review.
     CareTeamReviewLane,
-    /// Manager review lane daycare attendance, eligibility, coverage, or package signal.
+    /// Queue lane for manager approval before check-in proceeds.
     ManagerReviewLane,
-    /// Waitlist or policy lane daycare attendance, eligibility, coverage, or package signal.
+    /// Queue lane for blocked, ineligible, or policy-limited attendance paths.
     WaitlistOrPolicyLane,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Typed queue ticket domain value that keeps raw primitives out of daycare workflows.
+/// Front-desk queue ticket pairing a position with the readiness decision that determines lane routing.
 pub struct QueueTicket {
     position: QueuePosition,
     decision: ReadinessDecision,
 }
 
 impl QueueTicket {
-    /// Assembles this daycare value from already-validated domain parts.
+    /// Creates a queue ticket from a validated position and readiness decision.
     pub const fn new(position: QueuePosition, decision: ReadinessDecision) -> Self {
         Self { position, decision }
     }
 
-    /// Returns this daycare value's lane.
+    /// Maps the readiness decision to the operational queue lane staff should use.
     pub const fn lane(&self) -> QueueLane {
         match self.decision {
             ReadinessDecision::ReadyToCheckIn => QueueLane::FastLane,
@@ -173,11 +173,11 @@ impl QueueTicket {
 }
 
 #[derive(Debug, Clone, Default)]
-/// Typed throughput policy domain value that keeps raw primitives out of daycare workflows.
+/// Deterministic policy for turning daycare readiness evidence into front-desk routing.
 pub struct ThroughputPolicy;
 
 impl ThroughputPolicy {
-    /// Returns the evaluate for this daycare value.
+    /// Evaluates message, package, care, coverage, and eligibility gates in front-desk priority order.
     pub fn evaluate(&self, context: &ReadinessContext) -> ReadinessDecision {
         if let CustomerMessageReadiness::DraftNeedsApproval = context.customer_message {
             return ReadinessDecision::NeedsManagerReview {

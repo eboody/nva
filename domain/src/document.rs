@@ -1,3 +1,10 @@
+//! Document intake, safety review, storage, and retention values.
+//!
+//! Documents carry vaccine proofs, waivers, medical records, incident evidence, and other source
+//! artifacts that staff and agents rely on. The domain separates received/extracted facts from
+//! verified facts, records virus/PII handling state, and keeps storage references explicit so
+//! automation cannot treat unreviewed uploads as compliance truth.
+
 use bon::Builder;
 use nutype::nutype;
 #[allow(unused_imports)]
@@ -5,87 +12,87 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for classification decisions in document workflows.
+/// Document classification used to route vaccine, waiver, medical, photo, and incident evidence.
 pub enum Classification {
-    /// Vaccine proof document type, review state, or retention signal.
+    /// Vaccine proof document classification or pipeline state used for review and retention.
     VaccineProof,
-    /// Waiver document type, review state, or retention signal.
+    /// Waiver document classification or pipeline state used for review and retention.
     Waiver,
-    /// Photo document type, review state, or retention signal.
+    /// Photo document classification or pipeline state used for review and retention.
     Photo,
-    /// Medical record document type, review state, or retention signal.
+    /// Medical record document classification or pipeline state used for review and retention.
     MedicalRecord,
-    /// Incident evidence document type, review state, or retention signal.
+    /// Incident evidence document classification or pipeline state used for review and retention.
     IncidentEvidence,
     /// Non-dog, non-cat pet handled by exception policy.
     Other,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for source decisions in document workflows.
+/// Source route through which a document entered the review and storage pipeline.
 pub enum Source {
-    /// Customer upload document type, review state, or retention signal.
+    /// Customer upload document classification or pipeline state used for review and retention.
     CustomerUpload,
-    /// Staff scan document type, review state, or retention signal.
+    /// Staff scan document classification or pipeline state used for review and retention.
     StaffScan,
-    /// Staff upload document type, review state, or retention signal.
+    /// Staff upload document classification or pipeline state used for review and retention.
     StaffUpload,
-    /// Email ingest document type, review state, or retention signal.
+    /// Email ingest document classification or pipeline state used for review and retention.
     EmailIngest,
-    /// Provider poll document type, review state, or retention signal.
+    /// Provider poll document classification or pipeline state used for review and retention.
     ProviderPoll,
-    /// Provider webhook document type, review state, or retention signal.
+    /// Provider webhook document classification or pipeline state used for review and retention.
     ProviderWebhook,
-    /// Migration import document type, review state, or retention signal.
+    /// Migration import document classification or pipeline state used for review and retention.
     MigrationImport,
     /// Provider role or status could not be mapped confidently.
     Unknown,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Normalized reservation states observed during source-data ingestion.
+/// Normalized lifecycle states used to reconcile source-system data with domain workflows.
 pub enum Status {
-    /// Received document type, review state, or retention signal.
+    /// Received document classification or pipeline state used for review and retention.
     Received,
-    /// Quarantined rejected document type, review state, or retention signal.
+    /// Quarantined rejected document classification or pipeline state used for review and retention.
     QuarantinedRejected,
-    /// Extracting document type, review state, or retention signal.
+    /// Extracting document classification or pipeline state used for review and retention.
     Extracting,
-    /// Extraction failed document type, review state, or retention signal.
+    /// Extraction failed document classification or pipeline state used for review and retention.
     ExtractionFailed,
-    /// Awaiting review document type, review state, or retention signal.
+    /// Awaiting review document classification or pipeline state used for review and retention.
     AwaitingReview,
-    /// Verified document type, review state, or retention signal.
+    /// Verified document classification or pipeline state used for review and retention.
     Verified,
-    /// Rejected document type, review state, or retention signal.
+    /// Rejected document classification or pipeline state used for review and retention.
     Rejected,
-    /// Superseded document type, review state, or retention signal.
+    /// Superseded document classification or pipeline state used for review and retention.
     Superseded,
-    /// Archived document type, review state, or retention signal.
+    /// Archived document classification or pipeline state used for review and retention.
     Archived,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for virus scan status decisions in document workflows.
+/// Virus-scan outcome used before documents may become staff-visible evidence.
 pub enum VirusScanStatus {
-    /// Pending document type, review state, or retention signal.
+    /// Pending document classification or pipeline state used for review and retention.
     Pending,
-    /// Passed document type, review state, or retention signal.
+    /// Passed document classification or pipeline state used for review and retention.
     Passed,
     /// Deposit collection was attempted but did not succeed.
     Failed,
-    /// Unsupported document type, review state, or retention signal.
+    /// Unsupported document classification or pipeline state used for review and retention.
     Unsupported,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for pii redaction status decisions in document workflows.
+/// PII redaction state used before document content is exposed to agents or reports.
 pub enum PiiRedactionStatus {
     /// No deposit or review is needed for this reservation path.
     NotRequired,
-    /// Pending document type, review state, or retention signal.
+    /// Pending document classification or pipeline state used for review and retention.
     Pending,
-    /// Redacted document type, review state, or retention signal.
+    /// Redacted document classification or pipeline state used for review and retention.
     Redacted,
     /// Deposit collection was attempted but did not succeed.
     Failed,
@@ -108,6 +115,7 @@ pub enum PiiRedactionStatus {
 )]
 pub struct FileName(String);
 
+/// MIME type reported for a document before extraction, virus scanning, or storage policy decisions.
 #[nutype(
     sanitize(trim),
     validate(not_empty, len_char_max = 160),
@@ -126,7 +134,7 @@ pub struct FileName(String);
 pub struct MimeType(String);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-/// Typed content length bytes domain value that keeps raw primitives out of document workflows.
+/// Non-zero document size used to reject empty uploads before extraction or review.
 pub struct ContentLengthBytes(u64);
 
 impl ContentLengthBytes {
@@ -154,7 +162,7 @@ impl<'de> Deserialize<'de> for ContentLengthBytes {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-/// Domain vocabulary for content length error decisions in document workflows.
+/// Validation error for document size constraints.
 pub enum ContentLengthError {
     #[error("document storage evidence must not point at an empty object")]
     /// Signals that object was blank or missing during document validation.
@@ -162,7 +170,7 @@ pub enum ContentLengthError {
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-/// Typed sha 256 digest domain value that keeps raw primitives out of document workflows.
+/// SHA-256 digest used to detect duplicate, tampered, or drifted document payloads.
 pub struct Sha256Digest(String);
 
 impl Sha256Digest {
@@ -197,7 +205,7 @@ impl<'de> Deserialize<'de> for Sha256Digest {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-/// Domain vocabulary for sha 256 digest error decisions in document workflows.
+/// Validation error for document hash formatting.
 pub enum Sha256DigestError {
     #[error("document content hashes must be 64 lowercase/uppercase hexadecimal sha256 characters")]
     /// Signals that sha256 hex could not be parsed or accepted during document validation.
@@ -221,6 +229,7 @@ pub enum Sha256DigestError {
 )]
 pub struct StorageBucket(String);
 
+/// Storage key for the immutable document object used as review or compliance evidence.
 #[nutype(
     sanitize(trim),
     validate(not_empty, len_char_max = 500),
@@ -238,6 +247,7 @@ pub struct StorageBucket(String);
 )]
 pub struct StorageKey(String);
 
+/// Optional object-version marker for document retention and supersession audits.
 #[nutype(
     sanitize(trim),
     validate(not_empty, len_char_max = 160),
@@ -256,7 +266,7 @@ pub struct StorageKey(String);
 pub struct StorageVersion(String);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Typed storage ref domain value that keeps raw primitives out of document workflows.
+/// Storage pointer to the immutable object that backs a reviewed or source document.
 pub struct StorageRef {
     /// Bucket fact promoted into this document contract.
     pub bucket: StorageBucket,
@@ -267,7 +277,7 @@ pub struct StorageRef {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Typed original file domain value that keeps raw primitives out of document workflows.
+/// Original uploaded file metadata preserved for audit, extraction, and staff review.
 pub struct OriginalFile {
     /// Filename fact promoted into this document contract.
     pub filename: FileName,

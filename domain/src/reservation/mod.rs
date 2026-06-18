@@ -9,7 +9,7 @@ pub use error::{Error, Result};
 pub struct MinimumAgeWeeks(u8);
 
 impl MinimumAgeWeeks {
-    /// Validates and creates the reservation value.
+    /// Promotes reservation policy input after enforcing the domain validation rule.
     pub fn try_new(value: u8) -> Result<Self> {
         if value == 0 {
             return Err(Error::EmptyMinimumAge);
@@ -53,17 +53,17 @@ pub struct AgeThreshold {
 }
 
 impl AgeThreshold {
-    /// Assembles this reservation value from already-validated domain parts.
+    /// Assembles a reservation policy value from validated age and reason parts.
     pub const fn new(minimum: MinimumAgeWeeks, reason: AgePolicyReason) -> Self {
         Self { minimum, reason }
     }
 
-    /// Returns this reservation value's minimum.
+    /// Returns the reservation minimum used by the policy gate.
     pub const fn minimum(&self) -> MinimumAgeWeeks {
         self.minimum
     }
 
-    /// Returns this reservation value's reason.
+    /// Returns the reservation reason used by the policy gate.
     pub const fn reason(&self) -> AgePolicyReason {
         self.reason
     }
@@ -74,7 +74,7 @@ impl AgeThreshold {
 pub struct AddOnLabel(String);
 
 impl AddOnLabel {
-    /// Validates and creates the reservation value.
+    /// Promotes reservation policy input after enforcing the domain validation rule.
     pub fn try_new(value: impl Into<String>) -> Result<Self> {
         let value = value.into().trim().to_string();
         if value.is_empty() {

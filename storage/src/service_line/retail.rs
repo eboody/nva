@@ -1,3 +1,9 @@
+//! Retail storage projection codes for partner products and merchandising categories.
+//!
+//! Retail records preserve partner/product evidence used for operational upsell
+//! workflows. They do not authorize recommendations by themselves; app/domain
+//! policy still owns customer suitability, review gates, and messaging.
+
 use serde::{Deserialize, Serialize};
 
 use domain::retail::product;

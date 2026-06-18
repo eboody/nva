@@ -158,7 +158,21 @@ For executable docs and wiki/navigation checks, run:
 ./scripts/check_docs.sh
 ```
 
-That docs gate runs Rust doctests for the contract crates (`domain`, `app`, `storage`, and `gingr`) and then checks local Markdown links plus required README coverage. The contract crates opt into `rustdoc::broken_intra_doc_links` at their crate roots so broken Rustdoc item links fail the doctest/doc build instead of silently rotting.
+That docs gate runs Rust doctests for the contract crates (`domain`, `app`, `storage`, and `gingr`), enforces the external Rustdoc completeness guardrail, and then checks local Markdown links plus required README coverage. The contract crates opt into `rustdoc::broken_intra_doc_links` at their crate roots so broken Rustdoc item links fail the doctest/doc build instead of silently rotting.
+
+The external Rustdoc completeness guardrail can also be run directly:
+
+```sh
+python scripts/check_rustdoc_completeness.py
+```
+
+It executes the strict source-of-truth command:
+
+```sh
+RUSTDOCFLAGS='-D missing_docs' cargo doc --workspace --no-deps
+```
+
+and then renders `cargo doc --workspace --no-deps` to smoke-check representative external pages, including `app::agents::AgentPromptPacket`, its Bon-generated builder surface, and `app::booking_triage::Request` with the `statum`-generated intake builder signature that remains visible on the request page. The generated-code exception is intentionally narrow: the app isolates the `statum` 0.9 typestate macro expansion behind the documented booking-triage source module, and the guardrail only tolerates missing-docs diagnostics from the exact `app/src/booking_triage.rs` `#[state]` and `#[machine]` macro sites if that upstream expansion leak reappears; any new missing docs or additional macro site fails the guardrail.
 
 For the canonical local gate, run:
 

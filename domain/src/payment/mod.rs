@@ -34,7 +34,7 @@ pub use error::{Error, Result};
 pub struct Reference(String);
 
 impl Reference {
-    /// Validates and creates the payment value.
+    /// Promotes an external payment/POS reference after trimming and length validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self> {
         let value = value.into().trim().to_string();
         if value.is_empty() {
@@ -126,22 +126,22 @@ impl Deposit {
         self
     }
 
-    /// Returns this payment value's amount.
+    /// Returns the deposit amount recorded for payment review and reconciliation.
     pub const fn amount(&self) -> &Money {
         &self.amount
     }
 
-    /// Returns this payment value's refundable until.
+    /// Returns the deposit refundable until recorded for payment review and reconciliation.
     pub const fn refundable_until(&self) -> Option<DateTime<Utc>> {
         self.refundable_until
     }
 
-    /// Returns this payment value's status.
+    /// Returns the deposit status recorded for payment review and reconciliation.
     pub const fn status(&self) -> DepositStatus {
         self.status
     }
 
-    /// Returns this payment value's payment reference.
+    /// Returns the deposit payment reference recorded for payment review and reconciliation.
     pub const fn payment_reference(&self) -> Option<&Reference> {
         self.payment_reference.as_ref()
     }

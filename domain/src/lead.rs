@@ -1,7 +1,9 @@
 //! Canonical domain contracts for cross-service lead conversion triage.
 //!
 //! These types describe resort sales/intake state independent of any one
-//! service line; `operations` retains deprecated legacy compatibility re-exports.
+//! service line. They promote web/phone/SMS/source facts into validated sales
+//! workflow state so follow-up labor, booking readiness, and revenue opportunities
+//! are visible without letting an agent invent availability or bypass staff review.
 
 use nutype::nutype;
 #[allow(unused_imports)]
@@ -25,6 +27,7 @@ use crate::operations;
         Deserialize
     )
 )]
+/// Validated local-referral/source name for lead provenance.
 pub struct SourceName(String);
 
 #[nutype(
@@ -42,10 +45,11 @@ pub struct SourceName(String);
         Deserialize
     )
 )]
+/// Validated campaign name used to connect lead work to marketing sources.
 pub struct CampaignName(String);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Typed triage domain value that keeps raw primitives out of lead workflows.
+/// Source-derived lead triage record for sales follow-up and booking workflows.
 pub struct Triage {
     /// Customer id fact promoted into this lead contract.
     pub customer_id: Option<CustomerId>,
@@ -125,7 +129,7 @@ pub enum ConversionStage {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for next action decisions in lead workflows.
+/// Human-safe next step for converting a lead without overpromising capacity or policy.
 pub enum NextAction {
     /// Draft reply sales lead state, source, or follow-up signal.
     DraftReply,

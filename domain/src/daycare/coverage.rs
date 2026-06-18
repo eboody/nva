@@ -25,14 +25,14 @@ use super::*;
 use crate::policy;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Typed roster snapshot domain value that keeps raw primitives out of daycare workflows.
+/// Point-in-time daycare roster evidence for staffing-ratio decisions.
 pub struct RosterSnapshot {
     scheduled_staff: StaffCount,
     checked_in_pets: PetCount,
 }
 
 impl RosterSnapshot {
-    /// Assembles this daycare value from already-validated domain parts.
+    /// Creates a roster snapshot from scheduled staff and checked-in pet counts.
     pub const fn new(scheduled_staff: StaffCount, checked_in_pets: PetCount) -> Self {
         Self {
             scheduled_staff,
@@ -40,49 +40,49 @@ impl RosterSnapshot {
         }
     }
 
-    /// Returns this daycare value's scheduled staff.
+    /// Returns scheduled staff available to supervise daycare pets.
     pub const fn scheduled_staff(&self) -> StaffCount {
         self.scheduled_staff
     }
 
-    /// Returns this daycare value's checked in pets.
+    /// Returns pets already checked in and counted against the staffing ratio.
     pub const fn checked_in_pets(&self) -> PetCount {
         self.checked_in_pets
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for decision decisions in daycare workflows.
+/// Staffing coverage decision used by eligibility, assignment, and front-desk routing.
 pub enum Decision {
-    /// Sufficient daycare attendance, eligibility, coverage, or package signal.
+    /// Scheduled staff can cover the checked-in pet count under the configured ratio.
     Sufficient,
-    /// Insufficient daycare attendance, eligibility, coverage, or package signal.
+    /// Checked-in pet count exceeds allowed coverage and needs manager review.
     Insufficient {
-        /// Business reason staff should review before proceeding.
+        /// Reason staffing coverage is insufficient.
         reason: InsufficiencyReason,
-        /// Gate fact promoted into this daycare contract.
+        /// Human review gate required before staff override coverage policy.
         gate: policy::ReviewGate,
     },
-    /// Provider role or status could not be mapped confidently.
+    /// Coverage evidence is unavailable or uncertain, so staff review is required.
     Unknown {
-        /// Gate fact promoted into this daycare contract.
+        /// Human review gate required before staff override coverage policy.
         gate: policy::ReviewGate,
     },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for insufficiency reason decisions in daycare workflows.
+/// Reasons daycare staffing coverage is insufficient.
 pub enum InsufficiencyReason {
-    /// Ratio exceeded daycare attendance, eligibility, coverage, or package signal.
+    /// Pet count exceeds the allowed pets-per-staff ratio.
     RatioExceeded,
 }
 
 #[derive(Debug, Clone, Default)]
-/// Typed policy domain value that keeps raw primitives out of daycare workflows.
+/// Deterministic staffing-coverage policy for daycare ratio review.
 pub struct Policy;
 
 impl Policy {
-    /// Returns the evaluate for this daycare value.
+    /// Evaluates scheduled staff and checked-in pets against the allowed ratio.
     pub fn evaluate(&self, roster: &RosterSnapshot, ratio: StaffPetRatio) -> Decision {
         let allowed = roster
             .scheduled_staff()

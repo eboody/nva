@@ -1,4 +1,9 @@
 //! Command-line inspection surface for NVA pet-resort agent and tool contracts.
+//!
+//! The CLI is a read-only runtime surface. It prints deterministic JSON for the
+//! baseline agent catalog and external tool candidates so operators can inspect
+//! workflow contracts without starting the HTTP API, running workers, or touching
+//! live provider systems.
 
 use app::{agents, tools};
 use clap::{Parser, Subcommand};
@@ -13,9 +18,9 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Print baseline agent specs as JSON.
+    /// Print baseline agent specs as deterministic JSON for operator inspection.
     Agents,
-    /// Print external tool candidates as JSON.
+    /// Print external tool candidates as deterministic JSON without probing live systems.
     Tools,
 }
 

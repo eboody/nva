@@ -16,7 +16,7 @@ pub enum Error {
 pub struct MinorUnits(u32);
 
 impl MinorUnits {
-    /// Validates and creates the money value.
+    /// Promotes a positive minor-unit amount into a money value for resort charges.
     pub fn try_new(value: u32) -> Result<Self> {
         if value == 0 {
             return Err(Error::EmptyAmount);
@@ -54,7 +54,7 @@ pub struct Money {
 }
 
 impl Money {
-    /// Assembles this money value from already-validated domain parts.
+    /// Assembles a resort money amount from validated minor units and currency.
     pub const fn new(minor_units: MinorUnits, currency: Currency) -> Self {
         Self {
             minor_units,
@@ -62,12 +62,12 @@ impl Money {
         }
     }
 
-    /// Returns this money value's minor units.
+    /// Returns the minor units carried by this money amount.
     pub const fn minor_units(&self) -> MinorUnits {
         self.minor_units
     }
 
-    /// Returns this money value's currency.
+    /// Returns the currency carried by this money amount.
     pub const fn currency(&self) -> Currency {
         self.currency
     }

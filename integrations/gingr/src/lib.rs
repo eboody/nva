@@ -1,13 +1,13 @@
 //! Gingr integration contracts, DTO mappings, endpoints, transport, and webhook verification.
-/// Crate-level config surface for the Gingr integration boundary.
+/// Validated tenant URL, provider label, and redacted API-key configuration for Gingr requests.
 pub mod config;
-/// Crate-level dto surface for the Gingr integration boundary.
+/// Raw Gingr DTO surfaces that are intentionally quarantined before NVA domain promotion.
 pub mod dto;
 pub mod endpoint;
 pub mod mapping;
-/// Crate-level response surface for the Gingr integration boundary.
+/// HTTP and provider response envelopes that retain raw Gingr evidence for later decoding.
 pub mod response;
-/// Crate-level transport surface for the Gingr integration boundary.
+/// Secret-aware request capture, redaction, and transport abstractions for Gingr endpoints.
 pub mod transport;
 pub mod webhook;
 

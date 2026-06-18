@@ -6,7 +6,7 @@ use uuid::Uuid;
 use crate::{booking_triage, checkout_completion, daily_update};
 
 #[derive(Debug, thiserror::Error)]
-/// Classifies error values that drive the local smoke-test workflow.
+/// Decision taxonomy for error in the local smoke-test workflow; each value carries operational meaning for source-grounded routing and review.
 pub enum Error {
     #[error("local smoke fixture is not valid JSON: {0}")]
     /// Identifies invalid fixture as the reason the workflow must stop, retry, or request review.
@@ -66,25 +66,25 @@ impl AsRef<str> for SourceEventKey {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// Classifies stage values that drive the local smoke-test workflow.
+/// Decision taxonomy for stage in the local smoke-test workflow; each value carries operational meaning for source-grounded routing and review.
 pub enum Stage {
-    /// Routes local smoke work flagged as inquiry to the right queue, review gate, or agent packet.
+    /// Represents inquiry in the local smoke decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     Inquiry,
-    /// Routes local smoke work flagged as profile to the right queue, review gate, or agent packet.
+    /// Represents profile in the local smoke decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     Profile,
-    /// Routes local smoke work flagged as vaccine docs to the right queue, review gate, or agent packet.
+    /// Represents vaccine docs in the local smoke decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     VaccineDocs,
-    /// Routes local smoke work flagged as booking triage to the right queue, review gate, or agent packet.
+    /// Represents booking triage in the local smoke decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     BookingTriage,
-    /// Routes local smoke work flagged as confirmation draft to the right queue, review gate, or agent packet.
+    /// Represents confirmation draft in the local smoke decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     ConfirmationDraft,
-    /// Routes local smoke work flagged as check in today view to the right queue, review gate, or agent packet.
+    /// Represents check in today view in the local smoke decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     CheckInTodayView,
-    /// Routes local smoke work flagged as staff note daily update draft to the right queue, review gate, or agent packet.
+    /// Represents staff note daily update draft in the local smoke decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     StaffNoteDailyUpdateDraft,
-    /// Routes local smoke work flagged as checkout completion to the right queue, review gate, or agent packet.
+    /// Represents checkout completion in the local smoke decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     CheckoutCompletion,
-    /// Routes local smoke work flagged as follow up retention to the right queue, review gate, or agent packet.
+    /// Represents follow up retention in the local smoke decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     FollowUpRetention,
 }
 
@@ -123,22 +123,22 @@ impl SmokeBoundaries {
         }
     }
 
-    /// Returns the draft only ai carried by this local smoke-test workflow value.
+    /// Returns the draft only ai source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn draft_only_ai(&self) -> bool {
         self.draft_only_ai
     }
 
-    /// Returns the blocks live customer sends carried by this local smoke-test workflow value.
+    /// Returns the blocks live customer sends source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn blocks_live_customer_sends(&self) -> bool {
         self.blocks_live_customer_sends
     }
 
-    /// Returns the blocks provider or pms mutations carried by this local smoke-test workflow value.
+    /// Returns the blocks provider or pms mutations source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn blocks_provider_or_pms_mutations(&self) -> bool {
         self.blocks_provider_or_pms_mutations
     }
 
-    /// Returns the blocks payment refund or discount actions carried by this local smoke-test workflow value.
+    /// Returns the blocks payment refund or discount actions source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn blocks_payment_refund_or_discount_actions(&self) -> bool {
         self.blocks_payment_refund_or_discount_actions
     }
@@ -194,12 +194,12 @@ pub struct TodayView {
 }
 
 impl TodayView {
-    /// Returns the reservation labels carried by this local smoke-test workflow value.
+    /// Returns the reservation labels source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn reservation_labels(&self) -> &[ReservationLabel] {
         &self.reservation_labels
     }
 
-    /// Returns the status carried by this local smoke-test workflow value.
+    /// Returns the status source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn status(&self) -> &entities::reservation::Status {
         &self.status
     }
@@ -212,33 +212,33 @@ pub struct CheckoutCompletion {
 }
 
 impl CheckoutCompletion {
-    /// Returns the status carried by this local smoke-test workflow value.
+    /// Returns the status source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn status(&self) -> entities::reservation::Status {
         self.packet
             .suggested_reservation_status()
             .expect("local smoke checkout completion should suggest checked-out status")
     }
 
-    /// Returns the completion status carried by this local smoke-test workflow value.
+    /// Returns the completion status source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn completion_status(&self) -> checkout_completion::CompletionStatus {
         self.packet.completion_status()
     }
 
-    /// Returns the required review gates carried by this local smoke-test workflow value.
+    /// Returns the required review gates source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn required_review_gates(&self) -> &[policy::ReviewGate] {
         self.packet.required_review_gates()
     }
 
-    /// Returns the blocked actions carried by this local smoke-test workflow value.
+    /// Returns the blocked actions source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn blocked_actions(&self) -> &[checkout_completion::BlockedAction] {
         self.packet.blocked_actions()
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// Classifies retention next action values that drive the local smoke-test workflow.
+/// Decision taxonomy for retention next action in the local smoke-test workflow; each value carries operational meaning for source-grounded routing and review.
 pub enum RetentionNextAction {
-    /// Routes local smoke work flagged as draft rebooking reminder for review to the right queue, review gate, or agent packet.
+    /// Represents draft rebooking reminder for review in the local smoke decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     DraftRebookingReminderForReview,
 }
 
@@ -250,12 +250,12 @@ pub struct RetentionFollowUp {
 }
 
 impl RetentionFollowUp {
-    /// Returns the next action carried by this local smoke-test workflow value.
+    /// Returns the next action source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn next_action(&self) -> RetentionNextAction {
         self.next_action
     }
 
-    /// Returns the review gate carried by this local smoke-test workflow value.
+    /// Returns the review gate source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn review_gate(&self) -> policy::ReviewGate {
         self.review_gate.clone()
     }
@@ -283,52 +283,52 @@ pub struct FullChainEvidence {
 }
 
 impl FullChainEvidence {
-    /// Returns the source event key carried by this local smoke-test workflow value.
+    /// Returns the source event key source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn source_event_key(&self) -> &SourceEventKey {
         &self.source_event_key
     }
 
-    /// Returns the stage names carried by this local smoke-test workflow value.
+    /// Returns the stage names source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn stage_names(&self) -> Vec<&'static str> {
         self.stages.iter().map(|stage| stage.name()).collect()
     }
 
-    /// Returns the boundaries carried by this local smoke-test workflow value.
+    /// Returns the boundaries source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn boundaries(&self) -> &SmokeBoundaries {
         &self.boundaries
     }
 
-    /// Returns the booking packet carried by this local smoke-test workflow value.
+    /// Returns the booking packet source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn booking_packet(&self) -> &booking_triage::StaffEvaluationPacket {
         &self.booking_packet
     }
 
-    /// Returns the confirmation draft carried by this local smoke-test workflow value.
+    /// Returns the confirmation draft source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn confirmation_draft(&self) -> &SmokeConfirmationDraft {
         &self.confirmation_draft
     }
 
-    /// Returns the today view carried by this local smoke-test workflow value.
+    /// Returns the today view source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn today_view(&self) -> &TodayView {
         &self.today_view
     }
 
-    /// Returns the daily update preview carried by this local smoke-test workflow value.
+    /// Returns the daily update preview source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn daily_update_preview(&self) -> &daily_update::MvpPreview {
         &self.daily_update_preview
     }
 
-    /// Returns the checkout completion carried by this local smoke-test workflow value.
+    /// Returns the checkout completion source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn checkout_completion(&self) -> &CheckoutCompletion {
         &self.checkout_completion
     }
 
-    /// Returns the retention follow up carried by this local smoke-test workflow value.
+    /// Returns the retention follow up source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn retention_follow_up(&self) -> &RetentionFollowUp {
         &self.retention_follow_up
     }
 
-    /// Returns the review gated evidence refs carried by this local smoke-test workflow value.
+    /// Returns the review gated evidence refs source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn review_gated_evidence_refs(&self) -> &[ReviewEvidenceRef] {
         &self.review_gated_evidence_refs
     }

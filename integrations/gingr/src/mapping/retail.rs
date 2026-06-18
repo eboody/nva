@@ -6,13 +6,13 @@ use super::{Error, ProviderField, Result};
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// Retail mapping candidate produced from Gingr item DTO fields.
 pub struct ProductCandidate {
-    /// Persisted provider item id value for this record.
+    /// Gingr retail item identifier kept as source evidence for the mapped product.
     pub provider_item_id: dto::retail::ItemId,
-    /// Human-readable display name paired with the stable code.
+    /// Provider display label retained for operator context; NVA-specific naming rules are applied downstream.
     pub name: retail::product::Name,
-    /// Persisted product value for this record.
+    /// Retail product mapped from a Gingr item DTO for inventory and upsell workflows.
     pub product: retail::Product,
-    /// Persisted status value for this record.
+    /// Provider status string preserved as source evidence until NVA validates a semantic status.
     pub status: retail::OfferingStatus,
 }
 

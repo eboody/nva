@@ -28,110 +28,110 @@ use super::*;
 use crate::{entities, policy};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Typed evidence domain value that keeps raw primitives out of daycare workflows.
+/// Source-derived evidence used to decide whether a pet may enter daycare group play.
 pub struct Evidence {
-    /// Pet receiving the grooming or care service.
+    /// Pet whose daycare eligibility is being evaluated.
     pub pet_id: PetId,
-    /// Species fact promoted into this daycare contract.
+    /// Pet species used to prevent group-play rules from applying to unsupported care modes.
     pub species: entities::Species,
     /// Requested service that drives scheduling and labor estimates.
     pub service: ServiceVariant,
-    /// Temperament fact promoted into this daycare contract.
+    /// Freshness of temperament assessment required for safe group assignment.
     pub temperament: TemperamentAssessmentFreshness,
-    /// Vaccines fact promoted into this daycare contract.
+    /// Vaccine proof readiness from source records or staff review.
     pub vaccines: VaccineReadiness,
-    /// Spay neuter fact promoted into this daycare contract.
+    /// Spay/neuter status used for group-play policy review.
     pub spay_neuter: entities::SpayNeuterStatus,
-    /// Incident fact promoted into this daycare contract.
+    /// Active incident restriction that may suspend group play.
     pub incident: incident::Restriction,
-    /// Staff coverage fact promoted into this daycare contract.
+    /// Current staffing coverage decision used before admitting a pet to group play.
     pub staff_coverage: coverage::Decision,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for temperament assessment freshness decisions in daycare workflows.
+/// Freshness state of the temperament assessment required for daycare group play.
 pub enum TemperamentAssessmentFreshness {
-    /// Current daycare attendance, eligibility, coverage, or package signal.
+    /// Source evidence is current and can be used without additional review.
     Current,
-    /// Stale daycare attendance, eligibility, coverage, or package signal.
+    /// Evidence exists but is stale, so staff must review before group play.
     Stale,
-    /// Missing daycare attendance, eligibility, coverage, or package signal.
+    /// Required source evidence is missing and must be collected or reviewed.
     Missing,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for vaccine readiness decisions in daycare workflows.
+/// Vaccine-proof readiness state for daycare eligibility decisions.
 pub enum VaccineReadiness {
-    /// Current daycare attendance, eligibility, coverage, or package signal.
+    /// Source evidence is current and can be used without additional review.
     Current,
-    /// Missing proof daycare attendance, eligibility, coverage, or package signal.
+    /// Vaccine documentation is absent and requires medical-document review.
     MissingProof,
-    /// Provider role or status could not be mapped confidently.
+    /// Vaccine status could not be mapped confidently and must be reviewed.
     Unknown,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for group play decision decisions in daycare workflows.
+/// Eligibility outcome for admitting a pet to daycare group play.
 pub enum GroupPlayDecision {
-    /// Eligible daycare attendance, eligibility, coverage, or package signal.
+    /// Pet has sufficient current evidence for group-play admission.
     Eligible {
-        /// Basis fact promoted into this daycare contract.
+        /// Evidence basis that justified the eligible outcome.
         basis: EligibleBasis,
     },
-    /// Needs staff review daycare attendance, eligibility, coverage, or package signal.
+    /// Staff must review missing, stale, or sensitive evidence before group play.
     NeedsStaffReview {
-        /// Business reason staff should review before proceeding.
+        /// Operational reason the pet cannot be auto-cleared for group play.
         reason: ReviewReason,
-        /// Gate fact promoted into this daycare contract.
+        /// Human review gate required to clear the eligibility issue.
         gate: policy::ReviewGate,
     },
-    /// Ineligible daycare attendance, eligibility, coverage, or package signal.
+    /// The requested service or care mode is not eligible for group play.
     Ineligible {
-        /// Business reason staff should review before proceeding.
+        /// Operational reason the pet cannot be auto-cleared for group play.
         reason: DenialReason,
     },
-    /// Temporarily suspended daycare attendance, eligibility, coverage, or package signal.
+    /// An incident restriction suspends group play pending manager review.
     TemporarilySuspended {
-        /// Pet receiving the grooming or care service.
+        /// Pet whose daycare eligibility is being evaluated.
         pet_id: PetId,
-        /// Gate fact promoted into this daycare contract.
+        /// Human review gate required to clear the eligibility issue.
         gate: policy::ReviewGate,
     },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for eligible basis decisions in daycare workflows.
+/// Evidence basis proving a pet is eligible for group play.
 pub enum EligibleBasis {
-    /// Current evidence daycare attendance, eligibility, coverage, or package signal.
+    /// Current source evidence satisfies all configured group-play gates.
     CurrentEvidence,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for review reason decisions in daycare workflows.
+/// Reasons daycare group-play eligibility requires staff review.
 pub enum ReviewReason {
-    /// Missing current temperament assessment daycare attendance, eligibility, coverage, or package signal.
+    /// Temperament assessment is missing or stale and requires behavior review.
     MissingCurrentTemperamentAssessment,
-    /// Vaccine proof requires review daycare attendance, eligibility, coverage, or package signal.
+    /// Vaccine proof is missing or uncertain and requires medical-document review.
     VaccineProofRequiresReview,
-    /// Spay neuter status requires review daycare attendance, eligibility, coverage, or package signal.
+    /// Spay/neuter status requires staff review before group play.
     SpayNeuterStatusRequiresReview,
-    /// Staff coverage requires review daycare attendance, eligibility, coverage, or package signal.
+    /// Staffing coverage is insufficient or unknown for safe group play.
     StaffCoverageRequiresReview,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for denial reason decisions in daycare workflows.
+/// Reasons a pet is not eligible for the requested group-play care mode.
 pub enum DenialReason {
-    /// Service unavailable for species or care mode daycare attendance, eligibility, coverage, or package signal.
+    /// Requested service or care mode does not support group play for this species.
     ServiceUnavailableForSpeciesOrCareMode,
 }
 
 #[derive(Debug, Clone, Default)]
-/// Typed group play policy domain value that keeps raw primitives out of daycare workflows.
+/// Deterministic policy that converts source evidence into daycare group-play eligibility.
 pub struct GroupPlayPolicy;
 
 impl GroupPlayPolicy {
-    /// Returns the evaluate for this daycare value.
+    /// Evaluates species, service, temperament, vaccine, spay/neuter, incident, and coverage gates for group play.
     pub fn evaluate(&self, evidence: &Evidence) -> GroupPlayDecision {
         if let incident::Restriction::SuspendedPendingManagerReview { pet_id } = evidence.incident {
             return GroupPlayDecision::TemporarilySuspended {

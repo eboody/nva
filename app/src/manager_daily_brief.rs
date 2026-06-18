@@ -128,7 +128,7 @@ pub struct ActionRationale(String);
 pub struct LaborMinutes(u16);
 
 impl LaborMinutes {
-    /// Builds or derives try new data for the manager daily brief workflow contract.
+    /// Builds try new for the manager daily brief workflow contract from validated source facts while preserving review gates and draft-only side-effect boundaries.
     pub const fn try_new(value: u16) -> Result<Self> {
         if value == 0 {
             return Err(Error::ZeroLaborMinutes);
@@ -136,7 +136,7 @@ impl LaborMinutes {
         Ok(Self(value))
     }
 
-    /// Returns the get carried by this manager daily brief workflow value.
+    /// Returns the get source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn get(self) -> u16 {
         self.0
     }
@@ -147,12 +147,12 @@ impl LaborMinutes {
 pub struct AggregateLaborMinutes(u16);
 
 impl AggregateLaborMinutes {
-    /// Builds or derives new data for the manager daily brief workflow contract.
+    /// Builds new for the manager daily brief workflow contract from validated source facts while preserving review gates and draft-only side-effect boundaries.
     pub const fn new(value: u16) -> Self {
         Self(value)
     }
 
-    /// Returns the get carried by this manager daily brief workflow value.
+    /// Returns the get source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn get(self) -> u16 {
         self.0
     }
@@ -163,7 +163,7 @@ impl AggregateLaborMinutes {
 pub struct DemandThresholdUnits(u32);
 
 impl DemandThresholdUnits {
-    /// Builds or derives try new data for the manager daily brief workflow contract.
+    /// Builds try new for the manager daily brief workflow contract from validated source facts while preserving review gates and draft-only side-effect boundaries.
     pub const fn try_new(value: u32) -> Result<Self> {
         if value == 0 {
             return Err(Error::ZeroDemandThresholdUnits);
@@ -171,50 +171,50 @@ impl DemandThresholdUnits {
         Ok(Self(value))
     }
 
-    /// Returns the get carried by this manager daily brief workflow value.
+    /// Returns the get source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn get(self) -> u32 {
         self.0
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Classifies manager brief persona values that drive the manager daily brief workflow.
+/// Decision taxonomy for manager brief persona in the manager daily brief workflow; each value carries operational meaning for source-grounded routing and review.
 pub enum ManagerBriefPersona {
-    /// Routes manager brief work flagged as general manager to the right queue, review gate, or agent packet.
+    /// Represents general manager in the manager brief decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     GeneralManager,
-    /// Routes manager brief work flagged as assistant general manager to the right queue, review gate, or agent packet.
+    /// Represents assistant general manager in the manager brief decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     AssistantGeneralManager,
-    /// Routes manager brief work flagged as front desk lead to the right queue, review gate, or agent packet.
+    /// Represents front desk lead in the manager brief decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     FrontDeskLead,
-    /// Routes manager brief work flagged as front desk agent to the right queue, review gate, or agent packet.
+    /// Represents front desk agent in the manager brief decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     FrontDeskAgent,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Classifies removed manual work values that drive the manager daily brief workflow.
+/// Decision taxonomy for removed manual work in the manager daily brief workflow; each value carries operational meaning for source-grounded routing and review.
 pub enum RemovedManualWork {
-    /// Routes manager brief work flagged as morning dashboard reconciliation to the right queue, review gate, or agent packet.
+    /// Represents morning dashboard reconciliation in the manager brief decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     MorningDashboardReconciliation,
-    /// Routes manager brief work flagged as demand versus staffing scan to the right queue, review gate, or agent packet.
+    /// Represents demand versus staffing scan in the manager brief decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     DemandVersusStaffingScan,
-    /// Routes manager brief work flagged as checkout exception audit to the right queue, review gate, or agent packet.
+    /// Represents checkout exception audit in the manager brief decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     CheckoutExceptionAudit,
-    /// Routes manager brief work flagged as retention follow up queue prioritization to the right queue, review gate, or agent packet.
+    /// Represents retention follow up queue prioritization in the manager brief decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     RetentionFollowUpQueuePrioritization,
-    /// Routes manager brief work flagged as data quality exception triage to the right queue, review gate, or agent packet.
+    /// Represents data quality exception triage in the manager brief decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     DataQualityExceptionTriage,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Classifies source fact kind values that drive the manager daily brief workflow.
+/// Decision taxonomy for source fact kind in the manager daily brief workflow; each value carries operational meaning for source-grounded routing and review.
 pub enum SourceFactKind {
-    /// Routes manager brief work flagged as service demand forecast to the right queue, review gate, or agent packet.
+    /// Represents service demand forecast in the manager brief decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     ServiceDemandForecast,
-    /// Routes manager brief work flagged as checkout completion status to the right queue, review gate, or agent packet.
+    /// Represents checkout completion status in the manager brief decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     CheckoutCompletionStatus,
-    /// Routes manager brief work flagged as retention follow up eligibility to the right queue, review gate, or agent packet.
+    /// Represents retention follow up eligibility in the manager brief decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     RetentionFollowUpEligibility,
-    /// Routes manager brief work flagged as source data quality issue to the right queue, review gate, or agent packet.
+    /// Represents source data quality issue in the manager brief decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     SourceDataQualityIssue,
 }
 
@@ -228,17 +228,17 @@ pub struct SourceFact {
 }
 
 impl SourceFact {
-    /// Returns the kind carried by this manager daily brief workflow value.
+    /// Returns the kind source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn kind(&self) -> SourceFactKind {
         self.kind
     }
 
-    /// Returns the summary carried by this manager daily brief workflow value.
+    /// Returns the summary source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn summary(&self) -> &BriefSummary {
         &self.summary
     }
 
-    /// Returns the source record refs carried by this manager daily brief workflow value.
+    /// Returns the source record refs source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn source_record_refs(&self) -> &[source::RecordRef] {
         &self.source_record_refs
     }
@@ -250,26 +250,26 @@ impl SourceFact {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Classifies brief action kind values that drive the manager daily brief workflow.
+/// Decision taxonomy for brief action kind in the manager daily brief workflow; each value carries operational meaning for source-grounded routing and review.
 pub enum BriefActionKind {
-    /// Routes manager brief work flagged as review demand against staffing plan to the right queue, review gate, or agent packet.
+    /// Represents review demand against staffing plan in the manager brief decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     ReviewDemandAgainstStaffingPlan,
-    /// Routes manager brief work flagged as resolve checkout exception to the right queue, review gate, or agent packet.
+    /// Represents resolve checkout exception in the manager brief decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     ResolveCheckoutException,
-    /// Routes manager brief work flagged as approve retention follow up draft to the right queue, review gate, or agent packet.
+    /// Represents approve retention follow up draft in the manager brief decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     ApproveRetentionFollowUpDraft,
-    /// Routes manager brief work flagged as investigate source data quality issue to the right queue, review gate, or agent packet.
+    /// Represents investigate source data quality issue in the manager brief decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     InvestigateSourceDataQualityIssue,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Classifies brief action priority values that drive the manager daily brief workflow.
+/// Decision taxonomy for brief action priority in the manager daily brief workflow; each value carries operational meaning for source-grounded routing and review.
 pub enum BriefActionPriority {
-    /// Routes manager brief work flagged as high to the right queue, review gate, or agent packet.
+    /// Represents high in the manager brief decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     High,
-    /// Routes manager brief work flagged as medium to the right queue, review gate, or agent packet.
+    /// Represents medium in the manager brief decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     Medium,
-    /// Routes manager brief work flagged as low to the right queue, review gate, or agent packet.
+    /// Represents low in the manager brief decision model so the app can choose the correct evidence, review, or draft path without taking live action.
     Low,
 }
 
@@ -304,7 +304,7 @@ pub enum BlockedAction {
 }
 
 impl BlockedAction {
-    /// Returns the code carried by this manager daily brief workflow value.
+    /// Returns the code source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn code(self) -> &'static str {
         match self {
             Self::ChangeStaffSchedule => "change_staff_schedule",
@@ -315,7 +315,7 @@ impl BlockedAction {
         }
     }
 
-    /// Builds or derives from requested side effect code data for the manager daily brief workflow contract.
+    /// Builds from requested side effect code for the manager daily brief workflow contract from validated source facts while preserving review gates and draft-only side-effect boundaries.
     pub fn from_requested_side_effect_code(code: &str) -> Option<Self> {
         match code {
             "change_staff_schedule" => Some(Self::ChangeStaffSchedule),
@@ -345,7 +345,7 @@ pub struct LaborImpactEstimate {
 }
 
 impl LaborImpactEstimate {
-    /// Builds or derives new data for the manager daily brief workflow contract.
+    /// Builds new for the manager daily brief workflow contract from validated source facts while preserving review gates and draft-only side-effect boundaries.
     pub const fn new(before_minutes: LaborMinutes, after_minutes: LaborMinutes) -> Self {
         Self {
             before_minutes,
@@ -353,17 +353,17 @@ impl LaborImpactEstimate {
         }
     }
 
-    /// Returns the before minutes carried by this manager daily brief workflow value.
+    /// Returns the before minutes source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn before_minutes(&self) -> LaborMinutes {
         self.before_minutes
     }
 
-    /// Returns the after minutes carried by this manager daily brief workflow value.
+    /// Returns the after minutes source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn after_minutes(&self) -> LaborMinutes {
         self.after_minutes
     }
 
-    /// Returns the minutes saved carried by this manager daily brief workflow value.
+    /// Returns the minutes saved source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn minutes_saved(&self) -> u16 {
         self.before_minutes.0.saturating_sub(self.after_minutes.0)
     }
@@ -385,47 +385,47 @@ pub struct BriefAction {
 }
 
 impl BriefAction {
-    /// Returns the id carried by this manager daily brief workflow value.
+    /// Returns the id source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn id(&self) -> &ActionId {
         &self.id
     }
 
-    /// Returns the kind carried by this manager daily brief workflow value.
+    /// Returns the kind source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn kind(&self) -> BriefActionKind {
         self.kind
     }
 
-    /// Returns the priority carried by this manager daily brief workflow value.
+    /// Returns the priority source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn priority(&self) -> BriefActionPriority {
         self.priority
     }
 
-    /// Returns the owner persona carried by this manager daily brief workflow value.
+    /// Returns the owner persona source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn owner_persona(&self) -> ManagerBriefPersona {
         self.owner_persona
     }
 
-    /// Returns the removed manual work carried by this manager daily brief workflow value.
+    /// Returns the removed manual work source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn removed_manual_work(&self) -> RemovedManualWork {
         self.removed_manual_work
     }
 
-    /// Returns the rationale carried by this manager daily brief workflow value.
+    /// Returns the rationale source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn rationale(&self) -> &ActionRationale {
         &self.rationale
     }
 
-    /// Returns the source facts carried by this manager daily brief workflow value.
+    /// Returns the source facts source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn source_facts(&self) -> &[SourceFact] {
         &self.source_facts
     }
 
-    /// Returns the labor impact carried by this manager daily brief workflow value.
+    /// Returns the labor impact source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn labor_impact(&self) -> &LaborImpactEstimate {
         &self.labor_impact
     }
 
-    /// Returns the required review gates carried by this manager daily brief workflow value.
+    /// Returns the required review gates source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn required_review_gates(&self) -> &[policy::ReviewGate] {
         &self.required_review_gates
     }
@@ -449,17 +449,17 @@ pub struct ScopedCheckoutPacket {
 }
 
 impl ScopedCheckoutPacket {
-    /// Returns the location id carried by this manager daily brief workflow value.
+    /// Returns the location id source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn location_id(&self) -> entities::LocationId {
         self.location_id
     }
 
-    /// Returns the operating day carried by this manager daily brief workflow value.
+    /// Returns the operating day source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn operating_day(&self) -> operations::operating_day::Date {
         self.operating_day
     }
 
-    /// Returns the packet carried by this manager daily brief workflow value.
+    /// Returns the packet source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn packet(&self) -> &checkout_completion::Packet {
         &self.packet
     }
@@ -474,17 +474,17 @@ pub struct ScopedRetentionPacket {
 }
 
 impl ScopedRetentionPacket {
-    /// Returns the location id carried by this manager daily brief workflow value.
+    /// Returns the location id source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn location_id(&self) -> entities::LocationId {
         self.location_id
     }
 
-    /// Returns the operating day carried by this manager daily brief workflow value.
+    /// Returns the operating day source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn operating_day(&self) -> operations::operating_day::Date {
         self.operating_day
     }
 
-    /// Returns the packet carried by this manager daily brief workflow value.
+    /// Returns the packet source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn packet(&self) -> &crm_retention::Packet {
         &self.packet
     }
@@ -506,37 +506,37 @@ pub struct Request {
 }
 
 impl Request {
-    /// Returns the location id carried by this manager daily brief workflow value.
+    /// Returns the location id source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn location_id(&self) -> entities::LocationId {
         self.location_id
     }
 
-    /// Returns the operating day carried by this manager daily brief workflow value.
+    /// Returns the operating day source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn operating_day(&self) -> operations::operating_day::Date {
         self.operating_day
     }
 
-    /// Returns the prepared for carried by this manager daily brief workflow value.
+    /// Returns the prepared for source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn prepared_for(&self) -> ManagerBriefPersona {
         self.prepared_for
     }
 
-    /// Returns the demand attention threshold carried by this manager daily brief workflow value.
+    /// Returns the demand attention threshold source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn demand_attention_threshold(&self) -> DemandThresholdUnits {
         self.demand_attention_threshold
     }
 
-    /// Returns the service demand facts carried by this manager daily brief workflow value.
+    /// Returns the service demand facts source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn service_demand_facts(&self) -> &[analytics::service_demand::Fact] {
         &self.service_demand_facts
     }
 
-    /// Returns the checkout packets carried by this manager daily brief workflow value.
+    /// Returns the checkout packets source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn checkout_packets(&self) -> &[ScopedCheckoutPacket] {
         &self.checkout_packets
     }
 
-    /// Returns the retention packets carried by this manager daily brief workflow value.
+    /// Returns the retention packets source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn retention_packets(&self) -> &[ScopedRetentionPacket] {
         &self.retention_packets
     }
@@ -556,59 +556,59 @@ pub struct Packet {
 }
 
 impl Packet {
-    /// Returns the location id carried by this manager daily brief workflow value.
+    /// Returns the location id source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn location_id(&self) -> entities::LocationId {
         self.location_id
     }
 
-    /// Returns the operating day carried by this manager daily brief workflow value.
+    /// Returns the operating day source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn operating_day(&self) -> operations::operating_day::Date {
         self.operating_day
     }
 
-    /// Returns the prepared for carried by this manager daily brief workflow value.
+    /// Returns the prepared for source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn prepared_for(&self) -> ManagerBriefPersona {
         self.prepared_for
     }
 
-    /// Returns the actions carried by this manager daily brief workflow value.
+    /// Returns the actions source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn actions(&self) -> &[BriefAction] {
         &self.actions
     }
 
-    /// Returns the safe agent actions carried by this manager daily brief workflow value.
+    /// Returns the safe agent actions source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn safe_agent_actions(&self) -> &[SafeAgentAction] {
         &self.safe_agent_actions
     }
 
-    /// Returns the blocked actions carried by this manager daily brief workflow value.
+    /// Returns the blocked actions source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn blocked_actions(&self) -> &[BlockedAction] {
         &self.blocked_actions
     }
 
-    /// Returns the before minutes carried by this manager daily brief workflow value.
+    /// Returns the before minutes source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn before_minutes(&self) -> AggregateLaborMinutes {
         self.before_minutes
     }
 
-    /// Returns the after minutes carried by this manager daily brief workflow value.
+    /// Returns the after minutes source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn after_minutes(&self) -> AggregateLaborMinutes {
         self.after_minutes
     }
 
-    /// Returns the minutes saved carried by this manager daily brief workflow value.
+    /// Returns the minutes saved source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn minutes_saved(&self) -> u16 {
         self.before_minutes.0.saturating_sub(self.after_minutes.0)
     }
 
-    /// Returns the all actions are source grounded carried by this manager daily brief workflow value.
+    /// Returns the all actions are source grounded source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn all_actions_are_source_grounded(&self) -> bool {
         self.actions.iter().all(BriefAction::is_source_grounded)
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Classifies feedback outcome values that drive the manager daily brief workflow.
+/// Decision taxonomy for feedback outcome in the manager daily brief workflow; each value carries operational meaning for source-grounded routing and review.
 pub enum FeedbackOutcome {
     /// Records a completed result so follow-up impact is auditable.
     Completed,
@@ -633,54 +633,54 @@ pub struct OutcomeRecord {
 }
 
 impl OutcomeRecord {
-    /// Returns the action id carried by this manager daily brief workflow value.
+    /// Returns the action id source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn action_id(&self) -> &ActionId {
         &self.action_id
     }
 
-    /// Returns the recorded by carried by this manager daily brief workflow value.
+    /// Returns the recorded by source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn recorded_by(&self) -> &entities::ActorRef {
         &self.recorded_by
     }
 
-    /// Returns the outcome carried by this manager daily brief workflow value.
+    /// Returns the outcome source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn outcome(&self) -> FeedbackOutcome {
         self.outcome
     }
 
-    /// Returns the before minutes carried by this manager daily brief workflow value.
+    /// Returns the before minutes source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn before_minutes(&self) -> LaborMinutes {
         self.before_minutes
     }
 
-    /// Returns the actual minutes carried by this manager daily brief workflow value.
+    /// Returns the actual minutes source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn actual_minutes(&self) -> LaborMinutes {
         self.actual_minutes
     }
 
-    /// Returns the actual minutes saved carried by this manager daily brief workflow value.
+    /// Returns the actual minutes saved source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub const fn actual_minutes_saved(&self) -> u16 {
         self.before_minutes.0.saturating_sub(self.actual_minutes.0)
     }
 
-    /// Returns the source record refs carried by this manager daily brief workflow value.
+    /// Returns the source record refs source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn source_record_refs(&self) -> &[source::RecordRef] {
         &self.source_record_refs
     }
 
-    /// Returns the records feedback without external mutation carried by this manager daily brief workflow value.
+    /// Returns the records feedback without external mutation source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn records_feedback_without_external_mutation(&self) -> bool {
         true
     }
 
-    /// Returns the blocked actions carried by this manager daily brief workflow value.
+    /// Returns the blocked actions source evidence carried by this manager daily brief workflow artifact without changing provider, customer, payment, or schedule state.
     pub fn blocked_actions(&self) -> Vec<BlockedAction> {
         blocked_actions_for()
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-/// Classifies error values that drive the manager daily brief workflow.
+/// Decision taxonomy for error in the manager daily brief workflow; each value carries operational meaning for source-grounded routing and review.
 pub enum Error {
     #[error("labor minutes must be greater than zero")]
     /// Identifies zero labor minutes as the reason the workflow must stop, retry, or request review.
@@ -698,7 +698,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub struct Workflow;
 
 impl Workflow {
-    /// Builds or derives evaluate data for the manager daily brief workflow contract.
+    /// Builds evaluate for the manager daily brief workflow contract from validated source facts while preserving review gates and draft-only side-effect boundaries.
     pub fn evaluate(request: Request) -> Packet {
         let mut actions = Vec::new();
         actions.extend(service_demand_actions(&request));
