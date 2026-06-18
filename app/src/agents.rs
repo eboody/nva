@@ -1,3 +1,32 @@
+//! Agent specs and prompt packet contracts.
+//!
+//! Specs make the app boundary visible to the runtime: allowed tools are narrow
+//! read/draft surfaces, forbidden actions name unsafe authority, and default
+//! review gates remain deterministic app policy.
+//!
+//! ```
+//! use app::agents;
+//!
+//! let specs = agents::baseline_agent_specs();
+//! let manager_brief = specs
+//!     .iter()
+//!     .find(|spec| spec.name.clone().into_inner() == "manager-daily-brief")
+//!     .expect("baseline manager brief spec exists");
+//!
+//! assert!(manager_brief
+//!     .allowed_tools
+//!     .iter()
+//!     .any(|tool| tool.clone().into_inner() == "reservation-read"));
+//! assert!(manager_brief
+//!     .forbidden_actions
+//!     .iter()
+//!     .any(|action| action.clone().into_inner() == "change schedule"));
+//! assert!(manager_brief
+//!     .forbidden_actions
+//!     .iter()
+//!     .any(|action| action.clone().into_inner() == "send customer message without approval"));
+//! assert!(!manager_brief.default_review_gates.is_empty());
+//! ```
 use bon::Builder;
 use serde::{Deserialize, Serialize};
 

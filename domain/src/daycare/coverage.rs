@@ -1,3 +1,26 @@
+//! Daycare staff-coverage policy for group-play ratio review.
+//!
+//! ```
+//! use domain::{daycare, policy};
+//!
+//! let roster = daycare::coverage::RosterSnapshot::new(
+//!     daycare::StaffCount::try_new(1).unwrap(),
+//!     daycare::PetCount::try_new(18).unwrap(),
+//! );
+//! let allowed_ratio = daycare::StaffPetRatio::new(
+//!     daycare::StaffCount::try_new(1).unwrap(),
+//!     daycare::PetCount::try_new(12).unwrap(),
+//! );
+//!
+//! assert_eq!(
+//!     daycare::coverage::Policy.evaluate(&roster, allowed_ratio),
+//!     daycare::coverage::Decision::Insufficient {
+//!         reason: daycare::coverage::InsufficiencyReason::RatioExceeded,
+//!         gate: policy::ReviewGate::ManagerApproval,
+//!     },
+//! );
+//! ```
+
 use super::*;
 use crate::policy;
 

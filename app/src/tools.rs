@@ -1,3 +1,45 @@
+//! App-owned external tool-port contracts.
+//!
+//! These ports describe narrow capabilities the deterministic app may call.
+//! Constructing a request is not authority for an agent to perform the side
+//! effect directly: message tools can draft under review, reservation tools can
+//! draft updates, and payment/provider traits remain behind app policy and human
+//! review gates.
+//!
+//! ```
+//! use app::tools::{draft_update, messaging};
+//! use domain::{entities, message, workflow};
+//! use uuid::Uuid;
+//!
+//! let draft_request = messaging::draft::Request {
+//!     channel: messaging::DeliveryChannel::Portal,
+//!     recipient: messaging::Recipient::Manager(
+//!         entities::ManagerId::try_new("gm-fixture")?,
+//!     ),
+//!     body: messaging::message_body::Body::try_new(
+//!         "Internal review task: verify vaccine evidence before any customer send.",
+//!     )?,
+//!     review: messaging::ReviewPolicy::ManagerApprovalRequired,
+//! };
+//!
+//! assert_eq!(draft_request.review, messaging::ReviewPolicy::ManagerApprovalRequired);
+//!
+//! let reservation_update = draft_update::Request {
+//!     reservation_id: entities::reservation::Id(Uuid::from_u128(0x123)),
+//!     proposed_status: entities::reservation::Status::SpecialReview,
+//!     rationale: draft_update::Rationale::ManagerReviewRequired,
+//! };
+//!
+//! // The port models a draft/update proposal; it is not a provider/PMS write.
+//! assert_eq!(reservation_update.proposed_status, entities::reservation::Status::SpecialReview);
+//!
+//! let internal_task = workflow::task::Title::try_new("Review ambiguous boarding vaccine proof")?;
+//! assert_eq!(
+//!     internal_task.into_inner(),
+//!     "Review ambiguous boarding vaccine proof",
+//! );
+//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! ```
 use async_trait::async_trait;
 use nutype::nutype;
 use serde::{Deserialize, Serialize};

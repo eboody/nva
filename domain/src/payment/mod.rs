@@ -1,3 +1,25 @@
+//! Payment-domain values for deposits, references, and review-safe money movement state.
+//!
+//! These types record payment readiness without performing provider writes. That keeps deposit
+//! exceptions and front-desk collection work reviewable:
+//!
+//! ```
+//! use domain::{money, payment};
+//!
+//! let amount = money::Money::new(
+//!     money::MinorUnits::try_new(5_000).unwrap(),
+//!     money::Currency::Usd,
+//! );
+//! let deposit = payment::Deposit::paid(
+//!     amount,
+//!     payment::Reference::try_new("sandbox-receipt-42").unwrap(),
+//! );
+//!
+//! assert_eq!(deposit.status(), payment::DepositStatus::Paid);
+//! assert!(!deposit.requires_collection());
+//! assert!(deposit.payment_reference().is_some());
+//! ```
+
 mod error;
 
 use chrono::{DateTime, Utc};

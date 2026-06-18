@@ -1,3 +1,27 @@
+//! Daycare front-desk readiness decisions for faster, safer check-in lanes.
+//!
+//! ```
+//! use domain::{daycare, entities};
+//! use uuid::Uuid;
+//!
+//! let context = daycare::front_desk::ReadinessContext::builder()
+//!     .reservation_id(entities::reservation::Id(Uuid::nil()))
+//!     .service(daycare::ServiceVariant::DayBoarding)
+//!     .eligibility(daycare::front_desk::EligibilityReadiness::IndividualCareReady)
+//!     .coverage(daycare::coverage::Decision::Sufficient)
+//!     .care(daycare::front_desk::CareReadiness::Ready)
+//!     .package(daycare::front_desk::PackageReadiness::NeedsFrontDeskCollection)
+//!     .customer_message(daycare::front_desk::CustomerMessageReadiness::NoMessageNeeded)
+//!     .build();
+//! let decision = daycare::front_desk::ThroughputPolicy.evaluate(&context);
+//! let ticket = daycare::front_desk::QueueTicket::new(
+//!     daycare::front_desk::QueuePosition::try_new(1).unwrap(),
+//!     decision,
+//! );
+//!
+//! assert_eq!(ticket.lane(), daycare::front_desk::QueueLane::CollectionLane);
+//! ```
+
 use super::*;
 use crate::{entities, policy};
 

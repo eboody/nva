@@ -1,3 +1,43 @@
+//! Persistence records for app/domain operational contracts.
+//!
+//! Storage code is allowed to speak in stable record codes, but promotion back into
+//! `domain` values is explicit and source-grounded. This keeps labor-saving
+//! workflows from treating database vocabulary as the business model.
+//!
+//! ```rust
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! use storage::operations::{
+//!     ServiceOfferingKindCode, ServiceOfferingRecord, StoredSourceRecordRef,
+//! };
+//!
+//! let source_ref = StoredSourceRecordRef {
+//!     system: "gingr".to_owned(),
+//!     record_type: "reservation_type".to_owned(),
+//!     record_id: "reservation-type-42".to_owned(),
+//!     observed_at: "2026-06-18T14:00:00Z".to_owned(),
+//!     adapter_version: "gingr-fixture-v1".to_owned(),
+//! };
+//!
+//! let promoted_service = domain::operations::ServiceOffering::Daycare {
+//!     format: domain::operations::DaycareFormat::AllDayPlay,
+//!     eligibility_rules: vec![
+//!         domain::operations::DaycareEligibilityRule::TemperamentReviewRequired,
+//!         domain::operations::DaycareEligibilityRule::StaffToPetRatioRequired,
+//!     ],
+//! };
+//!
+//! let stored = ServiceOfferingRecord::try_from(promoted_service.clone())?;
+//! assert_eq!(stored.service_kind, ServiceOfferingKindCode::Daycare);
+//! assert_eq!(source_ref.record_id, "reservation-type-42");
+//!
+//! let encoded = stored.encode_json()?;
+//! let decoded = ServiceOfferingRecord::decode_json(&encoded)?;
+//! let demoted: domain::operations::ServiceOffering = decoded.try_into()?;
+//! assert_eq!(demoted, promoted_service);
+//! # Ok(())
+//! # }
+//! ```
+
 use bon::Builder;
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -40,6 +80,7 @@ pub enum RecordKind {
     PetResortPortfolio,
     ServiceOffering,
     CoreServiceContracts,
+    DataQualityHygieneOutcome,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,6 +96,7 @@ pub enum StorageField {
     GroomingCadenceWeeks,
     TrainingProgramDurationWeeks,
     ManagerDailyBriefLaborMinutes,
+    DataQualityHygieneLaborMinutes,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
@@ -169,6 +211,136 @@ impl ManagerDailyBriefOutcomeRecord {
 
     pub fn reporting_group(&self) -> ManagerDailyBriefReportingGroup {
         ManagerDailyBriefReportingGroup {
+            location_id: self.location_id.clone(),
+            operating_day: self.operating_day.clone(),
+            action_kind: self.action_kind,
+            owner_persona: self.owner_persona,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DataQualityHygieneOutcomeCode {
+    Completed,
+    Deferred,
+    SuppressedByManager,
+    SourceFactWasWrong,
+    NotActionable,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DataQualityHygienePersonaCode {
+    GeneralManager,
+    AssistantGeneralManager,
+    FrontDeskLead,
+    FrontDeskAgent,
+    RegionalOperator,
+    OperationsAnalyst,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DataQualityHygieneActionKindCode {
+    InvestigateMissingSourceEvidence,
+    ReconcileDuplicateCustomerOrPetCandidate,
+    CompleteMissingPetOrCustomerProfileFields,
+    ReviewStaleVaccinationSourceFreshness,
+    NormalizeAmbiguousServiceLineNaming,
+    ReviewCheckoutOrUnclosedReservationEvidence,
+    EscalateSensitiveOrQuarantinedPayload,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DataQualityResolutionStatusCode {
+    Open,
+    Acknowledged,
+    Ignored,
+    Repaired,
+    Superseded,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DataQualityHygieneReportingGroup {
+    pub location_id: String,
+    pub operating_day: String,
+    pub action_kind: DataQualityHygieneActionKindCode,
+    pub owner_persona: DataQualityHygienePersonaCode,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(transparent)]
+pub struct StoredDataQualityHygieneLaborMinutes(u16);
+
+impl StoredDataQualityHygieneLaborMinutes {
+    pub fn try_new(value: u16) -> Result<Self> {
+        if value == 0 {
+            return Err(Error::InvalidDomainValue {
+                field: StorageField::DataQualityHygieneLaborMinutes,
+                reason: "must be greater than zero".to_owned(),
+            });
+        }
+
+        Ok(Self(value))
+    }
+
+    pub const fn get(self) -> u16 {
+        self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for StoredDataQualityHygieneLaborMinutes {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = u16::deserialize(deserializer)?;
+        Self::try_new(value).map_err(serde::de::Error::custom)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+pub struct DataQualityHygieneOutcomeRecord {
+    pub action_id: String,
+    pub outcome: DataQualityHygieneOutcomeCode,
+    pub before_minutes: StoredDataQualityHygieneLaborMinutes,
+    pub actual_minutes: StoredDataQualityHygieneLaborMinutes,
+    pub actor_id: String,
+    pub actor_persona: DataQualityHygienePersonaCode,
+    pub feedback: String,
+    #[builder(default)]
+    pub source_refs: Vec<StoredSourceRecordRef>,
+    #[builder(default)]
+    pub issue_refs: Vec<String>,
+    pub resolution_status_after_review: DataQualityResolutionStatusCode,
+    pub recorded_at: String,
+    pub correlation_id: String,
+    pub location_id: String,
+    pub operating_day: String,
+    pub action_kind: DataQualityHygieneActionKindCode,
+    pub owner_persona: DataQualityHygienePersonaCode,
+    pub estimated_minutes_saved: u16,
+}
+
+impl DataQualityHygieneOutcomeRecord {
+    pub fn decode_json(raw: &str) -> Result<Self> {
+        serde_json::from_str(raw).map_err(|source| CodecError::JsonDecode { source }.into())
+    }
+
+    pub fn encode_json(&self) -> Result<String> {
+        serde_json::to_string(self).map_err(|source| CodecError::JsonEncode { source }.into())
+    }
+
+    pub const fn actual_minutes_saved(&self) -> u16 {
+        self.before_minutes
+            .get()
+            .saturating_sub(self.actual_minutes.get())
+    }
+
+    pub fn reporting_group(&self) -> DataQualityHygieneReportingGroup {
+        DataQualityHygieneReportingGroup {
             location_id: self.location_id.clone(),
             operating_day: self.operating_day.clone(),
             action_kind: self.action_kind,

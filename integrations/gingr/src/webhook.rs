@@ -1,3 +1,35 @@
+//! Fixture-safe Gingr webhook parsing and acknowledgement contracts.
+//!
+//! Webhooks are parsed into a quarantined envelope first. Verification is explicit,
+//! uses a caller-provided secret, and failure maps to an acknowledgement without
+//! mutating provider state or sending customer messages.
+//!
+//! ```rust
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! use gingr::{response, webhook};
+//!
+//! let raw = r#"{
+//!   "webhook_type": "animal_edited",
+//!   "entity_id": 812,
+//!   "entity_type": "animal",
+//!   "entity_data": {"name": "Miso"}
+//! }"#;
+//! let envelope = webhook::Envelope::from_json(raw)?;
+//! assert_eq!(envelope.event_type_input(), Some("animal_edited"));
+//!
+//! let missing_signature = envelope.verify(&webhook::SignatureKey::from_secret("fixture-only"));
+//! assert!(matches!(
+//!     missing_signature,
+//!     Err(webhook::VerificationError::MissingField { field: "signature" })
+//! ));
+//! assert_eq!(
+//!     webhook::Ack::RejectedPermanently.http_status(),
+//!     response::HttpStatus::FORBIDDEN
+//! );
+//! # Ok(())
+//! # }
+//! ```
+
 use crate::response;
 use hmac::{Hmac, Mac};
 use secrecy::SecretString;

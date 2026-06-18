@@ -1,3 +1,30 @@
+//! Secret-free request builders for Gingr endpoint contracts.
+//!
+//! Endpoint structs describe provider requests without performing network I/O.
+//! Callers can inspect the path and parameters, attach source provenance, and only
+//! then hand the request to transport code with credentials.
+//!
+//! ```rust
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! use gingr::endpoint::{Date, DateRange, LocationId, Request, Reservations};
+//!
+//! let range = DateRange::new(Date::parse("2026-06-18")?, Date::parse("2026-06-19")?)?;
+//! let request = Reservations::for_range(range)
+//!     .location(LocationId::new(170))
+//!     .build();
+//! let parts = request.request_parts();
+//!
+//! assert_eq!(parts.path(), "/api/v1/reservations");
+//! assert!(parts.form_pairs().iter().any(|(key, value)| {
+//!     key == "location_id" && value == "170"
+//! }));
+//! assert!(parts.form_pairs().iter().any(|(key, value)| {
+//!     key == "start_date" && value == "2026-06-18"
+//! }));
+//! # Ok(())
+//! # }
+//! ```
+
 pub mod catalog;
 pub mod commerce_retail;
 pub mod labor_ops;

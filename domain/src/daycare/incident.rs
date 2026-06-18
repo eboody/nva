@@ -1,3 +1,20 @@
+//! Daycare incident disposition rules that preserve pet-safety review gates.
+//!
+//! ```
+//! use domain::{daycare, entities, policy};
+//! use uuid::Uuid;
+//!
+//! let pet_id = entities::PetId(Uuid::nil());
+//! let disposition = daycare::incident::Classifier
+//!     .classify(pet_id, daycare::incident::Severity::SuspendGroupPlay);
+//!
+//! assert_eq!(disposition.required_gate(), Some(policy::ReviewGate::ManagerApproval));
+//! assert_eq!(
+//!     disposition.restriction(),
+//!     daycare::incident::Restriction::SuspendedPendingManagerReview { pet_id },
+//! );
+//! ```
+
 use super::*;
 use crate::{entities, policy};
 

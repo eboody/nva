@@ -405,7 +405,7 @@ This infrastructure is exactly that. It gives the repo reusable rails for:
 - regional exception reporting;
 - data-quality hygiene.
 
-The first workflow should be the one with the strongest current repo support: **Manager Daily Brief + labor minutes saved**.
+The first workflow should be the one with the strongest current repo support: **Manager Daily Brief + labor minutes saved**. The broader product crosswalk lives in [../design/labor-cost-reduction-crosswalk.md](../design/labor-cost-reduction-crosswalk.md): use it to decide which future workflows deserve source/read-model work, deterministic app contracts, and review-gated agent loops next.
 
 ## Acceptance criteria for the infrastructure
 

@@ -1,6 +1,6 @@
 # Manager Daily Brief measurable labor loop contract
 
-Purpose: define the first measurable labor-cost loop before building runtime automation. The loop turns reviewed source facts into manager/front-desk actions, keeps AI draft/review-only, captures staff feedback, and measures before/after labor minutes.
+Purpose: define the first measurable labor-cost loop before building runtime automation. The loop turns reviewed source facts into manager/front-desk actions, keeps AI draft/review-only, captures staff feedback, and measures before/after labor minutes. The broader driver map and next-loop sequence live in [labor-cost-reduction-crosswalk.md](labor-cost-reduction-crosswalk.md).
 
 ## Repetitive work removed
 

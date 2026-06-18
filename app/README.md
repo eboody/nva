@@ -6,6 +6,12 @@ Start at [`src/lib.rs`](./src/lib.rs). The crate root exposes workflow modules f
 
 This crate does not own domain truth. It may define application request packets, evaluation packets, draft records, audit-event drafts, and port contracts, but the business language and invariants come from `domain::*` types such as `domain::entities::Reservation`, `domain::policy::ReviewGate`, `domain::workflow::Event`, `domain::source::Provenance`, `domain::analytics::service_demand::Fact`, and service-line policy types documented in [`../domain`](../domain/README.md). When `app` has local enums such as `booking_triage::ReadinessBucket` or `checkout_completion::CompletionStatus`, those are use-case classifications that eventually map back to domain statuses, review gates, source refs, audit records, or blocked actions; they are not alternate canonical domain models.
 
+## README vs Rustdoc contract
+
+This README is the application workflow wiki: use it to find use-case packets, draft/review boundaries, tool ports, and the source modules that compose `domain` truth into labor-saving review queues. Keep it navigational and avoid stale duplicate Rust snippets.
+
+Executable app examples belong in Rustdoc on [`src/lib.rs`](./src/lib.rs), workflow modules such as [`src/manager_daily_brief.rs`](./src/manager_daily_brief.rs), and tool-port modules such as [`src/tools.rs`](./src/tools.rs). Those examples should compile under `cargo test -p app --doc` and show source-grounded context packets, draft validation, blocked actions, review gates, and outcome capture without implying live provider/customer side effects.
+
 ## Module navigation
 
 ### Crate surface and shared agent contracts

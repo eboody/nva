@@ -1,3 +1,24 @@
+//! Daycare recurring-attendance materialization for predictable front-desk work queues.
+//!
+//! ```
+//! use chrono::{NaiveDate, Weekday};
+//! use domain::daycare;
+//!
+//! let recurrence = daycare::attendance::Recurrence::new(
+//!     daycare::attendance::DateRange::new(
+//!         NaiveDate::from_ymd_opt(2026, 6, 15).unwrap(),
+//!         NaiveDate::from_ymd_opt(2026, 6, 19).unwrap(),
+//!     )
+//!     .unwrap(),
+//!     daycare::attendance::Days::try_new(vec![Weekday::Mon, Weekday::Wed, Weekday::Fri]).unwrap(),
+//! );
+//!
+//! let visits = daycare::attendance::Materializer.materialize(&recurrence, &[
+//!     NaiveDate::from_ymd_opt(2026, 6, 17).unwrap(),
+//! ]);
+//! assert_eq!(visits.len(), 2);
+//! ```
+
 use super::*;
 use chrono::Datelike;
 

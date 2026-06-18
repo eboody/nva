@@ -1,3 +1,27 @@
+//! Source-system provenance and record references for app-owned operational facts.
+//!
+//! Provenance travels with facts so an agent draft can cite the app-owned source evidence it used:
+//!
+//! ```
+//! use domain::source;
+//!
+//! let provenance = source::Provenance::builder()
+//!     .system(source::System::Gingr)
+//!     .endpoint(source::Endpoint::try_new("/reservations").unwrap())
+//!     .record_id(source::record::Id::try_new("reservation-123").unwrap())
+//!     .extraction_batch(source::ExtractionBatchId::try_new("batch-2026-06-18").unwrap())
+//!     .pulled_at(source::Timestamp::try_new("2026-06-18T13:00:00Z").unwrap())
+//!     .request_scope(source::RequestScope::try_new("manager-daily-brief:loc-1").unwrap())
+//!     .schema_version(source::SchemaVersion::try_new("gingr-reservations-v1").unwrap())
+//!     .payload_hash(source::PayloadHash::try_new("sha256:fixture").unwrap())
+//!     .raw_payload_ref(source::RawPayloadRef::try_new("minio://fixtures/reservation-123.json").unwrap())
+//!     .build();
+//!
+//! let record_ref = source::RecordRef::from_provenance(&provenance);
+//! assert_eq!(record_ref.system(), source::System::Gingr);
+//! assert_eq!(record_ref.record_id().as_str(), "reservation-123");
+//! ```
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 

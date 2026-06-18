@@ -4,6 +4,12 @@
 
 Start at [`src/lib.rs`](./src/lib.rs). The public surface is intentionally small: [`storage::operations`](./src/operations.rs) contains cross-service records, codecs, and storage errors, while [`storage::service_line`](./src/service_line/mod.rs) contains service-line-specific contract wrappers and code tables. The service-line maintainer guide is [`src/service_line/README.md`](./src/service_line/README.md).
 
+## README vs Rustdoc contract
+
+This README is the storage-boundary wiki: use it to navigate persisted records, stable codes, codecs, and promotion/demotion ownership. Keep it focused on where storage shapes live and why they are separate from domain truth and provider DTOs.
+
+Executable storage examples belong in Rustdoc on [`src/lib.rs`](./src/lib.rs), [`src/operations.rs`](./src/operations.rs), and the service-line modules under [`src/service_line`](./src/service_line/mod.rs). Those examples should compile under `cargo test -p storage --doc` and demonstrate explicit conversion between storage records/codes and semantic `domain::*` values instead of copying unverified snippets into this README.
+
 ## Module navigation
 
 - [`src/lib.rs`](./src/lib.rs) declares the crate-level boundary: `domain` owns language; `storage` owns persistence records, stable codes, codecs, and conversion between storage records and domain types. It exposes [`storage::operations`](./src/operations.rs) and [`storage::service_line`](./src/service_line/mod.rs), and re-exports `storage::operations::{CodecError, RecordKind, Result}`.

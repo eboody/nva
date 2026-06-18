@@ -6,6 +6,12 @@ Start at [`src/lib.rs`](./src/lib.rs). It exports every domain module explicitly
 
 The crate is deliberately not an integration client, database schema, HTTP API, or UI. It defines the canonical domain values those layers promote into and demote from. Provider ids, raw payloads, storage codes, and HTTP shapes should remain in boundary crates until they can be validated or normalized into these types.
 
+## README vs Rustdoc contract
+
+This README is the domain wiki: use it to navigate concept ownership, module boundaries, and labor-cost-reduction intent. Keep examples here descriptive and link-oriented rather than duplicating Rust construction snippets.
+
+Executable domain examples belong in Rustdoc on [`src/lib.rs`](./src/lib.rs) and the source modules linked below, where `cargo test -p domain --doc` can compile-check semantic paths, constructors, policy decisions, source refs, and review-gate contracts. When adding or changing API usage examples, update the Rustdoc/source first and link to that surface from this README.
+
 ## Module navigation
 
 ### Semantic entity core

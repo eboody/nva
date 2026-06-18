@@ -2,6 +2,31 @@
 //!
 //! Brief sections, occupancy, labor, revenue, watchlists, and recommended manager actions
 //! are owned here rather than hidden behind broader operations vocabulary.
+//!
+//! ```
+//! use domain::{daily_brief, entities};
+//!
+//! let brief = daily_brief::Resort {
+//!     operating_day: daily_brief::ResortOperatingDay {
+//!         location_id: entities::LocationId(uuid::Uuid::nil()),
+//!         date: chrono::NaiveDate::from_ymd_opt(2026, 6, 18).unwrap(),
+//!         snapshot_id: daily_brief::snapshot::Id::try_new("loc-1-2026-06-18").unwrap(),
+//!     },
+//!     sections: vec![daily_brief::Section::Labor(daily_brief::LaborSnapshot {
+//!         scheduled_staff_count: daily_brief::ScheduledStaffCount::new(4),
+//!         labor_risk: daily_brief::LaborRisk::Understaffed,
+//!     })],
+//!     recommended_actions: vec![daily_brief::Action::SuggestScheduleReview {
+//!         risk: daily_brief::LaborRisk::Understaffed,
+//!     }],
+//!     risks: vec![daily_brief::Risk::LaborMismatch {
+//!         risk: daily_brief::LaborRisk::Understaffed,
+//!     }],
+//! };
+//!
+//! assert!(brief.has_manager_attention_required());
+//! assert!(brief.recommended_actions[0].requires_manager_approval());
+//! ```
 
 use chrono::{DateTime, NaiveDate, Utc};
 use nutype::nutype;

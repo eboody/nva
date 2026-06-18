@@ -1,3 +1,27 @@
+//! Daycare package-opportunity policy for review-gated membership/pass recommendations.
+//!
+//! ```
+//! use domain::{daycare, entities, policy};
+//! use uuid::Uuid;
+//!
+//! let evidence = daycare::package_opportunity::Evidence::builder()
+//!     .customer_id(entities::CustomerId(Uuid::nil()))
+//!     .pet_id(entities::PetId(Uuid::nil()))
+//!     .attendance_visits(daycare::package_opportunity::AttendanceVisitCount::new(8))
+//!     .eligibility(daycare::package_opportunity::CareEligibility::Cleared)
+//!     .package_state(daycare::package_opportunity::PackageState::PayPerVisit)
+//!     .payment_state(daycare::package_opportunity::PaymentState::Current)
+//!     .build();
+//!
+//! assert_eq!(
+//!     daycare::package_opportunity::Policy.classify(&evidence),
+//!     daycare::package_opportunity::Decision::RecommendStaffReview {
+//!         score: daycare::package_opportunity::OpportunityScore::Strong,
+//!         gate: policy::ReviewGate::CustomerMessageApproval,
+//!     },
+//! );
+//! ```
+
 use super::*;
 use crate::policy;
 

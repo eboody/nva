@@ -1,3 +1,19 @@
+//! Daycare service contracts for front-desk throughput, safe play, and package review.
+//!
+//! The module keeps care mode, eligibility, staffing ratios, and package policy explicit so
+//! automated recommendations reduce check-in labor without bypassing staff review:
+//!
+//! ```
+//! use domain::daycare;
+//!
+//! let contract = daycare::Contract::standard_petsuites();
+//! assert!(contract.requires_staff_review_before_group_play());
+//! assert_eq!(
+//!     daycare::ServiceVariant::DayBoarding.care_mode(),
+//!     daycare::CareMode::DogIndividualDayBoarding,
+//! );
+//! ```
+
 use bon::Builder;
 use chrono::NaiveDate;
 use nutype::nutype;

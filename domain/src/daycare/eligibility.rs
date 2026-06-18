@@ -1,3 +1,29 @@
+//! Daycare group-play eligibility policy for source-grounded staff review.
+//!
+//! ```
+//! use domain::{daycare, entities, policy};
+//! use uuid::Uuid;
+//!
+//! let evidence = daycare::eligibility::Evidence::builder()
+//!     .pet_id(entities::PetId(Uuid::nil()))
+//!     .species(entities::Species::Dog)
+//!     .service(daycare::ServiceVariant::AllDayPlay)
+//!     .temperament(daycare::eligibility::TemperamentAssessmentFreshness::Missing)
+//!     .vaccines(daycare::eligibility::VaccineReadiness::Current)
+//!     .spay_neuter(entities::SpayNeuterStatus::Neutered)
+//!     .incident(daycare::incident::Restriction::None)
+//!     .staff_coverage(daycare::coverage::Decision::Sufficient)
+//!     .build();
+//!
+//! assert_eq!(
+//!     daycare::eligibility::GroupPlayPolicy.evaluate(&evidence),
+//!     daycare::eligibility::GroupPlayDecision::NeedsStaffReview {
+//!         reason: daycare::eligibility::ReviewReason::MissingCurrentTemperamentAssessment,
+//!         gate: policy::ReviewGate::BehaviorReview,
+//!     },
+//! );
+//! ```
+
 use super::*;
 use crate::{entities, policy};
 

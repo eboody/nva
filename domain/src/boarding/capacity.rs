@@ -1,3 +1,35 @@
+//! Boarding capacity decisions for room/suite availability.
+//!
+//! Capacity examples use semantic accommodation paths so a labor-saving agent can explain whether
+//! the front desk should confirm, waitlist, or route an exception for manager review:
+//!
+//! ```
+//! use domain::{boarding, entities};
+//! use uuid::Uuid;
+//!
+//! let luxury_suite = boarding::capacity::SegmentCounts::builder()
+//!     .accommodation(boarding::accommodation::Kind::LuxuryDogSuite)
+//!     .total(boarding::capacity::RoomCount::try_new(10).unwrap())
+//!     .occupied(boarding::capacity::RoomCount::try_new(10).unwrap())
+//!     .build();
+//! let snapshot = boarding::capacity::Snapshot::new(vec![
+//!     boarding::capacity::NightlySegmentSnapshot::from_counts(luxury_suite),
+//! ])
+//! .unwrap();
+//! let request = boarding::capacity::Request::new(
+//!     entities::LocationId(Uuid::nil()),
+//!     entities::Species::Dog,
+//!     boarding::accommodation::Preference::Specific(boarding::accommodation::Kind::LuxuryDogSuite),
+//! );
+//!
+//! assert_eq!(
+//!     boarding::capacity::Policy.evaluate(&request, &snapshot),
+//!     boarding::capacity::Decision::Waitlist {
+//!         reason: boarding::capacity::WaitlistReason::EligibleSegmentFull,
+//!     },
+//! );
+//! ```
+
 use super::*;
 use crate::policy;
 use bon::Builder;

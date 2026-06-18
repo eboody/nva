@@ -9,6 +9,7 @@ pub mod booking_triage;
 pub mod checkout_completion;
 pub mod crm_retention;
 pub mod daily_update;
+pub mod data_quality_hygiene;
 pub mod local_smoke;
 pub mod manager_daily_brief;
 pub mod tools;

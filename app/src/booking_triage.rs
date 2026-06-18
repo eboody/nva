@@ -1,3 +1,48 @@
+//! Booking triage contracts for deterministic review before agent drafting.
+//!
+//! The app evaluates reservation readiness from policy/evidence first. Agents
+//! may draft review packets or customer-safe scripts only after the deterministic
+//! packet exposes the allowed review boundary; provider mutation, booking
+//! confirmation, customer sends, and payment movement remain blocked actions.
+//!
+//! ```
+//! use app::booking_triage as triage;
+//!
+//! let vaccine_review = triage::rule::ReviewFinding::builder()
+//!     .rule_id(triage::rule::Id::VaccineRequirements)
+//!     .failure_code(triage::FailureCode::MissingOrUnverifiedVaccine)
+//!     .readiness_bucket(triage::ReadinessBucket::VaccinePending)
+//!     .human_approval_required(triage::ApprovalGate::MedicalDocumentReview)
+//!     .evidence_refs(vec![triage::EvidenceRef::try_new(
+//!         "gingr:reservation:fixture-123:vaccine-expired",
+//!     )?])
+//!     .build();
+//!
+//! let deterministic = triage::DeterministicResult::evaluate(vec![
+//!     triage::rule::Evaluation::needs_human_approval(vaccine_review),
+//! ]);
+//!
+//! assert_eq!(deterministic.recommended_status(), triage::ReadinessBucket::VaccinePending);
+//! assert!(deterministic.requires(triage::ApprovalGate::MedicalDocumentReview));
+//! assert_eq!(deterministic.staff_decision_boundary(), triage::StaffDecisionBoundary::ReviewPacketOnly);
+//! assert!(deterministic.blocked_actions().contains(&triage::BlockedAction::ConfirmBooking));
+//! assert!(deterministic.blocked_actions().contains(&triage::BlockedAction::SendCustomerMessage));
+//! assert!(deterministic.blocked_actions().contains(&triage::BlockedAction::MutateProviderRecord));
+//!
+//! let packet = triage::StaffEvaluationPacket::new(
+//!     triage::Reservation::try_new("reservation-fixture-123")?,
+//!     deterministic,
+//! );
+//! let draft = triage::ConfirmationDraft::new(
+//!     triage::CustomerMessageDraft::try_new("We can draft this only after staff review.")?,
+//! );
+//!
+//! assert_eq!(
+//!     packet.try_with_confirmation_draft(draft).unwrap_err(),
+//!     triage::ConfirmationDraftError::DeterministicGateNotReadyForDraft,
+//! );
+//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! ```
 use nutype::nutype;
 use serde::{Deserialize, Serialize};
 use statum::{machine, state, transition};

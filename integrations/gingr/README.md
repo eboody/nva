@@ -6,6 +6,12 @@ Start at [`src/lib.rs`](./src/lib.rs). The crate root exposes [`config`](./src/c
 
 This crate is not domain truth. Gingr ids, status strings, endpoint shapes, undocumented fields, webhooks, and API quirks are provider facts. `domain` owns normalized business concepts such as customer names, pet names, retail products, source provenance, data-quality issues, workflow decisions, and service-line policy. `storage` owns durable projection records and stable persisted codes. Treat every provider payload here as evidence that must be validated, mapped, or quarantined before downstream automation depends on it.
 
+## README vs Rustdoc contract
+
+This README is the Gingr boundary wiki: use it to orient maintainers around provider configuration, endpoint builders, transport seams, DTOs, webhooks, mapping, fixtures, and documented provider gaps. Keep API usage examples in source/Rustdoc rather than duplicating request-building snippets here.
+
+Executable Gingr examples belong in Rustdoc on [`src/lib.rs`](./src/lib.rs), endpoint modules, transport/mapping modules, and webhook/response surfaces. They should compile under the Gingr package doctest gate and stay fixture-safe, secret-free, and explicit that provider ids/payloads are evidence to be promoted into `domain` or `storage` contracts, not operational truth by themselves.
+
 ## Module navigation
 
 ### Crate surface and configuration

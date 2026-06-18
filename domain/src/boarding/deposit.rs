@@ -1,3 +1,38 @@
+//! Boarding deposit rules that keep confirmation policy deterministic.
+//!
+//! A deposit can block confirmation without letting an agent collect money or waive fees by itself:
+//!
+//! ```
+//! use domain::{boarding, money, payment, policy};
+//!
+//! let deposit_amount = money::Money::new(
+//!     money::MinorUnits::try_new(5_000).unwrap(),
+//!     money::Currency::Usd,
+//! );
+//! let policy = boarding::deposit::Policy::new(
+//!     boarding::DepositRule::Required { amount: deposit_amount.clone() },
+//!     boarding::PaymentTiming::DueAtBooking,
+//! );
+//!
+//! let readiness = policy.readiness_for_confirmation(None);
+//! assert_eq!(
+//!     readiness,
+//!     boarding::deposit::ConfirmationReadiness::Blocked {
+//!         blocker: boarding::deposit::Blocker::DepositRequired,
+//!         review_gate: policy::ReviewGate::RefundOrDepositException,
+//!     }
+//! );
+//!
+//! let paid = payment::Deposit::paid(
+//!     deposit_amount,
+//!     payment::Reference::try_new("fixture-gateway-reference").unwrap(),
+//! );
+//! assert_eq!(
+//!     policy.readiness_for_confirmation(Some(&paid)),
+//!     boarding::deposit::ConfirmationReadiness::Ready,
+//! );
+//! ```
+
 use super::*;
 use crate::{payment, policy};
 

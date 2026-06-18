@@ -2,7 +2,15 @@
 
 This workspace is a Rust-first foundation for safe pet-resort workflow automation across a multi-location operator. The repository is intentionally documentation-heavy: the READMEs are the maintainer wiki, and the Rust module paths are the glossary. Start here, then follow the crate and module READMEs into the code.
 
-The product goal is labor-cost reduction, not generic chat. The useful surfaces are the ones that reduce avoidable manager/front-desk handoffs: source-data normalization, deterministic policy checks, review-gated agent drafts, exception triage, outcome capture, and reusable operational workflows. [nva-pet-resorts-ai-context.md](nva-pet-resorts-ai-context.md) is the repository-level acceptance lens for that work; [docs/architecture/agent-app-infrastructure.md](docs/architecture/agent-app-infrastructure.md) describes the agent/app contract; [docs/design/manager-daily-brief-measurable-labor-loop.md](docs/design/manager-daily-brief-measurable-labor-loop.md) is the first measurable labor loop design; [docs/ops/data-quality-hygiene-local-smoke.md](docs/ops/data-quality-hygiene-local-smoke.md) proves the second workflow's local fake-data context -> draft -> outcome capture path; and [docs/audits/2026-06-18-agent-app-infrastructure-readiness.md](docs/audits/2026-06-18-agent-app-infrastructure-readiness.md) captures the current go/no-go posture.
+The product goal is labor-cost reduction, not generic chat. The useful surfaces are the ones that reduce avoidable manager/front-desk handoffs: source-data normalization, deterministic policy checks, review-gated agent drafts, exception triage, outcome capture, and reusable operational workflows. [nva-pet-resorts-ai-context.md](nva-pet-resorts-ai-context.md) is the repository-level acceptance lens for that work; [docs/design/labor-cost-reduction-crosswalk.md](docs/design/labor-cost-reduction-crosswalk.md) maps the major labor-cost drivers to repo surfaces and next loops; [docs/architecture/agent-app-infrastructure.md](docs/architecture/agent-app-infrastructure.md) describes the agent/app contract; [docs/design/manager-daily-brief-measurable-labor-loop.md](docs/design/manager-daily-brief-measurable-labor-loop.md) is the first measurable labor loop design; [docs/ops/data-quality-hygiene-local-smoke.md](docs/ops/data-quality-hygiene-local-smoke.md) proves the second workflow's local fake-data context -> draft -> outcome capture path; and [docs/audits/2026-06-18-agent-app-infrastructure-readiness.md](docs/audits/2026-06-18-agent-app-infrastructure-readiness.md) captures the current go/no-go posture.
+
+## Documentation contracts
+
+READMEs in this repository are wiki and navigation surfaces. They should explain the labor-cost lens, crate/module ownership, source-of-truth boundaries, and where a maintainer or agent should go next. They should not accumulate duplicate Rust snippets that can drift away from the compiled API.
+
+Executable API examples belong in Rustdoc on the source modules and crate roots, where `cargo test --doc` can compile-check them as contracts. When documenting behavior, prefer a README link to the relevant source/Rustdoc surface over copying code into Markdown. If a README must include a non-executable sketch, mark it as conceptual and keep it source-grounded.
+
+The current plan for strengthening this split is [docs/plans/2026-06-18-labor-cost-docs-as-contracts-kanban.md](docs/plans/2026-06-18-labor-cost-docs-as-contracts-kanban.md). Its rule of thumb is canonical here: READMEs remain the wiki; Rustdoc examples become compile-checked API contracts; local-link checks protect wiki navigation.
 
 ## Workspace map
 
@@ -38,6 +46,7 @@ Crate READMEs:
 - `app`: [app/README.md](app/README.md)
 - `storage`: [storage/README.md](storage/README.md)
 - `integrations/gingr`: [integrations/gingr/README.md](integrations/gingr/README.md)
+- `apps/api`: [apps/api/README.md](apps/api/README.md)
 - `apps/worker`: [apps/worker/README.md](apps/worker/README.md)
 - `apps/cli`: [apps/cli/README.md](apps/cli/README.md)
 
@@ -139,8 +148,30 @@ The living acceptance lens is labor saved with safety preserved: fewer manual ch
 For code changes, run:
 
 ```sh
-cargo fmt --check
+cargo fmt --all -- --check
 cargo test --workspace --no-run
 ```
 
-For docs-only README changes, also run a local-link existence check over Markdown links so wiki navigation does not rot.
+For executable docs and wiki/navigation checks, run:
+
+```sh
+./scripts/check_docs.sh
+```
+
+That docs gate runs Rust doctests for the contract crates (`domain`, `app`, `storage`, and `gingr`) and then checks local Markdown links plus required README coverage. The contract crates opt into `rustdoc::broken_intra_doc_links` at their crate roots so broken Rustdoc item links fail the doctest/doc build instead of silently rotting.
+
+For the canonical local gate, run:
+
+```sh
+./scripts/test.sh
+```
+
+It includes formatting, clippy, workspace tests, doctests, bridge script tests, and the Markdown docs gate. The checked-in `rust-toolchain.toml` pins the repo to the stable toolchain with rustfmt and clippy so these commands are repeatable in shells without a global rustup default.
+
+For docs-only README changes, the deterministic README/wiki contract gate is:
+
+```sh
+./scripts/check_markdown_links.py
+```
+
+That gate scans local Markdown links without network or secrets, excludes generated/vendor trees such as `.git`, `target`, and `node_modules`, and asserts the root README links every workspace-crate README plus the major domain, storage, and Gingr navigation READMEs.

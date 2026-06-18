@@ -1,3 +1,25 @@
+//! Daycare playgroup assignment decisions after eligibility and coverage are known.
+//!
+//! ```
+//! use domain::{daycare, entities};
+//! use uuid::Uuid;
+//!
+//! let request = daycare::assignment::Request::builder()
+//!     .pet_id(entities::PetId(Uuid::nil()))
+//!     .service(daycare::ServiceVariant::AllDayPlay)
+//!     .eligibility(daycare::eligibility::GroupPlayDecision::Eligible {
+//!         basis: daycare::eligibility::EligibleBasis::CurrentEvidence,
+//!     })
+//!     .coverage(daycare::coverage::Decision::Sufficient)
+//!     .playgroup(daycare::assignment::PlaygroupId::try_new("small-dogs-am").unwrap())
+//!     .build();
+//!
+//! assert!(matches!(
+//!     daycare::assignment::Service.assign(request),
+//!     daycare::assignment::Decision::Assigned { .. }
+//! ));
+//! ```
+
 use super::*;
 use crate::policy;
 
