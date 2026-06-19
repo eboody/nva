@@ -212,8 +212,7 @@ fn forms_custom_field_and_back_of_house_are_explicitly_sensitive_or_v0_safe() {
         .form(endpoint::owners_animals::FormKind::Owner)
         .field_name(endpoint::owners_animals::custom_field::Name::new("preferred_contact").unwrap())
         .search(endpoint::owners_animals::SensitiveLookup::new("sms").unwrap())
-        .build()
-        .unwrap();
+        .build();
     let whiteboard = endpoint::reservations::BackOfHouse::builder()
         .location(endpoint::LocationId::new(3))
         .reservation_type_id(endpoint::reservations::reservation::TypeId::new(4))
@@ -269,30 +268,9 @@ fn forms_custom_field_and_back_of_house_are_explicitly_sensitive_or_v0_safe() {
 }
 
 #[test]
-fn custom_field_search_returns_typed_missing_parameter_errors() {
-    assert_eq!(
-        endpoint::owners_animals::custom_field::Search::builder().build(),
-        Err(endpoint::Error::MissingRequiredParameter { parameter: "form" })
-    );
-    assert_eq!(
-        endpoint::owners_animals::custom_field::Search::builder()
-            .form(endpoint::owners_animals::FormKind::Owner)
-            .build(),
-        Err(endpoint::Error::MissingRequiredParameter {
-            parameter: "field_name",
-        })
-    );
-    assert_eq!(
-        endpoint::owners_animals::custom_field::Search::builder()
-            .form(endpoint::owners_animals::FormKind::Owner)
-            .field_name(
-                endpoint::owners_animals::custom_field::Name::new("preferred_contact").unwrap(),
-            )
-            .build(),
-        Err(endpoint::Error::MissingRequiredParameter {
-            parameter: "search",
-        })
-    );
+fn custom_field_search_builder_requires_valid_wrappers() {
+    assert!(endpoint::owners_animals::custom_field::Name::new(" ").is_err());
+    assert!(endpoint::owners_animals::SensitiveLookup::new(" ").is_err());
 }
 
 #[test]

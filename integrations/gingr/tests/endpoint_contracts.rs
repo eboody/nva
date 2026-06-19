@@ -73,15 +73,15 @@ fn reservation_widget_data_requires_a_yyyy_mm_dd_date_parameter() {
 fn owners_and_animals_filters_are_quarantined_as_provider_where_clauses() {
     let client = fake_client();
     let owner_request = endpoint::owners_animals::Owners::builder()
-        .provider_where_clause(endpoint::owners_animals::ProviderWhereClause::new(
+        .provider_where_clauses([endpoint::owners_animals::ProviderWhereClause::new(
             "zip", "80302",
-        ))
+        )])
         .build();
     let animal_request = endpoint::owners_animals::Animals::builder()
-        .provider_where_clause(endpoint::owners_animals::ProviderWhereClause::new(
+        .provider_where_clauses([endpoint::owners_animals::ProviderWhereClause::new(
             "month(from_unixtime(birthday))",
             "11",
-        ))
+        )])
         .build();
 
     let owner_sent = client.capture_request(&owner_request).unwrap();

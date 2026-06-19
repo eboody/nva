@@ -27,9 +27,9 @@ This document classifies the 21 hand-written builders found by the audit. The go
 | `commerce_retail::get::SubscriptionsBuilder` | `integrations/gingr/src/endpoint/commerce_retail.rs:155` | bon-convertible | Replace with `bon`; all filters are optional and wrappers validate their own invariants. |
 | `commerce_retail::list::TransactionsBuilder` | `integrations/gingr/src/endpoint/commerce_retail.rs:259` | Result-returning semantic constructor | Keep fallible constructor because it enforces legacy cutover and required date window. |
 | `commerce_retail::list::InvoicesBuilder` | `integrations/gingr/src/endpoint/commerce_retail.rs:362` | Result-returning semantic constructor | Keep fallible constructor because invoice dates have an on/after cutover invariant. |
-| `owners_animals::OwnersBuilder` | `integrations/gingr/src/endpoint/owners_animals.rs:39` | intentionally manual | Keep manual provider-where-clause accumulator to quarantine provider query grammar. |
-| `owners_animals::AnimalsBuilder` | `integrations/gingr/src/endpoint/owners_animals.rs:90` | intentionally manual | Same as `OwnersBuilder`; the typed accumulator preserves provider query grammar. |
-| `owners_animals::custom_field::SearchBuilder` | `integrations/gingr/src/endpoint/owners_animals.rs:315` | Result-returning semantic constructor | Replace `expect` with typed missing-parameter errors; keep manual or use `bon` only with fallible build and redaction semantics. |
+| `owners_animals::OwnersBuilder` | `integrations/gingr/src/endpoint/owners_animals.rs` | bon-converted provider grammar builder | Use `bon::Builder` on `Owners`; keep provider query grammar quarantined in `ProviderWhereClause`. |
+| `owners_animals::AnimalsBuilder` | `integrations/gingr/src/endpoint/owners_animals.rs` | bon-converted provider grammar builder | Same as `OwnersBuilder`; the typed clause collection preserves provider expression keys. |
+| `owners_animals::custom_field::SearchBuilder` | `integrations/gingr/src/endpoint/owners_animals.rs` | bon-converted required-field builder | Use `bon::Builder` so form, field name, and sensitive search are compile-time required builder fields. |
 | `reservations::reservation::TypesBuilder` | `integrations/gingr/src/endpoint/reservations.rs:40` | bon-convertible | Replace with `bon`; all filters are optional. |
 | `reservations::reservation::WidgetDataBuilder` | `integrations/gingr/src/endpoint/reservations.rs:103` | bon-convertible | Replace with `bon` required `timestamp`; no extra semantic validation beyond `Date`. |
 | `reservations::reservation::SearchFiltersBuilder` | `integrations/gingr/src/endpoint/reservations.rs:187` | bon-convertible | Replace with `bon` optional/repeated filters if array parameter emission stays tested. |
@@ -232,7 +232,7 @@ This document classifies the 21 hand-written builders found by the audit. The go
 ## Migration order recommendation
 
 1. Convert the pure optional endpoint builders first (`GetVetsBuilder`, `ReportCardFilesBuilder`, `SubscriptionsBuilder`, `TypesBuilder`, `SearchFiltersBuilder`) because they are low-risk `bon` candidates.
-2. Convert panic-based integration endpoint builders to typed errors next (`WidgetDataBuilder`, `AnimalBuilder`, `OwnerBuilder`, `BackOfHouseBuilder`, `custom_field::SearchBuilder`, and optionally `RequestPartsBuilder`).
+2. Convert panic-based integration endpoint builders to typed errors next (`WidgetDataBuilder`, `AnimalBuilder`, `OwnerBuilder`, `BackOfHouseBuilder`, and optionally `RequestPartsBuilder`). `custom_field::SearchBuilder` is now `bon`-generated with compile-time required fields instead of runtime missing-parameter errors.
 3. Convert domain evidence builders last, adding `nonempty`/typed evidence wrappers and semantic error variants before changing call sites (`ReportBuilder`, `DocumentationBuilder`, both source snapshot builders).
 4. Preserve or formalize mode builders (`reservations::Builder`) after the simpler conversions so the team can decide whether plain manual mode constructors are enough or `statum` adds value.
 

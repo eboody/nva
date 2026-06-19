@@ -1,6 +1,4 @@
-use super::{
-    AnimalId, Error, FormId, Method, OwnerId, Request, ReservationId, Result, non_empty_text,
-};
+use super::{AnimalId, FormId, Method, OwnerId, Request, ReservationId, non_empty_text};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 /// Opaque provider `where` clause string passed to Gingr owner/animal search endpoints.
@@ -23,38 +21,11 @@ impl ProviderWhereClause {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, bon::Builder)]
 /// Request descriptor for Gingr owner/customer search results.
 pub struct Owners {
+    #[builder(with = <_>::from_iter, default)]
     provider_where_clauses: Vec<ProviderWhereClause>,
-}
-
-impl Owners {
-    /// Starts a builder that makes each provider parameter explicit before request capture.
-    pub fn builder() -> OwnersBuilder {
-        OwnersBuilder::default()
-    }
-}
-
-#[derive(Clone, Debug, Default)]
-/// Builder for provider-side owner search filters and explicit sensitive lookup values.
-pub struct OwnersBuilder {
-    provider_where_clauses: Vec<ProviderWhereClause>,
-}
-
-impl OwnersBuilder {
-    /// Applies a raw Gingr where clause while keeping the provider filter visible for audit.
-    pub fn provider_where_clause(mut self, clause: ProviderWhereClause) -> Self {
-        self.provider_where_clauses.push(clause);
-        self
-    }
-
-    /// Finalizes the provider request descriptor after required fields are present and wrappers have validated local invariants.
-    pub fn build(self) -> Owners {
-        Owners {
-            provider_where_clauses: self.provider_where_clauses,
-        }
-    }
 }
 
 impl Request for Owners {
@@ -74,38 +45,11 @@ impl Request for Owners {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, bon::Builder)]
 /// Request descriptor for Gingr animal/pet search results.
 pub struct Animals {
+    #[builder(with = <_>::from_iter, default)]
     provider_where_clauses: Vec<ProviderWhereClause>,
-}
-
-impl Animals {
-    /// Starts a builder that makes each provider parameter explicit before request capture.
-    pub fn builder() -> AnimalsBuilder {
-        AnimalsBuilder::default()
-    }
-}
-
-#[derive(Clone, Debug, Default)]
-/// Builder for provider-side animal search filters and explicit sensitive lookup values.
-pub struct AnimalsBuilder {
-    provider_where_clauses: Vec<ProviderWhereClause>,
-}
-
-impl AnimalsBuilder {
-    /// Applies a raw Gingr where clause while keeping the provider filter visible for audit.
-    pub fn provider_where_clause(mut self, clause: ProviderWhereClause) -> Self {
-        self.provider_where_clauses.push(clause);
-        self
-    }
-
-    /// Finalizes the provider request descriptor after required fields are present and wrappers have validated local invariants.
-    pub fn build(self) -> Animals {
-        Animals {
-            provider_where_clauses: self.provider_where_clauses,
-        }
-    }
 }
 
 impl Request for Animals {
@@ -297,62 +241,12 @@ pub mod custom_field {
         }
     }
 
-    #[derive(Clone, Debug, PartialEq, Eq)]
+    #[derive(Clone, Debug, PartialEq, Eq, bon::Builder)]
     /// Request descriptor for Gingr custom-field search across provider owner or animal fields.
     pub struct Search {
         form: FormKind,
         field_name: Name,
         search: SensitiveLookup,
-    }
-
-    impl Search {
-        /// Starts a builder that makes each provider parameter explicit before request capture.
-        pub fn builder() -> SearchBuilder {
-            SearchBuilder::default()
-        }
-    }
-
-    #[derive(Clone, Debug, Default)]
-    /// Builder for custom-field searches that keeps field name, text value, and optional location explicit.
-    pub struct SearchBuilder {
-        form: Option<FormKind>,
-        field_name: Option<Name>,
-        search: Option<SensitiveLookup>,
-    }
-
-    impl SearchBuilder {
-        /// Selects the Gingr owner/animal form to search.
-        pub fn form(mut self, form: FormKind) -> Self {
-            self.form = Some(form);
-            self
-        }
-
-        /// Selects the provider form field being searched.
-        pub fn field_name(mut self, field_name: Name) -> Self {
-            self.field_name = Some(field_name);
-            self
-        }
-
-        /// Sets the provider search string for form lookup.
-        pub fn search(mut self, search: SensitiveLookup) -> Self {
-            self.search = Some(search);
-            self
-        }
-
-        /// Finalizes the provider request descriptor after required fields are present and wrappers have validated local invariants.
-        pub fn build(self) -> Result<Search> {
-            Ok(Search {
-                form: self
-                    .form
-                    .ok_or(Error::MissingRequiredParameter { parameter: "form" })?,
-                field_name: self.field_name.ok_or(Error::MissingRequiredParameter {
-                    parameter: "field_name",
-                })?,
-                search: self.search.ok_or(Error::MissingRequiredParameter {
-                    parameter: "search",
-                })?,
-            })
-        }
     }
 
     impl Request for Search {

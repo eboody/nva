@@ -41,9 +41,9 @@ Use this order when adding or changing construction APIs.
 | `gingr::endpoint::commerce_retail::get::SubscriptionsBuilder` | Replaced by `bon::Builder` on `Subscriptions` | Optional filters with validation owned by field wrappers such as bill day and pagination. |
 | `gingr::endpoint::commerce_retail::list::TransactionsBuilder` | Kept manual, `build() -> endpoint::Result<Transactions>` | Legacy transaction dates are required and must stay before the invoice cutover. |
 | `gingr::endpoint::commerce_retail::list::InvoicesBuilder` | Kept manual, `build() -> endpoint::Result<Invoices>` | Invoice date filters are optional but must stay on or after the cutover when present. |
-| `gingr::endpoint::owners_animals::OwnersBuilder` | Intentionally manual | Provider `params[...]` where-clause accumulation is Gingr grammar, not domain search policy. |
-| `gingr::endpoint::owners_animals::AnimalsBuilder` | Intentionally manual | Same provider where-clause rule as owners, including provider expression keys. |
-| `gingr::endpoint::owners_animals::custom_field::SearchBuilder` | Kept manual, `build() -> endpoint::Result<Search>` | Form, field name, and lookup text are required; sensitive lookup redaction stays explicit. |
+| `gingr::endpoint::owners_animals::OwnersBuilder` | Replaced by `bon::Builder` on `Owners` | Provider `params[...]` where-clause grammar remains quarantined in `ProviderWhereClause`; builder accepts an auditable clause collection rather than hand-coded setters. |
+| `gingr::endpoint::owners_animals::AnimalsBuilder` | Replaced by `bon::Builder` on `Animals` | Same provider where-clause rule as owners, including provider expression keys. |
+| `gingr::endpoint::owners_animals::custom_field::SearchBuilder` | Replaced by `bon::Builder` on `Search` | Form, field name, and lookup text are compile-time required builder fields; sensitive lookup redaction stays explicit. |
 | `gingr::endpoint::reservations::reservation::TypesBuilder` | Replaced by `bon::Builder` on `Types` | Optional reservation-type filters only. |
 | `gingr::endpoint::reservations::reservation::WidgetDataBuilder` | Replaced by `bon::Builder` on `WidgetData` | Single required timestamp with provider `Date` validation already owned by the field type. |
 | `gingr::endpoint::reservations::reservation::SearchFiltersBuilder` | Kept manual | Repeated provider array parameters and status flags stay explicit; `bon` is allowed later only if array emission remains tested. |
