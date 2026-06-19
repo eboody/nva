@@ -44,38 +44,11 @@ simple_reference_endpoint!(GetSpecies, "/api/v1/get_species");
 simple_reference_endpoint!(GetBreeds, "/api/v1/get_breeds");
 simple_reference_endpoint!(GetTemperaments, "/api/v1/get_temperaments");
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, bon::Builder)]
 /// Request descriptor for Gingr veterinarian reference data observed by location and active flag.
 pub struct GetVets {
+    #[builder(default)]
     include_all_information: bool,
-}
-
-impl GetVets {
-    /// Starts a builder that makes each provider parameter explicit before request capture.
-    pub fn builder() -> GetVetsBuilder {
-        GetVetsBuilder::default()
-    }
-}
-
-#[derive(Clone, Debug, Default)]
-/// Builder for veterinarian lookup filters by provider location and active-only flag.
-pub struct GetVetsBuilder {
-    include_all_information: bool,
-}
-
-impl GetVetsBuilder {
-    /// Requests Gingr vet records with extended fields included.
-    pub fn include_all_information(mut self, include_all_information: bool) -> Self {
-        self.include_all_information = include_all_information;
-        self
-    }
-
-    /// Finalizes the provider request descriptor after required fields are present and wrappers have validated local invariants.
-    pub fn build(self) -> GetVets {
-        GetVets {
-            include_all_information: self.include_all_information,
-        }
-    }
 }
 
 impl Request for GetVets {

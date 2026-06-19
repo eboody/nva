@@ -1,4 +1,5 @@
 use chrono::{DateTime, NaiveDate, Utc};
+use strum::VariantArray;
 use uuid::Uuid;
 
 use app::{checkout_completion, crm_retention, manager_daily_brief};
@@ -290,6 +291,24 @@ fn manager_daily_brief_draft_side_effect_validation_rejects_unknown_effects_fail
     assert_eq!(
         manager_daily_brief::requested_side_effect_rejection_reason("invent_new_live_side_effect"),
         "unsupported_side_effect:invent_new_live_side_effect"
+    );
+}
+
+#[test]
+fn manager_daily_brief_blocked_action_codes_roundtrip_through_strum_metadata() {
+    for blocked_action in manager_daily_brief::BlockedAction::VARIANTS {
+        assert_eq!(blocked_action.to_string(), blocked_action.code());
+        assert_eq!(
+            manager_daily_brief::BlockedAction::from_requested_side_effect_code(
+                blocked_action.code()
+            ),
+            Some(*blocked_action)
+        );
+    }
+
+    assert_eq!(
+        manager_daily_brief::BlockedAction::from_requested_side_effect_code("unknown_side_effect"),
+        None
     );
 }
 

@@ -5,6 +5,7 @@
 //! This module is not permission for live automation. It does not assign trainers in a provider system, move waitlists, send customer messages, adjust packages or payments, or publish outcome/graduation claims. Source facts remain authoritative in `domain::entities`, `domain::care`, `domain::temperament`, `domain::payment`, `domain::policy`, `storage::service_line::training`, and provider/integration mappings; training values carry review gates so trainer, manager, payment, behavior/care, and member-facing approval boundaries protect pets, customers, and staff.
 
 use bon::Builder;
+use nonempty::NonEmpty;
 use nutype::nutype;
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -399,9 +400,30 @@ pub struct ProgressNote(String);
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 /// Training-domain validation failures that prevent unsupported reports, outcomes, or package usage from entering workflow state.
 pub enum Error {
+    #[error("training progress report id is required")]
+    /// Staff can see the missing progress report id before a draft report enters review.
+    ProgressReportIdRequired,
+    #[error("training progress report enrollment id is required")]
+    /// Staff can see the missing training enrollment id before a report enters review.
+    ProgressEnrollmentIdRequired,
+    #[error("training progress report session reference is required")]
+    /// Staff can see the missing session reference before a report enters review.
+    ProgressSessionRefRequired,
     #[error("training progress report requires evidence before it can be reviewed")]
     /// Staff can see the progress evidence required training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     ProgressEvidenceRequired,
+    #[error("training outcome documentation id is required")]
+    /// Staff can see the missing outcome documentation id before claims enter review.
+    OutcomeDocumentationIdRequired,
+    #[error("training outcome documentation enrollment id is required")]
+    /// Staff can see the missing training enrollment id before outcome documentation enters review.
+    OutcomeEnrollmentIdRequired,
+    #[error("training outcome documentation pet id is required")]
+    /// Staff can see the missing pet id before outcome documentation enters review.
+    OutcomePetIdRequired,
+    #[error("training outcome documentation location id is required")]
+    /// Staff can see the missing location id before outcome documentation enters review.
+    OutcomeLocationIdRequired,
     #[error("training outcome claim requires evidence for achieved/readiness claims")]
     /// Staff can see the outcome evidence required training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     OutcomeEvidenceRequired,
@@ -707,6 +729,43 @@ pub mod progress {
     use super::*;
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    /// Non-empty trainer/source evidence list for progress reports.
+    ///
+    /// Requiring evidence at construction time prevents draft automation from creating
+    /// unsupported parent-facing summaries and reduces labor-review cost: reviewers inspect
+    /// cited trainer/source facts instead of hunting for absent evidence after the report exists.
+    pub struct EvidenceSet(NonEmpty<ProgressEvidence>);
+
+    impl EvidenceSet {
+        /// Promotes report evidence into a non-empty set before report review can begin.
+        pub fn try_new(evidence: Vec<ProgressEvidence>) -> Result<Self> {
+            NonEmpty::from_vec(evidence)
+                .map(Self)
+                .ok_or(Error::ProgressEvidenceRequired)
+        }
+
+        /// Returns the first trainer/source evidence item; total because the set is non-empty by construction.
+        pub fn first(&self) -> &ProgressEvidence {
+            self.0.first()
+        }
+
+        /// Iterates over all trainer/source evidence that supports this report.
+        pub fn iter(&self) -> impl ExactSizeIterator<Item = &ProgressEvidence> {
+            self.0.iter()
+        }
+
+        /// Returns the trainer/source evidence that supports this report.
+        pub fn as_vec_refs(&self) -> Vec<&ProgressEvidence> {
+            self.iter().collect()
+        }
+
+        /// Returns the evidence list for serialization or boundary adapters that already accepted the invariant.
+        pub fn into_vec(self) -> Vec<ProgressEvidence> {
+            self.0.into()
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     /// Training progress report carrying session evidence, milestones, and approval state.
     pub struct Report {
         /// Report identifier used by staff to prepare training assignment, package, progress, or parent-summary review.
@@ -715,7 +774,7 @@ pub mod progress {
         pub enrollment_id: enrollment::Id,
         /// Session ref used by staff to prepare training assignment, package, progress, or parent-summary review.
         pub session_ref: SessionRef,
-        evidence: Vec<ProgressEvidence>,
+        evidence: EvidenceSet,
         milestones: Vec<curriculum::Progress>,
         approval: ApprovalState,
     }
@@ -727,7 +786,15 @@ pub mod progress {
         }
         /// Reports whether the progress report includes trainer/source evidence.
         pub fn has_evidence(&self) -> bool {
-            !self.evidence.is_empty()
+            true
+        }
+        /// Returns the first trainer/source evidence item; total because reports cannot exist without evidence.
+        pub fn first_evidence(&self) -> &ProgressEvidence {
+            self.evidence.first()
+        }
+        /// Returns the trainer/source evidence that supports this report.
+        pub fn evidence(&self) -> Vec<&ProgressEvidence> {
+            self.evidence.as_vec_refs()
         }
         /// Returns the milestones value used by training assignment, progress, package, or parent-summary review.
         pub fn milestones(&self) -> &[curriculum::Progress] {
@@ -795,16 +862,18 @@ pub mod progress {
             self.approval = Some(value);
             self
         }
-        /// Builds the report only when required evidence exists; missing IDs still indicate programmer misuse in tests/fixtures.
+        /// Builds the report only when required IDs and non-empty evidence exist.
+        ///
+        /// Typed errors make fixture and automation mistakes reviewable instead of panic-driven,
+        /// so unsupported progress packets cannot silently enter labor or customer-message queues.
         pub fn build(self) -> Result<Report> {
-            if self.evidence.is_empty() {
-                return Err(Error::ProgressEvidenceRequired);
-            }
             Ok(Report {
-                report_id: self.report_id.expect("report_id is required"),
-                enrollment_id: self.enrollment_id.expect("enrollment_id is required"),
-                session_ref: self.session_ref.expect("session_ref is required"),
-                evidence: self.evidence,
+                report_id: self.report_id.ok_or(Error::ProgressReportIdRequired)?,
+                enrollment_id: self
+                    .enrollment_id
+                    .ok_or(Error::ProgressEnrollmentIdRequired)?,
+                session_ref: self.session_ref.ok_or(Error::ProgressSessionRefRequired)?,
+                evidence: EvidenceSet::try_new(self.evidence)?,
                 milestones: self.milestones,
                 approval: self.approval.unwrap_or(ApprovalState::Draft),
             })
@@ -879,6 +948,43 @@ pub mod outcome {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    /// Non-empty outcome-claim list for documentation packets.
+    ///
+    /// Requiring at least one claim at construction time prevents empty graduation/readiness
+    /// documentation from reaching member-facing approval queues, so reviewers check concrete
+    /// trainer evidence instead of spending labor on unsupported shells.
+    pub struct Claims(NonEmpty<Claim>);
+
+    impl Claims {
+        /// Promotes outcome claims into a non-empty packet before documentation review can begin.
+        pub fn try_new(claims: Vec<Claim>) -> Result<Self> {
+            NonEmpty::from_vec(claims)
+                .map(Self)
+                .ok_or(Error::OutcomeClaimRequired)
+        }
+
+        /// Returns the first outcome claim; total because documentation cannot exist without at least one claim.
+        pub fn first(&self) -> &Claim {
+            self.0.first()
+        }
+
+        /// Iterates over every evidence-backed claim in this documentation packet.
+        pub fn iter(&self) -> impl ExactSizeIterator<Item = &Claim> {
+            self.0.iter()
+        }
+
+        /// Returns the evidence-backed claims in this documentation packet.
+        pub fn as_vec_refs(&self) -> Vec<&Claim> {
+            self.iter().collect()
+        }
+
+        /// Returns the claim list for serialization or boundary adapters that already accepted the invariant.
+        pub fn into_vec(self) -> Vec<Claim> {
+            self.0.into()
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     /// Training outcome documentation packet for customer/account history and manager review.
     pub struct Documentation {
         /// Documentation identifier used by staff to prepare training assignment, package, progress, or parent-summary review.
@@ -889,7 +995,7 @@ pub mod outcome {
         pub pet_id: PetId,
         /// Location identifier used by staff to prepare training assignment, package, progress, or parent-summary review.
         pub location_id: LocationId,
-        claims: Vec<Claim>,
+        claims: Claims,
         review: OutcomeReviewState,
     }
 
@@ -899,8 +1005,12 @@ pub mod outcome {
             DocumentationBuilder::default()
         }
         /// Returns the claims value used by training assignment, progress, package, or parent-summary review.
-        pub fn claims(&self) -> &[Claim] {
-            &self.claims
+        pub fn claims(&self) -> Vec<&Claim> {
+            self.claims.as_vec_refs()
+        }
+        /// Returns the first outcome claim; total because documentation cannot exist without at least one claim.
+        pub fn first_claim(&self) -> &Claim {
+            self.claims.first()
         }
         /// Returns the review value used by training assignment, progress, package, or parent-summary review.
         pub fn review(&self) -> &OutcomeReviewState {
@@ -964,17 +1074,21 @@ pub mod outcome {
             self.review = Some(value);
             self
         }
-        /// Builds the report only when required evidence exists; missing IDs still indicate programmer misuse in tests/fixtures.
+        /// Builds the documentation only when required IDs and at least one evidence-backed claim exist.
+        ///
+        /// Empty documentation and missing IDs are domain errors, not panics, because training
+        /// outcome packets may feed automated summaries and labor-review queues.
         pub fn build(self) -> Result<Documentation> {
-            if self.claims.is_empty() {
-                return Err(Error::OutcomeClaimRequired);
-            }
             Ok(Documentation {
-                documentation_id: self.documentation_id.expect("documentation_id is required"),
-                enrollment_id: self.enrollment_id.expect("enrollment_id is required"),
-                pet_id: self.pet_id.expect("pet_id is required"),
-                location_id: self.location_id.expect("location_id is required"),
-                claims: self.claims,
+                documentation_id: self
+                    .documentation_id
+                    .ok_or(Error::OutcomeDocumentationIdRequired)?,
+                enrollment_id: self
+                    .enrollment_id
+                    .ok_or(Error::OutcomeEnrollmentIdRequired)?,
+                pet_id: self.pet_id.ok_or(Error::OutcomePetIdRequired)?,
+                location_id: self.location_id.ok_or(Error::OutcomeLocationIdRequired)?,
+                claims: Claims::try_new(self.claims)?,
                 review: self.review.unwrap_or(OutcomeReviewState::Draft),
             })
         }

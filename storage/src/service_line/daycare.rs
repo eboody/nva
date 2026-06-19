@@ -7,21 +7,11 @@
 use serde::{Deserialize, Serialize};
 
 /// Storage shape for a migrated daycare service rules.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, derive_more::From, derive_more::Into,
+)]
 #[serde(transparent)]
 pub struct ContractRecord(pub domain::daycare::Contract);
-
-impl From<domain::daycare::Contract> for ContractRecord {
-    fn from(value: domain::daycare::Contract) -> Self {
-        Self(value)
-    }
-}
-
-impl From<ContractRecord> for domain::daycare::Contract {
-    fn from(record: ContractRecord) -> Self {
-        record.0
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

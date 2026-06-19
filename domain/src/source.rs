@@ -32,7 +32,19 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    strum::Display,
+    strum::EnumString,
+    strum::VariantArray,
+)]
+#[strum(serialize_all = "snake_case")]
 /// Upstream systems that can supply operational, POS, labor, or import data.
 pub enum System {
     /// Gingr reservation and pet-care operating system.
@@ -190,27 +202,49 @@ impl ObservedStatus {
 
 /// Source-record identity and relationship vocabulary used for provenance joins.
 pub mod record {
+    use nutype::nutype;
+    #[allow(unused_imports)]
     use serde::{Deserialize, Serialize};
 
-    use crate::source;
-
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+    #[nutype(
+        sanitize(trim),
+        validate(not_empty, len_char_max = 120),
+        derive(
+            Debug,
+            Clone,
+            PartialEq,
+            Eq,
+            PartialOrd,
+            Ord,
+            Hash,
+            AsRef,
+            Serialize,
+            Deserialize
+        )
+    )]
     /// Provider or source identifier retained as the stable join key.
     pub struct Id(String);
 
     impl Id {
-        /// Validates the source-record id retained as a stable reconciliation join key.
-        pub fn try_new(value: impl Into<String>) -> source::Result<Self> {
-            source::trimmed_non_empty(value, source::Error::EmptyRecordId).map(Self)
-        }
-
         /// Provider/read-model record id exposed for reconciliation joins.
         pub fn as_str(&self) -> &str {
-            &self.0
+            self.as_ref()
         }
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    #[derive(
+        Debug,
+        Clone,
+        Copy,
+        PartialEq,
+        Eq,
+        Serialize,
+        Deserialize,
+        strum::Display,
+        strum::EnumString,
+        strum::VariantArray,
+    )]
+    #[strum(serialize_all = "snake_case")]
     /// Kinds of related records that may be attached to source-data lineage.
     pub enum Role {
         /// Customer record participating in the workflow.
@@ -668,10 +702,16 @@ pub mod reservation {
             self
         }
 
-        /// Builds the source snapshot once required provenance and relationship evidence are present.
-        pub fn build(self) -> Snapshot {
-            Snapshot {
-                provenance: self.provenance.expect("snapshot provenance is required"),
+        /// Builds the source snapshot only after provenance and relationship evidence are present.
+        ///
+        /// Returning typed domain errors instead of panicking keeps imported reservation evidence
+        /// out of automation and labor-review queues until reviewers can see exactly which source
+        /// invariant is missing.
+        pub fn build(self) -> source::Result<Snapshot> {
+            Ok(Snapshot {
+                provenance: self
+                    .provenance
+                    .ok_or(source::Error::ReservationSnapshotProvenanceRequired)?,
                 customer_record_id: self.customer_record_id,
                 pet_record_id: self.pet_record_id,
                 location_record_id: self.location_record_id,
@@ -679,9 +719,9 @@ pub mod reservation {
                 status: self.status,
                 relationship: self
                     .relationship
-                    .expect("snapshot relationship is required"),
+                    .ok_or(source::Error::ReservationSnapshotRelationshipRequired)?,
                 assumptions: self.assumptions,
-            }
+            })
         }
     }
 }
@@ -1052,7 +1092,7 @@ pub mod gingr {
             }
 
             /// Promotes provider source data into the normalized domain snapshot.
-            pub fn promote(self) -> source::reservation::Snapshot {
+            pub fn promote(self) -> source::Result<source::reservation::Snapshot> {
                 let status = self.provider_status.map(ProviderStatus::promote);
                 let mut assumptions = vec![
                     source::reservation::Assumption::GrainTreatedAsReservation,
@@ -1154,10 +1194,16 @@ pub mod gingr {
                 self
             }
 
-            /// Builds the source snapshot once required provenance and relationship evidence are present.
-            pub fn build(self) -> Snapshot {
-                Snapshot {
-                    provenance: self.provenance.expect("snapshot provenance is required"),
+            /// Builds the Gingr source snapshot only after provenance and relationship evidence are present.
+            ///
+            /// Returning typed domain errors instead of panicking keeps provider-native reservation
+            /// evidence out of automation and labor-review queues until reviewers can see exactly
+            /// which Gingr source invariant is missing.
+            pub fn build(self) -> source::Result<Snapshot> {
+                Ok(Snapshot {
+                    provenance: self
+                        .provenance
+                        .ok_or(source::Error::GingrReservationSnapshotProvenanceRequired)?,
                     owner_provider_id: self.owner_provider_id,
                     animal_provider_id: self.animal_provider_id,
                     location_provider_id: self.location_provider_id,
@@ -1165,8 +1211,8 @@ pub mod gingr {
                     provider_status: self.provider_status,
                     relationship: self
                         .relationship
-                        .expect("snapshot relationship is required"),
-                }
+                        .ok_or(source::Error::GingrReservationSnapshotRelationshipRequired)?,
+                })
             }
         }
     }
@@ -1217,6 +1263,20 @@ pub enum Error {
     #[error("provider status must not be empty")]
     /// Signals that provider status was blank or missing during source validation.
     EmptyProviderStatus,
+    #[error("reservation snapshot requires provenance before source evidence can enter review")]
+    /// Signals that normalized reservation source snapshots were built without audit provenance.
+    ReservationSnapshotProvenanceRequired,
+    #[error("reservation snapshot requires owner/pet relationship evidence before review")]
+    /// Signals that normalized reservation source snapshots were built without owner/pet relationship evidence.
+    ReservationSnapshotRelationshipRequired,
+    #[error(
+        "Gingr reservation snapshot requires provenance before source evidence can enter review"
+    )]
+    /// Signals that Gingr-native reservation snapshots were built without provider provenance.
+    GingrReservationSnapshotProvenanceRequired,
+    #[error("Gingr reservation snapshot requires owner/animal relationship evidence before review")]
+    /// Signals that Gingr-native reservation snapshots were built without owner/animal relationship evidence.
+    GingrReservationSnapshotRelationshipRequired,
 }
 
 /// Result type returned by fallible source operations.

@@ -3,6 +3,7 @@ use storage::operations::{
     DataQualityHygieneOutcomeRecord, DataQualityHygienePersonaCode,
     DataQualityResolutionStatusCode, StoredDataQualityHygieneLaborMinutes, StoredSourceRecordRef,
 };
+use strum::VariantArray;
 
 #[test]
 fn data_quality_hygiene_outcome_record_codecs_preserve_labor_and_provenance() {
@@ -40,6 +41,28 @@ fn data_quality_hygiene_outcome_record_codecs_preserve_labor_and_provenance() {
 fn stored_data_quality_hygiene_minutes_reject_zero_values() {
     let error = StoredDataQualityHygieneLaborMinutes::try_new(0).unwrap_err();
     assert!(error.to_string().contains("must be greater than zero"));
+}
+
+#[test]
+fn data_quality_hygiene_storage_codes_roundtrip_through_strum_variant_metadata() {
+    for outcome in DataQualityHygieneOutcomeCode::VARIANTS {
+        assert_eq!(outcome.to_string().parse(), Ok(*outcome));
+    }
+
+    for persona in DataQualityHygienePersonaCode::VARIANTS {
+        assert_eq!(persona.to_string().parse(), Ok(*persona));
+    }
+
+    for action_kind in DataQualityHygieneActionKindCode::VARIANTS {
+        assert_eq!(action_kind.to_string().parse(), Ok(*action_kind));
+    }
+
+    for resolution_status in DataQualityResolutionStatusCode::VARIANTS {
+        assert_eq!(
+            resolution_status.to_string().parse(),
+            Ok(*resolution_status)
+        );
+    }
 }
 
 fn source_ref() -> StoredSourceRecordRef {

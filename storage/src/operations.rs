@@ -172,8 +172,20 @@ pub struct StoredSourceRecordRef {
     pub adapter_version: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    strum::Display,
+    strum::EnumString,
+    strum::VariantArray,
+)]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 /// Persisted outcome states for manager daily-brief actions.
 pub enum ManagerDailyBriefOutcomeCode {
     /// Workflow completed and can contribute final labor evidence.
@@ -186,8 +198,20 @@ pub enum ManagerDailyBriefOutcomeCode {
     SourceFactWasWrong,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    strum::Display,
+    strum::EnumString,
+    strum::VariantArray,
+)]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 /// Persisted staff personas accountable for manager daily-brief work.
 pub enum ManagerDailyBriefPersonaCode {
     /// Stable storage code for general manager.
@@ -200,8 +224,20 @@ pub enum ManagerDailyBriefPersonaCode {
     FrontDeskAgent,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    strum::Display,
+    strum::EnumString,
+    strum::VariantArray,
+)]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 /// Persisted manager daily-brief actions that can produce labor-minute evidence.
 pub enum ManagerDailyBriefActionKindCode {
     /// Stable storage code for review demand against staffing plan.
@@ -326,8 +362,20 @@ impl ManagerDailyBriefOutcomeRecord {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    strum::Display,
+    strum::EnumString,
+    strum::VariantArray,
+)]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 /// Persisted outcome states for data-quality hygiene actions.
 pub enum DataQualityHygieneOutcomeCode {
     /// Workflow completed and can contribute final labor evidence.
@@ -342,8 +390,20 @@ pub enum DataQualityHygieneOutcomeCode {
     NotActionable,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    strum::Display,
+    strum::EnumString,
+    strum::VariantArray,
+)]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 /// Persisted personas accountable for data-quality hygiene work.
 pub enum DataQualityHygienePersonaCode {
     /// Stable storage code for general manager.
@@ -360,8 +420,20 @@ pub enum DataQualityHygienePersonaCode {
     OperationsAnalyst,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    strum::Display,
+    strum::EnumString,
+    strum::VariantArray,
+)]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 /// Persisted data-quality actions used to quarantine, repair, or reconcile source evidence.
 pub enum DataQualityHygieneActionKindCode {
     /// Stable storage code for investigate missing source evidence.
@@ -380,8 +452,20 @@ pub enum DataQualityHygieneActionKindCode {
     EscalateSensitiveOrQuarantinedPayload,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    strum::Display,
+    strum::EnumString,
+    strum::VariantArray,
+)]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 /// Persisted lifecycle status for a data-quality issue after review.
 pub enum DataQualityResolutionStatusCode {
     /// Issue remains open after review.
@@ -540,17 +624,42 @@ impl PetResortPortfolioRecord {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    strum::Display,
+    strum::EnumString,
+    strum::VariantArray,
+)]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 /// Stable operator code used in portfolio seed records.
 pub enum OperatorCode {
     #[serde(rename = "nva")]
+    #[strum(serialize = "nva")]
     /// Stable storage code for national veterinary associates.
     NationalVeterinaryAssociates,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    strum::Display,
+    strum::EnumString,
+    strum::VariantArray,
+)]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 /// Stable portfolio-structure codes for pet-resort operating assumptions.
 pub enum PortfolioStructureCode {
     /// Stable storage code for federated multi brand.
@@ -561,8 +670,20 @@ pub enum PortfolioStructureCode {
     Unknown,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    strum::Display,
+    strum::EnumString,
+    strum::VariantArray,
+)]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 /// Stable business-line codes for NVA portfolio membership.
 pub enum BusinessLineCode {
     /// Stable storage code for general practice veterinary hospitals.
@@ -591,8 +712,20 @@ pub enum PetResortBrandRecord {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    strum::Display,
+    strum::EnumString,
+    strum::VariantArray,
+)]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 /// Stable brand codes for NVA pet-resort banners.
 pub enum PetResortBrandCode {
     /// Stable storage code for nva pet resorts.

@@ -295,7 +295,22 @@ pub enum SafeAgentAction {
     EstimateLaborMinutesSaved,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    strum::Display,
+    strum::EnumString,
+    strum::VariantArray,
+)]
+#[strum(serialize_all = "snake_case")]
 /// Actions the agent must never perform without a human/operator system of record.
 pub enum BlockedAction {
     /// Blocks agents from change staff schedule until staff or the system of record performs the action.
@@ -324,14 +339,7 @@ impl BlockedAction {
 
     /// Builds the from requested side effect code result for the manager daily brief workflow from reviewed source facts while preserving human review gates and draft-only side effects.
     pub fn from_requested_side_effect_code(code: &str) -> Option<Self> {
-        match code {
-            "change_staff_schedule" => Some(Self::ChangeStaffSchedule),
-            "mutate_provider_or_pms_record" => Some(Self::MutateProviderOrPmsRecord),
-            "send_customer_message" => Some(Self::SendCustomerMessage),
-            "move_refund_discount_or_payment" => Some(Self::MoveRefundDiscountOrPayment),
-            "hide_source_data_quality_issue" => Some(Self::HideSourceDataQualityIssue),
-            _ => None,
-        }
+        code.parse().ok()
     }
 }
 

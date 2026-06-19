@@ -9,21 +9,11 @@ use serde::{Deserialize, Serialize};
 use domain::retail::product;
 
 /// Storage shape for a migrated retail service rules.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, derive_more::From, derive_more::Into,
+)]
 #[serde(transparent)]
 pub struct ContractRecord(pub domain::retail::Contract);
-
-impl From<domain::retail::Contract> for ContractRecord {
-    fn from(value: domain::retail::Contract) -> Self {
-        Self(value)
-    }
-}
-
-impl From<ContractRecord> for domain::retail::Contract {
-    fn from(record: ContractRecord) -> Self {
-        record.0
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

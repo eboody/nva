@@ -8,21 +8,11 @@ use serde::{Deserialize, Serialize};
 
 use domain::operations::lodging_offer;
 /// Storage shape for a migrated boarding service rules.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, derive_more::From, derive_more::Into,
+)]
 #[serde(transparent)]
 pub struct ContractRecord(pub domain::boarding::Contract);
-
-impl From<domain::boarding::Contract> for ContractRecord {
-    fn from(value: domain::boarding::Contract) -> Self {
-        Self(value)
-    }
-}
-
-impl From<ContractRecord> for domain::boarding::Contract {
-    fn from(record: ContractRecord) -> Self {
-        record.0
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

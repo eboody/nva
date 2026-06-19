@@ -1,4 +1,6 @@
-use super::{AnimalId, FormId, Method, OwnerId, Request, ReservationId, non_empty_text};
+use super::{
+    AnimalId, Error, FormId, Method, OwnerId, Request, ReservationId, Result, non_empty_text,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 /// Opaque provider `where` clause string passed to Gingr owner/animal search endpoints.
@@ -338,12 +340,18 @@ pub mod custom_field {
         }
 
         /// Finalizes the provider request descriptor after required fields are present and wrappers have validated local invariants.
-        pub fn build(self) -> Search {
-            Search {
-                form: self.form.expect("Search requires form"),
-                field_name: self.field_name.expect("Search requires field_name"),
-                search: self.search.expect("Search requires search"),
-            }
+        pub fn build(self) -> Result<Search> {
+            Ok(Search {
+                form: self
+                    .form
+                    .ok_or(Error::MissingRequiredParameter { parameter: "form" })?,
+                field_name: self.field_name.ok_or(Error::MissingRequiredParameter {
+                    parameter: "field_name",
+                })?,
+                search: self.search.ok_or(Error::MissingRequiredParameter {
+                    parameter: "search",
+                })?,
+            })
         }
     }
 

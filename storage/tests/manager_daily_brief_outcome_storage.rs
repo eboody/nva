@@ -1,3 +1,5 @@
+use strum::VariantArray;
+
 #[test]
 fn manager_daily_brief_outcome_records_roundtrip_labor_savings_evidence() {
     let record = storage::operations::ManagerDailyBriefOutcomeRecord::builder()
@@ -51,6 +53,21 @@ fn manager_daily_brief_outcome_records_roundtrip_labor_savings_evidence() {
         decoded.reporting_group().owner_persona,
         storage::operations::ManagerDailyBriefPersonaCode::FrontDeskLead
     );
+}
+
+#[test]
+fn manager_daily_brief_storage_codes_roundtrip_through_strum_variant_metadata() {
+    for outcome in storage::operations::ManagerDailyBriefOutcomeCode::VARIANTS {
+        assert_eq!(outcome.to_string().parse(), Ok(*outcome));
+    }
+
+    for persona in storage::operations::ManagerDailyBriefPersonaCode::VARIANTS {
+        assert_eq!(persona.to_string().parse(), Ok(*persona));
+    }
+
+    for action_kind in storage::operations::ManagerDailyBriefActionKindCode::VARIANTS {
+        assert_eq!(action_kind.to_string().parse(), Ok(*action_kind));
+    }
 }
 
 #[test]

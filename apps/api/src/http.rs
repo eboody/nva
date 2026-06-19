@@ -1871,7 +1871,7 @@ fn validate_data_quality_hygiene_submitted_action(
         }
         None => reasons.push("unsupported_action_kind".to_owned()),
     }
-    reasons.sort();
+    reasons.sort_unstable();
     reasons.dedup();
     reasons
 }

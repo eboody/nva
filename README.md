@@ -90,6 +90,7 @@ The business acceptance lens and measurement docs are:
 - [Manager Daily Brief measurable labor loop](docs/design/manager-daily-brief-measurable-labor-loop.md)
 - [Data-quality hygiene local smoke](docs/ops/data-quality-hygiene-local-smoke.md)
 - [Agent/app infrastructure contract](docs/architecture/agent-app-infrastructure.md)
+- [Builder modernization policy](docs/architecture/builder-modernization-policy.md)
 - [Agent/app infrastructure readiness audit](docs/audits/2026-06-18-agent-app-infrastructure-readiness.md)
 - [Labor-cost platform readiness audit](docs/audits/2026-06-18-labor-cost-platform-readiness.md)
 

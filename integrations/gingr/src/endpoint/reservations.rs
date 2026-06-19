@@ -1,10 +1,12 @@
-use super::{AnimalId, Date, DateRange, IsoDate, Limit, LocationId, Method, OwnerId, Request};
+use super::{
+    AnimalId, Date, DateRange, Error, IsoDate, Limit, LocationId, Method, OwnerId, Request, Result,
+};
 
 /// Reservation request builders whose filters stay tied to Gingr ids, dates, and status tokens for reconciliation.
 pub mod reservation {
     use super::*;
 
-    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, derive_more::Display)]
     /// Provider reservation-type identifier used to classify boarding, daycare, grooming, training, or other Gingr service demand.
     pub struct TypeId(u64);
 
@@ -15,53 +17,11 @@ pub mod reservation {
         }
     }
 
-    impl core::fmt::Display for TypeId {
-        fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-            write!(formatter, "{}", self.0)
-        }
-    }
-
-    #[derive(Clone, Debug, Default, PartialEq, Eq)]
+    #[derive(Clone, Debug, Default, PartialEq, Eq, bon::Builder)]
     /// Request descriptor for Gingr reservation types, the provider lookup table behind service-line classification.
     pub struct Types {
         id: Option<TypeId>,
         active_only: Option<bool>,
-    }
-
-    impl Types {
-        /// Starts a builder that makes each provider parameter explicit before request capture.
-        pub fn builder() -> TypesBuilder {
-            TypesBuilder::default()
-        }
-    }
-
-    #[derive(Clone, Debug, Default)]
-    /// Builder for reservation-type lookup parameters without asserting NVA service-line semantics.
-    pub struct TypesBuilder {
-        id: Option<TypeId>,
-        active_only: Option<bool>,
-    }
-
-    impl TypesBuilder {
-        /// Narrows the provider lookup to one Gingr identifier when supplied.
-        pub fn id(mut self, id: TypeId) -> Self {
-            self.id = Some(id);
-            self
-        }
-
-        /// Restricts reservation-type results to active provider records.
-        pub fn active_only(mut self, active_only: bool) -> Self {
-            self.active_only = Some(active_only);
-            self
-        }
-
-        /// Finalizes the provider request descriptor after required fields are present and wrappers have validated local invariants.
-        pub fn build(self) -> Types {
-            Types {
-                id: self.id,
-                active_only: self.active_only,
-            }
-        }
     }
 
     impl Request for Types {
@@ -85,38 +45,10 @@ pub mod reservation {
         }
     }
 
-    #[derive(Clone, Debug, PartialEq, Eq)]
+    #[derive(Clone, Debug, PartialEq, Eq, bon::Builder)]
     /// Request descriptor for Gingr reservation widget data at a provider timestamp.
     pub struct WidgetData {
         timestamp: Date,
-    }
-
-    impl WidgetData {
-        /// Starts a builder that makes each provider parameter explicit before request capture.
-        pub fn builder() -> WidgetDataBuilder {
-            WidgetDataBuilder::default()
-        }
-    }
-
-    #[derive(Clone, Debug, Default)]
-    /// Builder for the reservation-widget timestamp filter.
-    pub struct WidgetDataBuilder {
-        timestamp: Option<Date>,
-    }
-
-    impl WidgetDataBuilder {
-        /// Sets the provider timestamp filter sent to the Gingr endpoint.
-        pub fn timestamp(mut self, timestamp: Date) -> Self {
-            self.timestamp = Some(timestamp);
-            self
-        }
-
-        /// Finalizes the provider request descriptor after required fields are present and wrappers have validated local invariants.
-        pub fn build(self) -> WidgetData {
-            WidgetData {
-                timestamp: self.timestamp.expect("WidgetData requires timestamp"),
-            }
-        }
     }
 
     impl Request for WidgetData {
@@ -397,12 +329,14 @@ pub mod by {
         }
 
         /// Finalizes the provider request descriptor after required fields are present and wrappers have validated local invariants.
-        pub fn build(self) -> Animal {
-            Animal {
-                animal_id: self.animal_id.expect("Animal requires animal_id"),
+        pub fn build(self) -> Result<Animal> {
+            Ok(Animal {
+                animal_id: self.animal_id.ok_or(Error::MissingRequiredParameter {
+                    parameter: "animal_id",
+                })?,
                 restrict_to: self.restrict_to,
                 filters: self.filters,
-            }
+            })
         }
     }
 
@@ -473,12 +407,14 @@ pub mod by {
         }
 
         /// Finalizes the provider request descriptor after required fields are present and wrappers have validated local invariants.
-        pub fn build(self) -> Owner {
-            Owner {
-                owner_id: self.owner_id.expect("Owner requires owner_id"),
+        pub fn build(self) -> Result<Owner> {
+            Ok(Owner {
+                owner_id: self.owner_id.ok_or(Error::MissingRequiredParameter {
+                    parameter: "owner_id",
+                })?,
                 restrict_to: self.restrict_to,
                 filters: self.filters,
-            }
+            })
         }
     }
 
@@ -504,7 +440,7 @@ pub mod by {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, derive_more::Display)]
 /// Positive future-minute window used by Gingr back-of-house operational views.
 pub struct MinutesFuture(u64);
 
@@ -515,12 +451,6 @@ impl MinutesFuture {
             return Err(super::Error::InvalidPositiveInteger { value });
         }
         Ok(Self(value))
-    }
-}
-
-impl core::fmt::Display for MinutesFuture {
-    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(formatter, "{}", self.0)
     }
 }
 
@@ -575,13 +505,15 @@ impl BackOfHouseBuilder {
     }
 
     /// Finalizes the provider request descriptor after required fields are present and wrappers have validated local invariants.
-    pub fn build(self) -> BackOfHouse {
-        BackOfHouse {
-            location: self.location.expect("BackOfHouse requires location"),
+    pub fn build(self) -> Result<BackOfHouse> {
+        Ok(BackOfHouse {
+            location: self.location.ok_or(Error::MissingRequiredParameter {
+                parameter: "location_id",
+            })?,
             reservation_type_ids: self.reservation_type_ids,
             minutes_future: self.minutes_future,
             full_day: self.full_day,
-        }
+        })
     }
 }
 

@@ -9,6 +9,7 @@ async-trait.workspace = true
 bon.workspace = true
 bytes.workspace = true
 chrono.workspace = true
+derive_more.workspace = true
 domain.workspace = true
 hmac.workspace = true
 reqwest.workspace = true

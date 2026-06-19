@@ -44,6 +44,49 @@ fn complete_source_snapshot() -> source::reservation::Snapshot {
         .status(source::reservation::Status::CheckedIn)
         .relationship(source::reservation::OwnerPetRelationship::Resolved)
         .build()
+        .unwrap()
+}
+
+#[test]
+fn source_snapshot_builder_returns_typed_errors_for_missing_provenance_or_relationship() {
+    let missing_provenance = source::reservation::Snapshot::builder()
+        .relationship(source::reservation::OwnerPetRelationship::Resolved)
+        .build();
+
+    assert_eq!(
+        missing_provenance,
+        Err(source::Error::ReservationSnapshotProvenanceRequired)
+    );
+
+    let missing_relationship = source::reservation::Snapshot::builder()
+        .provenance(source_provenance())
+        .build();
+
+    assert_eq!(
+        missing_relationship,
+        Err(source::Error::ReservationSnapshotRelationshipRequired)
+    );
+}
+
+#[test]
+fn gingr_snapshot_builder_returns_typed_errors_for_missing_source_evidence() {
+    let missing_provenance = source::gingr::reservation::Snapshot::builder()
+        .relationship(source::gingr::reservation::OwnerPetRelationship::Resolved)
+        .build();
+
+    assert_eq!(
+        missing_provenance,
+        Err(source::Error::GingrReservationSnapshotProvenanceRequired)
+    );
+
+    let missing_relationship = source::gingr::reservation::Snapshot::builder()
+        .provenance(gingr_provenance())
+        .build();
+
+    assert_eq!(
+        missing_relationship,
+        Err(source::Error::GingrReservationSnapshotRelationshipRequired)
+    );
 }
 
 #[test]
@@ -80,7 +123,9 @@ fn gingr_reservation_snapshot_promotes_to_source_agnostic_snapshot_with_assumpti
         .provider_status(source::gingr::ProviderStatus::try_new("checked_in").unwrap())
         .relationship(source::gingr::reservation::OwnerPetRelationship::Resolved)
         .build()
-        .promote();
+        .unwrap()
+        .promote()
+        .unwrap();
 
     assert_eq!(snapshot.provenance().system(), source::System::Gingr);
     assert_eq!(snapshot.provenance().record_id().as_str(), "reservation-42");
@@ -163,7 +208,8 @@ fn missing_and_ambiguous_source_facts_emit_typed_data_quality_issues() {
         .service_type_record_id(source::record::Id::try_new("boarding-suite").unwrap())
         .status(None)
         .relationship(source::reservation::OwnerPetRelationship::Ambiguous { candidate_count: 3 })
-        .build();
+        .build()
+        .unwrap();
 
     let issues =
         snapshot.data_quality_issues(source::Timestamp::try_new("2026-06-16T20:05:00Z").unwrap());
@@ -247,7 +293,8 @@ fn source_reservation_projection_preserves_nonblocking_data_quality_warnings_on_
         .assumptions(vec![
             source::reservation::Assumption::RawPayloadRetentionUnknown,
         ])
-        .build();
+        .build()
+        .unwrap();
 
     let fact = analytics::stay::Fact::project_from_source_reservation(
         analytics::stay::Id::try_new("stay-fact-warning").unwrap(),
@@ -288,7 +335,9 @@ fn source_specific_gingr_fixture_must_promote_before_projection_consumers_see_so
         .provider_status(source::gingr::ProviderStatus::try_new("checked_in").unwrap())
         .relationship(source::gingr::reservation::OwnerPetRelationship::Resolved)
         .build()
-        .promote();
+        .unwrap()
+        .promote()
+        .unwrap();
 
     let fact = analytics::stay::Fact::project_from_source_reservation(
         analytics::stay::Id::try_new("stay-fact-promoted").unwrap(),
@@ -318,7 +367,8 @@ fn incomplete_source_reservation_facts_return_typed_data_quality_issues_instead_
             observed: source::ObservedStatus::try_new("provider-specific-hold").unwrap(),
         })
         .relationship(source::reservation::OwnerPetRelationship::Resolved)
-        .build();
+        .build()
+        .unwrap();
 
     let issues = analytics::stay::Fact::project_from_source_reservation(
         analytics::stay::Id::try_new("stay-fact-43").unwrap(),

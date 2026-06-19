@@ -246,7 +246,7 @@ id_type!(SpeciesId);
 id_type!(FormId);
 id_type!(ReferenceId);
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, derive_more::Display)]
 /// Static Gingr API path emitted by an endpoint descriptor.
 pub struct Path(&'static str);
 
@@ -268,13 +268,7 @@ impl PartialEq<&str> for Path {
     }
 }
 
-impl fmt::Display for Path {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(self.0)
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, derive_more::Display)]
 /// Positive provider record limit used to bound Gingr list/search responses.
 pub struct Limit(u64);
 
@@ -285,12 +279,6 @@ impl Limit {
             return Err(Error::InvalidPositiveInteger { value });
         }
         Ok(Self(value))
-    }
-}
-
-impl fmt::Display for Limit {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "{}", self.0)
     }
 }
 

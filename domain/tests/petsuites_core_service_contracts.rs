@@ -640,6 +640,61 @@ fn progress_report_cannot_be_parent_facing_until_approved_even_when_evidence_exi
         }
     );
     assert!(report.has_evidence());
+    assert!(matches!(
+        report.first_evidence(),
+        training::ProgressEvidence::TrainerNote { .. }
+    ));
+}
+
+#[test]
+fn progress_evidence_set_exposes_a_total_first_evidence_accessor() {
+    let evidence =
+        training::progress::EvidenceSet::try_new(vec![training::ProgressEvidence::TrainerNote {
+            evidence_id: training::EvidenceId::try_new("evidence-1").unwrap(),
+            note: training::ProgressNote::try_new(" recall improved with long line ").unwrap(),
+        }])
+        .unwrap();
+
+    assert!(matches!(
+        evidence.first(),
+        training::ProgressEvidence::TrainerNote { .. }
+    ));
+}
+
+#[test]
+fn progress_report_builder_returns_typed_errors_for_missing_fields_and_evidence() {
+    assert_eq!(
+        training::progress::Report::builder().build(),
+        Err(training::Error::ProgressReportIdRequired)
+    );
+
+    let missing_evidence = training::progress::Report::builder()
+        .report_id(training::ProgressReportId::try_new("progress-missing-evidence").unwrap())
+        .enrollment_id(training::enrollment::Id::try_new("enroll-123").unwrap())
+        .session_ref(training::SessionRef::try_new("session-4").unwrap())
+        .build();
+
+    assert_eq!(
+        missing_evidence,
+        Err(training::Error::ProgressEvidenceRequired)
+    );
+}
+
+#[test]
+fn outcome_documentation_builder_returns_typed_errors_for_missing_fields_and_claims() {
+    assert_eq!(
+        training::outcome::Documentation::builder().build(),
+        Err(training::Error::OutcomeDocumentationIdRequired)
+    );
+
+    let missing_claims = training::outcome::Documentation::builder()
+        .documentation_id(training::OutcomeDocumentationId::try_new("outcome-empty").unwrap())
+        .enrollment_id(training::enrollment::Id::try_new("enroll-123").unwrap())
+        .pet_id(entities::PetId(Uuid::nil()))
+        .location_id(entities::LocationId(Uuid::nil()))
+        .build();
+
+    assert_eq!(missing_claims, Err(training::Error::OutcomeClaimRequired));
 }
 
 #[test]

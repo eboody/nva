@@ -78,11 +78,13 @@ fn reservations_by_pet_and_owner_encode_restrict_to_and_location_scope_caveat_fi
                 .limit(endpoint::Limit::new(50).unwrap())
                 .build(),
         )
-        .build();
+        .build()
+        .unwrap();
     let owner_request = endpoint::reservations::by::Owner::builder()
         .owner_id(endpoint::OwnerId::new(99))
         .restrict_to(endpoint::reservations::RestrictTo::CurrentlyCheckedIn)
-        .build();
+        .build()
+        .unwrap();
 
     let animal_sent = client.capture_request(&animal_request).unwrap();
     let owner_sent = client.capture_request(&owner_request).unwrap();
@@ -145,6 +147,28 @@ fn reservations_by_pet_and_owner_encode_restrict_to_and_location_scope_caveat_fi
 }
 
 #[test]
+fn reservations_by_animal_owner_and_back_of_house_return_typed_missing_parameter_errors() {
+    assert_eq!(
+        endpoint::reservations::by::Animal::builder().build(),
+        Err(endpoint::Error::MissingRequiredParameter {
+            parameter: "animal_id",
+        })
+    );
+    assert_eq!(
+        endpoint::reservations::by::Owner::builder().build(),
+        Err(endpoint::Error::MissingRequiredParameter {
+            parameter: "owner_id",
+        })
+    );
+    assert_eq!(
+        endpoint::reservations::BackOfHouse::builder().build(),
+        Err(endpoint::Error::MissingRequiredParameter {
+            parameter: "location_id",
+        })
+    );
+}
+
+#[test]
 fn owner_lookup_requires_one_discriminator_and_reference_endpoints_stay_typed() {
     let client = fake_client();
     let owner = endpoint::owners_animals::Owner::by_email(
@@ -188,12 +212,14 @@ fn forms_custom_field_and_back_of_house_are_explicitly_sensitive_or_v0_safe() {
         .form(endpoint::owners_animals::FormKind::Owner)
         .field_name(endpoint::owners_animals::custom_field::Name::new("preferred_contact").unwrap())
         .search(endpoint::owners_animals::SensitiveLookup::new("sms").unwrap())
-        .build();
+        .build()
+        .unwrap();
     let whiteboard = endpoint::reservations::BackOfHouse::builder()
         .location(endpoint::LocationId::new(3))
         .reservation_type_id(endpoint::reservations::reservation::TypeId::new(4))
         .minutes_future(endpoint::reservations::MinutesFuture::new(120).unwrap())
-        .build();
+        .build()
+        .unwrap();
 
     let form_sent = client.capture_request(&form).unwrap();
     let custom_sent = client.capture_request(&custom_search).unwrap();
@@ -243,6 +269,33 @@ fn forms_custom_field_and_back_of_house_are_explicitly_sensitive_or_v0_safe() {
 }
 
 #[test]
+fn custom_field_search_returns_typed_missing_parameter_errors() {
+    assert_eq!(
+        endpoint::owners_animals::custom_field::Search::builder().build(),
+        Err(endpoint::Error::MissingRequiredParameter { parameter: "form" })
+    );
+    assert_eq!(
+        endpoint::owners_animals::custom_field::Search::builder()
+            .form(endpoint::owners_animals::FormKind::Owner)
+            .build(),
+        Err(endpoint::Error::MissingRequiredParameter {
+            parameter: "field_name",
+        })
+    );
+    assert_eq!(
+        endpoint::owners_animals::custom_field::Search::builder()
+            .form(endpoint::owners_animals::FormKind::Owner)
+            .field_name(
+                endpoint::owners_animals::custom_field::Name::new("preferred_contact").unwrap(),
+            )
+            .build(),
+        Err(endpoint::Error::MissingRequiredParameter {
+            parameter: "search",
+        })
+    );
+}
+
+#[test]
 fn provider_dtos_preserve_unknown_fields_and_mappers_promote_only_existing_domain_values() {
     let owner: response::OwnerRecord = serde_json::from_value(serde_json::json!({
         "id": 42,
@@ -278,6 +331,19 @@ fn provider_dtos_preserve_unknown_fields_and_mappers_promote_only_existing_domai
     assert_eq!(pet.provider_animal_id, endpoint::AnimalId::new(9));
     assert!(owner.unknown.contains_key("password"));
     assert!(animal.unknown.contains_key("custom_provider_blob"));
+
+    let owner_roundtrip: response::OwnerRecord = serde_json::from_value(
+        serde_json::to_value(&owner)
+            .expect("owner DTO serializes with quarantined provider fields"),
+    )
+    .expect("owner DTO deserializes after serialization");
+    let animal_roundtrip: response::AnimalRecord = serde_json::from_value(
+        serde_json::to_value(&animal)
+            .expect("animal DTO serializes with quarantined provider fields"),
+    )
+    .expect("animal DTO deserializes after serialization");
+    assert_eq!(owner_roundtrip, owner);
+    assert_eq!(animal_roundtrip, animal);
 }
 
 #[test]
@@ -292,6 +358,15 @@ fn retail_item_dto_promotes_documented_provider_surface_into_retail_product_cand
         "provider_only_shape": {"kept": true}
     }))
     .unwrap();
+    let alias_item: dto::retail::Item = serde_json::from_value(serde_json::json!({
+        "id": 42,
+        "name": " Puzzle Feeder ",
+        "sku": " PUZZLE-FEED ",
+        "retail_category": "toy",
+        "active": false,
+        "quantity_on_hand": 0
+    }))
+    .unwrap();
 
     let candidate = mapping::retail::product_candidate(&item).unwrap();
 
@@ -304,6 +379,14 @@ fn retail_item_dto_promotes_documented_provider_surface_into_retail_product_cand
     );
     assert_eq!(candidate.status, retail::OfferingStatus::Active);
     assert!(item.unknown.contains_key("provider_only_shape"));
+    assert_eq!(alias_item.category.as_deref(), Some("toy"));
+
+    let item_roundtrip: dto::retail::Item = serde_json::from_value(
+        serde_json::to_value(&item)
+            .expect("retail DTO serializes with quarantined provider fields"),
+    )
+    .expect("retail DTO deserializes after serialization");
+    assert_eq!(item_roundtrip, item);
 }
 
 #[test]

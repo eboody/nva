@@ -72,7 +72,8 @@ impl fmt::Display for SignatureKey {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, strum::AsRefStr, strum::EnumString)]
+#[strum(serialize_all = "snake_case")]
 /// Gingr webhook event names normalized from provider strings while retaining unknown events.
 pub enum EventType {
     /// Gingr event fired when a reservation checks in.
@@ -100,50 +101,35 @@ pub enum EventType {
     /// Gingr event for a newly created lead.
     LeadCreated,
     /// Provider supplied an unrecognized value; preserve it for audit instead of failing closed.
+    #[strum(default)]
     Unknown(String),
 }
 
 impl EventType {
     /// Normalizes a Gingr webhook token while preserving unknown values for source audit.
     pub fn parse(raw: impl AsRef<str>) -> Self {
-        match raw.as_ref() {
-            "check_in" => Self::CheckIn,
-            "check_out" => Self::CheckOut,
-            "checking_in" => Self::CheckingIn,
-            "checking_out" => Self::CheckingOut,
-            "email_sent" => Self::EmailSent,
-            "owner_created" => Self::OwnerCreated,
-            "owner_edited" => Self::OwnerEdited,
-            "animal_created" => Self::AnimalCreated,
-            "animal_edited" => Self::AnimalEdited,
-            "incident_created" => Self::IncidentCreated,
-            "incident_edited" => Self::IncidentEdited,
-            "lead_created" => Self::LeadCreated,
-            other => Self::Unknown(other.to_owned()),
-        }
+        raw.as_ref()
+            .parse()
+            .expect("strum default preserves unknown Gingr webhook event codes")
     }
 
     /// Returns the exact Gingr token used when acknowledging or auditing provider events.
     pub fn as_provider_str(&self) -> &str {
         match self {
-            Self::CheckIn => "check_in",
-            Self::CheckOut => "check_out",
-            Self::CheckingIn => "checking_in",
-            Self::CheckingOut => "checking_out",
-            Self::EmailSent => "email_sent",
-            Self::OwnerCreated => "owner_created",
-            Self::OwnerEdited => "owner_edited",
-            Self::AnimalCreated => "animal_created",
-            Self::AnimalEdited => "animal_edited",
-            Self::IncidentCreated => "incident_created",
-            Self::IncidentEdited => "incident_edited",
-            Self::LeadCreated => "lead_created",
-            Self::Unknown(raw) => raw,
+            Self::Unknown(raw) => raw.as_str(),
+            known => known.as_ref(),
         }
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+impl fmt::Display for EventType {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_provider_str())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, strum::AsRefStr, strum::EnumString)]
+#[strum(serialize_all = "snake_case")]
 /// Gingr webhook entity classes normalized from provider strings while retaining unknown entities.
 pub enum EntityType {
     /// Webhook entity is a Gingr reservation.
@@ -157,32 +143,30 @@ pub enum EntityType {
     /// Provider value refers to a Gingr lead.
     Lead,
     /// Provider supplied an unrecognized value; preserve it for audit instead of failing closed.
+    #[strum(default)]
     Unknown(String),
 }
 
 impl EntityType {
     /// Normalizes a Gingr webhook token while preserving unknown values for source audit.
     pub fn parse(raw: impl AsRef<str>) -> Self {
-        match raw.as_ref() {
-            "reservation" => Self::Reservation,
-            "owner" => Self::Owner,
-            "animal" => Self::Animal,
-            "incident" => Self::Incident,
-            "lead" => Self::Lead,
-            other => Self::Unknown(other.to_owned()),
-        }
+        raw.as_ref()
+            .parse()
+            .expect("strum default preserves unknown Gingr webhook entity codes")
     }
 
     /// Returns the exact Gingr token used when acknowledging or auditing provider events.
     pub fn as_provider_str(&self) -> &str {
         match self {
-            Self::Reservation => "reservation",
-            Self::Owner => "owner",
-            Self::Animal => "animal",
-            Self::Incident => "incident",
-            Self::Lead => "lead",
-            Self::Unknown(raw) => raw,
+            Self::Unknown(raw) => raw.as_str(),
+            known => known.as_ref(),
         }
+    }
+}
+
+impl fmt::Display for EntityType {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_provider_str())
     }
 }
 

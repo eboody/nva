@@ -9,8 +9,10 @@ async-trait.workspace = true
 bon.workspace = true
 chrono.workspace = true
 nutype.workspace = true
+nonempty.workspace = true
 serde.workspace = true
 statum.workspace = true
+strum.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
 

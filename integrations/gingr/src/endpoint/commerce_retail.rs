@@ -36,7 +36,7 @@ pub mod get {
         }
     }
 
-    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, derive_more::Display)]
     /// Provider subscription identifier used when requesting one Gingr package/subscription record.
     pub struct SubscriptionId(u64);
 
@@ -44,12 +44,6 @@ pub mod get {
         /// Wraps the Gingr value used by this commerce request without treating it as NVA billing truth.
         pub fn new(value: u64) -> Self {
             Self(value)
-        }
-    }
-
-    impl core::fmt::Display for SubscriptionId {
-        fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-            write!(formatter, "{}", self.0)
         }
     }
 
@@ -80,7 +74,7 @@ pub mod get {
         }
     }
 
-    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, derive_more::Display)]
     /// Validated month-day filter accepted by Gingr subscription endpoints.
     pub struct BillDayOfMonth(u8);
 
@@ -95,13 +89,7 @@ pub mod get {
         }
     }
 
-    impl core::fmt::Display for BillDayOfMonth {
-        fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-            write!(formatter, "{}", self.0)
-        }
-    }
-
-    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, derive_more::Display)]
     /// Provider package identifier used to filter Gingr subscriptions.
     pub struct PackageId(u64);
 
@@ -109,12 +97,6 @@ pub mod get {
         /// Wraps the Gingr value used by this commerce request without treating it as NVA billing truth.
         pub fn new(value: u64) -> Self {
             Self(value)
-        }
-    }
-
-    impl core::fmt::Display for PackageId {
-        fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-            write!(formatter, "{}", self.0)
         }
     }
 
@@ -132,7 +114,7 @@ pub mod get {
         }
     }
 
-    #[derive(Clone, Debug, Default, PartialEq, Eq)]
+    #[derive(Clone, Debug, Default, PartialEq, Eq, bon::Builder)]
     /// Request descriptor for Gingr subscriptions/packages, including owner, bill-day, location, package, and deletion filters.
     pub struct Subscriptions {
         include_deleted: Option<bool>,
@@ -141,74 +123,6 @@ pub mod get {
         pagination: Option<SubscriptionPagination>,
         location_id: Option<LocationId>,
         package_id: Option<PackageId>,
-    }
-
-    impl Subscriptions {
-        /// Starts a builder that makes each provider parameter explicit before request capture.
-        pub fn builder() -> SubscriptionsBuilder {
-            SubscriptionsBuilder::default()
-        }
-    }
-
-    #[derive(Clone, Debug, Default)]
-    /// Builder for Gingr subscription filters without turning package data into NVA revenue facts.
-    pub struct SubscriptionsBuilder {
-        include_deleted: Option<bool>,
-        bill_day_of_month: Option<BillDayOfMonth>,
-        owner_id: Option<OwnerId>,
-        pagination: Option<SubscriptionPagination>,
-        location_id: Option<LocationId>,
-        package_id: Option<PackageId>,
-    }
-
-    impl SubscriptionsBuilder {
-        /// Includes deleted provider records when Gingr supports that filter.
-        pub fn include_deleted(mut self, include_deleted: bool) -> Self {
-            self.include_deleted = Some(include_deleted);
-            self
-        }
-
-        /// Filters subscriptions by provider bill day of month.
-        pub fn bill_day_of_month(mut self, bill_day_of_month: BillDayOfMonth) -> Self {
-            self.bill_day_of_month = Some(bill_day_of_month);
-            self
-        }
-
-        /// Narrows the provider request to one Gingr owner/customer identifier.
-        pub fn owner_id(mut self, owner_id: OwnerId) -> Self {
-            self.owner_id = Some(owner_id);
-            self
-        }
-
-        /// Applies provider pagination controls to the request.
-        pub fn pagination(mut self, pagination: SubscriptionPagination) -> Self {
-            self.pagination = Some(pagination);
-            self
-        }
-
-        /// Scopes the Gingr endpoint request to a location.
-        pub fn location_id(mut self, location_id: LocationId) -> Self {
-            self.location_id = Some(location_id);
-            self
-        }
-
-        /// Filters subscription requests to a package identifier.
-        pub fn package_id(mut self, package_id: PackageId) -> Self {
-            self.package_id = Some(package_id);
-            self
-        }
-
-        /// Finalizes the provider request descriptor after required fields are present and wrappers have validated local invariants.
-        pub fn build(self) -> Subscriptions {
-            Subscriptions {
-                include_deleted: self.include_deleted,
-                bill_day_of_month: self.bill_day_of_month,
-                owner_id: self.owner_id,
-                pagination: self.pagination,
-                location_id: self.location_id,
-                package_id: self.package_id,
-            }
-        }
     }
 
     impl Request for Subscriptions {
@@ -443,7 +357,7 @@ pub mod list {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, derive_more::Display)]
 /// Provider transaction identifier used when requesting one Gingr transaction record.
 pub struct TransactionId(u64);
 
@@ -451,12 +365,6 @@ impl TransactionId {
     /// Wraps the Gingr transaction id used to fetch raw payment evidence for review.
     pub fn new(value: u64) -> Self {
         Self(value)
-    }
-}
-
-impl core::fmt::Display for TransactionId {
-    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(formatter, "{}", self.0)
     }
 }
 

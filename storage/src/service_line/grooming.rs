@@ -11,21 +11,11 @@ use domain::grooming::rebooking;
 use crate::operations::{self, StorageField};
 
 /// Storage shape for a migrated grooming service rules.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, derive_more::From, derive_more::Into,
+)]
 #[serde(transparent)]
 pub struct ContractRecord(pub domain::grooming::Contract);
-
-impl From<domain::grooming::Contract> for ContractRecord {
-    fn from(value: domain::grooming::Contract) -> Self {
-        Self(value)
-    }
-}
-
-impl From<ContractRecord> for domain::grooming::Contract {
-    fn from(record: ContractRecord) -> Self {
-        record.0
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

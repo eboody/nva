@@ -10,7 +10,7 @@ fn push_optional<T: core::fmt::Display>(
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, derive_more::Display)]
 /// Gingr user identifier accepted by labor-operation endpoints.
 pub struct UserId(u64);
 
@@ -18,12 +18,6 @@ impl UserId {
     /// Wraps the Gingr staff/user id used to filter timeclock evidence for labor review.
     pub fn new(value: u64) -> Self {
         Self(value)
-    }
-}
-
-impl core::fmt::Display for UserId {
-    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(formatter, "{}", self.0)
     }
 }
 

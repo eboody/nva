@@ -11,21 +11,11 @@ use domain::training::program;
 use crate::operations::{self, StorageField};
 
 /// Storage shape for a migrated training service rules.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, derive_more::From, derive_more::Into,
+)]
 #[serde(transparent)]
 pub struct ContractRecord(pub domain::training::Contract);
-
-impl From<domain::training::Contract> for ContractRecord {
-    fn from(value: domain::training::Contract) -> Self {
-        Self(value)
-    }
-}
-
-impl From<ContractRecord> for domain::training::Contract {
-    fn from(record: ContractRecord) -> Self {
-        record.0
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
