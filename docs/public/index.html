@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NVA Pet Resorts AI workflow evidence</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f2eb;
+      --panel: #fffaf3;
+      --ink: #17211a;
+      --muted: #536052;
+      --line: #dbcdbd;
+      --accent: #1e5f46;
+      --accent-2: #8a4f14;
+      --danger: #8c2f25;
+      --ready: #245f43;
+      --planned: #68502b;
+      --shadow: 0 18px 45px rgb(23 33 26 / 10%);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at top left, rgb(30 95 70 / 14%), transparent 34rem),
+        radial-gradient(circle at top right, rgb(138 79 20 / 12%), transparent 30rem),
+        var(--bg);
+      color: var(--ink);
+      line-height: 1.55;
+    }
+
+    a { color: var(--accent); font-weight: 650; text-decoration-thickness: .08em; text-underline-offset: .18em; }
+    a:hover { color: var(--accent-2); }
+
+    header, main, footer { max-width: 1180px; margin: 0 auto; padding: 0 1.25rem; }
+
+    header { padding-top: 3rem; padding-bottom: 1rem; }
+
+    .eyebrow {
+      color: var(--accent-2);
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      font-size: .78rem;
+      margin: 0 0 .8rem;
+    }
+
+    h1, h2, h3 { line-height: 1.12; margin: 0; }
+    h1 { max-width: 920px; font-size: clamp(2.6rem, 7vw, 5.3rem); letter-spacing: -.06em; }
+    h2 { font-size: clamp(1.75rem, 4vw, 3rem); letter-spacing: -.035em; margin-bottom: 1rem; }
+    h3 { font-size: 1.2rem; margin-bottom: .55rem; }
+    p { margin: 0 0 1rem; }
+
+    .hero {
+      display: grid;
+      gap: 2rem;
+      grid-template-columns: minmax(0, 1.45fr) minmax(280px, .75fr);
+      align-items: stretch;
+      padding: 2rem 0 3rem;
+    }
+
+    .lead {
+      font-size: clamp(1.15rem, 2.4vw, 1.55rem);
+      color: var(--muted);
+      max-width: 870px;
+      margin-top: 1.4rem;
+    }
+
+    .hero-card, .panel, .path-card, .workflow-card, .evidence-card {
+      background: color-mix(in srgb, var(--panel) 88%, white 12%);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero-card { padding: 1.4rem; }
+    .hero-card strong { color: var(--accent); }
+    .hero-card ul { margin: .8rem 0 0; padding-left: 1.2rem; }
+
+    nav.ctas { display: flex; flex-wrap: wrap; gap: .7rem; margin-top: 1.6rem; }
+    nav.ctas a {
+      border: 1px solid var(--accent);
+      background: var(--accent);
+      color: white;
+      border-radius: 999px;
+      padding: .72rem 1rem;
+      text-decoration: none;
+    }
+    nav.ctas a.secondary { background: transparent; color: var(--accent); }
+
+    section { padding: 2.2rem 0; }
+    .panel { padding: clamp(1rem, 3vw, 2rem); }
+    .grid { display: grid; gap: 1rem; }
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+    .workflow-card, .path-card, .evidence-card { padding: 1.15rem; box-shadow: none; }
+    .status { display: inline-block; border-radius: 999px; padding: .22rem .6rem; font-size: .75rem; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; }
+    .status.ready { background: rgb(36 95 67 / 12%); color: var(--ready); }
+    .status.planned { background: rgb(104 80 43 / 14%); color: var(--planned); }
+    .status.blocked { background: rgb(140 47 37 / 12%); color: var(--danger); }
+
+    table { border-collapse: collapse; width: 100%; background: var(--panel); border-radius: 18px; overflow: hidden; }
+    th, td { border-bottom: 1px solid var(--line); padding: .85rem; text-align: left; vertical-align: top; }
+    th { background: rgb(30 95 70 / 9%); }
+    tr:last-child td { border-bottom: 0; }
+
+    .link-list { display: grid; gap: .45rem; padding: 0; margin: .75rem 0 0; list-style: none; }
+    .link-list li { padding-left: 1rem; position: relative; }
+    .link-list li::before { content: "•"; position: absolute; left: 0; color: var(--accent-2); }
+
+    .safety {
+      border-left: .45rem solid var(--danger);
+      background: rgb(140 47 37 / 7%);
+      box-shadow: none;
+    }
+
+    code { background: rgb(23 33 26 / 8%); border-radius: .35rem; padding: .08rem .28rem; }
+    footer { color: var(--muted); padding-top: 1.5rem; padding-bottom: 3rem; }
+
+    @media (max-width: 850px) {
+      .hero, .grid.two, .grid.three { grid-template-columns: 1fr; }
+      header { padding-top: 1.8rem; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <p class="eyebrow">NVA Pet Resorts · source-grounded AI workflow evidence</p>
+    <div class="hero">
+      <div>
+        <h1>Safe AI workflows for reducing pet-resort labor cost</h1>
+        <p class="lead">This repo demonstrates how a deterministic pet-resort app can give agents source-grounded context, validate reviewable drafts, block unsafe side effects, and capture labor-minute outcomes for managers and front-desk teams.</p>
+        <nav class="ctas" aria-label="Primary navigation">
+          <a href="#labor-thesis">See the labor-cost thesis</a>
+          <a href="#workflows" class="secondary">Start with workflows</a>
+          <a href="#safety" class="secondary">Review safety boundaries</a>
+          <a href="#glossary-translation" class="secondary">Translate repo terms</a>
+          <a href="#rustdocs" class="secondary">Inspect Rustdocs evidence</a>
+        </nav>
+      </div>
+      <aside class="hero-card" aria-label="What this is not">
+        <h2 style="font-size:1.35rem;letter-spacing:-.02em">What this is</h2>
+        <p>A safe automation foundation for pet-resort operations: source facts, workflow state, review gates, draft workflows, storage/audit records, and provider integration boundaries.</p>
+        <p><strong>What it is not:</strong> a claim that agents can operate live NVA systems, message customers, change schedules, move money, or resolve ambiguous source facts without deterministic app approvals and human review.</p>
+      </aside>
+    </div>
+  </header>
+
+  <main>
+    <section id="labor-thesis" class="panel">
+      <p class="eyebrow">Executive thesis</p>
+      <h2>Labor cost falls when staff stop rediscovering the same source facts</h2>
+      <p>Across a 170-site pet-resort operating context, repeated manager and front-desk work appears in morning dashboard reconciliation, checkout exception review, retention prioritization, source-data cleanup, and repetitive customer or staff drafts. The useful AI pattern is not a free-form chatbot. It is source-grounded workflow automation with review gates and measured outcomes.</p>
+      <p>The app owns source facts, workflow state, policy gates, audit trails, outcome capture, and every external side effect. Agents only summarize, rank, draft, and recommend from app-owned context packets.</p>
+      <ul class="link-list">
+        <li><a href="https://github.com/eboody/nva/blob/main/nva-pet-resorts-ai-context.md">Business context: NVA Pet Resorts AI lens</a></li>
+        <li><a href="https://github.com/eboody/nva/blob/main/docs/design/labor-cost-reduction-crosswalk.md">Labor-cost reduction crosswalk</a></li>
+        <li><a href="https://github.com/eboody/nva/blob/main/docs/audits/2026-06-18-labor-cost-platform-readiness.md">Readiness memo: what is ready vs blocked</a></li>
+      </ul>
+    </section>
+
+    <section id="what-is-here">
+      <p class="eyebrow">What is here</p>
+      <h2>Plain-English lead before the crate list</h2>
+      <div class="grid two">
+        <div class="panel">
+          <h3>Plain-language map</h3>
+          <p>The repository models operating facts, source evidence, review gates, draft workflows, storage records, and integration boundaries so AI agents can help staff without owning business truth.</p>
+          <ul>
+            <li>Pet-resort facts and policy explain what staff can trust, when facts are ambiguous, and what must stay reviewed.</li>
+            <li>Reviewable workflow packets explain what an agent may draft or recommend for a manager, front desk, or reviewer.</li>
+            <li>Outcome and audit records explain what work was completed, deferred, suppressed, or sent back as wrong-source cleanup.</li>
+            <li>Gingr/source-system boundaries explain how provider data becomes evidence before any workflow uses it.</li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h3>Audience paths</h3>
+          <p>Start with the path that matches the decision you need to make, then use the Rustdocs as code-derived evidence after the business explanation.</p>
+          <ul class="link-list">
+            <li><a href="#audiences">Operations leader</a>: labor saved, status, and human-owned approvals.</li>
+            <li><a href="#audiences">AI program evaluator</a>: governed agent/app workflow pattern.</li>
+            <li><a href="#audiences">Safety/compliance reviewer</a>: blocked side effects, review gates, and audit evidence.</li>
+            <li><a href="#audiences">Gingr/source-data owner</a>: source-system evidence, provider mappings, and no blind PMS mutation.</li>
+            <li><a href="#audiences">Developer</a>: code-derived contract pages and implementation paths.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="glossary-translation" class="panel">
+      <p class="eyebrow">Glossary translation layer</p>
+      <h2>Use nearby term explanations before reading Rust names</h2>
+      <p>When a non-coder sees repo terms such as <code>domain</code>, workflow packet, source ref, DTO, or blocked action, these glossary links translate the code-derived contract into pet-resort operational meaning without turning it into a detached dictionary.</p>
+      <div class="grid three">
+        <article class="path-card">
+          <h3>Architecture layers</h3>
+          <p><a href="https://github.com/eboody/nva/blob/main/docs/glossary-architecture-terms.md#domain">domain</a> is business truth, <a href="https://github.com/eboody/nva/blob/main/docs/glossary-architecture-terms.md#app">app</a> builds workflow/review bundles, and <a href="https://github.com/eboody/nva/blob/main/docs/glossary-architecture-terms.md#storage">storage</a> persists projections and outcomes.</p>
+        </article>
+        <article class="path-card">
+          <h3>Source evidence</h3>
+          <p><a href="https://github.com/eboody/nva/blob/main/docs/glossary-source-data-terms.md#domainsourcesystemgingr-gingr">Gingr</a>, <a href="https://github.com/eboody/nva/blob/main/docs/glossary-source-data-terms.md#provider-record">provider records</a>, <a href="https://github.com/eboody/nva/blob/main/docs/glossary-architecture-terms.md#dto">DTOs</a>, <a href="https://github.com/eboody/nva/blob/main/docs/glossary-architecture-terms.md#source-ref-domainsourcerecordref">source refs</a>, and <a href="https://github.com/eboody/nva/blob/main/docs/glossary-architecture-terms.md#provenance-domainsourceprovenance">provenance</a> explain what evidence exists and what it still does not authorize.</p>
+        </article>
+        <article class="path-card">
+          <h3>Workflow safety</h3>
+          <p><a href="https://github.com/eboody/nva/blob/main/docs/glossary-workflow-state-terms.md#workflow-packet">workflow packets</a>, <a href="https://github.com/eboody/nva/blob/main/docs/glossary-workflow-state-terms.md#draft">drafts</a>, <a href="https://github.com/eboody/nva/blob/main/docs/glossary-workflow-state-terms.md#review-gate">review gates</a>, <a href="https://github.com/eboody/nva/blob/main/docs/glossary-workflow-state-terms.md#blocked-action">blocked actions</a>, and <a href="https://github.com/eboody/nva/blob/main/docs/glossary-workflow-state-terms.md#outcome-capture">outcome capture</a> explain why agent help stays reviewable and measured.</p>
+        </article>
+      </div>
+      <ul class="link-list">
+        <li><a href="https://github.com/eboody/nva/blob/main/docs/glossary.md">Full glossary index</a> for readers moving between landing pages, operator workflow docs, and generated Rustdocs.</li>
+      </ul>
+    </section>
+
+    <section id="workflows">
+      <p class="eyebrow">Workflow map</p>
+      <h2>Start from labor loops, not crate names</h2>
+      <div class="grid two">
+        <article class="workflow-card">
+          <span class="status ready">strongest current loop</span>
+          <h3>Manager Daily Brief</h3>
+          <p>A GM/AGM starts the day with ranked actions for demand-versus-staffing, checkout exceptions, retention follow-up, and data-quality issues. Each action carries source evidence, owner persona, review gate, blocked side effects, and estimated/actual labor-minute tracking.</p>
+          <ul class="link-list">
+            <li><a href="https://github.com/eboody/nva/blob/main/docs/design/manager-daily-brief-measurable-labor-loop.md">Manager Daily Brief labor loop</a></li>
+            <li><a href="https://github.com/eboody/nva/blob/main/docs/ops/manager-daily-brief-local-smoke.md">Local smoke path</a></li>
+            <li><a href="app/manager_daily_brief/">Rustdoc evidence: app::manager_daily_brief</a></li>
+          </ul>
+        </article>
+        <article class="workflow-card">
+          <span class="status planned">next internal loop</span>
+          <h3>Data-Quality Hygiene</h3>
+          <p>Missing or ambiguous source facts become visible cleanup work instead of repeated downstream rework. The workflow ranks internal hygiene tasks, preserves ambiguity for review, rejects customer/provider side effects, and measures manual reconciliation minutes avoided.</p>
+          <ul class="link-list">
+            <li><a href="https://github.com/eboody/nva/blob/main/docs/design/data-quality-hygiene-labor-loop.md">Data-quality hygiene labor loop</a></li>
+            <li><a href="https://github.com/eboody/nva/blob/main/docs/ops/data-quality-hygiene-local-smoke.md">Local smoke path</a></li>
+            <li><a href="app/data_quality_hygiene/">Rustdoc evidence: app::data_quality_hygiene</a></li>
+          </ul>
+        </article>
+        <article class="workflow-card">
+          <span class="status planned">draft/review posture</span>
+          <h3>Retention, grooming, and daily-update drafts</h3>
+          <p>The app can identify source-grounded, consent-aware opportunities and let agents draft staff-reviewed follow-up or customer-update language. It does not authorize live customer sends, discounts, payment movement, scheduling, or provider updates without explicit app-owned approval.</p>
+          <ul class="link-list">
+            <li><a href="app/crm_retention/">Rustdoc evidence: app::crm_retention</a></li>
+            <li><a href="app/daily_update/">Rustdoc evidence: app::daily_update</a></li>
+            <li><a href="domain/message/">Rustdoc evidence: domain::message</a></li>
+          </ul>
+        </article>
+        <article class="workflow-card">
+          <span class="status planned">source-system boundary</span>
+          <h3>Gingr/source-system integration</h3>
+          <p>Gingr is treated as source evidence, not unchecked domain truth. Provider ids, endpoint shapes, webhooks, DTOs, mappings, redaction, and documented gaps are kept at the integration boundary before app workflows consume normalized facts.</p>
+          <ul class="link-list">
+            <li><a href="https://github.com/eboody/nva/blob/main/docs/integrations/gingr/source-inventory.md">Source inventory</a></li>
+            <li><a href="gingr/endpoint/">Rustdoc evidence: Gingr endpoints</a></li>
+            <li><a href="gingr/mapping/">Rustdoc evidence: Gingr mappings</a></li>
+          </ul>
+        </article>
+        <article class="workflow-card">
+          <span class="status ready">operator-summary map</span>
+          <h3>Service-line and support summaries</h3>
+          <p>Boarding, Daycare, Grooming, Training, Retail, Reservations/checkout, and care/document/temperament/incident support each have concise README or Rustdoc entrypoints so non-coders can find the staff queue, labor-saving claim, source authority, and review gates without reading every type first.</p>
+          <ul class="link-list">
+            <li><a href="domain/boarding/">Boarding</a>, <a href="domain/daycare/">Daycare</a>, <a href="domain/grooming/">Grooming</a>, <a href="domain/training/">Training</a>, and <a href="domain/retail/">Retail</a> Rustdocs.</li>
+            <li><a href="domain/reservation/">Reservations</a>, <a href="app/booking_triage/">booking triage</a>, and <a href="app/checkout_completion/">checkout completion</a> Rustdocs.</li>
+            <li><a href="domain/care/">Care</a>, <a href="domain/document/">documents</a>, <a href="domain/vaccine/">vaccines</a>, <a href="domain/temperament/">temperament</a>, and <a href="domain/incident/">incidents</a> Rustdocs.</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section id="ready-planned" class="panel">
+      <p class="eyebrow">Ready vs planned</p>
+      <h2>Current status without overclaiming</h2>
+      <table>
+        <thead><tr><th>Stage</th><th>What this repo can say</th><th>Evidence</th></tr></thead>
+        <tbody>
+          <tr><td><span class="status ready">local/demo ready</span></td><td>Source-grounded context to reviewable draft to deterministic validation to reviewed outcome capture can be demonstrated with fake/local data.</td><td><a href="app/manager_daily_brief/">Manager Daily Brief Rustdocs</a>, <a href="app/data_quality_hygiene/">Data-quality Rustdocs</a>, local smoke docs.</td></tr>
+          <tr><td><span class="status planned">sandbox continuation</span></td><td>The contract pattern is ready for more internal, read-only, fixture-safe, or sandbox workflows.</td><td><a href="https://github.com/eboody/nva/blob/main/docs/architecture/agent-app-infrastructure.md">Agent/app infrastructure guide</a> and the labor crosswalk.</td></tr>
+          <tr><td><span class="status planned">pilot work remains</span></td><td>Pilot work still needs real source/read-model access, identity and approval records, durable audit retention, monitoring, rollback, operator metric definitions, and staff review UI.</td><td><a href="https://github.com/eboody/nva/blob/main/docs/audits/2026-06-18-labor-cost-platform-readiness.md">Labor-cost readiness memo</a>.</td></tr>
+          <tr><td><span class="status blocked">live/member-facing blocked</span></td><td>No live customer sends, provider/PMS writes, schedule changes, payment/refund/discount movement, hidden ambiguity resolution, or safety-sensitive decisions are authorized by current repo contracts.</td><td><a href="#safety">Safety boundary</a>, <a href="domain/policy/">policy Rustdocs</a>, <a href="domain/workflow/">workflow Rustdocs</a>.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="audiences">
+      <p class="eyebrow">Choose your path</p>
+      <h2>Audience paths</h2>
+      <div class="grid three">
+        <article class="path-card">
+          <h3>Operations leader</h3>
+          <p>Will this reduce manager/front-desk work across resorts without creating operational risk?</p>
+          <ul class="link-list">
+            <li><a href="#labor-thesis">Labor-cost thesis</a></li>
+            <li><a href="#workflows">Manager Daily Brief and Data-Quality Hygiene</a></li>
+            <li><a href="#ready-planned">Ready vs planned matrix</a></li>
+          </ul>
+        </article>
+        <article class="path-card">
+          <h3>AI program evaluator</h3>
+          <p>Is this a reusable, governable way to use enterprise agents inside operations?</p>
+          <ul class="link-list">
+            <li><a href="https://github.com/eboody/nva/blob/main/docs/architecture/agent-app-infrastructure.md">Agent/app infrastructure</a></li>
+            <li><a href="app/agents/">Rustdoc evidence: app::agents</a></li>
+            <li><a href="app/tools/">Rustdoc evidence: app::tools</a></li>
+          </ul>
+        </article>
+        <article class="path-card">
+          <h3>Safety/compliance reviewer</h3>
+          <p>What can agents not do, and where are review gates and audit records enforced?</p>
+          <ul class="link-list">
+            <li><a href="#safety">Safety boundary</a></li>
+            <li><a href="domain/policy/">Rustdoc evidence: domain::policy</a></li>
+            <li><a href="domain/audit/">Rustdoc evidence: domain::audit</a></li>
+          </ul>
+        </article>
+        <article class="path-card">
+          <h3>Gingr/integration owner</h3>
+          <p>How does this treat source systems without over-assuming authority or mutating live provider records?</p>
+          <ul class="link-list">
+            <li><a href="https://github.com/eboody/nva/blob/main/integrations/gingr/README.md">Gingr README</a></li>
+            <li><a href="gingr/transport/">Rustdoc evidence: transport</a></li>
+            <li><a href="gingr/webhook/">Rustdoc evidence: webhooks</a></li>
+          </ul>
+        </article>
+        <article class="path-card">
+          <h3>Developer</h3>
+          <p>Where do I inspect or change the contracts without breaking the safety model?</p>
+          <ul class="link-list">
+            <li><a href="https://github.com/eboody/nva/blob/main/README.md">Repository README</a></li>
+            <li><a href="domain/">Domain crate</a>, <a href="app/">app crate</a>, <a href="storage/">storage crate</a>, <a href="gingr/">Gingr crate</a></li>
+            <li><a href="https://github.com/eboody/nva/blob/main/docs/plans/rustdoc-external-source-of-truth.md">Rustdoc/source-of-truth plan</a></li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section id="safety" class="panel safety">
+      <p class="eyebrow">Safety boundary</p>
+      <h2>Rustdocs are evidence, not production authorization</h2>
+      <p>Agents are review-gated and do not perform live member, customer, provider/PMS, schedule, payment, refund, discount, incident, vaccine, medical, safety, or personnel side effects without deterministic app-owned approval contracts and human review. Source ambiguity is preserved for review; it is never hidden by agent prose.</p>
+      <ul class="link-list">
+        <li><a href="https://github.com/eboody/nva/blob/main/docs/architecture/agent-app-infrastructure.md#trust-boundary-and-threat-model">Trust boundary and threat model</a></li>
+        <li><a href="https://github.com/eboody/nva/blob/main/docs/security/pet-resort-security-audit.md">Pet-resort security audit</a></li>
+        <li><a href="domain/workflow/">Rustdoc evidence: workflow gates</a></li>
+      </ul>
+    </section>
+
+    <section id="rustdocs">
+      <p class="eyebrow">Rustdocs as code-derived evidence</p>
+      <h2>Inspect the compiled contracts behind the narrative</h2>
+      <table aria-label="Rustdoc crate links with operational translations">
+        <thead><tr><th>Operational translation</th><th>Technical surface</th></tr></thead>
+        <tbody>
+          <tr><td>Pet-resort facts, policies, review gates, source evidence, and labor/safety concepts staff can trust.</td><td><a href="domain/">domain crate</a></td></tr>
+          <tr><td>Manager/front-desk workflows, review packets, draft validation, and agent-safe recommendations.</td><td><a href="app/">app crate</a></td></tr>
+          <tr><td>Outcome records, audit evidence, normalized projections, and explicit storage-to-business conversions.</td><td><a href="storage/">storage crate</a></td></tr>
+          <tr><td>Gingr/source-system requests, provider payloads, webhooks, mappings, and source-data boundaries.</td><td><a href="gingr/">gingr crate</a></td></tr>
+          <tr><td>Thin runtime shells for local demos, workers, and operator/developer inspection.</td><td><a href="pet_resort_api/">API shell</a>, <a href="pet_resort_worker/">worker shell</a>, <a href="cli/">CLI shell</a></td></tr>
+        </tbody>
+      </table>
+      <div class="grid three" style="margin-top: 1rem;">
+        <article class="evidence-card"><h3>Source facts</h3><p><a href="domain/source/">domain::source</a>, <a href="domain/analytics/">domain::analytics</a></p></article>
+        <article class="evidence-card"><h3>Review gates</h3><p><a href="domain/policy/">domain::policy</a>, <a href="domain/workflow/">domain::workflow</a></p></article>
+        <article class="evidence-card"><h3>Manager brief</h3><p><a href="app/manager_daily_brief/">app::manager_daily_brief</a>, <a href="domain/daily_brief/">domain::daily_brief</a>, <a href="storage/operations/">storage::operations</a></p></article>
+        <article class="evidence-card"><h3>Data quality</h3><p><a href="domain/data_quality/">domain::data_quality</a>, <a href="app/data_quality_hygiene/">app::data_quality_hygiene</a></p></article>
+        <article class="evidence-card"><h3>Customer drafts</h3><p><a href="app/daily_update/">app::daily_update</a>, <a href="app/crm_retention/">app::crm_retention</a>, <a href="domain/message/">domain::message</a></p></article>
+        <article class="evidence-card"><h3>Service lines</h3><p><a href="domain/boarding/">boarding</a>, <a href="domain/daycare/">daycare</a>, <a href="domain/grooming/">grooming</a>, <a href="domain/training/">training</a>, <a href="domain/retail/">retail</a></p></article>
+        <article class="evidence-card"><h3>Support surfaces</h3><p><a href="domain/reservation/">reservations</a>, <a href="domain/care/">care</a>, <a href="domain/document/">documents</a>, <a href="domain/temperament/">temperament</a>, <a href="domain/incident/">incidents</a></p></article>
+        <article class="evidence-card"><h3>Gingr boundary</h3><p><a href="gingr/endpoint/">gingr::endpoint</a>, <a href="gingr/dto/">gingr::dto</a>, <a href="gingr/mapping/">gingr::mapping</a>, <a href="gingr/webhook/">gingr::webhook</a></p></article>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Generated Rustdoc pages remain reachable from the evidence links above. This landing page is source-controlled at <code>docs/public/index.html</code> and can be copied over Cargo's generated <code>target/doc/index.html</code> by <code>scripts/build_public_docs.sh</code>.</p>
+  </footer>
+</body>
+</html>
