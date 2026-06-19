@@ -1,4 +1,4 @@
-//! Inventory contracts for retail stock counts, available units, and reorder threshold decisions.
+//! Inventory models for retail stock counts, available units, and reorder threshold decisions.
 
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -12,7 +12,7 @@ use super::{Error, Result};
 pub struct UnitCount(u32);
 
 impl UnitCount {
-    /// Promotes boundary input into a validated retail domain value.
+    /// Accepts a positive reorder threshold so staff tasks are not created from zero-unit policy values.
     pub const fn try_new(value: u32) -> std::result::Result<Self, UnitCountError> {
         if value == 0 {
             return Err(UnitCountError::Zero);
@@ -20,7 +20,7 @@ impl UnitCount {
         Ok(Self(value))
     }
 
-    /// Exposes the validated scalar for serialization and adapter boundaries.
+    /// Returns the unit count for storage records, POS mappings, and threshold comparisons.
     pub const fn get(self) -> u32 {
         self.0
     }
@@ -36,7 +36,7 @@ impl<'de> Deserialize<'de> for UnitCount {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-/// Decision vocabulary for unit count error in retail workflows.
+/// Unit-count validation errors that keep reorder thresholds and tracked inventory policy usable by staff.
 pub enum UnitCountError {
     #[error("retail inventory count requires at least one unit")]
     /// Rejects zero where the pet-resort workflow requires a positive quantity.
@@ -48,12 +48,12 @@ pub enum UnitCountError {
 pub struct OnHandUnits(u32);
 
 impl OnHandUnits {
-    /// Assembles this retail value from already-validated domain parts.
+    /// Records the count reported by the inventory source before availability math is applied.
     pub const fn new(value: u32) -> Self {
         Self(value)
     }
 
-    /// Exposes the validated scalar for serialization and adapter boundaries.
+    /// Returns the unit count for storage records, POS mappings, and threshold comparisons.
     pub const fn get(self) -> u32 {
         self.0
     }
@@ -64,12 +64,12 @@ impl OnHandUnits {
 pub struct ReservedUnits(u32);
 
 impl ReservedUnits {
-    /// Assembles this retail value from already-validated domain parts.
+    /// Records the count reported by the inventory source before availability math is applied.
     pub const fn new(value: u32) -> Self {
         Self(value)
     }
 
-    /// Exposes the validated scalar for serialization and adapter boundaries.
+    /// Returns the unit count for storage records, POS mappings, and threshold comparisons.
     pub const fn get(self) -> u32 {
         self.0
     }
@@ -80,12 +80,12 @@ impl ReservedUnits {
 pub struct AvailableUnits(u32);
 
 impl AvailableUnits {
-    /// Assembles this retail value from already-validated domain parts.
+    /// Records the count reported by the inventory source before availability math is applied.
     pub const fn new(value: u32) -> Self {
         Self(value)
     }
 
-    /// Exposes the validated scalar for serialization and adapter boundaries.
+    /// Returns the unit count for storage records, POS mappings, and threshold comparisons.
     pub const fn get(self) -> u32 {
         self.0
     }
@@ -94,22 +94,22 @@ impl AvailableUnits {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Source stock record promoted from POS/inventory data before invariant checks are applied.
 pub struct Stock {
-    /// Source-derived location id carried by this retail contract.
+    /// Location whose shelves or retail stockroom own this inventory count.
     pub location_id: LocationId,
-    /// Source-derived sku carried by this retail contract.
+    /// SKU whose on-hand, reserved, and reorder quantities are being evaluated.
     pub sku: Sku,
-    /// Source-derived on hand carried by this retail contract.
+    /// Physical units counted at the location before reservations or holds are subtracted.
     pub on_hand: OnHandUnits,
-    /// Source-derived reserved carried by this retail contract.
+    /// Units held for checkout, service bundles, or staff workflows before sale availability is calculated.
     pub reserved: ReservedUnits,
-    /// Source-derived reorder at carried by this retail contract.
+    /// Minimum available units that should prompt manager or vendor reorder attention.
     pub reorder_at: UnitCount,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Validated inventory position that guarantees reserved units do not exceed on-hand units.
 pub struct Position {
-    /// Source-derived location id carried by this retail contract.
+    /// Location whose shelves or retail stockroom own this inventory count.
     pub location_id: LocationId,
     sku: Sku,
     on_hand: OnHandUnits,
@@ -132,22 +132,22 @@ impl Position {
         })
     }
 
-    /// Returns the sku evidence recorded on this retail contract.
+    /// Returns the SKU used to connect this position to catalog, POS, recommendation, and reorder workflows.
     pub fn sku(&self) -> &Sku {
         &self.sku
     }
 
-    /// Returns the on hand evidence recorded on this retail contract.
+    /// Returns the physical stock count that anchors oversell and reorder decisions.
     pub const fn on_hand(&self) -> OnHandUnits {
         self.on_hand
     }
 
-    /// Returns the reserved evidence recorded on this retail contract.
+    /// Returns held units so staff drafts do not promise inventory already reserved elsewhere.
     pub const fn reserved(&self) -> ReservedUnits {
         self.reserved
     }
 
-    /// Returns the reorder at evidence recorded on this retail contract.
+    /// Returns the low-stock threshold used to decide whether manager/vendor follow-up is due.
     pub const fn reorder_at(&self) -> UnitCount {
         self.reorder_at
     }
@@ -164,15 +164,15 @@ impl Position {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Groomer-assignment policies used when booking grooming work.
+/// Inventory policy used by POS, recommendation, and reorder workflows to decide whether stock checks apply.
 pub enum Policy {
-    /// Not tracked retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Treats inventory as untracked, allowing sale drafts while leaving stock verification to staff/POS workflow.
     NotTracked,
-    /// Tracked retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Uses explicit on-hand and reorder-at counts to prevent oversells and surface low-stock work.
     Tracked {
-        /// Source-derived on hand carried by this retail contract.
+        /// Physical units counted at the location before reservations or holds are subtracted.
         on_hand: UnitCount,
-        /// Source-derived reorder at carried by this retail contract.
+        /// Minimum available units that should prompt manager or vendor reorder attention.
         reorder_at: UnitCount,
     },
 }
@@ -180,12 +180,12 @@ pub enum Policy {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Availability status used by recommendation policy to suppress unavailable products.
 pub enum Availability {
-    /// Available retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Product is available for sale drafts and recommendation candidates.
     Available,
-    /// Out of stock retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Product is unavailable, suppressing POS sale drafts and customer-facing recommendations.
     OutOfStock,
-    /// Backordered retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Product is on backorder, so staff can see demand but automation must not promise fulfillment.
     Backordered,
-    /// Provider role or status could not be mapped confidently.
+    /// Inventory source did not provide a confident availability status, so staff should verify before promising stock.
     Unknown,
 }

@@ -22,7 +22,7 @@ pub enum SideEffectMode {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// Configuration carried by the worker runtime.
+/// Configuration kept on the worker runtime.
 ///
 /// The config is intentionally small: it selects deterministic agent execution and an
 /// explicit side-effect posture so durable workflow workers can be inspected without
@@ -52,12 +52,12 @@ impl Config {
         }
     }
 
-    /// Returns the agent runtime mode carried by this worker runtime value.
+    /// Returns the agent runtime mode kept on this worker runtime value.
     pub fn agent_runtime_mode(&self) -> AgentRuntimeMode {
         self.agent_runtime_mode
     }
 
-    /// Returns the side effect mode carried by this worker runtime value.
+    /// Returns the side effect mode kept on this worker runtime value.
     pub fn side_effect_mode(&self) -> SideEffectMode {
         self.side_effect_mode
     }

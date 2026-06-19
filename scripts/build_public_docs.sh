@@ -34,7 +34,11 @@ from pathlib import Path
 
 html = Path('target/doc/index.html').read_text(encoding='utf-8')
 required_fragments = [
-    'Safe AI workflows for reducing pet-resort labor cost',
+    'Start with the pet-resort entity atlas',
+    'entity-first operating model for labor-cost reduction',
+    'Browse entity index',
+    'Choose a reading path',
+    'Workflow-to-entity map',
     '170-site pet-resort',
     'Manager Daily Brief',
     'Data-Quality Hygiene',

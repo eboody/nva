@@ -1,6 +1,6 @@
 //! Boarding accommodation vocabulary for suite/condo matching and species-safe capacity decisions.
 //!
-//! These contracts keep room-type preferences explicit so automation can recommend availability
+//! These accommodation rules keep room-type preferences explicit so automation can recommend availability
 //! without inventing unsupported species accommodations or collapsing premium-suite choices.
 
 use super::*;

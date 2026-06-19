@@ -1,5 +1,22 @@
 //! Care-plan and medical-instruction value objects for safe resort workflows.
 //!
+//! ## Operator-summary
+//!
+//! This module supports the staff queue that turns feeding instructions, allergies,
+//! medical conditions, medication schedules, emergency contacts, and veterinarian
+//! contacts into safe care tasks and shift handoffs. It can reduce labor by making
+//! medication-administration work, special handling, and daily-brief warnings visible
+//! without forcing staff to reread free-text pet notes for every stay.
+//!
+//! It must not automate live medical, medication, grooming, boarding, or customer
+//! communication decisions. Medication names, doses, schedules, medical notes, allergy
+//! labels, customer/provider instructions, and veterinarian or emergency-contact facts
+//! remain authoritative only as their reviewed source records and approval history allow;
+//! this module merely preserves those facts as redacted domain values. Review gates protect
+//! pets, customers, and staff by requiring care-team review before ambiguous, sensitive,
+//! or changed medication/special-care instructions can drive service work or
+//! customer-visible copy.
+//!
 //! Care data is sensitive source evidence: these values promote provider/customer facts
 //! into redacted, validated domain types before staff tasks, daily briefs, or customer
 //! messaging can use them. Review requirements make medication and special-handling labor
@@ -123,7 +140,7 @@ pub enum MedicationReviewRequirement {
     NotRequired,
     /// Business reason staff should review before proceeding.
     RequiresReview {
-        /// Reason carried by this variant.
+        /// Care reason staff should review before applying the override.
         reason: ReviewReason,
     },
 }

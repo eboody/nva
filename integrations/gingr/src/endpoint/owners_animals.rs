@@ -8,7 +8,7 @@ pub struct ProviderWhereClause {
 }
 
 impl ProviderWhereClause {
-    /// Constructs this typed Gingr boundary value after the caller has chosen the provider input to trust.
+    /// Captures the provider field/value filter exactly as Gingr expects it so reviewers can audit the lookup.
     pub fn new(field: impl Into<String>, value: impl Into<String>) -> Self {
         Self {
             field: field.into(),
@@ -41,7 +41,7 @@ pub struct OwnersBuilder {
 }
 
 impl OwnersBuilder {
-    /// Applies a raw Gingr where clause while keeping it typed at the boundary.
+    /// Applies a raw Gingr where clause while keeping the provider filter visible for audit.
     pub fn provider_where_clause(mut self, clause: ProviderWhereClause) -> Self {
         self.provider_where_clauses.push(clause);
         self
@@ -92,7 +92,7 @@ pub struct AnimalsBuilder {
 }
 
 impl AnimalsBuilder {
-    /// Applies a raw Gingr where clause while keeping it typed at the boundary.
+    /// Applies a raw Gingr where clause while keeping the provider filter visible for audit.
     pub fn provider_where_clause(mut self, clause: ProviderWhereClause) -> Self {
         self.provider_where_clauses.push(clause);
         self
@@ -128,7 +128,7 @@ impl Request for Animals {
 pub struct SensitiveLookup(String);
 
 impl SensitiveLookup {
-    /// Constructs this typed Gingr boundary value after the caller has chosen the provider input to trust.
+    /// Captures the provider field/value filter exactly as Gingr expects it so reviewers can audit the lookup.
     pub fn new(value: impl Into<String>) -> super::Result<Self> {
         Ok(Self(non_empty_text(value)?))
     }
@@ -280,7 +280,7 @@ impl Request for Form {
     }
 }
 
-/// Gingr custom field endpoint boundary with provider parameters kept explicit.
+/// Gingr custom-field search requests where field names and text values remain reviewable evidence.
 pub mod custom_field {
     use super::*;
 
@@ -289,7 +289,7 @@ pub mod custom_field {
     pub struct Name(String);
 
     impl Name {
-        /// Constructs this typed Gingr boundary value after the caller has chosen the provider input to trust.
+        /// Captures the provider field/value filter exactly as Gingr expects it so reviewers can audit the lookup.
         pub fn new(value: impl Into<String>) -> super::super::Result<Self> {
             Ok(Self(non_empty_text(value)?))
         }

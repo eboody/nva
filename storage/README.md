@@ -1,14 +1,18 @@
 # `storage`
 
-`storage` is the persistence and projection boundary for the pet-resort workspace. It does not own domain truth: [`domain`](../domain/README.md) owns the semantic models, invariants, and operating policies. This crate owns storage-shaped records, stable persisted code values, JSON codecs, and explicit promotion/demotion paths between those records and semantic `domain::*` types.
+Operator translation: `storage` is the durable filing cabinet/reporting view for source-backed pet-resort facts. It can save records, stable codes, source references, and reviewed outcomes for audit or reporting, but it does not decide bookings, customer messages, payments, staffing, provider/PMS changes, or policy exceptions.
+
+`storage` is the persistence and [projection](../docs/glossary-architecture-terms.md#projection) boundary for the pet-resort workspace — projection means a database/reporting-friendly view, not live decision authority. It does not own domain truth: [`domain`](../domain/README.md) owns the [semantic](../docs/glossary-architecture-terms.md#semantic) business models, invariants, and operating policies. This crate owns storage-shaped records, stable persisted code values, JSON codecs, and explicit [promotion/demotion](../docs/glossary-architecture-terms.md#promotion-demotion) paths between those records and semantic `domain::*` types.
 
 Start at [`src/lib.rs`](./src/lib.rs). The public surface is intentionally small: [`storage::operations`](./src/operations.rs) contains cross-service records, codecs, and storage errors, while [`storage::service_line`](./src/service_line/mod.rs) contains service-line-specific contract wrappers and code tables. The service-line maintainer guide is [`src/service_line/README.md`](./src/service_line/README.md).
 
 ## README vs Rustdoc contract
 
-This README is the storage-boundary wiki: use it to navigate persisted records, stable codes, codecs, and promotion/demotion ownership. Keep it focused on where storage shapes live and why they are separate from domain truth and provider DTOs.
+This README is the storage-boundary wiki: use it to navigate persisted records, stable codes, codecs, and promotion/demotion ownership. Promotion/demotion here means validated conversion between storage/provider shapes and trusted business meaning. Keep it focused on where storage shapes live and why they are separate from domain truth and provider DTOs.
 
 Executable storage examples belong in Rustdoc on [`src/lib.rs`](./src/lib.rs), [`src/operations.rs`](./src/operations.rs), and the service-line modules under [`src/service_line`](./src/service_line/mod.rs). Those examples should compile under `cargo test -p storage --doc` and demonstrate explicit conversion between storage records/codes and semantic `domain::*` values instead of copying unverified snippets into this README.
+
+Non-coder glossary help: [`storage`](../docs/glossary-architecture-terms.md#storage) is the persisted projection and conversion boundary, while a [projection](../docs/glossary-architecture-terms.md#projection) or [read model](../docs/glossary-architecture-terms.md#read-model) is a reporting/review view and [outcome capture](../docs/glossary-workflow-state-terms.md#outcome-capture) is the staff-reviewed evidence loop. [Source refs](../docs/glossary-architecture-terms.md#source-ref-domainsourcerecordref) and [provenance](../docs/glossary-architecture-terms.md#provenance-domainsourceprovenance) explain why stored records can cite evidence without becoming the source of record.
 
 ## Module navigation
 

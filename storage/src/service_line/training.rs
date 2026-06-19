@@ -10,7 +10,7 @@ use domain::training::program;
 
 use crate::operations::{self, StorageField};
 
-/// Storage shape for a migrated training service contract.
+/// Storage shape for a migrated training service rules.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ContractRecord(pub domain::training::Contract);
@@ -61,7 +61,7 @@ impl StoredProgramDurationWeeks {
         Ok(Self(value))
     }
 
-    /// Returns the provider numeric identifier carried by this wrapper.
+    /// Returns the provider numeric identifier kept on this wrapper.
     pub const fn get(self) -> u8 {
         self.0
     }

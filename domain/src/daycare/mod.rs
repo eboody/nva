@@ -1,4 +1,25 @@
-//! Daycare service contracts for front-desk throughput, safe play, and package review.
+//! Daycare service rules for front-desk throughput, safe play, and package review.
+//!
+//! Operator summary: this module supports check-in lane, coverage, group-play eligibility,
+//! playgroup assignment, incident-restriction, and package-opportunity decisions for
+//! front-desk, care-team, and manager queues. It reduces repeated manual lookups of
+//! attendance policy, package state, staff-to-pet ratio, temperament/vaccine readiness,
+//! incident status, and customer-message readiness.
+//!
+//! Use it when the operational question is "can this pet enter the daycare flow safely,
+//! where should staff route the work, and what review gate still stands between a draft
+//! recommendation and a live action?" The next step is to start with the location rules for
+//! location policy, then follow the child modules for the queue you are working: `front_desk`
+//! for check-in, `eligibility` for play clearance, `coverage` for ratio risk,
+//! `assignment` for playgroup fit, `incident` for restrictions, or `package_opportunity`
+//! for billing/customer-message review.
+//!
+//! It does not authorize live admission, provider writes, reservation mutation, payment
+//! collection, package enrollment, customer sends, incident reinstatement, or manager
+//! overrides. Reservation/pet/source provenance, staff roster facts, package/payment state,
+//! and the location daycare rules remain authoritative inputs; review gates such as
+//! behavior review, medical/document review, manager approval, customer-message approval,
+//! and billing review protect pets, customers, and staff before any side effect.
 //!
 //! The module keeps care mode, eligibility, staffing ratios, and package policy explicit so
 //! automated recommendations reduce check-in labor without bypassing staff review:
@@ -6,8 +27,8 @@
 //! ```
 //! use domain::daycare;
 //!
-//! let contract = daycare::Contract::standard_petsuites();
-//! assert!(contract.requires_staff_review_before_group_play());
+//! let rules = daycare::Contract::standard_petsuites();
+//! assert!(rules.requires_staff_review_before_group_play());
 //! assert_eq!(
 //!     daycare::ServiceVariant::DayBoarding.care_mode(),
 //!     daycare::CareMode::DogIndividualDayBoarding,
@@ -24,11 +45,11 @@ use crate::entities::{CustomerId, PetId};
 macro_rules! positive_scalar {
     ($name:ident, $primitive:ty, $error:ident, $message:literal) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-        /// Positive scalar used by daycare policy where zero would hide real staffing, pet-count, queue, or package volume.
+        /// Positive daycare quantity used where zero would hide real staffing, pet-count, queue, or package volume.
         pub struct $name($primitive);
 
         impl $name {
-            /// Promotes boundary input into a validated daycare domain value.
+            /// Rejects impossible daycare counts before they affect group-play capacity, staffing ratios, eligibility queues, or package balances.
             pub const fn try_new(value: $primitive) -> std::result::Result<Self, $error> {
                 if value == 0 {
                     return Err($error::Zero);
@@ -36,7 +57,7 @@ macro_rules! positive_scalar {
                 Ok(Self(value))
             }
 
-            /// Exposes the validated scalar for serialization and adapter boundaries.
+            /// Returns the daycare count used by package, ratio, eligibility, or coverage calculations.
             pub const fn get(self) -> $primitive {
                 self.0
             }
@@ -153,7 +174,7 @@ pub enum PackagePolicy {
     PayPerVisit,
     /// Prepaid visit count available to apply against daycare attendance.
     PrepaidPasses {
-        /// Visits carried by this variant.
+        /// Prepaid daycare visits available before billing or package review is needed.
         visits: PackageVisits,
     },
     /// Customer has a membership covering the daycare attendance path.
@@ -206,7 +227,7 @@ pub enum EligibilityRequirement {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Daycare service-line contract combining attendance, package, ratio, assignment, incident, and eligibility policy.
+/// Daycare service-line ruleset combining attendance, package, ratio, assignment, incident, and eligibility policy.
 pub struct Contract {
     /// Attendance gate controlling reservations, drop-ins, and waitlist routing.
     pub attendance: AttendancePolicy,
@@ -224,7 +245,7 @@ pub struct Contract {
 }
 
 impl Contract {
-    /// Reports whether this contract requires staff review before admitting a pet to group play.
+    /// Reports whether these daycare rules require staff review before admitting a pet to group play.
     pub fn requires_staff_review_before_group_play(&self) -> bool {
         self.eligibility
             .contains(&EligibilityRequirement::TemperamentAssessment)
@@ -233,7 +254,7 @@ impl Contract {
                 GroupAssignmentRule::TemperamentAndSizeMatched
             )
     }
-    /// Builds the baseline PetSuites-style daycare contract used by examples and tests.
+    /// Builds the baseline PetSuites-style daycare rules used by examples and tests.
     pub fn standard_petsuites() -> Self {
         Self::builder()
             .attendance(AttendancePolicy::ReservationRequired)

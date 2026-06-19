@@ -1,4 +1,4 @@
-//! Canonical domain contracts for cross-service resort daily briefs.
+//! Manager-facing daily brief values for cross-service resort operations.
 //!
 //! Brief sections, occupancy, labor, revenue, watchlists, and recommended manager actions
 //! are owned here rather than hidden behind broader operations vocabulary. A daily brief
@@ -42,7 +42,7 @@ use crate::operations;
 
 pub use snapshot::Id as Snapshot;
 
-/// Snapshot boundary for daily brief contracts.
+/// Snapshot identifiers used to tie a daily brief back to the source/read-model extract.
 pub mod snapshot {
     use super::*;
 
@@ -67,24 +67,24 @@ pub mod snapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Source snapshot key for one resort's manager brief on an operating day.
 pub struct ResortOperatingDay {
-    /// Location id fact promoted into this daily brief contract.
+    /// Resort location whose manager owns this operating-day brief.
     pub location_id: LocationId,
-    /// Date fact promoted into this daily brief contract.
+    /// Operating day the brief summarizes for staffing, arrivals, care, and follow-up decisions.
     pub date: NaiveDate,
-    /// Snapshot id fact promoted into this daily brief contract.
+    /// Source snapshot id retained so every brief item can be traced back to the read-model extract.
     pub snapshot_id: snapshot::Id,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Manager-facing daily brief assembled from validated operational read models.
 pub struct Resort {
-    /// Operating day fact promoted into this daily brief contract.
+    /// Location/date/snapshot key that scopes the entire manager brief.
     pub operating_day: ResortOperatingDay,
-    /// Sections fact promoted into this daily brief contract.
+    /// Manager-facing sections that organize occupancy, labor, customer, care, and revenue evidence.
     pub sections: Vec<Section>,
-    /// Recommended actions fact promoted into this daily brief contract.
+    /// Draft recommendations that may create tasks, messages, escalations, schedule reviews, or revenue follow-up.
     pub recommended_actions: Vec<Action>,
-    /// Risks fact promoted into this daily brief contract.
+    /// Risks requiring manager attention before staff rely on the brief for operational decisions.
     pub risks: Vec<Risk>,
 }
 
@@ -102,30 +102,30 @@ impl Resort {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Section of the daily brief that turns source/read-model evidence into manager focus.
 pub enum Section {
-    /// Occupancy item surfaced for manager daily-brief triage.
+    /// Booked-vs-capacity view showing where demand may exceed service limits.
     Occupancy(OccupancySnapshot),
-    /// Arrivals and departures item surfaced for manager daily-brief triage.
+    /// Check-in/check-out workload that helps front desk and care teams plan the day.
     ArrivalsAndDepartures(ArrivalDepartureSnapshot),
-    /// Labor item surfaced for manager daily-brief triage.
+    /// Staffing snapshot comparing scheduled labor with expected demand.
     Labor(LaborSnapshot),
-    /// Customer follow ups item surfaced for manager daily-brief triage.
+    /// Customer follow-up queue for missing proof, changes, reviews, or service recovery.
     CustomerFollowUps(Vec<CustomerFollowUp>),
-    /// Pet care watchlist item surfaced for manager daily-brief triage.
+    /// Pet-care watchlist for medication, feeding, behavior, or incident attention.
     PetCareWatchlist(Vec<PetCareWatch>),
-    /// Revenue opportunities item surfaced for manager daily-brief triage.
+    /// Revenue opportunities that need staff review before customer follow-up.
     RevenueOpportunities(Vec<RevenueOpportunity>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Occupancy/utilization snapshot used to compare booked demand with service capacity.
 pub struct OccupancySnapshot {
-    /// Boarding capacity fact promoted into this daily brief contract.
+    /// Boarding booked-vs-capacity metric used to identify occupancy pressure.
     pub boarding_capacity: capacity::Metric,
-    /// Daycare capacity fact promoted into this daily brief contract.
+    /// Daycare booked-vs-capacity metric used for playgroup and staffing review.
     pub daycare_capacity: capacity::Metric,
-    /// Grooming utilization fact promoted into this daily brief contract.
+    /// Grooming utilization metric used to spot schedule pressure or rebooking capacity.
     pub grooming_utilization: capacity::Metric,
-    /// Training utilization fact promoted into this daily brief contract.
+    /// Training utilization metric used to plan trainer workload and consult capacity.
     pub training_utilization: capacity::Metric,
 }
 
@@ -143,7 +143,7 @@ pub mod capacity {
             Self(value)
         }
 
-        /// Exposes the validated scalar for serialization and adapter boundaries.
+        /// Returns the checked value for storage, reporting, or adapter output.
         pub const fn get(self) -> u32 {
             self.0
         }
@@ -154,7 +154,7 @@ pub mod capacity {
     pub struct Limit(u32);
 
     impl Limit {
-        /// Promotes boundary input into a validated daily brief domain value.
+        /// Rejects unusable daily-brief input before managers see capacity or labor metrics.
         pub const fn try_new(value: u32) -> Result<Self, LimitError> {
             if value == 0 {
                 return Err(LimitError::ZeroCapacity);
@@ -162,7 +162,7 @@ pub mod capacity {
             Ok(Self(value))
         }
 
-        /// Exposes the validated scalar for serialization and adapter boundaries.
+        /// Returns the checked value for storage, reporting, or adapter output.
         pub const fn get(self) -> u32 {
             self.0
         }
@@ -178,10 +178,10 @@ pub mod capacity {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-    /// Domain vocabulary for limit error decisions in daily brief workflows.
+    /// Limit validation error that protects daily-brief ranking from empty or oversized queues.
     pub enum LimitError {
         #[error("capacity metrics require an explicit non-zero capacity limit")]
-        /// Zero capacity item surfaced for manager daily-brief triage.
+        /// Zero capacity would make utilization meaningless and blocks the metric before manager display.
         ZeroCapacity,
     }
 
@@ -195,7 +195,7 @@ pub mod capacity {
             Self(value)
         }
 
-        /// Exposes the validated scalar for serialization and adapter boundaries.
+        /// Returns the checked value for storage, reporting, or adapter output.
         pub const fn get(self) -> u32 {
             self.0
         }
@@ -213,12 +213,12 @@ pub mod capacity {
             Self { booked, capacity }
         }
 
-        /// Returns this daily brief value's booked.
+        /// Returns booked units so occupancy pressure can be compared with capacity.
         pub const fn booked(&self) -> Booked {
             self.booked
         }
 
-        /// Returns this daily brief value's capacity.
+        /// Returns available capacity used to rank overbooking risk and labor pressure.
         pub const fn capacity(&self) -> Limit {
             self.capacity
         }
@@ -242,7 +242,7 @@ impl ScheduledStaffCount {
         Self(value)
     }
 
-    /// Exposes the validated scalar for serialization and adapter boundaries.
+    /// Returns the checked value for storage, reporting, or adapter output.
     pub const fn get(self) -> u16 {
         self.0
     }
@@ -251,142 +251,142 @@ impl ScheduledStaffCount {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Check-in/check-out workload snapshot for front-desk and care-team planning.
 pub struct ArrivalDepartureSnapshot {
-    /// Check ins fact promoted into this daily brief contract.
+    /// Reservations expected to arrive, driving front-desk preparation and care-team intake labor.
     pub check_ins: Vec<entities::reservation::Id>,
-    /// Check outs fact promoted into this daily brief contract.
+    /// Reservations expected to depart, driving pickup, billing, belongings, and room turnover work.
     pub check_outs: Vec<entities::reservation::Id>,
-    /// Late departure risk fact promoted into this daily brief contract.
+    /// Departures at risk of running late and affecting capacity, labor, or customer communication.
     pub late_departure_risk: Vec<entities::reservation::Id>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Labor summary comparing scheduled staff against expected demand and risk.
 pub struct LaborSnapshot {
-    /// Scheduled staff count fact promoted into this daily brief contract.
+    /// Number of scheduled staff used to compare labor coverage with expected demand.
     pub scheduled_staff_count: ScheduledStaffCount,
-    /// Labor risk fact promoted into this daily brief contract.
+    /// Staffing posture that tells managers whether to review coverage before the day starts.
     pub labor_risk: LaborRisk,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Staffing posture surfaced as a labor-cost and service-quality lever.
 pub enum LaborRisk {
-    /// Understaffed item surfaced for manager daily-brief triage.
+    /// Expected demand exceeds scheduled coverage and should trigger staffing review.
     Understaffed,
-    /// On plan item surfaced for manager daily-brief triage.
+    /// Scheduled coverage appears aligned with expected demand.
     OnPlan,
-    /// Overstaffed item surfaced for manager daily-brief triage.
+    /// Scheduled coverage may exceed demand and can inform cost review or reassignment.
     Overstaffed,
-    /// Provider role or status could not be mapped confidently.
+    /// Labor coverage evidence is missing or unclear, so managers should verify staffing before acting.
     Unknown,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Customer follow-up item generated from validated operational evidence.
 pub struct CustomerFollowUp {
-    /// Customer id fact promoted into this daily brief contract.
+    /// Customer whose follow-up or revenue item needs staff-owned review.
     pub customer_id: CustomerId,
     /// Business reason staff should review before proceeding.
     pub reason: FollowUpReason,
-    /// Due at fact promoted into this daily brief contract.
+    /// Deadline for completing or escalating the follow-up before it becomes stale.
     pub due_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for follow up reason decisions in daily brief workflows.
+/// Follow-up reason that tells managers why the daily brief surfaced a pet, customer, or revenue task.
 pub enum FollowUpReason {
-    /// Missing vaccine proof item surfaced for manager daily-brief triage.
+    /// Vaccine proof is missing and must be collected or verified before care eligibility is trusted.
     MissingVaccineProof,
-    /// Deposit not paid item surfaced for manager daily-brief triage.
+    /// Deposit is unpaid, requiring billing review or customer follow-up before relying on the booking.
     DepositNotPaid,
-    /// Reservation change requested item surfaced for manager daily-brief triage.
+    /// Customer requested a reservation change that staff must confirm before schedule or capacity changes.
     ReservationChangeRequested,
-    /// Lead needs response item surfaced for manager daily-brief triage.
+    /// Sales/intake lead is waiting for response and may affect conversion or capacity planning.
     LeadNeedsResponse,
-    /// Post stay check in item surfaced for manager daily-brief triage.
+    /// Post-stay check-in is due for customer experience or service recovery.
     PostStayCheckIn,
-    /// Review response needed item surfaced for manager daily-brief triage.
+    /// Reputation response is needed but must follow review and approval boundaries.
     ReviewResponseNeeded,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Pet care/safety watch item that protects staff handoff and manager review.
 pub struct PetCareWatch {
-    /// Pet receiving the grooming or care service.
+    /// Pet whose care/safety watch item needs staff attention.
     pub pet_id: PetId,
     /// Business reason staff should review before proceeding.
     pub reason: PetCareWatchReason,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for pet care watch reason decisions in daily brief workflows.
+/// Pet-care watch reason used to flag vaccination, incident, medication, temperament, or feeding attention.
 pub enum PetCareWatchReason {
-    /// Medication due item surfaced for manager daily-brief triage.
+    /// Medication task is due and needs care-team completion evidence.
     MedicationDue,
-    /// Feeding exception item surfaced for manager daily-brief triage.
+    /// Feeding instructions or exceptions need care-team attention before normal workflow proceeds.
     FeedingException,
-    /// Anxiety or stress flag item surfaced for manager daily-brief triage.
+    /// Anxiety or stress evidence may affect handling, staffing, and customer updates.
     AnxietyOrStressFlag,
-    /// Behavior review item surfaced for manager daily-brief triage.
+    /// Behavior evidence requires review before playgroup, handling, or customer messaging changes.
     BehaviorReview,
-    /// Incident follow up item surfaced for manager daily-brief triage.
+    /// Incident follow-up is due and may affect safety review or customer communication.
     IncidentFollowUp,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Revenue opportunity that may justify staff follow-up without bypassing approval gates.
 pub struct RevenueOpportunity {
-    /// Customer id fact promoted into this daily brief contract.
+    /// Customer connected to a possible revenue follow-up, if known.
     pub customer_id: Option<CustomerId>,
-    /// Pet receiving the grooming or care service.
+    /// Pet connected to the revenue opportunity, if known.
     pub pet_id: Option<PetId>,
     /// Requested service that drives scheduling and labor estimates.
     pub service: ServiceKind,
-    /// Opportunity fact promoted into this daily brief contract.
+    /// Opportunity category staff should review before drafting or making a customer offer.
     pub opportunity: RevenueOpportunityKind,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for revenue opportunity kind decisions in daily brief workflows.
+/// Revenue opportunity kind used to separate package, add-on, retail, reactivation, and training work.
 pub enum RevenueOpportunityKind {
-    /// Exit bath after boarding item surfaced for manager daily-brief triage.
+    /// Boarding stay may be eligible for an exit bath offer after staff confirm service fit and timing.
     ExitBathAfterBoarding,
-    /// Grooming rebooking due item surfaced for manager daily-brief triage.
+    /// Grooming customer may be due for rebooking, subject to schedule and customer preference review.
     GroomingRebookingDue,
-    /// Daycare package candidate item surfaced for manager daily-brief triage.
+    /// Daycare usage suggests package discussion, but staff must verify attendance and payment context.
     DaycarePackageCandidate,
-    /// Training consult candidate item surfaced for manager daily-brief triage.
+    /// Care or behavior evidence suggests a training consult may be useful after staff review.
     TrainingConsultCandidate,
-    /// Holiday boarding waitlist fill item surfaced for manager daily-brief triage.
+    /// Waitlist or cancellation gap may allow boarding revenue after capacity and policy review.
     HolidayBoardingWaitlistFill,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Manager-visible risk derived from occupancy, labor, customer, care, or revenue evidence.
 pub enum Risk {
-    /// Capacity constraint item surfaced for manager daily-brief triage.
+    /// Demand may exceed capacity for the service and should interrupt normal planning.
     CapacityConstraint {
         /// Requested service that drives scheduling and labor estimates.
         service: ServiceKind,
     },
-    /// Labor mismatch item surfaced for manager daily-brief triage.
+    /// Staffing coverage may not match demand and should drive schedule review.
     LaborMismatch {
-        /// Risk fact promoted into this daily brief contract.
+        /// Labor-risk value that explains why schedule review is recommended.
         risk: LaborRisk,
     },
-    /// Customer experience risk item surfaced for manager daily-brief triage.
+    /// Customer-experience signal needing manager review before follow-up.
     CustomerExperienceRisk {
-        /// Observation fact promoted into this daily brief contract.
+        /// Source-backed observation explaining the risk for reviewers.
         observation: operations::operational::Observation,
     },
-    /// Pet safety or care risk item surfaced for manager daily-brief triage.
+    /// Pet safety or care signal that should route to care/manager review.
     PetSafetyOrCareRisk {
-        /// Observation fact promoted into this daily brief contract.
+        /// Source-backed care observation explaining the safety concern.
         observation: operations::operational::Observation,
     },
-    /// Revenue leakage item surfaced for manager daily-brief triage.
+    /// Revenue signal that may deserve follow-up but stays review-gated.
     RevenueLeakage {
-        /// Observation fact promoted into this daily brief contract.
+        /// Source-backed revenue observation for manager review.
         observation: operations::operational::Observation,
     },
 }
@@ -409,31 +409,31 @@ impl Risk {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Proposed action that remains draft/recommendation until the workflow gate approves it.
 pub enum Action {
-    /// Create internal task item surfaced for manager daily-brief triage.
+    /// Create a staff task from brief evidence without taking external customer action.
     CreateInternalTask {
-        /// Recommendation fact promoted into this daily brief contract.
+        /// Recommendation text/evidence used to create the internal task.
         recommendation: operations::operational::Recommendation,
     },
-    /// Draft customer message item surfaced for manager daily-brief triage.
+    /// Draft a customer message only; approval and channel rules still control sending.
     DraftCustomerMessage {
-        /// Customer id fact promoted into this daily brief contract.
+        /// Customer who would receive the drafted follow-up after approval.
         customer_id: CustomerId,
         /// Business reason staff should review before proceeding.
         reason: FollowUpReason,
     },
-    /// Escalate to manager item surfaced for manager daily-brief triage.
+    /// Escalate source-backed concern to a manager before staff act.
     EscalateToManager {
         /// Business reason staff should review before proceeding.
         reason: operations::operational::Observation,
     },
-    /// Suggest schedule review item surfaced for manager daily-brief triage.
+    /// Suggest manager review of staffing or schedule coverage.
     SuggestScheduleReview {
-        /// Risk fact promoted into this daily brief contract.
+        /// Labor risk that justifies schedule review.
         risk: LaborRisk,
     },
-    /// Suggest revenue follow up item surfaced for manager daily-brief triage.
+    /// Suggest review-gated revenue follow-up rather than direct sales outreach.
     SuggestRevenueFollowUp {
-        /// Opportunity fact promoted into this daily brief contract.
+        /// Revenue opportunity to verify before any customer-facing offer.
         opportunity: RevenueOpportunityKind,
     },
 }

@@ -1,6 +1,8 @@
 # `app`
 
-`app` is the application/use-case layer for the pet-resort agent platform. It composes semantic contracts from [`domain`](../domain/README.md) into workflow packets, draft-only automation decisions, agent prompt payloads, and tool-port contracts that API, worker, and CLI shells can execute.
+Operator translation: `app` is where pet-resort work becomes a reviewable packet, draft, ranking, or tool request. It helps staff and managers move faster while keeping customer sends, provider/PMS writes, payment movement, schedule changes, care/safety decisions, and policy exceptions behind explicit review.
+
+`app` is the application/use-case layer for the pet-resort agent platform. It composes [semantic](../docs/glossary-architecture-terms.md#semantic) business meaning from [`domain`](../domain/README.md) into workflow packets, draft-only automation decisions, agent prompt payloads, and tool-port [contracts](../docs/glossary-architecture-terms.md#contract) (source-backed code promises, not legal/customer contracts) that API, worker, and CLI shells can execute.
 
 Start at [`src/lib.rs`](./src/lib.rs). The crate root exposes workflow modules for [`agents`](./src/agents.rs), [`booking_triage`](./src/booking_triage.rs), [`checkout_completion`](./src/checkout_completion.rs), [`crm_retention`](./src/crm_retention.rs), [`daily_update`](./src/daily_update.rs), [`local_smoke`](./src/local_smoke.rs), [`manager_daily_brief`](./src/manager_daily_brief.rs), and [`tools`](./src/tools.rs). The [`prelude`](./src/lib.rs) intentionally stays small: it re-exports common agent packet/spec helpers and a few tool-port request modules, not every workflow type.
 
@@ -11,6 +13,19 @@ This crate does not own domain truth. It may define application request packets,
 This README is the application workflow wiki: use it to find use-case packets, draft/review boundaries, tool ports, and the source modules that compose `domain` truth into labor-saving review queues. Keep it navigational and avoid stale duplicate Rust snippets.
 
 Executable app examples belong in Rustdoc on [`src/lib.rs`](./src/lib.rs), workflow modules such as [`src/manager_daily_brief.rs`](./src/manager_daily_brief.rs), and tool-port modules such as [`src/tools.rs`](./src/tools.rs). Those examples should compile under `cargo test -p app --doc` and show source-grounded context packets, draft validation, blocked actions, review gates, and outcome capture without implying live provider/customer side effects.
+
+## Workflow glossary links
+
+When this README or generated Rustdocs use app-layer terms, link nearby operator explanations instead of making non-coders infer the boundary from Rust names alone:
+
+- [Workflow packet](../docs/glossary-workflow-state-terms.md#workflow-packet): the review bundle a shell, staff member, manager, or agent runner works from.
+- [Draft](../docs/glossary-workflow-state-terms.md#draft): prepared message/task/evidence/update work that has not been sent, applied, or approved.
+- [Review gate](../docs/glossary-workflow-state-terms.md#review-gate): the named human-approval stop for manager, medical, behavior, customer-message, or refund/deposit-sensitive work.
+- [Blocked action](../docs/glossary-workflow-state-terms.md#blocked-action): live customer/provider/payment/schedule/policy actions the workflow must not take directly.
+- [Outcome capture](../docs/glossary-workflow-state-terms.md#outcome-capture): the evidence record of what staff did and what labor result was observed.
+- [Agent spec](../docs/glossary-workflow-state-terms.md#agent-spec): the operating contract that names an agent helper's purpose, allowed tools, forbidden actions, and default review gates.
+- [Tool port](../docs/glossary-architecture-terms.md#tool-port-apptools): the typed capability interface app workflows use for reads, checks, drafts, and future adapter implementations.
+- [Source refs and provenance](../docs/glossary-source-data-terms.md#domainsourceprovenance-and-domainsourcerecordref-as-data-evidence): the evidence trail behind workflow facts.
 
 ## Module navigation
 
@@ -110,6 +125,12 @@ The workflow modules use repeated type families so maintainers can navigate with
 4. [`daily_update`](./src/daily_update.rs) transforms staff notes into customer-safe draft previews with omitted-fact and internal-flag evidence, reducing message-writing handoffs while preserving approval gates.
 5. [`manager_daily_brief`](./src/manager_daily_brief.rs) ranks service-demand, checkout-exception, and retention actions with labor-minute estimates, so managers start from a prioritized review queue instead of reconciling dashboards manually.
 6. [`tools`](./src/tools.rs) keeps external side effects behind ports. Workflow logic can produce draft/update requests and blocked actions without directly sending messages, mutating Gingr, moving payments, or editing schedules.
+
+### Reservations and checkout operator summary
+
+Booking and checkout surfaces are staff queues, not autonomous operators. [`booking_triage`](./src/booking_triage.rs) helps front desk and managers decide whether a reservation is ready, missing information, vaccine pending, special-review, waitlisted, or failed-safe. [`checkout_completion`](./src/checkout_completion.rs) helps departure staff decide whether checkout evidence is complete, needs handoff review, or conflicts with source provider status. Together they reduce labor by turning scattered source facts into one review packet, one blocked-action list, and one draft/audit handoff instead of asking staff to reconcile provider records, care notes, payment signals, and customer-message copy by hand.
+
+Neither workflow may perform live booking confirmation/rejection, check-in/out, provider/PMS mutation, capacity release, customer-message sending, payment collection, refund, waiver, discount, or closeout execution. Source authority stays with provider/PMS lifecycle records, approved location policy, verified vaccine/document and care facts, trusted payment/deposit/ledger records, staff-submitted handoff evidence, and accountable human approvals. Review gates protect pets, customers, and staff whenever evidence is missing, stale, conflicting, sensitive, payment-related, or tied to manager/care/medical/behavior/customer-message approval.
 
 ## Cross-crate relationships
 

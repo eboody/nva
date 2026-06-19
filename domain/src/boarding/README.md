@@ -1,5 +1,7 @@
 # `domain::boarding`
 
+Operator translation: boarding pages describe how the system helps staff review overnight stays, room/accommodation fit, care readiness, deposits, cancellations, housekeeping, handoffs, minimum-stay rules, and exit-bath opportunities without letting a provider record or automation draft book a room or override policy. In code, that business meaning lives in `domain::boarding`, where `Contract` means a source-backed boarding rule bundle, not a legal/customer contract.
+
 `domain::boarding` is the domain crate's model for overnight pet-resort boarding. It owns boarding concepts that should not be flattened into provider payloads or storage codes: accommodation preferences, room-capacity decisions, care-readiness gates, cancellation and deposit policy, housekeeping cadence, staff handoff requirements, minimum-stay rules, and boarding-specific upsell opportunities.
 
 Start at [`mod.rs`](./mod.rs). It declares the module surface, defines shared validated scalars such as [`domain::boarding::RoomInventory`](./mod.rs), [`StayNights`](./mod.rs), [`NoticeHours`](./mod.rs), and [`HourOfDay`](./mod.rs), and collects the per-topic policies into [`domain::boarding::Contract`](./mod.rs). `Contract::standard_petsuites` is a fixture-like standard contract for core-service storage and tests; it is not a complete catalog of every boarding package.
@@ -39,9 +41,19 @@ Start at [`mod.rs`](./mod.rs). It declares the module surface, defines shared va
 | Boarding upsell recommendation | `domain::boarding::upsell::Policy`, `Recommendation`, `Opportunity`, `Eligibility` | [`upsell.rs`](./upsell.rs) |
 | Upsell suppression/review reasons | `domain::boarding::upsell::SuppressionReason`, `ReviewReason` | [`upsell.rs`](./upsell.rs) |
 
+## Operator summary
+
+Boarding supports the overnight-stay decision queue: front-desk staff and managers need to know whether a requested stay can be confirmed, should be waitlisted, must be denied pending manager approval, or needs care/payment/customer-message review before staff promise anything to a customer. The module reduces labor by turning room-capacity evidence, care-profile readiness, deposit state, cancellation notice, housekeeping cadence, handoff requirements, minimum-stay rules, and exit-bath opportunities into named decisions instead of making staff reread scattered provider notes and free-text reservation context.
+
+It is not allowed to automate live boarding operations on its own. `domain::boarding` does not book or cancel reservations, mutate room inventory, collect deposits, issue refunds, send customer messages, make medical judgments, or override staff. It supplies semantic policy inputs and outcomes that application, storage, and integration layers can compose behind their own approval and side-effect gates.
+
+The authoritative facts stay outside the prose: room counts and reservation state must come from the provider/read model or promoted source snapshots; payments and deposit status must come from `domain::payment`; feeding, allergy, medication, medical-condition, and temperament facts must come from the pet care/profile records; and boarding policy values must come from `domain::boarding::Contract` and the linked policy modules. If those facts are missing or contradictory, the safe output is a review gate or data-quality question, not an automated promise.
+
+Review gates protect pets, customers, and staff at the high-risk edges: manager approval for denied/exception capacity decisions, medical-document review for missing feeding instructions or medication/care ambiguity, refund/deposit exception review for payment edge cases, and customer-message approval before any upsell recommendation becomes customer-facing.
+
 ## Boarding workflow surface
 
-The labor-cost-reduction surface is mostly review triage: the module turns boarding exceptions into explicit typed decisions instead of forcing managers and front-desk staff to rediscover policy from notes, provider fields, or free-text reservation context.
+The workflow surface is mostly review triage:
 
 1. A requested accommodation becomes `domain::boarding::accommodation::Preference` and a `domain::boarding::capacity::Request`. [`domain::boarding::capacity::Policy`](./capacity.rs) evaluates that request against a [`Snapshot`](./capacity.rs), returning an available accommodation, a waitlist reason, or a denial with `domain::policy::ReviewGate::ManagerApproval`.
 2. A pet's care profile becomes a [`domain::boarding::care::Plan`](./care.rs). Missing feeding instructions or medication review requirements become [`care::ReviewGate`](./care.rs) values, so check-in readiness can be shown as `ReadyForCheckIn` or `Blocked` without ad hoc staff judgment.

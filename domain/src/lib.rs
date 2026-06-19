@@ -5,6 +5,12 @@
 //! states, documents, messages, workflow events, and audit evidence. Types in this crate describe
 //! what an agent or adapter may know and what must remain draft/review-gated before any live staff,
 //! customer, payment, medical, or capacity action.
+//!
+//! Crosswalk navigation for docs readers: start with the entity index and contract
+//! crosswalks before treating a type as operational authority. `domain` is where
+//! provider/staff evidence is normalized into semantic values; workflow use,
+//! persistence, runtime exposure, and tests are linked from
+//! `docs/entity-atlas/contract-crosswalk/{surface-inventory,source-provider-flows,workflow-packets,storage-persistence,runtime-exposure}.md`.
 
 /// Agent prompt and packet contracts for review-gated operating workflows.
 pub mod agent;

@@ -1,7 +1,7 @@
 //! Customer identity and contact values used by reservation and messaging workflows.
 //!
-//! These newtypes promote portal/import strings into validated customer facts before they are
-//! used for labor-saving automation such as inbox drafting, reservation triage, and follow-up.
+//! These newtypes promote portal/import strings into validated customer identifiers and
+//! contact values before inbox drafting, reservation triage, or follow-up can use them.
 //! They do not prove identity or consent by themselves; adapters must still attach provenance and
 //! any required approval gates before live customer communication.
 
@@ -30,7 +30,7 @@ use serde::{Deserialize, Serialize};
 )]
 pub struct Name(String);
 
-/// Customer email address captured from a portal, staff entry, import, or messaging boundary.
+/// Customer email address captured from a portal, staff entry, import, or message source.
 ///
 /// This type only enforces the storage/display envelope; workflows must still respect channel
 /// consent, approval state, and resort policy before sending outbound email.

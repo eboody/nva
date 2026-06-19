@@ -1,4 +1,4 @@
-//! Fixture-safe Gingr webhook parsing and acknowledgement contracts.
+//! Fixture-safe Gingr webhook parsing and acknowledgement surfaces.
 //!
 //! Webhooks are parsed into a quarantined envelope first. Verification is explicit,
 //! uses a caller-provided secret, and failure maps to an acknowledgement without
@@ -37,15 +37,15 @@ use sha2::Sha256;
 use std::fmt;
 use subtle::ConstantTimeEq;
 
-/// Shared verification result type used across the webhook boundary.
+/// Shared result for signature checks that decide whether a webhook may influence downstream workflows.
 pub type VerificationResult<T> = core::result::Result<T, VerificationError>;
-/// Shared parse result type used across the webhook boundary.
+/// Shared result for reading raw webhook JSON before signature verification.
 pub type ParseResult<T> = core::result::Result<T, ParseError>;
 
 type HmacSha256 = Hmac<Sha256>;
 
 #[derive(Clone)]
-/// Secret used to validate Gingr webhook signatures before payloads cross the provider boundary.
+/// Secret used to validate Gingr webhook signatures before payloads can influence workflow evidence.
 pub struct SignatureKey(SecretString);
 
 impl SignatureKey {
@@ -104,7 +104,7 @@ pub enum EventType {
 }
 
 impl EventType {
-    /// Parses provider-sourced text into this boundary type without promoting it to an NVA domain fact.
+    /// Normalizes a Gingr webhook token while preserving unknown values for source audit.
     pub fn parse(raw: impl AsRef<str>) -> Self {
         match raw.as_ref() {
             "check_in" => Self::CheckIn,
@@ -161,7 +161,7 @@ pub enum EntityType {
 }
 
 impl EntityType {
-    /// Parses provider-sourced text into this boundary type without promoting it to an NVA domain fact.
+    /// Normalizes a Gingr webhook token while preserving unknown values for source audit.
     pub fn parse(raw: impl AsRef<str>) -> Self {
         match raw.as_ref() {
             "reservation" => Self::Reservation,
@@ -356,7 +356,7 @@ impl fmt::Debug for Payload {
 }
 
 impl Payload {
-    /// Returns the Gingr entity payload object carried by the webhook.
+    /// Returns the Gingr entity payload object supplied with the webhook for downstream mapping.
     pub fn entity_data(&self) -> &serde_json::Value {
         &self.wire.entity_data
     }
@@ -418,7 +418,7 @@ pub enum VerificationError {
     #[error("malformed Gingr webhook signature: {reason}")]
     /// Webhook signature could not be parsed before comparison.
     MalformedSignature {
-        /// Boundary-level reason explaining why this provider request or parse step was rejected.
+        /// Reason the supplied Gingr signature could not be decoded before comparison.
         reason: String,
     },
     #[error("Gingr webhook signature mismatch")]

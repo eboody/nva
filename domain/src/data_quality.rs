@@ -1,6 +1,6 @@
 //! Data-quality findings that guard the source-fact → domain → workflow chain.
 //!
-//! These contracts keep messy provider facts visible instead of silently normalizing them:
+//! These types keep messy provider facts visible instead of silently normalizing them:
 //! blocking issues stop unsafe automation, reviewable issues remain attached to analytics
 //! facts and manager briefs, and BI-visible status lets labor-cost reports explain when
 //! data hygiene—not actual demand or staffing—is driving an apparent exception.
@@ -14,72 +14,72 @@ use crate::source;
 pub enum FieldSegment {
     /// Reservation record participating in the workflow.
     Reservation,
-    /// Stay data-quality finding for cleanup or review.
+    /// Stay projection path used when read-model evidence is incomplete or inconsistent.
     Stay,
-    /// Source data-quality finding for cleanup or review.
+    /// Source metadata path used when provenance or payload evidence is missing.
     Source,
-    /// Customer record id data-quality finding for cleanup or review.
+    /// Customer record id is missing or ambiguous, blocking safe owner communication and merge decisions.
     CustomerRecordId,
-    /// Pet record id data-quality finding for cleanup or review.
+    /// Pet record id is missing or ambiguous, blocking care, vaccine, and temperament confidence.
     PetRecordId,
-    /// Location record id data-quality finding for cleanup or review.
+    /// Location record id is missing or ambiguous, blocking resort-specific labor and capacity reporting.
     LocationRecordId,
-    /// Service type record id data-quality finding for cleanup or review.
+    /// Service type record id is missing or unmapped, blocking correct service-line grouping.
     ServiceTypeRecordId,
-    /// Status data-quality finding for cleanup or review.
+    /// Status value is missing, conflicting, or unmapped, so workflow state must be reviewed.
     Status,
-    /// Owner pet relationship data-quality finding for cleanup or review.
+    /// Owner-pet relationship is ambiguous, blocking customer communication and profile cleanup automation.
     OwnerPetRelationship,
-    /// Record id data-quality finding for cleanup or review.
+    /// Source record id is missing, so the issue cannot be traced back for repair.
     RecordId,
-    /// Endpoint data-quality finding for cleanup or review.
+    /// Source endpoint is missing, so adapter evidence cannot be audited confidently.
     Endpoint,
-    /// Payload hash data-quality finding for cleanup or review.
+    /// Payload hash is missing, weakening replay and tamper-evidence for source review.
     PayloadHash,
-    /// Raw payload ref data-quality finding for cleanup or review.
+    /// Raw payload reference is missing or quarantined, limiting audit and repair evidence.
     RawPayloadRef,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Reservation fields whose absence or ambiguity can block workflow projections.
 pub enum ReservationField {
-    /// Customer record id data-quality finding for cleanup or review.
+    /// Customer record id is missing or ambiguous, blocking safe owner communication and merge decisions.
     CustomerRecordId,
-    /// Pet record id data-quality finding for cleanup or review.
+    /// Pet record id is missing or ambiguous, blocking care, vaccine, and temperament confidence.
     PetRecordId,
-    /// Location record id data-quality finding for cleanup or review.
+    /// Location record id is missing or ambiguous, blocking resort-specific labor and capacity reporting.
     LocationRecordId,
-    /// Service type record id data-quality finding for cleanup or review.
+    /// Service type record id is missing or unmapped, blocking correct service-line grouping.
     ServiceTypeRecordId,
-    /// Status data-quality finding for cleanup or review.
+    /// Status value is missing, conflicting, or unmapped, so workflow state must be reviewed.
     Status,
-    /// Owner pet relationship data-quality finding for cleanup or review.
+    /// Owner-pet relationship is ambiguous, blocking customer communication and profile cleanup automation.
     OwnerPetRelationship,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Stay/read-model fields checked before analytics and labor views trust a record.
 pub enum StayField {
-    /// Id data-quality finding for cleanup or review.
+    /// Stay id is missing, so analytics cannot safely join or deduplicate the projected fact.
     Id,
-    /// Pet record id data-quality finding for cleanup or review.
+    /// Pet record id is missing or ambiguous, blocking care, vaccine, and temperament confidence.
     PetRecordId,
-    /// Location record id data-quality finding for cleanup or review.
+    /// Location record id is missing or ambiguous, blocking resort-specific labor and capacity reporting.
     LocationRecordId,
-    /// Status data-quality finding for cleanup or review.
+    /// Status value is missing, conflicting, or unmapped, so workflow state must be reviewed.
     Status,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Source-ingestion metadata fields needed to preserve provenance and auditability.
 pub enum SourceField {
-    /// Record id data-quality finding for cleanup or review.
+    /// Source record id is missing, so the issue cannot be traced back for repair.
     RecordId,
-    /// Endpoint data-quality finding for cleanup or review.
+    /// Source endpoint is missing, so adapter evidence cannot be audited confidently.
     Endpoint,
-    /// Payload hash data-quality finding for cleanup or review.
+    /// Payload hash is missing, weakening replay and tamper-evidence for source review.
     PayloadHash,
-    /// Raw payload ref data-quality finding for cleanup or review.
+    /// Raw payload reference is missing or quarantined, limiting audit and repair evidence.
     RawPayloadRef,
 }
 
@@ -88,9 +88,9 @@ pub enum SourceField {
 pub enum FieldPath {
     /// Reservation record participating in the workflow.
     Reservation(ReservationField),
-    /// Stay data-quality finding for cleanup or review.
+    /// Stay projection path used when read-model evidence is incomplete or inconsistent.
     Stay(StayField),
-    /// Source data-quality finding for cleanup or review.
+    /// Source metadata path used when provenance or payload evidence is missing.
     Source(SourceField),
 }
 
@@ -153,70 +153,70 @@ impl FieldPath {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Kind of hygiene defect found while validating source facts.
 pub enum Kind {
-    /// Missing required field data-quality finding for cleanup or review.
+    /// Required source field is absent, so projection or automation must stop until staff/source repair happens.
     MissingRequiredField {
-        /// Field fact promoted into this data quality contract.
+        /// Source field whose missing value or conflict created the data-quality issue.
         field: FieldPath,
     },
-    /// Assumption in force data-quality finding for cleanup or review.
+    /// Source mapper used an assumption that must remain visible before managers trust derived workflow data.
     AssumptionInForce {
-        /// Assumption fact promoted into this data quality contract.
+        /// Assumption staff or managers must review before the workflow trusts derived data.
         assumption: source::reservation::Assumption,
     },
-    /// Unknown source status data-quality finding for cleanup or review.
+    /// Provider status was not mapped to known workflow vocabulary and needs review before automation acts.
     UnknownSourceStatus {
         /// Provider status text retained before normalization.
         observed: source::ObservedStatus,
     },
-    /// Conflicting timestamps data-quality finding for cleanup or review.
+    /// Source timestamps conflict, so ordering-sensitive stay or checkout decisions need human review.
     ConflictingTimestamps,
-    /// Duplicate source record data-quality finding for cleanup or review.
+    /// Duplicate source record may inflate demand, revenue, or workload until a human verifies the duplicate.
     DuplicateSourceRecord,
-    /// Ambiguous owner pet relationship data-quality finding for cleanup or review.
+    /// Owner-pet relationship ambiguity blocks safe customer messaging and profile merge work.
     AmbiguousOwnerPetRelationship,
-    /// Unmapped service type data-quality finding for cleanup or review.
+    /// Service type cannot be mapped to boarding, daycare, grooming, training, or retail without review.
     UnmappedServiceType,
-    /// Location scope ambiguity data-quality finding for cleanup or review.
+    /// Location scope is unclear, so regional or local labor reporting may point at the wrong resort.
     LocationScopeAmbiguity,
-    /// Payment state conflict data-quality finding for cleanup or review.
+    /// Payment state conflicts must be reviewed before checkout, invoice, refund, or discount work proceeds.
     PaymentStateConflict,
-    /// Checkout evidence missing data-quality finding for cleanup or review.
+    /// Checkout evidence is missing, so stay completion and billing summaries cannot be trusted automatically.
     CheckoutEvidenceMissing,
-    /// Unclosed reservation data-quality finding for cleanup or review.
+    /// Unclosed reservation may distort occupancy, labor, and checkout queues until staff closes or explains it.
     UnclosedReservation,
-    /// Incomplete pet profile data-quality finding for cleanup or review.
+    /// Incomplete pet profile blocks reliable care, eligibility, and customer-update drafts.
     IncompletePetProfile,
-    /// Missing vaccination record data-quality finding for cleanup or review.
+    /// Missing vaccination record blocks safety-sensitive eligibility claims until documentation is reviewed.
     MissingVaccinationRecord,
-    /// Sensitive payload quarantined data-quality finding for cleanup or review.
+    /// Sensitive payload was quarantined, so automation may preserve audit evidence but must not expose secrets or PII.
     SensitivePayloadQuarantined,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Severity of a hygiene defect and its effect on read-model or workflow safety.
 pub enum Severity {
-    /// Informational data-quality finding for cleanup or review.
+    /// Informational issue stays visible for audit and trend reporting without blocking workflow use.
     Informational,
-    /// Warning data-quality finding for cleanup or review.
+    /// Warning issue allows read-model use only with manager-visible context.
     Warning,
-    /// Blocking data-quality finding for cleanup or review.
+    /// Blocking issue stops projection or automation until source evidence is repaired or reviewed.
     Blocking,
-    /// Critical data-quality finding for cleanup or review.
+    /// Critical issue signals source safety or trust failure that must be escalated before workflow use.
     Critical,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Lifecycle state for a data-quality issue as staff acknowledge or repair it.
 pub enum ResolutionStatus {
-    /// Open data-quality finding for cleanup or review.
+    /// Open issue still needs staff or source-system action.
     Open,
-    /// Acknowledged data-quality finding for cleanup or review.
+    /// Acknowledged issue has been seen by staff but remains part of evidence shown to workflows.
     Acknowledged,
-    /// Ignored data-quality finding for cleanup or review.
+    /// Ignored issue is intentionally bypassed for a workflow, preserving audit context for why.
     Ignored,
-    /// Repaired data-quality finding for cleanup or review.
+    /// Repaired issue records that source or profile cleanup resolved the defect.
     Repaired,
-    /// Superseded data-quality finding for cleanup or review.
+    /// Superseded issue was replaced by fresher evidence or a more precise finding.
     Superseded,
 }
 
@@ -255,42 +255,42 @@ impl Issue {
         }
     }
 
-    /// Returns the kind for this data quality value.
+    /// Returns the concrete hygiene defect that explains why a source fact is blocked or reviewable.
     pub fn kind(&self) -> Kind {
         self.kind.clone()
     }
 
-    /// Returns this data quality value's severity.
+    /// Returns how strongly the issue should affect projection, manager review, or escalation.
     pub const fn severity(&self) -> Severity {
         self.severity
     }
 
-    /// Returns this data quality value's source system.
+    /// Returns the provider system that produced the record needing cleanup or review.
     pub const fn source_system(&self) -> source::System {
         self.source_record_ref.system()
     }
 
-    /// Returns this data quality value's source record ref.
+    /// Returns the auditable source record reference staff can use to repair the defect.
     pub const fn source_record_ref(&self) -> &source::RecordRef {
         &self.source_record_ref
     }
 
-    /// Returns this data quality value's provenance.
+    /// Returns the provenance chain that keeps cleanup evidence tied to provider ingestion.
     pub const fn provenance(&self) -> &source::Provenance {
         &self.provenance
     }
 
-    /// Returns this data quality value's detected at.
+    /// Returns when the issue was detected so stale hygiene can be prioritized.
     pub const fn detected_at(&self) -> &source::Timestamp {
         &self.detected_at
     }
 
-    /// Returns this data quality value's resolution status.
+    /// Returns whether the hygiene issue is open, acknowledged, ignored, repaired, or superseded.
     pub const fn resolution_status(&self) -> ResolutionStatus {
         self.resolution_status
     }
 
-    /// Returns this data quality value's visible to bi.
+    /// Returns whether BI/labor reports should show the issue as context for apparent exceptions.
     pub const fn visible_to_bi(&self) -> bool {
         self.visible_to_bi
     }

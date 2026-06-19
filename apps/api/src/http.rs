@@ -18,10 +18,10 @@ static VACCINE_DOCUMENT_STATE: std::sync::OnceLock<VaccineDocumentState> =
     std::sync::OnceLock::new();
 
 #[derive(Clone)]
-/// In-memory state carried by the API shell for deterministic workflow demos and tests.
+/// In-memory state kept on the API shell for deterministic workflow demos and tests.
 ///
 /// The state stores documents, review packets, inquiry intake records, and labor-evidence
-/// projections so HTTP handlers can demonstrate runtime contracts without connecting to
+/// projections so HTTP handlers can demonstrate runtime rules without connecting to
 /// live databases, customer messaging, or provider write APIs.
 pub struct VaccineDocumentState {
     store: Arc<Mutex<VaccineDocumentStore>>,
@@ -292,7 +292,7 @@ pub fn router() -> Router {
 /// Builds the staff-facing workflow router over caller-provided deterministic state.
 ///
 /// Tests and local runtimes use this entrypoint to share state across requests while
-/// preserving the same safety contract as [`router`]: handlers may draft, audit, and
+/// preserving the same safety rules as [`router`]: handlers may draft, audit, and
 /// persist projections, but live side effects remain blocked unless a future runtime
 /// adapter adds explicit approval and provider gates.
 pub fn router_with_state(state: VaccineDocumentState) -> Router {

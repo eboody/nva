@@ -1,4 +1,4 @@
-//! Boarding cancellation policy contracts for notice windows and deposit/refund review.
+//! Boarding cancellation policy for notice windows and deposit/refund review.
 //!
 //! Cancellation penalties are represented as deterministic policy values so staff-facing agents can
 //! explain forfeits or manager-review needs without waiving fees or promising exceptions.

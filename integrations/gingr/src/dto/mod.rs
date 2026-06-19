@@ -6,7 +6,7 @@ pub mod retail;
 pub mod training;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// Documents provider surfaces where Gingr has endpoints but no stable DTO contract in this crate.
+/// Documents Gingr endpoint surfaces where this crate has no stable DTO because source evidence is incomplete.
 pub enum ProviderSurface {
     /// Endpoint is known, but this crate intentionally has no DTO mapping yet.
     NoDocumentedServiceDto {

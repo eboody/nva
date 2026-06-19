@@ -1,4 +1,4 @@
-//! Retail recommendation contracts for personalized upsell candidates, review gates, and safe customer copy.
+//! Retail recommendation models for personalized upsell candidates, review gates, and safe customer copy.
 
 use bon::Builder;
 use serde::{Deserialize, Serialize};
@@ -9,7 +9,7 @@ use crate::policy;
 use super::inventory::Availability;
 use super::product::Product;
 
-/// Rationale boundary for human-readable evidence explaining why a retail recommendation exists.
+/// Rationale text keeps the staff-readable evidence for why a retail recommendation exists.
 pub mod rationale {
     use nutype::nutype;
     #[allow(unused_imports)]
@@ -36,76 +36,76 @@ pub mod rationale {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Recommendation rule that names the operational event that can produce an upsell candidate.
 pub enum Rule {
-    /// No additional workflow gate is required.
+    /// No recommendation rule is active, so no upsell candidate should be produced from this rule alone.
     None,
-    /// Anxiety support after boarding retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Boarding stay may justify an internal anxiety-support upsell candidate after inventory and care checks.
     AnxietySupportAfterBoarding,
-    /// Diet support after boarding retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Boarding diet history may justify a continuity recommendation when stock and care policy allow it.
     DietSupportAfterBoarding,
-    /// Coat care after grooming retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Grooming outcome may justify a coat-care upsell candidate after staff review gates are satisfied.
     CoatCareAfterGrooming,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 /// Retail recommendation candidate containing customer/pet context, product, rationale, inventory, preference, and care-safety signals.
 pub struct Candidate {
-    /// Source-derived customer id carried by this retail contract.
+    /// Customer whose preferences and opt-out status control whether recommendation work may proceed.
     pub customer_id: CustomerId,
     /// Pet receiving the grooming or care service.
     pub pet_id: PetId,
-    /// Source-derived location id carried by this retail contract.
+    /// Location where inventory and staff review capacity are evaluated for this candidate.
     pub location_id: LocationId,
-    /// Source-derived product carried by this retail contract.
+    /// Product being considered for an internal upsell candidate, not an automatic customer send.
     pub product: Product,
-    /// Business reason staff should review before proceeding.
+    /// Internal reason staff see when deciding whether the recommendation is useful and safe.
     pub reason: Reason,
-    /// Source-derived rationale carried by this retail contract.
+    /// Staff-readable rationale explaining the source event or care context behind the candidate.
     pub rationale: rationale::Text,
-    /// Source-derived care sensitivity carried by this retail contract.
+    /// Care-safety state that can require medical-document or manager review before use.
     pub care_sensitivity: CareSensitivity,
-    /// Source-derived inventory carried by this retail contract.
+    /// Availability state that suppresses candidates when stock cannot support the recommendation.
     pub inventory: Availability,
-    /// Source-derived customer preference carried by this retail contract.
+    /// Preference or opt-out state that prevents unwanted recommendation drafts.
     pub customer_preference: Preference,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Business reason for recommending a product, kept separate from customer-facing copy.
 pub enum Reason {
-    /// Anxiety or stress support retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Reason tied to boarding stress notes or staff-observed anxiety support needs.
     AnxietyOrStressSupport,
-    /// Boarding diet continuity retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Reason tied to preserving diet continuity after a boarding stay.
     BoardingDietContinuity,
-    /// Coat or skin care after grooming retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Reason tied to groomer-observed coat or skin care follow-up.
     CoatOrSkinCareAfterGrooming,
-    /// Prior purchase replenishment retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Reason tied to replenishing a product the customer previously bought.
     PriorPurchaseReplenishment,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Care-sensitivity status that decides whether supplement/diet/product recommendations need care or manager review.
 pub enum CareSensitivity {
-    /// No known care conflict retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// No care conflict is known, so the candidate can remain an internal draft if other gates pass.
     NoKnownCareConflict,
-    /// Supplement or diet review required retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Supplement or diet item must pause for medical-document review before staff use or customer copy.
     SupplementOrDietReviewRequired,
-    /// Care plan conflict retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Pet care plan conflicts with the suggested product and requires manager review.
     CarePlanConflict,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Customer preference state used to suppress opted-out recommendations and review unknown consent.
 pub enum Preference {
-    /// Allows retail recommendations retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Customer preference allows retail recommendation drafts when inventory and care gates pass.
     AllowsRetailRecommendations,
-    /// Opted out retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Customer opted out, so the candidate is suppressed before staff or customer use.
     OptedOut,
-    /// Estimate confidence is unknown and must be reviewed.
+    /// Customer recommendation preference is unknown, so staff must confirm consent before use.
     UnknownRequiresReview,
 }
 
 #[derive(Debug, Clone, Default)]
-/// Represents the policy concept as a typed retail operational contract instead of a raw primitive.
+/// Evaluates retail recommendation safety so staff see useful candidates without bypassing care, inventory, or preference gates.
 pub struct Policy;
 
 impl Policy {
@@ -138,50 +138,50 @@ impl Policy {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Recommendation decision that either drafts an internal candidate, requires review, or suppresses the upsell.
 pub enum Decision {
-    /// Draft internal candidate retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Candidate may be shown internally to staff but is not approved customer copy or a sale action.
     DraftInternalCandidate,
-    /// Staff review required retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Candidate must pause for staff/medical-document review before use.
     StaffReviewRequired {
-        /// Business reason staff should review before proceeding.
+        /// Internal reason staff see when deciding whether the recommendation is useful and safe.
         reason: ReviewReason,
-        /// Source-derived gate carried by this retail contract.
+        /// Approval gate that must be satisfied before recommendation or customer-copy workflow proceeds.
         gate: policy::ReviewGate,
     },
-    /// Manager review required retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Candidate must pause for manager approval because care-plan conflict or policy risk is present.
     ManagerReviewRequired {
-        /// Business reason staff should review before proceeding.
+        /// Internal reason staff see when deciding whether the recommendation is useful and safe.
         reason: ReviewReason,
-        /// Source-derived gate carried by this retail contract.
+        /// Approval gate that must be satisfied before recommendation or customer-copy workflow proceeds.
         gate: policy::ReviewGate,
     },
-    /// Suppressed retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Candidate is hidden from staff/customer workflows because preference, inventory, or safety policy failed.
     Suppressed {
-        /// Business reason staff should review before proceeding.
+        /// Internal reason staff see when deciding whether the recommendation is useful and safe.
         reason: SuppressionReason,
     },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Decision vocabulary for review reason in retail workflows.
+/// Review reasons that explain whether care facts, care-plan conflicts, or consent uncertainty paused the candidate.
 pub enum ReviewReason {
-    /// Care sensitive product retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Product category or care facts require medical-document review before staff recommend it.
     CareSensitiveProduct,
-    /// Care plan conflict retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Pet care plan conflicts with the suggested product and requires manager review.
     CarePlanConflict,
-    /// Unknown customer preference retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Customer preference is unknown, so staff must verify consent before recommendation use.
     UnknownCustomerPreference,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Reason a recommendation is suppressed before staff/customer use.
 pub enum SuppressionReason {
-    /// Customer opted out retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Customer opted out, so the recommendation must be suppressed.
     CustomerOptedOut,
-    /// Inventory unavailable retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Product is unavailable, so the recommendation must not promise or draft a sale.
     InventoryUnavailable,
 }
 
-/// Customer-copy boundary that prevents unsafe retail claims from leaving draft/review state.
+/// Customer-copy policy keeps retail recommendation text in draft/review state until approval and rejects unsafe claims.
 pub mod customer_copy {
     use nutype::nutype;
     use serde::{Deserialize, Serialize};
@@ -206,11 +206,11 @@ pub mod customer_copy {
     pub struct SafeCopy(String);
 
     #[derive(Debug, Clone, Default)]
-    /// Represents the policy concept as a typed retail operational contract instead of a raw primitive.
+    /// Evaluates customer-facing retail copy so recommendations stay draft-only until customer-message approval.
     pub struct Policy;
 
     impl Policy {
-        /// Evaluates recommendation or customer copy safety without bypassing preference, inventory, or care-review gates.
+        /// Rejects unsafe claim language and otherwise keeps copy behind the customer-message approval gate.
         pub fn evaluate(&self, copy: &SafeCopy) -> Decision {
             let normalized = copy.clone().into_inner().to_lowercase();
             if ["treat", "diagnos", "cure", "prescrib", "medical"]
@@ -230,28 +230,28 @@ pub mod customer_copy {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Recommendation decision that either drafts an internal candidate, requires review, or suppresses the upsell.
+    /// Customer-copy decision that either remains approval-gated or is rejected for rewrite.
     pub enum Decision {
-        /// Draft requires approval retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+        /// Customer-facing copy is only a draft until the customer-message approval gate is satisfied.
         DraftRequiresApproval {
-            /// Source-derived gate carried by this retail contract.
+            /// Approval gate that must be satisfied before recommendation or customer-copy workflow proceeds.
             gate: policy::ReviewGate,
         },
-        /// Rejected retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+        /// Customer-facing copy is rejected because it contains an unsafe claim or unsupported promise.
         Rejected {
-            /// Business reason staff should review before proceeding.
+            /// Rejection reason staff must address before this copy can be approved.
             reason: RejectionReason,
-            /// Source-derived gate carried by this retail contract.
+            /// Approval gate that must be satisfied before recommendation or customer-copy workflow proceeds.
             gate: policy::ReviewGate,
         },
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision vocabulary for rejection reason in retail workflows.
+    /// Customer-copy rejection reasons that explain what staff must rewrite before approval.
     pub enum RejectionReason {
-        /// Medical claim retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+        /// Copy suggests treatment, diagnosis, cure, prescribing, or medical benefit and cannot be sent as-is.
         MedicalClaim,
-        /// Unsupported promise retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+        /// Copy promises an outcome staff cannot verify, so it must be rewritten and approved before use.
         UnsupportedPromise,
     }
 }

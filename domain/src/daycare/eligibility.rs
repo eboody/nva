@@ -1,5 +1,20 @@
 //! Daycare group-play eligibility policy for source-grounded staff review.
 //!
+//! ## Operator-summary
+//!
+//! This module supports the daycare group-play eligibility queue: it combines species,
+//! requested care mode, current temperament assessment, vaccine readiness, spay/neuter
+//! status, active incident restriction, and staffing coverage before a pet enters group play.
+//! It can reduce labor by producing a deterministic staff-review reason instead of asking
+//! front-desk or play-yard staff to manually reconcile every source note and policy gate.
+//!
+//! It must not automate live admission to group play, vaccine acceptance, behavior clearance,
+//! staffing overrides, or customer promises. Authoritative facts remain the pet profile,
+//! reviewed temperament/vaccine records, local play policy, incident disposition, and
+//! coverage decision. Review gates protect pets, customers, and staff by routing missing
+//! temperament, uncertain vaccine proof, spay/neuter concerns, insufficient staffing, or
+//! incident suspension to behavior, medical-document, manager, or staff review before use.
+//!
 //! ```
 //! use domain::{daycare, entities, policy};
 //! use uuid::Uuid;
@@ -28,7 +43,7 @@ use super::*;
 use crate::{entities, policy};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Source-derived evidence used to decide whether a pet may enter daycare group play.
+/// Eligibility evidence staff review before a pet may enter daycare group play.
 pub struct Evidence {
     /// Pet whose daycare eligibility is being evaluated.
     pub pet_id: PetId,

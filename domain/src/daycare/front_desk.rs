@@ -63,11 +63,15 @@ pub enum EligibilityReadiness {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Care-team readiness state for daycare check-in.
 pub enum CareReadiness {
-    /// Care evidence is clear enough for check-in to proceed.
+    /// Care-team medical, behavior, and handling evidence has no unresolved check-in blocker.
+    ///
+    /// Package/payment and manager policy readiness are represented by `PackageReadiness`.
     Ready,
-    /// Human review gate required before this readiness state can proceed.
+    /// Care team must clear medical, behavior, or handling evidence before check-in advances.
+    ///
+    /// This gate is not the package/payment or manager policy readiness gate.
     NeedsCareTeamReview {
-        /// Gate carried by this variant.
+        /// Specific care-team gate that must clear before daycare check-in advances.
         gate: policy::ReviewGate,
     },
 }
@@ -75,13 +79,13 @@ pub enum CareReadiness {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Package/payment readiness state used to route daycare front-desk work.
 pub enum PackageReadiness {
-    /// Care evidence is clear enough for check-in to proceed.
+    /// Package and payment state is clear enough for front desk to skip collection.
     Ready,
     /// Front desk must collect payment, package visits, or missing account information.
     NeedsFrontDeskCollection,
-    /// Human review gate required before this readiness state can proceed.
+    /// Manager must review package, payment, or policy ambiguity before check-in advances.
     NeedsManagerReview {
-        /// Gate carried by this variant.
+        /// Specific gate the responsible team must clear before daycare check-in advances.
         gate: policy::ReviewGate,
     },
 }
@@ -102,19 +106,19 @@ pub enum ReadinessDecision {
     ReadyToCheckIn,
     /// Front desk must collect payment, package visits, or missing account information.
     NeedsFrontDeskCollection,
-    /// Human review gate required before this readiness state can proceed.
+    /// Care team must clear medical, behavior, or handling evidence before check-in advances.
     NeedsCareTeamReview {
-        /// Gate carried by this variant.
+        /// Specific gate the responsible team must clear before daycare check-in advances.
         gate: policy::ReviewGate,
     },
-    /// Human review gate required before this readiness state can proceed.
+    /// Manager must clear operational or package/payment policy before check-in advances.
     NeedsManagerReview {
-        /// Gate carried by this variant.
+        /// Specific gate the responsible team must clear before daycare check-in advances.
         gate: policy::ReviewGate,
     },
-    /// Human review gate required before this readiness state can proceed.
+    /// Safety or policy block prevents check-in until the named gate is resolved.
     BlockedForSafetyOrPolicy {
-        /// Gate carried by this variant.
+        /// Specific gate the responsible team must clear before daycare check-in advances.
         gate: policy::ReviewGate,
     },
 }
@@ -133,7 +137,7 @@ impl ReadinessDecision {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Physical or operational lane used to sort daycare front-desk work.
+/// Physical front-desk lane that routes arrivals, pickups, incidents, billing, and package help.
 pub enum QueueLane {
     /// Queue lane for check-ins with all readiness gates clear.
     FastLane,

@@ -1,5 +1,21 @@
 //! Document intake, safety review, storage, and retention values.
 //!
+//! ## Operator-summary
+//!
+//! This module supports the document-review queue for vaccine proofs, waivers, medical
+//! records, photos, incident evidence, and provider/customer uploads. It can reduce labor
+//! by routing files through classification, virus scan, PII redaction, extraction, storage,
+//! supersession, and reviewer status instead of making staff manually inspect each upload
+//! before it appears in a workflow.
+//!
+//! It must not automate live compliance clearance, medical acceptance, incident resolution,
+//! customer disclosure, provider writes, or retention/destruction decisions. The authoritative
+//! source facts remain the immutable stored object, hash, original metadata, source route,
+//! scan/redaction results, extraction evidence, reviewer decision, and audit trail. Review
+//! gates protect pets, customers, and staff by keeping unscanned, unredacted, failed,
+//! unverified, superseded, or rejected documents out of compliance, messaging, and safety
+//! decisions until the appropriate staff review is complete.
+//!
 //! Documents carry vaccine proofs, waivers, medical records, incident evidence, and other source
 //! artifacts that staff and agents rely on. The domain separates received/extracted facts from
 //! verified facts, records virus/PII handling state, and keeps storage references explicit so
@@ -14,15 +30,15 @@ use std::fmt;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Document classification used to route vaccine, waiver, medical, photo, and incident evidence.
 pub enum Classification {
-    /// Vaccine proof document classification or pipeline state used for review and retention.
+    /// Immunization proof that can satisfy compliance only after scan and reviewer checks pass.
     VaccineProof,
-    /// Waiver document classification or pipeline state used for review and retention.
+    /// Signed waiver artifact retained as customer consent evidence for staff review.
     Waiver,
-    /// Photo document classification or pipeline state used for review and retention.
+    /// Pet or facility image that may support identity, care notes, or customer communication.
     Photo,
-    /// Medical record document classification or pipeline state used for review and retention.
+    /// Veterinary or medical record that requires review before influencing care decisions.
     MedicalRecord,
-    /// Incident evidence document classification or pipeline state used for review and retention.
+    /// Incident attachment preserved as safety and audit evidence for manager follow-up.
     IncidentEvidence,
     /// Non-dog, non-cat pet handled by exception policy.
     Other,
@@ -31,70 +47,70 @@ pub enum Classification {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Source route through which a document entered the review and storage pipeline.
 pub enum Source {
-    /// Customer upload document classification or pipeline state used for review and retention.
+    /// Customer-submitted file that enters quarantine, scan, and reviewer queues before use.
     CustomerUpload,
-    /// Staff scan document classification or pipeline state used for review and retention.
+    /// Paper document digitized by staff and tied to source metadata for auditability.
     StaffScan,
-    /// Staff upload document classification or pipeline state used for review and retention.
+    /// Staff-uploaded file attached to an operational record with reviewer accountability.
     StaffUpload,
-    /// Email ingest document classification or pipeline state used for review and retention.
+    /// Email attachment captured from an inbox before classification, scan, and review.
     EmailIngest,
-    /// Provider poll document classification or pipeline state used for review and retention.
+    /// File discovered through provider polling and reconciled against source-system authority.
     ProviderPoll,
-    /// Provider webhook document classification or pipeline state used for review and retention.
+    /// File announced by provider webhook and retained with webhook provenance for audit.
     ProviderWebhook,
-    /// Migration import document classification or pipeline state used for review and retention.
+    /// Legacy file imported during migration with provenance preserved for cleanup review.
     MigrationImport,
-    /// Provider role or status could not be mapped confidently.
+    /// Source route is unknown, so staff should verify document origin before trusting it in workflows.
     Unknown,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Normalized lifecycle states used to reconcile source-system data with domain workflows.
 pub enum Status {
-    /// Received document classification or pipeline state used for review and retention.
+    /// Stored but not yet scanned or extracted, so it cannot support compliance decisions.
     Received,
-    /// Quarantined rejected document classification or pipeline state used for review and retention.
+    /// Rejected during quarantine and blocked from staff-visible evidence flows.
     QuarantinedRejected,
-    /// Extracting document classification or pipeline state used for review and retention.
+    /// OCR or metadata extraction is running before reviewer-ready facts exist.
     Extracting,
-    /// Extraction failed document classification or pipeline state used for review and retention.
+    /// Extraction failed and requires staff review before the document can provide facts.
     ExtractionFailed,
-    /// Awaiting review document classification or pipeline state used for review and retention.
+    /// Scan and extraction evidence is ready but still needs human approval.
     AwaitingReview,
-    /// Verified document classification or pipeline state used for review and retention.
+    /// Reviewer-approved document evidence may now support compliance or care workflows.
     Verified,
-    /// Rejected document classification or pipeline state used for review and retention.
+    /// Reviewer rejected the file, blocking it from compliance and customer messaging.
     Rejected,
-    /// Superseded document classification or pipeline state used for review and retention.
+    /// Newer evidence replaced this document while the old audit trail remains retained.
     Superseded,
-    /// Archived document classification or pipeline state used for review and retention.
+    /// Retained historical document no longer participates in active workflows.
     Archived,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Virus-scan outcome used before documents may become staff-visible evidence.
 pub enum VirusScanStatus {
-    /// Pending document classification or pipeline state used for review and retention.
+    /// Scan request is pending, so the file remains blocked from trusted evidence use.
     Pending,
-    /// Passed document classification or pipeline state used for review and retention.
+    /// Virus scan passed, allowing the document to continue toward extraction and review.
     Passed,
-    /// Deposit collection was attempted but did not succeed.
+    /// Virus scan failed, keeping the document quarantined from staff and automation.
     Failed,
-    /// Unsupported document classification or pipeline state used for review and retention.
+    /// File type cannot be scanned by the supported path and needs manual handling.
     Unsupported,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// PII redaction state used before document content is exposed to agents or reports.
 pub enum PiiRedactionStatus {
-    /// No deposit or review is needed for this reservation path.
+    /// Redaction is unnecessary for this document before staff or agent use.
     NotRequired,
-    /// Pending document classification or pipeline state used for review and retention.
+    /// Redaction is pending, so extracted content must stay out of agent/report surfaces.
     Pending,
-    /// Redacted document classification or pipeline state used for review and retention.
+    /// Sensitive content has been redacted for safe staff, agent, or report use.
     Redacted,
-    /// Deposit collection was attempted but did not succeed.
+    /// Redaction failed, so document content remains blocked until manual review.
     Failed,
 }
 
@@ -138,7 +154,7 @@ pub struct MimeType(String);
 pub struct ContentLengthBytes(u64);
 
 impl ContentLengthBytes {
-    /// Promotes boundary input into a validated document domain value.
+    /// Rejects unusable document input before extraction, storage, or reviewer queues use it.
     pub const fn try_new(value: u64) -> Result<Self, ContentLengthError> {
         if value == 0 {
             return Err(ContentLengthError::EmptyObject);
@@ -146,7 +162,7 @@ impl ContentLengthBytes {
         Ok(Self(value))
     }
 
-    /// Exposes the validated scalar for serialization and adapter boundaries.
+    /// Returns the checked value for storage, reporting, or adapter output.
     pub const fn get(self) -> u64 {
         self.0
     }
@@ -268,23 +284,23 @@ pub struct StorageVersion(String);
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 /// Storage pointer to the immutable object that backs a reviewed or source document.
 pub struct StorageRef {
-    /// Bucket fact promoted into this document contract.
+    /// Bucket preserved with the stored document so reviewers can audit intake, extraction, and retention.
     pub bucket: StorageBucket,
-    /// Key fact promoted into this document contract.
+    /// Key preserved with the stored document so reviewers can audit intake, extraction, and retention.
     pub key: StorageKey,
-    /// Version fact promoted into this document contract.
+    /// Version preserved with the stored document so reviewers can audit intake, extraction, and retention.
     pub version: StorageVersion,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 /// Original uploaded file metadata preserved for audit, extraction, and staff review.
 pub struct OriginalFile {
-    /// Filename fact promoted into this document contract.
+    /// Filename preserved with the stored document so reviewers can audit intake, extraction, and retention.
     pub filename: FileName,
-    /// Mime type fact promoted into this document contract.
+    /// Mime type preserved with the stored document so reviewers can audit intake, extraction, and retention.
     pub mime_type: MimeType,
-    /// Content length fact promoted into this document contract.
+    /// Content length preserved with the stored document so reviewers can audit intake, extraction, and retention.
     pub content_length: ContentLengthBytes,
-    /// Sha 256 fact promoted into this document contract.
+    /// Sha256 preserved with the stored document so reviewers can audit intake, extraction, and retention.
     pub sha256: Sha256Digest,
 }

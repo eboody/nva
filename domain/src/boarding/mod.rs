@@ -1,9 +1,32 @@
-//! Boarding service-line contracts for capacity, stay policy, care handoffs, and upsells.
+//! Boarding service-line rules for capacity, stay policy, care handoffs, and upsells.
 //!
-//! This module documents the externally visible boarding rules that labor-saving agents may use
-//! when drafting staff packets, manager briefs, and customer-response recommendations. Source
-//! systems remain authoritative for inventory, payments, and pet care facts; these types preserve
-//! the review gates that prevent unsafe automated promises.
+//! # Operator summary
+//!
+//! Boarding supports the queue where front-desk staff and managers decide whether an overnight
+//! stay can be confirmed, waitlisted, held for care review, or turned into a safe follow-up offer.
+//! The useful labor reduction is deterministic triage: capacity snapshots, care profiles, deposit
+//! status, cancellation notice, housekeeping cadence, handoff checklists, and exit-bath evidence
+//! become typed decisions instead of scattered note reading and ad hoc manager pings.
+//!
+//! This module is not permission to automate live boarding operations. It does not book or cancel
+//! reservations, mutate room inventory, collect deposits, issue refunds, send customer messages,
+//! make medical judgments, or override staff. Source systems and promoted domain facts remain
+//! authoritative: room counts and reservation status from the provider/read model, payment/deposit
+//! evidence from `domain::payment`, care instructions and medication-review requirements from the
+//! pet care profile, and policy values captured in the boarding location rules.
+//!
+//! Review gates protect pets, customers, and staff at the unsafe edges: manager approval for
+//! denied or exception capacity decisions, medical-document review for missing feeding or medication
+//! ambiguity, refund/deposit exception review for payment edge cases, and customer-message approval
+//! before any upsell recommendation becomes customer-facing.
+//!
+//! Next step: start with the location ruleset to see the policy, then open the child module that
+//! matches the business question: `capacity` for confirm/waitlist decisions, `accommodation`
+//! for room fit, `deposit` for payment gates, `care` for feeding or medication handoff,
+//! `housekeeping` for stay execution, or `upsell` for review-gated add-on recommendations.
+//!
+//! The rest of the module documents the externally visible boarding rules that labor-saving agents
+//! may use when drafting staff packets, manager briefs, and customer-response recommendations.
 
 use bon::Builder;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -14,11 +37,11 @@ use crate::money;
 macro_rules! positive_scalar {
     ($name:ident, $primitive:ty, $error:ident, $message:literal) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-        /// Positive scalar used by boarding policy where zero would erase a real labor or stay requirement.
+        /// Positive boarding quantity used where zero would erase a real labor or stay requirement.
         pub struct $name($primitive);
 
         impl $name {
-            /// Promotes boundary input into a validated boarding domain value.
+            /// Rejects impossible boarding values before they affect capacity, minimum-stay, deposit, service-window, or checkout calculations.
             pub const fn try_new(value: $primitive) -> std::result::Result<Self, $error> {
                 if value == 0 {
                     return Err($error::Zero);
@@ -26,7 +49,7 @@ macro_rules! positive_scalar {
                 Ok(Self(value))
             }
 
-            /// Exposes the validated scalar for serialization and adapter boundaries.
+            /// Returns the boarding number used by capacity, service-window, minimum-stay, deposit, or checkout calculations.
             pub const fn get(self) -> $primitive {
                 self.0
             }
@@ -76,7 +99,7 @@ positive_scalar!(
 pub struct HourOfDay(u8);
 
 impl HourOfDay {
-    /// Promotes boundary input into a validated boarding domain value.
+    /// Rejects impossible boarding values before they affect capacity, minimum-stay, deposit, service-window, or checkout calculations.
     pub const fn try_new(value: u8) -> std::result::Result<Self, HourOfDayError> {
         if value > 23 {
             return Err(HourOfDayError::OutsideClockDay);
@@ -84,7 +107,7 @@ impl HourOfDay {
         Ok(Self(value))
     }
 
-    /// Exposes the validated scalar for serialization and adapter boundaries.
+    /// Returns the boarding number used by capacity, service-window, minimum-stay, deposit, or checkout calculations.
     pub const fn get(self) -> u8 {
         self.0
     }
@@ -107,7 +130,7 @@ pub enum HourOfDayError {
     OutsideClockDay,
 }
 
-/// Accommodation boundary for boarding contracts.
+/// Accommodation policy for room/suite fit, species safety, capacity, and booking recommendations.
 pub mod accommodation;
 
 /// Room and suite capacity policy for confirm, waitlist, and denial decisions.
@@ -116,27 +139,27 @@ pub mod capacity;
 /// Deposit readiness policy for boarding confirmation gates.
 pub mod deposit;
 
-/// Care boundary for boarding contracts.
+/// Care policy for feeding, medication review, and kennel-staff handoff decisions during a stay.
 pub mod care;
 
-/// Upsell boundary for boarding contracts.
+/// Upsell policy for review-gated boarding add-ons and checkout recommendations.
 pub mod upsell;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Coarse availability status used in boarding contracts and manager briefs.
+/// Coarse availability status used in boarding rules and manager briefs.
 pub enum RoomAvailability {
-    /// Rooms are generally available for this contract path.
+    /// Rooms are generally available for this reservation path.
     Open,
     /// Inventory is constrained and staff should treat capacity as a labor/care watch item.
     Limited,
     /// New reservations should be routed to waitlist unless a manager approves otherwise.
     WaitlistOnly,
-    /// Reservations should not be accepted from this contract path.
+    /// Reservations should not be accepted from this reservation path.
     Closed,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Capacity posture for a boarding contract, pairing inventory with availability status.
+/// Capacity posture for boarding rules, pairing inventory with availability status.
 pub struct CapacityPlan {
     room_inventory: RoomInventory,
     /// Staff-facing availability status derived from resort capacity evidence.
@@ -196,7 +219,7 @@ pub enum ServiceWindowError {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Deposit rule used to determine whether a boarding reservation can be confirmed.
 pub enum DepositRule {
-    /// No deposit or review is needed for this reservation path.
+    /// Reservation path is secured without a deposit requirement.
     NotRequired,
     /// Required deposit amount sourced from policy or booking evidence.
     Required {
@@ -242,7 +265,7 @@ pub mod minimum_stay;
 pub mod cancellation;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Boarding service-line contract combining capacity, stay, payment, handoff, and upsell policy.
+/// Boarding service-line ruleset combining capacity, stay, payment, handoff, and upsell policy.
 pub struct Contract {
     /// Capacity posture staff and automation must honor before confirming stays.
     pub capacity: CapacityPlan,
@@ -268,11 +291,11 @@ pub struct Contract {
 }
 
 impl Contract {
-    /// Reports whether this contract requires deposit collection before confirmation.
+    /// Reports whether these boarding rules require deposit collection before confirmation.
     pub fn requires_deposit_collection(&self) -> bool {
         matches!(self.deposit, DepositRule::Required { .. })
     }
-    /// Builds the baseline PetSuites-style boarding contract used by examples and tests.
+    /// Builds the baseline PetSuites-style boarding rules used by examples and tests.
     pub fn standard_petsuites() -> Self {
         Self::builder()
             .capacity(CapacityPlan::new(

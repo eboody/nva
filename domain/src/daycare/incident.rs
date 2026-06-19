@@ -1,5 +1,19 @@
 //! Daycare incident disposition rules that preserve pet-safety review gates.
 //!
+//! ## Operator-summary
+//!
+//! This module supports the daycare incident-disposition queue that decides whether an event
+//! remains a staff note, requires owner-message review, needs manager review, or suspends
+//! group play pending review. It can reduce labor by converting the reported severity into
+//! an explicit restriction and review gate that daycare eligibility must honor.
+//!
+//! It must not automate live customer notice, group-play reinstatement, manager approval,
+//! medical/legal conclusions, or incident closure. Authoritative facts remain the original
+//! incident report, classified severity, affected pet, required gate, and later reviewer
+//! decision. Review gates protect pets, customers, and staff by requiring customer-message
+//! approval before owner notice and manager approval before clearing manager-review or
+//! group-play-suspension outcomes.
+//!
 //! ```
 //! use domain::{daycare, entities, policy};
 //! use uuid::Uuid;
@@ -49,7 +63,7 @@ pub enum Restriction {
     None,
     /// Pet whose group-play access is suspended pending manager review.
     SuspendedPendingManagerReview {
-        /// Pet id carried by this variant.
+        /// Pet whose group-play access stays suspended until manager review clears it.
         pet_id: PetId,
     },
 }

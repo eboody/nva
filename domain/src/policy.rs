@@ -1,6 +1,6 @@
 //! Policy gates that decide what automation may do safely.
 //!
-//! Policy values encode the operational boundary between labor-saving automation and human review:
+//! Policy values encode the operating line between labor-saving automation and human review:
 //! group-play eligibility, vaccine requirements, manager approval, medical-document review,
 //! customer-message approval, and refund/deposit exceptions. These types document why an agent may
 //! draft, route, suppress, or escalate work; they do not grant permission to override local resort
@@ -141,7 +141,7 @@ pub mod play {
         ConservativePolicy, Decision, Eligibility, IneligibilityReason, Policy, Reason,
     };
 
-    /// Decision contract for whether a pet/service combination may enter group-play workflows.
+    /// Decision record for whether a pet/service combination may enter group-play workflows.
     pub mod eligibility {
         use serde::{Deserialize, Serialize};
 
@@ -206,7 +206,7 @@ pub mod play {
             }
         }
 
-        /// Contract for policy evaluators that turn pet and service facts into explicit play-safety decisions.
+        /// Policy evaluator that turns pet and service facts into explicit play-safety decisions.
         pub trait Policy {
             /// Returns the pet for this policy value.
             fn decide(&self, pet: &Pet, service: &ServiceKind) -> Decision;

@@ -1,4 +1,4 @@
-//! Product catalog contracts for SKUs, categories, location offerings, and sellability rules.
+//! Product catalog models for SKUs, categories, location offerings, and sellability rules.
 
 use bon::Builder;
 use nutype::nutype;
@@ -11,11 +11,11 @@ use super::{inventory, pos, reorder};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Product category used to distinguish supplements, boarding diets, and personalized upsell items.
 pub enum Category {
-    /// Supplement retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Supplement item that may need care or medical-document review before recommendation copy is shown.
     Supplement,
-    /// In house diet retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Boarding or care diet stocked for in-house use and monitored for depletion.
     InHouseDiet,
-    /// Personalized upsell retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Customer-facing upsell candidate whose sale and copy still depend on inventory, preference, and review gates.
     PersonalizedUpsell,
 }
 
@@ -54,10 +54,10 @@ impl<'de> Deserialize<'de> for Sku {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-/// Decision vocabulary for sku error in retail workflows.
+/// SKU validation errors that keep catalog, stock, and reorder records traceable.
 pub enum SkuError {
     #[error("retail SKU cannot be empty")]
-    /// Empty retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Rejects blank catalog/POS SKU values so inventory and reorder facts remain traceable.
     Empty,
 }
 
@@ -79,20 +79,20 @@ pub enum SkuError {
 pub struct Name(String);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Retail product with a SKU and category used across POS, inventory, and recommendation contracts.
+/// Retail product with a SKU and category used across POS, inventory, and recommendation decisions.
 pub struct Product {
     sku: Sku,
-    /// Source-derived category carried by this retail contract.
+    /// Product category used to route supplement, diet, and upsell handling.
     pub category: Category,
 }
 
 impl Product {
-    /// Assembles this retail value from already-validated domain parts.
+    /// Pairs a validated SKU with its retail category for catalog, inventory, and recommendation work.
     pub fn new(sku: Sku, category: Category) -> Self {
         Self { sku, category }
     }
 
-    /// Returns the sku evidence recorded on this retail contract.
+    /// Returns the SKU that ties this product to catalog, inventory, POS, and vendor records.
     pub fn sku(&self) -> &Sku {
         &self.sku
     }
@@ -101,41 +101,41 @@ impl Product {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Location-level offering status used to prevent inactive or discontinued products from being sold.
 pub enum OfferingStatus {
-    /// Active retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Offering can be considered for sale or recommendation if usage and inventory also allow it.
     Active,
-    /// Inactive retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Offering is disabled at the location and must not be sold or recommended.
     Inactive,
-    /// Discontinued retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Offering has been retired and should remain out of staff sale and recommendation drafts.
     Discontinued,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Usage policy distinguishing customer-sellable items from in-house consumables such as boarding diets.
 pub enum Usage {
-    /// Customer sellable retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Product may be sold to customers when status and inventory permit.
     CustomerSellable,
-    /// In house consumable retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Product is reserved for resort use, such as boarding diets, and should not become customer-sale copy.
     InHouseConsumable,
-    /// Sellable and in house consumable retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Product can support both staff operations and customer sale drafts when other gates pass.
     SellableAndInHouseConsumable,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 /// Location-specific product offering with POS, inventory, and reorder policies attached.
 pub struct LocationOffering {
-    /// Source-derived location id carried by this retail contract.
+    /// Location whose catalog, shelf policy, and inventory counts own this offering.
     pub location_id: LocationId,
-    /// Source-derived product carried by this retail contract.
+    /// SKU and category being evaluated for sale, recommendation, inventory, and reorder work.
     pub product: Product,
-    /// Source-derived status carried by this retail contract.
+    /// Location status that blocks inactive or discontinued items from customer-sale drafts.
     pub status: OfferingStatus,
-    /// Source-derived usage carried by this retail contract.
+    /// Usage policy deciding whether the product is customer-sellable, in-house only, or both.
     pub usage: Usage,
-    /// Source-derived pos carried by this retail contract.
+    /// POS policy controlling checkout sources and price-exception approval.
     pub pos: pos::Policy,
-    /// Source-derived inventory carried by this retail contract.
+    /// Inventory policy controlling stock checks and low-stock attention.
     pub inventory: inventory::Policy,
-    /// Source-derived reorder carried by this retail contract.
+    /// Reorder policy controlling manager tasks, vendor notices, or no-action outcomes.
     pub reorder: reorder::Policy,
 }
 

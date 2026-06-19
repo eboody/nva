@@ -1,4 +1,4 @@
-//! Source-derived analytics read models for resort operations.
+//! Analytics read models for resort operations after source validation.
 //!
 //! Analytics facts in this module sit after source ingestion and data-quality validation:
 //! raw Gingr/provider records are preserved as provenance, blocking hygiene findings stop
@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 pub struct ProjectionVersion(String);
 
 impl ProjectionVersion {
-    /// Promotes a boundary projection-version string into a validated analytics value.
+    /// Validates the projection-version label before reports rely on it for comparisons.
     pub fn try_new(value: impl Into<String>) -> Result<Self> {
         trimmed_non_empty(value, Error::EmptyProjectionVersion).map(Self)
     }
@@ -27,7 +27,7 @@ impl ProjectionVersion {
     }
 }
 
-/// Projected stay-fact boundary for reservation records that passed validation.
+/// Projected stay facts for reservation records that passed source validation.
 pub mod stay {
     use serde::{Deserialize, Serialize};
 
@@ -38,7 +38,7 @@ pub mod stay {
     pub struct Id(String);
 
     impl Id {
-        /// Validates and creates the analytics value.
+        /// Builds a projected-stay analytics id so reports do not reuse raw provider record ids.
         pub fn try_new(value: impl Into<String>) -> analytics::Result<Self> {
             analytics::trimmed_non_empty(value, analytics::Error::EmptyStayFactId).map(Self)
         }
@@ -61,7 +61,7 @@ pub mod stay {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Source-derived stay fact used by analytics, manager briefs, and labor planning.
+    /// Projected stay fact used by analytics, manager briefs, and labor planning.
     pub struct Fact {
         id: Id,
         provenance: source::Provenance,
@@ -127,52 +127,52 @@ pub mod stay {
             })
         }
 
-        /// Returns this analytics value's id.
+        /// Returns the analytics fact id used to join reports without reusing provider record ids.
         pub const fn id(&self) -> &Id {
             &self.id
         }
 
-        /// Returns this analytics value's source system.
+        /// Returns the provider system that supplied the stay evidence.
         pub const fn source_system(&self) -> source::System {
             self.provenance.source_system()
         }
 
-        /// Returns this analytics value's provenance.
+        /// Returns the source provenance managers can inspect before trusting a brief or labor report.
         pub const fn provenance(&self) -> &source::Provenance {
             &self.provenance
         }
 
-        /// Returns this analytics value's reservation record id.
+        /// Returns the source reservation record that explains the projected stay.
         pub const fn reservation_record_id(&self) -> &source::record::Id {
             &self.reservation_record_id
         }
 
-        /// Returns this analytics value's customer record id.
+        /// Returns the source customer record needed for reviewed communication or cleanup workflows.
         pub const fn customer_record_id(&self) -> &source::record::Id {
             &self.customer_record_id
         }
 
-        /// Returns this analytics value's pet record id.
+        /// Returns the source pet record needed for care, eligibility, and safety review.
         pub const fn pet_record_id(&self) -> &source::record::Id {
             &self.pet_record_id
         }
 
-        /// Returns this analytics value's location record id.
+        /// Returns the source location record used to keep demand tied to the correct resort.
         pub const fn location_record_id(&self) -> &source::record::Id {
             &self.location_record_id
         }
 
-        /// Returns this analytics value's service type record id.
+        /// Returns the source service-type record used before demand is grouped by service line.
         pub const fn service_type_record_id(&self) -> &source::record::Id {
             &self.service_type_record_id
         }
 
-        /// Returns this analytics value's projection version.
+        /// Returns the projection version so dashboards compare facts produced by the same logic.
         pub const fn projection_version(&self) -> &analytics::ProjectionVersion {
             &self.projection_version
         }
 
-        /// Returns this analytics value's data quality status.
+        /// Returns whether the fact is clean or still needs manager-visible data-quality review.
         pub const fn data_quality_status(&self) -> DataQualityStatus {
             self.data_quality_status
         }
@@ -197,7 +197,7 @@ pub mod service_demand {
     pub struct Id(String);
 
     impl Id {
-        /// Validates and creates the analytics value.
+        /// Builds a service-demand fact only when source records prove the booked work being counted.
         pub fn try_new(value: impl Into<String>) -> analytics::Result<Self> {
             analytics::trimmed_non_empty(value, analytics::Error::EmptyServiceDemandFactId)
                 .map(Self)
@@ -214,7 +214,7 @@ pub mod service_demand {
     pub struct DemandUnits(u32);
 
     impl DemandUnits {
-        /// Promotes boundary input into a validated analytics domain value.
+        /// Accepts only nonzero demand units so labor reports cannot hide real booked work.
         pub const fn try_new(value: u32) -> analytics::Result<Self> {
             if value == 0 {
                 return Err(analytics::Error::EmptyDemandUnits);
@@ -222,7 +222,7 @@ pub mod service_demand {
             Ok(Self(value))
         }
 
-        /// Exposes the validated scalar for serialization and adapter boundaries.
+        /// Returns the nonzero work-unit count for reports, storage rows, and adapter payloads.
         pub const fn get(self) -> u32 {
             self.0
         }
@@ -241,16 +241,16 @@ pub mod service_demand {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for data quality status decisions in analytics workflows.
+    /// Analytics data-quality state that controls whether service-demand facts can appear as clean or reviewable.
     pub enum DataQualityStatus {
-        /// Complete analytics metric or operational summary dimension.
+        /// Demand fact has required source evidence and no attached hygiene findings.
         Complete,
-        /// Manager review required analytics metric or operational summary dimension.
+        /// Demand fact can inform reports, but attached hygiene findings must stay visible to managers.
         ManagerReviewRequired,
     }
 
     impl Fact {
-        /// Validates and creates the analytics value.
+        /// Builds a service-demand fact only when source records prove the booked work being counted.
         pub fn try_new(
             id: Id,
             operating_day: operations::operating_day::Key,
@@ -279,37 +279,37 @@ pub mod service_demand {
             })
         }
 
-        /// Returns this analytics value's id.
+        /// Returns the analytics fact id used to join reports without reusing provider record ids.
         pub const fn id(&self) -> &Id {
             &self.id
         }
 
-        /// Returns this analytics value's operating day.
+        /// Returns the resort/service/day bucket used to compare demand with staffing and capacity.
         pub const fn operating_day(&self) -> &operations::operating_day::Key {
             &self.operating_day
         }
 
-        /// Returns this analytics value's demand units.
+        /// Returns the booked work units that drive labor planning and exception ranking.
         pub const fn demand_units(&self) -> DemandUnits {
             self.demand_units
         }
 
-        /// Returns the source record refs for this analytics value.
+        /// Returns the source records that justify the demand units before labor reports rely on them.
         pub fn source_record_refs(&self) -> &[source::RecordRef] {
             &self.source_record_refs
         }
 
-        /// Returns this analytics value's projection version.
+        /// Returns the projection version so dashboards compare facts produced by the same logic.
         pub const fn projection_version(&self) -> &analytics::ProjectionVersion {
             &self.projection_version
         }
 
-        /// Returns this analytics value's data quality status.
+        /// Returns whether the fact is clean or still needs manager-visible data-quality review.
         pub const fn data_quality_status(&self) -> DataQualityStatus {
             self.data_quality_status
         }
 
-        /// Returns the data quality issues for this analytics value.
+        /// Returns nonblocking hygiene findings that explain why demand evidence may need manager review.
         pub fn data_quality_issues(&self) -> &[data_quality::Issue] {
             &self.data_quality_issues
         }

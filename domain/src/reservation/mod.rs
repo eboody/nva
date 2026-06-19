@@ -1,3 +1,26 @@
+//! Reservation support facts used by booking triage and checkout handoff workflows.
+//!
+//! ## Operator summary
+//!
+//! Staff use reservation facts to decide which booking or checkout queue owns the next review:
+//! routine front-desk collection, vaccine/document follow-up, care or behavior review, payment
+//! review, manager exception, or read-only handoff to checkout/retention workflows. The module
+//! reduces labor by naming reusable policy facts—minimum-age thresholds, add-on labels, and
+//! transition reasons—so application packets can surface the same evidence without staff retyping
+//! provider notes or reconciling free-text labels.
+//!
+//! This module must not book, confirm, cancel, check in/out, hold capacity, change pricing,
+//! move money, mutate Gingr/provider/PMS records, or send customer messages. It is source
+//! vocabulary only. Live authority stays with the provider/PMS ledger, approved location policy,
+//! verified payment/deposit records, customer/pet/reservation source snapshots, and accountable
+//! staff/manager approvals.
+//!
+//! Review gates protect pets, customers, and staff whenever reservation facts touch medical or
+//! vaccine evidence, temperament/incident handling, special-care acceptance, capacity or staffing
+//! exceptions, payment/deposit closeout, customer-sensitive copy, or provider mutation. Unknown,
+//! stale, conflicting, or unmapped source facts should remain review work; they must not become
+//! inferred readiness.
+
 mod error;
 
 use serde::{Deserialize, Deserializer, Serialize};
@@ -17,7 +40,7 @@ impl MinimumAgeWeeks {
         Ok(Self(value))
     }
 
-    /// Exposes the validated scalar for serialization and adapter boundaries.
+    /// Returns the minimum age threshold used by booking and policy adapters.
     pub const fn get(self) -> u8 {
         self.0
     }

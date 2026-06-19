@@ -1,10 +1,12 @@
 # `app::tools`
 
-`app::tools` is the application crate's port-contract surface for tool and integration capabilities. It names what workflows need from stores, reservation systems, agent runtimes, portals, payment gateways, messaging systems, document/OCR services, media capture, and Hermes automation hooks without choosing a concrete provider or runtime.
+This page helps engineering maintainers cut front-desk and manager handoff time by showing which external-tool capabilities the app can ask for safely. A booking example: the app may request an availability check or draft a reservation-status update from source-backed customer, pet, reservation, and capacity facts, but a human-approved workflow still owns live PMS/provider writes, customer messages, payments, and schedule changes.
+
+In plain English, `app::tools` is the promise between deterministic pet-resort workflows and concrete systems. It names the store, reservation-system, agent-runtime, portal, payment, messaging, document/OCR, media, and Hermes automation capabilities workflows may use without choosing Gingr, a database adapter, a worker runtime, or another provider implementation.
 
 Read this module with [`../tools.rs`](../tools.rs) open. The Rust module is implemented as `app/src/tools.rs`, while the shared error submodule lives at [`error.rs`](./error.rs) and is loaded as `app::tools::error` by the `pub mod error;` declaration in [`../tools.rs`](../tools.rs). The crate root exposes this surface through [`../lib.rs`](../lib.rs), and [`../../README.md`](../../README.md) explains how `app` composes `domain` truth instead of owning it.
 
-This surface is deliberately a contract boundary, not an adapter implementation. It defines traits and typed request/outcome packets. Provider clients, storage adapters, worker scheduling, HTTP routing, live payment capture, and customer-message delivery should live in boundary crates or app shells and satisfy these contracts rather than moving business policy into a runtime.
+This surface is deliberately a contract boundary, not an adapter implementation. It defines traits and typed request/outcome packets so provider clients, storage adapters, worker scheduling, HTTP routing, live payment capture, and customer-message delivery satisfy app contracts instead of moving business policy into a runtime.
 
 ## Module navigation
 

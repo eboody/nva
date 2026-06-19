@@ -1,8 +1,8 @@
-//! Command-line inspection surface for NVA pet-resort agent and tool contracts.
+//! Command-line inspection surface for NVA pet-resort agent and tool rules.
 //!
 //! The CLI is a read-only runtime surface. It prints deterministic JSON for the
 //! baseline agent catalog and external tool candidates so operators can inspect
-//! workflow contracts without starting the HTTP API, running workers, or touching
+//! workflow rules without starting the HTTP API, running workers, or touching
 //! live provider systems.
 
 use app::{agents, tools};

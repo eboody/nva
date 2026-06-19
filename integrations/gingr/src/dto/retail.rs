@@ -13,7 +13,7 @@ impl ItemId {
         Self(value)
     }
 
-    /// Returns the provider numeric identifier carried by this wrapper.
+    /// Returns the raw Gingr item id used to link retail DTOs back to provider evidence.
     pub const fn get(self) -> u64 {
         self.0
     }

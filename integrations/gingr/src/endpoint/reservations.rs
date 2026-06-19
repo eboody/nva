@@ -1,6 +1,6 @@
 use super::{AnimalId, Date, DateRange, IsoDate, Limit, LocationId, Method, OwnerId, Request};
 
-/// Gingr reservation endpoint boundary with provider parameters kept explicit.
+/// Reservation request builders whose filters stay tied to Gingr ids, dates, and status tokens for reconciliation.
 pub mod reservation {
     use super::*;
 
@@ -509,7 +509,7 @@ pub mod by {
 pub struct MinutesFuture(u64);
 
 impl MinutesFuture {
-    /// Constructs this typed Gingr boundary value after the caller has chosen the provider input to trust.
+    /// Validates a positive future-minute window used to ask Gingr for near-term back-of-house records.
     pub fn new(value: u64) -> super::Result<Self> {
         if value == 0 {
             return Err(super::Error::InvalidPositiveInteger { value });
@@ -617,7 +617,7 @@ pub struct GetServicesByType {
 }
 
 impl GetServicesByType {
-    /// Constructs this typed Gingr boundary value after the caller has chosen the provider input to trust.
+    /// Builds a service-discovery request for one Gingr reservation type without promising a mapped service DTO.
     pub fn new(type_id: reservation::TypeId) -> Self {
         Self {
             type_id,

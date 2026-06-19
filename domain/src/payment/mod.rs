@@ -64,7 +64,7 @@ impl<'de> Deserialize<'de> for Reference {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Lifecycle states for collecting, waiving, refunding, or failing a reservation deposit.
 pub enum DepositStatus {
-    /// No deposit or review is needed for this reservation path.
+    /// Reservation path does not require deposit collection.
     NotRequired,
     /// A deposit must be collected before the booking is secure.
     Required,
@@ -72,7 +72,7 @@ pub enum DepositStatus {
     Paid,
     /// The collected deposit has been returned to the customer.
     Refunded,
-    /// Deposit collection was attempted but did not succeed.
+    /// Deposit collection failed and requires retry, waiver, or manager reconciliation.
     Failed,
     /// A manager waived the deposit requirement for the booking.
     WaivedByManager,

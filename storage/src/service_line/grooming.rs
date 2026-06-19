@@ -10,7 +10,7 @@ use domain::grooming::rebooking;
 
 use crate::operations::{self, StorageField};
 
-/// Storage shape for a migrated grooming service contract.
+/// Storage shape for a migrated grooming service rules.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ContractRecord(pub domain::grooming::Contract);
@@ -66,7 +66,7 @@ impl StoredCadenceWeeks {
         Ok(Self(value))
     }
 
-    /// Returns the provider numeric identifier carried by this wrapper.
+    /// Returns the provider numeric identifier kept on this wrapper.
     pub const fn get(self) -> u8 {
         self.0
     }

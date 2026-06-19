@@ -6,7 +6,7 @@ use uuid::Uuid;
 use crate::{booking_triage, checkout_completion, daily_update};
 
 #[derive(Debug, thiserror::Error)]
-/// Decision taxonomy for error in the local smoke-test workflow; each value carries operational meaning for source-grounded routing and review.
+/// Decision choices for error in the local smoke-test workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
 pub enum Error {
     #[error("local smoke fixture is not valid JSON: {0}")]
     /// Identifies invalid fixture as the reason the workflow must stop, retry, or request review.
@@ -44,7 +44,7 @@ struct PetFixture {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-/// Source event key carried by the local smoke-test workflow; it exercises the local shell with deterministic fixtures and no external side effects.
+/// Source event key used by the local smoke-test workflow; it exercises the local shell with deterministic fixtures and no external side effects.
 pub struct SourceEventKey(String);
 
 impl SourceEventKey {
@@ -66,25 +66,25 @@ impl AsRef<str> for SourceEventKey {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// Decision taxonomy for stage in the local smoke-test workflow; each value carries operational meaning for source-grounded routing and review.
+/// Decision choices for stage in the local smoke-test workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
 pub enum Stage {
-    /// Represents inquiry in the local smoke decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects inquiry for the local smoke decision model so the app can choose a review, evidence, or draft path without taking live action.
     Inquiry,
-    /// Represents profile in the local smoke decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects profile for the local smoke decision model so the app can choose a review, evidence, or draft path without taking live action.
     Profile,
-    /// Represents vaccine docs in the local smoke decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects vaccine docs for the local smoke decision model so the app can choose a review, evidence, or draft path without taking live action.
     VaccineDocs,
-    /// Represents booking triage in the local smoke decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects booking triage for the local smoke decision model so the app can choose a review, evidence, or draft path without taking live action.
     BookingTriage,
-    /// Represents confirmation draft in the local smoke decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects confirmation draft for the local smoke decision model so the app can choose a review, evidence, or draft path without taking live action.
     ConfirmationDraft,
-    /// Represents check in today view in the local smoke decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects check in today view for the local smoke decision model so the app can choose a review, evidence, or draft path without taking live action.
     CheckInTodayView,
-    /// Represents staff note daily update draft in the local smoke decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects staff note daily update draft for the local smoke decision model so the app can choose a review, evidence, or draft path without taking live action.
     StaffNoteDailyUpdateDraft,
-    /// Represents checkout completion in the local smoke decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects checkout completion for the local smoke decision model so the app can choose a review, evidence, or draft path without taking live action.
     CheckoutCompletion,
-    /// Represents follow up retention in the local smoke decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects follow up retention for the local smoke decision model so the app can choose a review, evidence, or draft path without taking live action.
     FollowUpRetention,
 }
 
@@ -105,7 +105,7 @@ impl Stage {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-/// Smoke boundaries carried by the local smoke-test workflow; it exercises the local shell with deterministic fixtures and no external side effects.
+/// Smoke gates used by the local smoke-test workflow; it exercises the local shell with deterministic fixtures and no external side effects.
 pub struct SmokeBoundaries {
     draft_only_ai: bool,
     blocks_live_customer_sends: bool,
@@ -123,29 +123,29 @@ impl SmokeBoundaries {
         }
     }
 
-    /// Returns the draft only ai source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the draft only ai evidence available to local smoke-test review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn draft_only_ai(&self) -> bool {
         self.draft_only_ai
     }
 
-    /// Returns the blocks live customer sends source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the blocks live customer sends evidence available to local smoke-test review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn blocks_live_customer_sends(&self) -> bool {
         self.blocks_live_customer_sends
     }
 
-    /// Returns the blocks provider or pms mutations source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the blocks provider or pms mutations evidence available to local smoke-test review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn blocks_provider_or_pms_mutations(&self) -> bool {
         self.blocks_provider_or_pms_mutations
     }
 
-    /// Returns the blocks payment refund or discount actions source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the blocks payment refund or discount actions evidence available to local smoke-test review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn blocks_payment_refund_or_discount_actions(&self) -> bool {
         self.blocks_payment_refund_or_discount_actions
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-/// Review evidence ref carried by the local smoke-test workflow; it exercises the local shell with deterministic fixtures and no external side effects.
+/// Review evidence ref used by the local smoke-test workflow; it exercises the local shell with deterministic fixtures and no external side effects.
 pub struct ReviewEvidenceRef(String);
 
 impl ReviewEvidenceRef {
@@ -161,7 +161,7 @@ impl AsRef<str> for ReviewEvidenceRef {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-/// Smoke confirmation draft carried by the local smoke-test workflow; it exercises the local shell with deterministic fixtures and no external side effects.
+/// Smoke confirmation draft used by the local smoke-test workflow; it exercises the local shell with deterministic fixtures and no external side effects.
 pub struct SmokeConfirmationDraft {
     draft: booking_triage::ConfirmationDraft,
 }
@@ -177,7 +177,7 @@ impl SmokeConfirmationDraft {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-/// Reservation label carried by the local smoke-test workflow; it exercises the local shell with deterministic fixtures and no external side effects.
+/// Reservation label used by the local smoke-test workflow; it exercises the local shell with deterministic fixtures and no external side effects.
 pub struct ReservationLabel(String);
 
 impl AsRef<str> for ReservationLabel {
@@ -187,82 +187,82 @@ impl AsRef<str> for ReservationLabel {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-/// Today view carried by the local smoke-test workflow; it exercises the local shell with deterministic fixtures and no external side effects.
+/// Today view used by the local smoke-test workflow; it exercises the local shell with deterministic fixtures and no external side effects.
 pub struct TodayView {
     reservation_labels: Vec<ReservationLabel>,
     status: entities::reservation::Status,
 }
 
 impl TodayView {
-    /// Returns the reservation labels source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the reservation labels evidence available to local smoke-test review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn reservation_labels(&self) -> &[ReservationLabel] {
         &self.reservation_labels
     }
 
-    /// Returns the status source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the status evidence available to local smoke-test review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn status(&self) -> &entities::reservation::Status {
         &self.status
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-/// Checkout completion carried by the local smoke-test workflow; it exercises the local shell with deterministic fixtures and no external side effects.
+/// Checkout completion used by the local smoke-test workflow; it exercises the local shell with deterministic fixtures and no external side effects.
 pub struct CheckoutCompletion {
     packet: checkout_completion::Packet,
 }
 
 impl CheckoutCompletion {
-    /// Returns the status source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the status evidence available to local smoke-test review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn status(&self) -> entities::reservation::Status {
         self.packet
             .suggested_reservation_status()
             .expect("local smoke checkout completion should suggest checked-out status")
     }
 
-    /// Returns the completion status source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the completion status evidence available to local smoke-test review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn completion_status(&self) -> checkout_completion::CompletionStatus {
         self.packet.completion_status()
     }
 
-    /// Returns the required review gates source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the required review gates evidence available to local smoke-test review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn required_review_gates(&self) -> &[policy::ReviewGate] {
         self.packet.required_review_gates()
     }
 
-    /// Returns the blocked actions source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the blocked actions evidence available to local smoke-test review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn blocked_actions(&self) -> &[checkout_completion::BlockedAction] {
         self.packet.blocked_actions()
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// Decision taxonomy for retention next action in the local smoke-test workflow; each value carries operational meaning for source-grounded routing and review.
+/// Decision choices for retention next action in the local smoke-test workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
 pub enum RetentionNextAction {
-    /// Represents draft rebooking reminder for review in the local smoke decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects draft rebooking reminder for review for the local smoke decision model so the app can choose a review, evidence, or draft path without taking live action.
     DraftRebookingReminderForReview,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-/// Retention follow up carried by the local smoke-test workflow; it exercises the local shell with deterministic fixtures and no external side effects.
+/// Retention follow up used by the local smoke-test workflow; it exercises the local shell with deterministic fixtures and no external side effects.
 pub struct RetentionFollowUp {
     next_action: RetentionNextAction,
     review_gate: policy::ReviewGate,
 }
 
 impl RetentionFollowUp {
-    /// Returns the next action source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the next action evidence available to local smoke-test review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn next_action(&self) -> RetentionNextAction {
         self.next_action
     }
 
-    /// Returns the review gate source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the review gate evidence available to local smoke-test review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn review_gate(&self) -> policy::ReviewGate {
         self.review_gate.clone()
     }
 }
 
 #[derive(Debug, Clone)]
-/// Full chain evidence carried by the local smoke-test workflow; it exercises the local shell with deterministic fixtures and no external side effects.
+/// Full chain evidence used by the local smoke-test workflow; it exercises the local shell with deterministic fixtures and no external side effects.
 pub struct FullChainEvidence {
     source_event_key: SourceEventKey,
     stages: Vec<Stage>,
@@ -283,52 +283,52 @@ pub struct FullChainEvidence {
 }
 
 impl FullChainEvidence {
-    /// Returns the source event key source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the source event key evidence available to local smoke-test review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn source_event_key(&self) -> &SourceEventKey {
         &self.source_event_key
     }
 
-    /// Returns the stage names source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the stage names evidence available to local smoke-test review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn stage_names(&self) -> Vec<&'static str> {
         self.stages.iter().map(|stage| stage.name()).collect()
     }
 
-    /// Returns the boundaries source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the gates evidence available to local smoke-test review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn boundaries(&self) -> &SmokeBoundaries {
         &self.boundaries
     }
 
-    /// Returns the booking packet source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the booking packet evidence available to local smoke-test review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn booking_packet(&self) -> &booking_triage::StaffEvaluationPacket {
         &self.booking_packet
     }
 
-    /// Returns the confirmation draft source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the confirmation draft evidence available to local smoke-test review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn confirmation_draft(&self) -> &SmokeConfirmationDraft {
         &self.confirmation_draft
     }
 
-    /// Returns the today view source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the today view evidence available to local smoke-test review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn today_view(&self) -> &TodayView {
         &self.today_view
     }
 
-    /// Returns the daily update preview source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the daily update preview evidence available to local smoke-test review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn daily_update_preview(&self) -> &daily_update::MvpPreview {
         &self.daily_update_preview
     }
 
-    /// Returns the checkout completion source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the checkout completion evidence available to local smoke-test review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn checkout_completion(&self) -> &CheckoutCompletion {
         &self.checkout_completion
     }
 
-    /// Returns the retention follow up source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the retention follow up evidence available to local smoke-test review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn retention_follow_up(&self) -> &RetentionFollowUp {
         &self.retention_follow_up
     }
 
-    /// Returns the review gated evidence refs source evidence carried by this local smoke-test workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the review gated evidence refs evidence available to local smoke-test review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn review_gated_evidence_refs(&self) -> &[ReviewEvidenceRef] {
         &self.review_gated_evidence_refs
     }

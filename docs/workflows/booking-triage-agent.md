@@ -6,6 +6,8 @@ This document is a workflow/specification artifact only. It does not authorize l
 
 Anything marked proposed, draft, review-gated, or approval-gated requires explicit manager/location policy approval before it becomes production behavior. AI recommendations are advisory over deterministic rule outputs; they do not create availability, policy exceptions, or execution authority.
 
+Glossary help for non-coders: read this workflow as a reviewable [workflow packet](../glossary-workflow-state-terms.md#workflow-packet) that may produce [drafts](../glossary-workflow-state-terms.md#draft), names [review gates](../glossary-workflow-state-terms.md#review-gate), preserves [source refs](../glossary-architecture-terms.md#source-ref-domainsourcerecordref) and evidence while keeping [source-of-record](../glossary-source-data-terms.md#source-of-record) authority explicit, and keeps live confirmation, PMS/provider writes, payment movement, and customer sends as [blocked actions](../glossary-workflow-state-terms.md#blocked-action) unless a later approved execution contract exists.
+
 ## Scope
 
 This workflow covers booking triage for boarding, day play/daycare, day boarding, grooming, training, DaySpa, and approved add-ons at a pet resort or small resort group. It consumes typed request, customer, pet, provider, policy, availability, staffing, vaccine/document, payment, behavior, care, and audit snapshots. It produces readiness/status recommendations, missing-information requests, review packets, draft messages, and internal tasks.

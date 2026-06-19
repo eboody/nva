@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use domain::retail::product;
 
-/// Storage shape for a migrated retail service contract.
+/// Storage shape for a migrated retail service rules.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ContractRecord(pub domain::retail::Contract);

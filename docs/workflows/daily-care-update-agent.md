@@ -4,6 +4,8 @@ Purpose: define the canonical integration artifact for the Daily Care Update Age
 
 Status: conservative design artifact. It does not authorize autonomous customer sends, provider/PMS writes, care-task completion, medication verification, incident disposition, medical advice, media publication, or policy exceptions. Until an approved location/template/channel/media policy exists, customer-facing daily updates are drafts or review packets only.
 
+Glossary help for non-coders: the daily update is a reviewable [workflow packet](../glossary-workflow-state-terms.md#workflow-packet) that turns staff-note evidence into customer-message [drafts](../glossary-workflow-state-terms.md#draft), carries [source refs](../glossary-architecture-terms.md#source-ref-domainsourcerecordref) and [provenance](../glossary-architecture-terms.md#provenance-domainsourceprovenance), requires [review gates](../glossary-workflow-state-terms.md#review-gate), and treats sending, publishing media, completing care tasks, or mutating provider/PMS state as [blocked actions](../glossary-workflow-state-terms.md#blocked-action).
+
 Source detail is preserved in:
 
 - `docs/workflows/daily-care-update-agent-parts/inputs.md`

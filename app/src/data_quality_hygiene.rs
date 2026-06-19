@@ -1,3 +1,15 @@
+//! Data-quality hygiene workflow rules for source-grounded internal cleanup.
+//!
+//! Crosswalk navigation: this module is the workflow-use surface for data-quality
+//! issues, source refs, hygiene candidates/actions, draft validation, and
+//! reviewed outcome capture. The bidirectional docs path is
+//! `docs/entity-atlas/contract-crosswalk/workflow-packets.md` for workflow use,
+//! `source-provider-flows.md` for source entry and normalization,
+//! `storage-persistence.md` for `DataQualityHygieneOutcomeRecord`,
+//! `runtime-exposure.md` for API/smoke exposure, and
+//! `app/tests/data_quality_hygiene_workflow_contracts.rs` plus API/storage tests
+//! for executable proof.
+
 use serde::{Deserialize, Serialize};
 
 use domain::{data_quality, entities, operations, policy, source};
@@ -8,86 +20,86 @@ pub const WORKFLOW_NAME: &str = "data-quality-hygiene";
 pub const SCHEMA_VERSION: &str = "data-quality-hygiene-context-v1";
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Issue ref carried by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
+/// Issue ref used by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct IssueRef(String);
 
 impl IssueRef {
-    /// Builds try new for the data-quality hygiene workflow contract from validated source facts while preserving review gates and draft-only side-effect boundaries.
+    /// Validates a non-zero value for the data-quality hygiene workflow before it can appear in a manager packet or outcome record.
     pub fn try_new(value: impl Into<String>) -> Result<Self> {
         trimmed_non_empty(value, Error::EmptyIssueRef).map(Self)
     }
 
-    /// Returns the as str source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the as str evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn as_str(&self) -> &str {
         &self.0
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Action id carried by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
+/// Action id used by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct ActionId(String);
 
 impl ActionId {
-    /// Builds try new for the data-quality hygiene workflow contract from validated source facts while preserving review gates and draft-only side-effect boundaries.
+    /// Validates a non-zero value for the data-quality hygiene workflow before it can appear in a manager packet or outcome record.
     pub fn try_new(value: impl Into<String>) -> Result<Self> {
         trimmed_non_empty(value, Error::EmptyActionId).map(Self)
     }
 
-    /// Returns the as str source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the as str evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn as_str(&self) -> &str {
         &self.0
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Context packet id carried by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
+/// Context packet id used by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct ContextPacketId(String);
 
 impl ContextPacketId {
-    /// Builds try new for the data-quality hygiene workflow contract from validated source facts while preserving review gates and draft-only side-effect boundaries.
+    /// Validates a non-zero value for the data-quality hygiene workflow before it can appear in a manager packet or outcome record.
     pub fn try_new(value: impl Into<String>) -> Result<Self> {
         trimmed_non_empty(value, Error::EmptyContextPacketId).map(Self)
     }
 
-    /// Returns the as str source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the as str evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn as_str(&self) -> &str {
         &self.0
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Correlation id carried by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
+/// Correlation id used by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct CorrelationId(String);
 
 impl CorrelationId {
-    /// Builds try new for the data-quality hygiene workflow contract from validated source facts while preserving review gates and draft-only side-effect boundaries.
+    /// Validates a non-zero value for the data-quality hygiene workflow before it can appear in a manager packet or outcome record.
     pub fn try_new(value: impl Into<String>) -> Result<Self> {
         trimmed_non_empty(value, Error::EmptyCorrelationId).map(Self)
     }
 
-    /// Returns the as str source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the as str evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn as_str(&self) -> &str {
         &self.0
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Action rationale carried by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
+/// Action rationale used by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct ActionRationale(String);
 
 impl ActionRationale {
-    /// Builds try new for the data-quality hygiene workflow contract from validated source facts while preserving review gates and draft-only side-effect boundaries.
+    /// Validates a non-zero value for the data-quality hygiene workflow before it can appear in a manager packet or outcome record.
     pub fn try_new(value: impl Into<String>) -> Result<Self> {
         trimmed_non_empty(value, Error::EmptyActionRationale).map(Self)
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Labor minutes carried by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
+/// Labor minutes used by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct LaborMinutes(u16);
 
 impl LaborMinutes {
-    /// Builds try new for the data-quality hygiene workflow contract from validated source facts while preserving review gates and draft-only side-effect boundaries.
+    /// Validates a non-zero value for the data-quality hygiene workflow before it can appear in a manager packet or outcome record.
     pub const fn try_new(value: u16) -> Result<Self> {
         if value == 0 {
             return Err(Error::ZeroLaborMinutes);
@@ -95,90 +107,90 @@ impl LaborMinutes {
         Ok(Self(value))
     }
 
-    /// Returns the get source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the numeric value available to data-quality hygiene review without touching provider, customer, payment, or schedule systems.
     pub const fn get(self) -> u16 {
         self.0
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Aggregate labor minutes carried by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
+/// Aggregate labor minutes used by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct AggregateLaborMinutes(u16);
 
 impl AggregateLaborMinutes {
-    /// Builds new for the data-quality hygiene workflow contract from validated source facts while preserving review gates and draft-only side-effect boundaries.
+    /// Stores the reviewed value for the data-quality hygiene workflow without triggering provider, customer, payment, or schedule side effects.
     pub const fn new(value: u16) -> Self {
         Self(value)
     }
 
-    /// Returns the get source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the numeric value available to data-quality hygiene review without touching provider, customer, payment, or schedule systems.
     pub const fn get(self) -> u16 {
         self.0
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Decision taxonomy for hygiene persona in the data-quality hygiene workflow; each value carries operational meaning for source-grounded routing and review.
+/// Decision choices for hygiene persona in the data-quality hygiene workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
 pub enum HygienePersona {
-    /// Represents general manager in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects general manager for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     GeneralManager,
-    /// Represents assistant general manager in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects assistant general manager for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     AssistantGeneralManager,
-    /// Represents front desk lead in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects front desk lead for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     FrontDeskLead,
-    /// Represents front desk agent in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects front desk agent for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     FrontDeskAgent,
-    /// Represents regional operator in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects regional operator for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     RegionalOperator,
-    /// Represents operations analyst in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects operations analyst for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     OperationsAnalyst,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Decision taxonomy for candidate kind in the data-quality hygiene workflow; each value carries operational meaning for source-grounded routing and review.
+/// Decision choices for candidate kind in the data-quality hygiene workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
 pub enum CandidateKind {
-    /// Represents source issue in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects source issue for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     SourceIssue,
-    /// Represents duplicate candidate in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects duplicate candidate for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     DuplicateCandidate,
-    /// Represents profile gap in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects profile gap for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     ProfileGap,
-    /// Represents service line mapping in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects service line mapping for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     ServiceLineMapping,
-    /// Represents source freshness in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects source freshness for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     SourceFreshness,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Decision taxonomy for source freshness in the data-quality hygiene workflow; each value carries operational meaning for source-grounded routing and review.
+/// Decision choices for source freshness in the data-quality hygiene workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
 pub enum SourceFreshness {
-    /// Represents current in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects current for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     Current,
-    /// Represents stale in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects stale for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     Stale,
-    /// Represents conflicting in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects conflicting for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     Conflicting,
-    /// Represents missing in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects missing for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     Missing,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Decision taxonomy for sensitivity in the data-quality hygiene workflow; each value carries operational meaning for source-grounded routing and review.
+/// Decision choices for sensitivity in the data-quality hygiene workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
 pub enum Sensitivity {
-    /// Represents standard operational evidence in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects standard operational evidence for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     StandardOperationalEvidence,
-    /// Represents vaccine evidence in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects vaccine evidence for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     VaccineEvidence,
-    /// Represents incident or behavior evidence in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects incident or behavior evidence for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     IncidentOrBehaviorEvidence,
-    /// Represents payment evidence in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects payment evidence for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     PaymentEvidence,
-    /// Represents quarantined sensitive payload in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects quarantined sensitive payload for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     QuarantinedSensitivePayload,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
-/// Candidate carried by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
+/// Candidate used by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct Candidate {
     id: IssueRef,
     kind: CandidateKind,
@@ -190,32 +202,32 @@ pub struct Candidate {
 }
 
 impl Candidate {
-    /// Returns the id source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the id evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn id(&self) -> &IssueRef {
         &self.id
     }
 
-    /// Returns the kind source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the kind evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn kind(&self) -> CandidateKind {
         self.kind
     }
 
-    /// Returns the issue source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the issue evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn issue(&self) -> &data_quality::Issue {
         &self.issue
     }
 
-    /// Returns the source record refs source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the source record refs evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn source_record_refs(&self) -> &[source::RecordRef] {
         &self.source_record_refs
     }
 
-    /// Returns the source freshness source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the source freshness evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn source_freshness(&self) -> SourceFreshness {
         self.source_freshness
     }
 
-    /// Returns the sensitivity source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the sensitivity evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn sensitivity(&self) -> Sensitivity {
         self.sensitivity
     }
@@ -231,56 +243,56 @@ impl Candidate {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Decision taxonomy for action kind in the data-quality hygiene workflow; each value carries operational meaning for source-grounded routing and review.
+/// Decision choices for action kind in the data-quality hygiene workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
 pub enum ActionKind {
-    /// Represents investigate missing source evidence in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects investigate missing source evidence for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     InvestigateMissingSourceEvidence,
-    /// Represents reconcile duplicate customer or pet candidate in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects reconcile duplicate customer or pet candidate for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     ReconcileDuplicateCustomerOrPetCandidate,
-    /// Represents complete missing pet or customer profile fields in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects complete missing pet or customer profile fields for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     CompleteMissingPetOrCustomerProfileFields,
-    /// Represents review stale vaccination source freshness in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects review stale vaccination source freshness for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     ReviewStaleVaccinationSourceFreshness,
-    /// Represents normalize ambiguous service line naming in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects normalize ambiguous service line naming for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     NormalizeAmbiguousServiceLineNaming,
-    /// Represents review checkout or unclosed reservation evidence in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects review checkout or unclosed reservation evidence for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     ReviewCheckoutOrUnclosedReservationEvidence,
-    /// Represents escalate sensitive or quarantined payload in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects escalate sensitive or quarantined payload for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     EscalateSensitiveOrQuarantinedPayload,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Decision taxonomy for action priority in the data-quality hygiene workflow; each value carries operational meaning for source-grounded routing and review.
+/// Decision choices for action priority in the data-quality hygiene workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
 pub enum ActionPriority {
-    /// Represents high in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects high for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     High,
-    /// Represents medium in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects medium for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     Medium,
-    /// Represents low in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects low for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     Low,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Decision taxonomy for removed manual work in the data-quality hygiene workflow; each value carries operational meaning for source-grounded routing and review.
+/// Decision choices for removed manual work in the data-quality hygiene workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
 pub enum RemovedManualWork {
-    /// Represents missing evidence investigation in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects missing evidence investigation for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     MissingEvidenceInvestigation,
-    /// Represents duplicate candidate reconciliation in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects duplicate candidate reconciliation for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     DuplicateCandidateReconciliation,
-    /// Represents incomplete profile cleanup preparation in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects incomplete profile cleanup preparation for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     IncompleteProfileCleanupPreparation,
-    /// Represents source freshness review in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects source freshness review for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     SourceFreshnessReview,
-    /// Represents service line normalization review in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects service line normalization review for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     ServiceLineNormalizationReview,
-    /// Represents checkout evidence review in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects checkout evidence review for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     CheckoutEvidenceReview,
-    /// Represents sensitive payload escalation in the data-quality hygiene decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects sensitive payload escalation for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     SensitivePayloadEscalation,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Review-safe agent tasks allowed to save staff time without crossing mutation or send boundaries.
+/// Review-safe agent tasks allowed to save staff time without crossing mutation or send gates.
 pub enum SafeAgentAction {
     /// Allows agents to summarize source evidence for staff review without mutating records or contacting customers.
     SummarizeSourceEvidence,
@@ -312,14 +324,14 @@ pub enum BlockedAction {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Labor impact estimate carried by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
+/// Labor impact estimate used by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct LaborImpactEstimate {
     before_minutes: LaborMinutes,
     after_minutes: LaborMinutes,
 }
 
 impl LaborImpactEstimate {
-    /// Builds new for the data-quality hygiene workflow contract from validated source facts while preserving review gates and draft-only side-effect boundaries.
+    /// Stores the reviewed value for the data-quality hygiene workflow without triggering provider, customer, payment, or schedule side effects.
     pub const fn new(before_minutes: LaborMinutes, after_minutes: LaborMinutes) -> Self {
         Self {
             before_minutes,
@@ -327,24 +339,24 @@ impl LaborImpactEstimate {
         }
     }
 
-    /// Returns the before minutes source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the before minutes evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn before_minutes(&self) -> LaborMinutes {
         self.before_minutes
     }
 
-    /// Returns the after minutes source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the after minutes evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn after_minutes(&self) -> LaborMinutes {
         self.after_minutes
     }
 
-    /// Returns the minutes saved source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the minutes saved evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn minutes_saved(&self) -> u16 {
         self.before_minutes.0.saturating_sub(self.after_minutes.0)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
-/// Action carried by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
+/// Action used by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct Action {
     id: ActionId,
     kind: ActionKind,
@@ -362,52 +374,52 @@ pub struct Action {
 }
 
 impl Action {
-    /// Returns the id source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the id evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn id(&self) -> &ActionId {
         &self.id
     }
 
-    /// Returns the kind source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the kind evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn kind(&self) -> ActionKind {
         self.kind
     }
 
-    /// Returns the priority source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the priority evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn priority(&self) -> ActionPriority {
         self.priority
     }
 
-    /// Returns the owner persona source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the owner persona evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn owner_persona(&self) -> HygienePersona {
         self.owner_persona
     }
 
-    /// Returns the removed manual work source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the removed manual work evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn removed_manual_work(&self) -> RemovedManualWork {
         self.removed_manual_work
     }
 
-    /// Returns the rationale source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the rationale evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn rationale(&self) -> &ActionRationale {
         &self.rationale
     }
 
-    /// Returns the source record refs source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the source record refs evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn source_record_refs(&self) -> &[source::RecordRef] {
         &self.source_record_refs
     }
 
-    /// Returns the issue refs source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the issue refs evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn issue_refs(&self) -> &[IssueRef] {
         &self.issue_refs
     }
 
-    /// Returns the required review gates source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the required review gates evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn required_review_gates(&self) -> &[policy::ReviewGate] {
         &self.required_review_gates
     }
 
-    /// Returns the labor impact source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the labor impact evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn labor_impact(&self) -> &LaborImpactEstimate {
         &self.labor_impact
     }
@@ -419,7 +431,7 @@ impl Action {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
-/// Input contract for building the workflow packet from source-grounded records.
+/// Input rules for building the workflow packet from source-grounded records.
 pub struct Request {
     location_id: entities::LocationId,
     operating_day: operations::operating_day::Date,
@@ -429,22 +441,22 @@ pub struct Request {
 }
 
 impl Request {
-    /// Returns the location id source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the location id evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn location_id(&self) -> entities::LocationId {
         self.location_id
     }
 
-    /// Returns the operating day source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the operating day evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn operating_day(&self) -> operations::operating_day::Date {
         self.operating_day
     }
 
-    /// Returns the prepared for source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the prepared for evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn prepared_for(&self) -> HygienePersona {
         self.prepared_for
     }
 
-    /// Returns the candidates source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the candidates evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn candidates(&self) -> &[Candidate] {
         &self.candidates
     }
@@ -469,82 +481,82 @@ pub struct Packet {
 }
 
 impl Packet {
-    /// Returns the workflow source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the workflow evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn workflow(&self) -> &'static str {
         self.workflow
     }
 
-    /// Returns the schema version source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the schema version evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn schema_version(&self) -> &'static str {
         self.schema_version
     }
 
-    /// Returns the context packet id source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the context packet id evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn context_packet_id(&self) -> &ContextPacketId {
         &self.context_packet_id
     }
 
-    /// Returns the correlation id source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the correlation id evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn correlation_id(&self) -> &CorrelationId {
         &self.correlation_id
     }
 
-    /// Returns the location id source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the location id evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn location_id(&self) -> entities::LocationId {
         self.location_id
     }
 
-    /// Returns the operating day source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the operating day evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn operating_day(&self) -> operations::operating_day::Date {
         self.operating_day
     }
 
-    /// Returns the prepared for source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the prepared for evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn prepared_for(&self) -> HygienePersona {
         self.prepared_for
     }
 
-    /// Returns the candidates source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the candidates evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn candidates(&self) -> &[Candidate] {
         &self.candidates
     }
 
-    /// Returns the actions source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the actions evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn actions(&self) -> &[Action] {
         &self.actions
     }
 
-    /// Returns the safe agent actions source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the safe agent actions evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn safe_agent_actions(&self) -> &[SafeAgentAction] {
         &self.safe_agent_actions
     }
 
-    /// Returns the blocked actions source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the blocked actions evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn blocked_actions(&self) -> &[BlockedAction] {
         &self.blocked_actions
     }
 
-    /// Returns the before minutes source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the before minutes evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn before_minutes(&self) -> AggregateLaborMinutes {
         self.before_minutes
     }
 
-    /// Returns the after minutes source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the after minutes evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn after_minutes(&self) -> AggregateLaborMinutes {
         self.after_minutes
     }
 
-    /// Returns the minutes saved source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the minutes saved evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn minutes_saved(&self) -> u16 {
         self.before_minutes.0.saturating_sub(self.after_minutes.0)
     }
 
-    /// Returns the all actions are source grounded source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the all actions are source grounded evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn all_actions_are_source_grounded(&self) -> bool {
         self.actions.iter().all(Action::is_source_grounded)
     }
 
-    /// Returns the validate draft source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the validate draft evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn validate_draft(&self, draft: &DraftSubmission) -> DraftValidation {
         let mut rejection_reasons = Vec::new();
 
@@ -564,7 +576,7 @@ impl Packet {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Draft action carried by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
+/// Draft action used by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct DraftAction {
     action_id: ActionId,
     kind: ActionKind,
@@ -576,7 +588,7 @@ pub struct DraftAction {
 }
 
 impl DraftAction {
-    /// Builds from action for the data-quality hygiene workflow contract from validated source facts while preserving review gates and draft-only side-effect boundaries.
+    /// Builds the from action result for the data-quality hygiene workflow from reviewed source facts while preserving human review gates and draft-only side effects.
     pub fn from_action(action: Action) -> Self {
         Self {
             action_id: action.id,
@@ -589,13 +601,13 @@ impl DraftAction {
         }
     }
 
-    /// Returns the with requested side effect source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the with requested side effect evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn with_requested_side_effect(mut self, side_effect: impl Into<String>) -> Self {
         self.requested_side_effects.push(side_effect.into());
         self
     }
 
-    /// Returns the with attempted ambiguity resolution source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the with attempted ambiguity resolution evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn with_attempted_ambiguity_resolution(mut self) -> Self {
         self.attempted_ambiguity_resolution = true;
         self
@@ -603,7 +615,7 @@ impl DraftAction {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
-/// Draft submission carried by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
+/// Draft submission used by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct DraftSubmission {
     context_packet_id: ContextPacketId,
     correlation_id: CorrelationId,
@@ -612,7 +624,7 @@ pub struct DraftSubmission {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Draft validation carried by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
+/// Draft validation used by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct DraftValidation {
     rejection_reasons: Vec<DraftRejectionReason>,
 }
@@ -623,14 +635,14 @@ impl DraftValidation {
         self.rejection_reasons.is_empty()
     }
 
-    /// Returns the rejection reasons source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the rejection reasons evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn rejection_reasons(&self) -> &[DraftRejectionReason] {
         &self.rejection_reasons
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Decision taxonomy for draft rejection reason in the data-quality hygiene workflow; each value carries operational meaning for source-grounded routing and review.
+/// Decision choices for draft rejection reason in the data-quality hygiene workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
 pub enum DraftRejectionReason {
     /// Uses stale or unknown context packet as source-grounded evidence for the deterministic decision.
     StaleOrUnknownContextPacket,
@@ -655,7 +667,7 @@ pub enum DraftRejectionReason {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Decision taxonomy for feedback outcome in the data-quality hygiene workflow; each value carries operational meaning for source-grounded routing and review.
+/// Decision choices for feedback outcome in the data-quality hygiene workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
 pub enum FeedbackOutcome {
     /// Records a completed result so follow-up impact is auditable.
     Completed,
@@ -670,7 +682,7 @@ pub enum FeedbackOutcome {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
-/// Outcome record carried by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
+/// Outcome record used by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct OutcomeRecord {
     action_id: ActionId,
     recorded_by: entities::ActorRef,
@@ -685,64 +697,64 @@ pub struct OutcomeRecord {
 }
 
 impl OutcomeRecord {
-    /// Returns the action id source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the action id evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn action_id(&self) -> &ActionId {
         &self.action_id
     }
 
-    /// Returns the recorded by source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the recorded by evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn recorded_by(&self) -> &entities::ActorRef {
         &self.recorded_by
     }
 
-    /// Returns the outcome source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the outcome evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn outcome(&self) -> FeedbackOutcome {
         self.outcome
     }
 
-    /// Returns the before minutes source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the before minutes evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn before_minutes(&self) -> LaborMinutes {
         self.before_minutes
     }
 
-    /// Returns the actual minutes source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the actual minutes evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn actual_minutes(&self) -> LaborMinutes {
         self.actual_minutes
     }
 
-    /// Returns the actual minutes saved source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the actual minutes saved evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn actual_minutes_saved(&self) -> u16 {
         self.before_minutes.0.saturating_sub(self.actual_minutes.0)
     }
 
-    /// Returns the source record refs source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the source record refs evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn source_record_refs(&self) -> &[source::RecordRef] {
         &self.source_record_refs
     }
 
-    /// Returns the issue refs source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the issue refs evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn issue_refs(&self) -> &[IssueRef] {
         &self.issue_refs
     }
 
-    /// Returns the reviewed resolution status source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the reviewed resolution status evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn reviewed_resolution_status(&self) -> Option<data_quality::ResolutionStatus> {
         self.reviewed_resolution_status
     }
 
-    /// Returns the records feedback without external mutation source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the records feedback without external mutation evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn records_feedback_without_external_mutation(&self) -> bool {
         true
     }
 
-    /// Returns the blocked actions source evidence carried by this data-quality hygiene workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the blocked actions evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn blocked_actions(&self) -> Vec<BlockedAction> {
         blocked_actions_for()
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-/// Decision taxonomy for error in the data-quality hygiene workflow; each value carries operational meaning for source-grounded routing and review.
+/// Decision choices for error in the data-quality hygiene workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
 pub enum Error {
     #[error("issue ref cannot be empty")]
     /// Identifies empty issue ref as the reason the workflow must stop, retry, or request review.
@@ -768,11 +780,11 @@ pub enum Error {
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// Workflow carried by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
+/// Workflow used by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct Workflow;
 
 impl Workflow {
-    /// Builds evaluate for the data-quality hygiene workflow contract from validated source facts while preserving review gates and draft-only side-effect boundaries.
+    /// Builds the evaluate result for the data-quality hygiene workflow from reviewed source facts while preserving human review gates and draft-only side effects.
     pub fn evaluate(request: Request) -> Packet {
         let actions = request
             .candidates

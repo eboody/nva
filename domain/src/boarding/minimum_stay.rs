@@ -1,6 +1,6 @@
 //! Boarding minimum-stay policy for standard stays, holiday peaks, and multi-pet buffers.
 //!
-//! Minimum stay contracts keep holiday capacity and staffing assumptions explicit instead of letting
+//! Minimum-stay rules keep holiday capacity and staffing assumptions explicit instead of letting
 //! an agent silently shorten a stay below local policy.
 
 use super::*;

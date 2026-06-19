@@ -4,7 +4,7 @@
 //! boarding suites, daycare eligibility, grooming rebooking cadence, training
 //! programs, and retail partner products. These modules own the
 //! persistence-facing shapes and explicit promotion/demotion at the storage
-//! boundary.
+//! gate.
 //!
 //! Keep provider/source-system identifiers and durable codes here. Keep labor,
 //! safety, eligibility, and customer-facing decisions in domain/app workflows so
@@ -32,13 +32,13 @@
 //! # }
 //! ```
 
-/// Boarding boundary for service line contracts.
+/// Boarding persistence shape for service-line rules.
 pub mod boarding;
-/// Daycare boundary for service line contracts.
+/// Daycare persistence shape for service-line rules.
 pub mod daycare;
-/// Grooming boundary for service line contracts.
+/// Grooming persistence shape for service-line rules.
 pub mod grooming;
-/// Retail boundary for service line contracts.
+/// Retail persistence shape for service-line rules.
 pub mod retail;
-/// Training boundary for service line contracts.
+/// Training persistence shape for service-line rules.
 pub mod training;

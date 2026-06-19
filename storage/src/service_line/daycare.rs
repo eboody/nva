@@ -6,7 +6,7 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Storage shape for a migrated daycare service contract.
+/// Storage shape for a migrated daycare service rules.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ContractRecord(pub domain::daycare::Contract);

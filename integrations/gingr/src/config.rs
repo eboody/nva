@@ -7,18 +7,18 @@ use url::Url;
 pub type Result<T> = core::result::Result<T, Error>;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
-/// Errors raised when provider values cannot safely cross this Gingr boundary.
+/// Errors raised when Gingr account settings are empty, malformed, or unsafe to send to the provider.
 pub enum Error {
     #[error("invalid Gingr subdomain: {value}")]
     /// Subdomain was empty or contained characters Gingr tenant hosts cannot use.
     InvalidSubdomain {
-        /// Original provider/caller value rejected before it could become a typed boundary value.
+        /// Raw subdomain supplied by config or a fixture; keep it visible so setup issues can be corrected.
         value: String,
     },
     #[error("invalid Gingr base URL: {reason}")]
     /// Base URL was not a valid HTTPS Gingr endpoint.
     InvalidBaseUrl {
-        /// Boundary-level reason explaining why this provider request or parse step was rejected.
+        /// Reason the URL was rejected before any Gingr request could be built from it.
         reason: String,
     },
 }
@@ -28,7 +28,7 @@ pub enum Error {
 pub struct Subdomain(String);
 
 impl Subdomain {
-    /// Parses provider-sourced text into this boundary type without promoting it to an NVA domain fact.
+    /// Validates the Gingr tenant segment used to route API calls for one resort account.
     pub fn parse(raw: impl AsRef<str>) -> Result<Self> {
         let value = raw.as_ref();
         let valid = !value.is_empty()
@@ -71,9 +71,10 @@ impl BaseUrl {
         Self(Url::parse(&raw).expect("constructed Gingr URL is valid"))
     }
 
-    /// Parses provider-sourced text into this boundary type without promoting it to an NVA domain fact.
+    /// Validates the HTTPS Gingr app URL used to reach one provider account.
     pub fn parse(raw: impl AsRef<str>) -> Result<Self> {
         let raw = raw.as_ref();
+
         let url = Url::parse(raw).map_err(|error| Error::InvalidBaseUrl {
             reason: error.to_string(),
         })?;
@@ -191,7 +192,7 @@ pub struct Client {
 }
 
 impl Client {
-    /// Constructs this typed Gingr boundary value after the caller has chosen the provider input to trust.
+    /// Bundles the validated Gingr URL and secret key used to capture or send provider requests.
     pub fn new(base_url: BaseUrl, api_key: ApiKey) -> Self {
         Self {
             base_url,

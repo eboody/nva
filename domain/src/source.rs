@@ -2,6 +2,13 @@
 //!
 //! Provenance travels with facts so an agent draft can cite the app-owned source evidence it used:
 //!
+//! Crosswalk navigation: provenance is the source-entry receipt used by entity
+//! pages, workflow packets, storage records, and runtime shells. See
+//! `docs/entity-atlas/contract-crosswalk/source-provider-flows.md` for entry and
+//! normalization, `workflow-packets.md` for workflow use,
+//! `storage-persistence.md` for stored source refs, and `runtime-exposure.md`
+//! for API/script exposure.
+//!
 //! ```
 //! use domain::source;
 //!
@@ -51,7 +58,7 @@ pub enum System {
 pub struct Timestamp(DateTime<Utc>);
 
 impl Timestamp {
-    /// Promotes non-empty provider or import text into a source-lineage value.
+    /// Validates an upstream UTC timestamp before it can anchor source-data freshness.
     pub fn try_new(value: impl AsRef<str>) -> Result<Self> {
         let value = value.as_ref().trim();
         if value.is_empty() {
@@ -63,7 +70,7 @@ impl Timestamp {
         Ok(Self(parsed))
     }
 
-    /// Exposes the validated scalar for serialization and adapter boundaries.
+    /// UTC extraction instant exposed for freshness checks, replay windows, and audit trails.
     pub const fn get(&self) -> &DateTime<Utc> {
         &self.0
     }
@@ -74,12 +81,12 @@ impl Timestamp {
 pub struct Endpoint(String);
 
 impl Endpoint {
-    /// Promotes non-empty provider or import text into a source-lineage value.
+    /// Validates the provider endpoint or import route before it can label source evidence.
     pub fn try_new(value: impl Into<String>) -> Result<Self> {
         trimmed_non_empty(value, Error::EmptyEndpoint).map(Self)
     }
 
-    /// Returns the provider or domain identifier as a string slice.
+    /// Endpoint or import-route text retained for adapter calls and provenance displays.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -90,12 +97,12 @@ impl Endpoint {
 pub struct ExtractionBatchId(String);
 
 impl ExtractionBatchId {
-    /// Promotes non-empty provider or import text into a source-lineage value.
+    /// Validates the extraction-batch id that ties provider records to the same pull.
     pub fn try_new(value: impl Into<String>) -> Result<Self> {
         trimmed_non_empty(value, Error::EmptyExtractionBatch).map(Self)
     }
 
-    /// Returns the provider or domain identifier as a string slice.
+    /// Extraction-batch id exposed for replay, freshness, and audit comparison.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -106,12 +113,12 @@ impl ExtractionBatchId {
 pub struct RequestScope(String);
 
 impl RequestScope {
-    /// Promotes non-empty provider or import text into a source-lineage value.
+    /// Validates the request scope that explains why a provider payload was imported.
     pub fn try_new(value: impl Into<String>) -> Result<Self> {
         trimmed_non_empty(value, Error::EmptyRequestScope).map(Self)
     }
 
-    /// Returns the provider or domain identifier as a string slice.
+    /// Request-scope text retained for source review and adapter diagnostics.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -122,12 +129,12 @@ impl RequestScope {
 pub struct SchemaVersion(String);
 
 impl SchemaVersion {
-    /// Promotes non-empty provider or import text into a source-lineage value.
+    /// Validates the schema-version label used to choose and review source mappers.
     pub fn try_new(value: impl Into<String>) -> Result<Self> {
         trimmed_non_empty(value, Error::EmptySchemaVersion).map(Self)
     }
 
-    /// Returns the provider or domain identifier as a string slice.
+    /// Schema-version label exposed for mapper selection and drift review.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -138,12 +145,12 @@ impl SchemaVersion {
 pub struct PayloadHash(String);
 
 impl PayloadHash {
-    /// Promotes non-empty provider or import text into a source-lineage value.
+    /// Validates the payload hash used to detect replay, duplicates, and source drift.
     pub fn try_new(value: impl Into<String>) -> Result<Self> {
         trimmed_non_empty(value, Error::EmptyPayloadHash).map(Self)
     }
 
-    /// Returns the provider or domain identifier as a string slice.
+    /// Payload hash exposed for idempotency, drift detection, and audit comparison.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -154,12 +161,12 @@ impl PayloadHash {
 pub struct RawPayloadRef(String);
 
 impl RawPayloadRef {
-    /// Promotes non-empty provider or import text into a source-lineage value.
+    /// Validates the storage reference that lets reviewers inspect the raw payload.
     pub fn try_new(value: impl Into<String>) -> Result<Self> {
         trimmed_non_empty(value, Error::EmptyRawPayloadRef).map(Self)
     }
 
-    /// Returns the provider or domain identifier as a string slice.
+    /// Raw-payload location exposed for reviewer lookup and source audit trails.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -170,12 +177,12 @@ impl RawPayloadRef {
 pub struct ObservedStatus(String);
 
 impl ObservedStatus {
-    /// Promotes non-empty provider or import text into a source-lineage value.
+    /// Validates provider status text before an unknown mapping is retained for review.
     pub fn try_new(value: impl Into<String>) -> Result<Self> {
         trimmed_non_empty(value, Error::EmptyObservedStatus).map(Self)
     }
 
-    /// Returns the provider or domain identifier as a string slice.
+    /// Provider status text exposed so reviewers can map or reject the unknown state.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -192,12 +199,12 @@ pub mod record {
     pub struct Id(String);
 
     impl Id {
-        /// Promotes non-empty provider or import text into a source-lineage value.
+        /// Validates the source-record id retained as a stable reconciliation join key.
         pub fn try_new(value: impl Into<String>) -> source::Result<Self> {
             source::trimmed_non_empty(value, source::Error::EmptyRecordId).map(Self)
         }
 
-        /// Returns the provider or domain identifier as a string slice.
+        /// Provider/read-model record id exposed for reconciliation joins.
         pub fn as_str(&self) -> &str {
             &self.0
         }
@@ -212,17 +219,17 @@ pub mod record {
         Pet,
         /// Resort location record participating in the workflow.
         Location,
-        /// Reservation type source-data role, provider status, or explicit normalization assumption.
+        /// Gingr reservation-type identifier used for service reconciliation.
         ReservationType,
-        /// Invoice source-data role, provider status, or explicit normalization assumption.
+        /// Gingr invoice identifier tied to reservation/payment reconciliation.
         Invoice,
-        /// Payment source-data role, provider status, or explicit normalization assumption.
+        /// Gingr payment identifier tied to deposit or checkout reconciliation.
         Payment,
-        /// Service source-data role, provider status, or explicit normalization assumption.
+        /// Gingr service identifier used when mapping provider service types.
         Service,
-        /// Staff source-data role, provider status, or explicit normalization assumption.
+        /// Staff provider id retained for labor-source reconciliation.
         Staff,
-        /// Provider role or status could not be mapped confidently.
+        /// Related record role is unknown, so reconciliation should not assume the link's business meaning.
         Unknown,
     }
 
@@ -239,12 +246,12 @@ pub mod record {
             Self { role, id }
         }
 
-        /// Returns the role evidence carried by this source-lineage value.
+        /// Related-record role explaining how this source id participates in reconciliation.
         pub const fn role(&self) -> Role {
             self.role
         }
 
-        /// Returns the id evidence carried by this source-lineage value.
+        /// Provider/read-model identifier retained for reconciliation.
         pub const fn id(&self) -> &Id {
             &self.id
         }
@@ -269,12 +276,12 @@ impl RecordRef {
         Self::new(provenance.system(), provenance.record_id().clone())
     }
 
-    /// Returns the system evidence carried by this source-lineage value.
+    /// Source system that owns the referenced record.
     pub const fn system(&self) -> System {
         self.system
     }
 
-    /// Returns the record id evidence carried by this source-lineage value.
+    /// Provider/read-model identifier retained for reconciliation.
     pub const fn record_id(&self) -> &record::Id {
         &self.record_id
     }
@@ -297,63 +304,63 @@ pub struct Provenance {
 }
 
 impl Provenance {
-    /// Returns the system evidence carried by this source-lineage value.
+    /// Upstream system that supplied this source evidence.
     pub const fn system(&self) -> System {
         self.system
     }
 
-    /// Returns the source system evidence carried by this source-lineage value.
+    /// Upstream system label preserved for source evidence and adapter routing.
     pub const fn source_system(&self) -> System {
         self.system
     }
 
-    /// Returns the endpoint evidence carried by this source-lineage value.
+    /// Provider endpoint or import route that produced this payload.
     pub const fn endpoint(&self) -> &Endpoint {
         &self.endpoint
     }
 
-    /// Returns the record id evidence carried by this source-lineage value.
+    /// Primary provider/read-model record id for this source fact.
     pub const fn record_id(&self) -> &record::Id {
         &self.record_id
     }
 
-    /// Returns the related record ids evidence carried by this source snapshot.
+    /// Related source records that explain joins behind this source fact.
     pub fn related_record_ids(&self) -> &[record::RelatedId] {
         &self.related_record_ids
     }
 
-    /// Returns the extraction batch evidence carried by this source-lineage value.
+    /// Extraction batch that groups records from the same provider pull.
     pub const fn extraction_batch(&self) -> &ExtractionBatchId {
         &self.extraction_batch
     }
 
-    /// Returns the pulled at evidence carried by this source-lineage value.
+    /// UTC extraction timestamp used to reason about freshness and replay.
     pub const fn pulled_at(&self) -> &Timestamp {
         &self.pulled_at
     }
 
-    /// Returns the request scope evidence carried by this source-lineage value.
+    /// Provider request scope that explains why this record was imported.
     pub const fn request_scope(&self) -> &RequestScope {
         &self.request_scope
     }
 
-    /// Returns the schema version evidence carried by this source-lineage value.
+    /// Provider schema version used by mappers and drift review.
     pub const fn schema_version(&self) -> &SchemaVersion {
         &self.schema_version
     }
 
-    /// Returns the payload hash evidence carried by this source-lineage value.
+    /// Payload hash used for idempotency, drift detection, and audit comparison.
     pub const fn payload_hash(&self) -> &PayloadHash {
         &self.payload_hash
     }
 
-    /// Returns the raw payload ref evidence carried by this source-lineage value.
+    /// Raw payload storage reference kept as reviewer-facing source evidence.
     pub const fn raw_payload_ref(&self) -> &RawPayloadRef {
         &self.raw_payload_ref
     }
 }
 
-/// Reservation boundary for source contracts.
+/// Reservation source snapshots and assumptions retained for booking/review workflows.
 pub mod reservation {
     use serde::{Deserialize, Serialize};
 
@@ -364,9 +371,9 @@ pub mod reservation {
     pub enum OwnerPetRelationship {
         /// Owner-pet relationship was matched to a single confident record.
         Resolved,
-        /// Number of provider records that could match this relationship.
+        /// Multiple provider owner/pet records could match, blocking confident promotion until reviewed.
         Ambiguous {
-            /// Candidate count carried by this variant.
+            /// Number of possible provider matches reviewers must reconcile before promotion.
             candidate_count: u16,
         },
     }
@@ -382,11 +389,11 @@ pub mod reservation {
         CheckedIn,
         /// Pet has left care and the stay is complete.
         CheckedOut,
-        /// Reservation is no longer active.
+        /// Provider cancellation or void status blocks active booking workflows while preserving source status for reconciliation and review.
         Cancelled,
-        /// Provider status text retained before normalization.
+        /// Provider status was not recognized; retain observed text as a promotion blocker.
         Unknown {
-            /// Observed carried by this variant.
+            /// Raw provider status text reviewers must map or reject before workflow promotion.
             observed: source::ObservedStatus,
         },
     }
@@ -394,17 +401,17 @@ pub mod reservation {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
     /// Explicit ingestion assumptions made while normalizing provider data.
     pub enum Assumption {
-        /// Grain treated as reservation source-data role, provider status, or explicit normalization assumption.
+        /// Provider row grain is interpreted as a reservation snapshot for normalization.
         GrainTreatedAsReservation,
-        /// Customer record ID treated as stable join key source-data role, provider status, or explicit normalization assumption.
+        /// Customer provider record id is assumed stable enough for reconciliation.
         CustomerRecordIdTreatedAsStableJoinKey,
-        /// Pet record ID treated as stable join key source-data role, provider status, or explicit normalization assumption.
+        /// Pet provider record id is assumed stable enough for reconciliation.
         PetRecordIdTreatedAsStableJoinKey,
-        /// Provider status mapping is provisional source-data role, provider status, or explicit normalization assumption.
+        /// Status mapping is provisional and should stay visible to reviewer/data-quality workflows.
         ProviderStatusMappingIsProvisional,
-        /// Raw payload retention unknown source-data role, provider status, or explicit normalization assumption.
+        /// Raw-payload retention policy is unknown and should be treated as a data-quality warning.
         RawPayloadRetentionUnknown,
-        /// Refresh mutation policy unknown source-data role, provider status, or explicit normalization assumption.
+        /// Provider refresh mutation behavior is unknown and can block confident promotion.
         RefreshMutationPolicyUnknown,
     }
 
@@ -422,52 +429,52 @@ pub mod reservation {
     }
 
     impl Snapshot {
-        /// Returns the builder evidence carried by this source-lineage value.
+        /// Starts a Gingr reservation source snapshot builder.
         pub const fn builder() -> SnapshotBuilder {
             SnapshotBuilder::new()
         }
 
-        /// Returns the provenance evidence carried by this source-lineage value.
+        /// Source-system evidence for this snapshot.
         pub const fn provenance(&self) -> &source::Provenance {
             &self.provenance
         }
 
-        /// Returns the customer record id evidence carried by this source-lineage value.
+        /// Provider/read-model customer identifier retained for reconciliation.
         pub const fn customer_record_id(&self) -> Option<&source::record::Id> {
             self.customer_record_id.as_ref()
         }
 
-        /// Returns the pet record id evidence carried by this source-lineage value.
+        /// Provider/read-model pet identifier retained for reconciliation.
         pub const fn pet_record_id(&self) -> Option<&source::record::Id> {
             self.pet_record_id.as_ref()
         }
 
-        /// Returns the location record id evidence carried by this source-lineage value.
+        /// Provider/read-model location identifier retained for reconciliation.
         pub const fn location_record_id(&self) -> Option<&source::record::Id> {
             self.location_record_id.as_ref()
         }
 
-        /// Returns the service type record id evidence carried by this source-lineage value.
+        /// Provider/read-model service-type identifier retained for reconciliation.
         pub const fn service_type_record_id(&self) -> Option<&source::record::Id> {
             self.service_type_record_id.as_ref()
         }
 
-        /// Returns the status evidence carried by this source snapshot.
+        /// Normalized reservation lifecycle status preserved for booking promotion or exception review.
         pub fn status(&self) -> Option<Status> {
             self.status.clone()
         }
 
-        /// Returns the relationship evidence carried by this source-lineage value.
+        /// Owner/pet relationship confidence that can block promotion when ambiguous.
         pub const fn relationship(&self) -> &OwnerPetRelationship {
             &self.relationship
         }
 
-        /// Returns the assumptions evidence carried by this source snapshot.
+        /// Ingestion assumptions reviewers must accept, reject, or keep visible before promotion.
         pub fn assumptions(&self) -> &[Assumption] {
             &self.assumptions
         }
 
-        /// Returns the data quality issues evidence carried by this source snapshot.
+        /// Data-quality blockers and warnings derived from missing source evidence or ambiguous promotion state.
         pub fn data_quality_issues(
             &self,
             detected_at: source::Timestamp,
@@ -613,49 +620,49 @@ pub mod reservation {
             }
         }
 
-        /// Returns the provenance evidence carried by this source snapshot.
+        /// Sets source-system evidence for the reservation snapshot's audit trail.
         pub fn provenance(mut self, provenance: source::Provenance) -> Self {
             self.provenance = Some(provenance);
             self
         }
 
-        /// Returns the customer record id evidence carried by this source snapshot.
+        /// Attaches the optional customer provider id retained for owner reconciliation.
         pub fn customer_record_id(mut self, id: impl Into<Option<source::record::Id>>) -> Self {
             self.customer_record_id = id.into();
             self
         }
 
-        /// Returns the pet record id evidence carried by this source snapshot.
+        /// Attaches the optional pet provider id retained for animal reconciliation.
         pub fn pet_record_id(mut self, id: impl Into<Option<source::record::Id>>) -> Self {
             self.pet_record_id = id.into();
             self
         }
 
-        /// Returns the location record id evidence carried by this source snapshot.
+        /// Attaches the optional location provider id used for resort-level reconciliation.
         pub fn location_record_id(mut self, id: impl Into<Option<source::record::Id>>) -> Self {
             self.location_record_id = id.into();
             self
         }
 
-        /// Returns the service type record id evidence carried by this source snapshot.
+        /// Attaches the optional service-type provider id before domain-service promotion.
         pub fn service_type_record_id(mut self, id: impl Into<Option<source::record::Id>>) -> Self {
             self.service_type_record_id = id.into();
             self
         }
 
-        /// Returns the status evidence carried by this source snapshot.
+        /// Records normalized reservation status evidence for promotion or review routing.
         pub fn status(mut self, status: impl Into<Option<Status>>) -> Self {
             self.status = status.into();
             self
         }
 
-        /// Returns the relationship evidence carried by this source snapshot.
+        /// Records whether owner/pet linkage is resolved or needs reviewer reconciliation.
         pub fn relationship(mut self, relationship: OwnerPetRelationship) -> Self {
             self.relationship = Some(relationship);
             self
         }
 
-        /// Returns the assumptions evidence carried by this source snapshot.
+        /// Records normalization assumptions reviewers may need to accept or reject.
         pub fn assumptions(mut self, assumptions: Vec<Assumption>) -> Self {
             self.assumptions = assumptions;
             self
@@ -679,7 +686,7 @@ pub mod reservation {
     }
 }
 
-/// Gingr boundary for source contracts.
+/// Gingr provider mapping vocabulary kept separate from app-owned policy decisions.
 pub mod gingr {
     use bon::Builder;
     use serde::{Deserialize, Serialize};
@@ -691,12 +698,12 @@ pub mod gingr {
     pub struct Endpoint(String);
 
     impl Endpoint {
-        /// Promotes non-empty provider or import text into a source-lineage value.
+        /// Validates the Gingr endpoint before it can anchor provider-source evidence.
         pub fn try_new(value: impl Into<String>) -> source::Result<Self> {
             source::trimmed_non_empty(value, source::Error::EmptyGingrEndpoint).map(Self)
         }
 
-        /// Returns the provider or domain identifier as a string slice.
+        /// Gingr endpoint text exposed for adapter calls and source-evidence review.
         pub fn as_str(&self) -> &str {
             &self.0
         }
@@ -713,12 +720,12 @@ pub mod gingr {
     pub struct ProviderRecordId(String);
 
     impl ProviderRecordId {
-        /// Promotes non-empty provider or import text into a source-lineage value.
+        /// Validates the Gingr record id before it can be promoted into reconciliation evidence.
         pub fn try_new(value: impl Into<String>) -> source::Result<Self> {
             source::trimmed_non_empty(value, source::Error::EmptyProviderRecordId).map(Self)
         }
 
-        /// Returns the provider or domain identifier as a string slice.
+        /// Gingr record id exposed for owner, pet, reservation, and payment reconciliation.
         pub fn as_str(&self) -> &str {
             &self.0
         }
@@ -731,31 +738,31 @@ pub mod gingr {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for related provider id decisions in source workflows.
+    /// Provider identifier relationship captured from source evidence for reconciliation and audit trails.
     pub enum RelatedProviderId {
-        /// Owner source-data role, provider status, or explicit normalization assumption.
+        /// Gingr owner identifier related to the reservation snapshot.
         Owner(ProviderRecordId),
-        /// Animal source-data role, provider status, or explicit normalization assumption.
+        /// Gingr animal identifier related to the reservation snapshot.
         Animal(ProviderRecordId),
         /// Resort location record participating in the workflow.
         Location(ProviderRecordId),
-        /// Reservation type source-data role, provider status, or explicit normalization assumption.
+        /// Gingr reservation-type id retained for service-line reconciliation.
         ReservationType(ProviderRecordId),
-        /// Invoice source-data role, provider status, or explicit normalization assumption.
+        /// Gingr invoice id retained for payment and folio reconciliation.
         Invoice(ProviderRecordId),
-        /// Payment source-data role, provider status, or explicit normalization assumption.
+        /// Gingr payment id retained for deposit and checkout reconciliation.
         Payment(ProviderRecordId),
-        /// Service source-data role, provider status, or explicit normalization assumption.
+        /// Gingr service id retained while mapping provider service types.
         Service(ProviderRecordId),
     }
 
     impl RelatedProviderId {
-        /// Returns the owner evidence carried by this source-lineage value.
+        /// Builds an owner related-provider id from Gingr source evidence.
         pub const fn owner(id: ProviderRecordId) -> Self {
             Self::Owner(id)
         }
 
-        /// Returns the animal evidence carried by this source-lineage value.
+        /// Builds an animal related-provider id from Gingr source evidence.
         pub const fn animal(id: ProviderRecordId) -> Self {
             Self::Animal(id)
         }
@@ -792,12 +799,12 @@ pub mod gingr {
     pub struct ExtractionBatchId(String);
 
     impl ExtractionBatchId {
-        /// Promotes non-empty provider or import text into a source-lineage value.
+        /// Validates the Gingr extraction-batch id that groups records from one pull.
         pub fn try_new(value: impl Into<String>) -> source::Result<Self> {
             source::trimmed_non_empty(value, source::Error::EmptyExtractionBatch).map(Self)
         }
 
-        /// Returns the provider or domain identifier as a string slice.
+        /// Gingr batch id exposed for replay, freshness, and adapter diagnostics.
         pub fn as_str(&self) -> &str {
             &self.0
         }
@@ -815,12 +822,12 @@ pub mod gingr {
     pub struct RequestScope(String);
 
     impl RequestScope {
-        /// Promotes non-empty provider or import text into a source-lineage value.
+        /// Validates the Gingr request scope that explains the provider import boundary.
         pub fn try_new(value: impl Into<String>) -> source::Result<Self> {
             source::trimmed_non_empty(value, source::Error::EmptyRequestScope).map(Self)
         }
 
-        /// Returns the provider or domain identifier as a string slice.
+        /// Gingr request scope exposed for source review and adapter diagnostics.
         pub fn as_str(&self) -> &str {
             &self.0
         }
@@ -838,12 +845,12 @@ pub mod gingr {
     pub struct ProviderSchemaVersion(String);
 
     impl ProviderSchemaVersion {
-        /// Promotes non-empty provider or import text into a source-lineage value.
+        /// Validates the Gingr schema-version label before mapper promotion.
         pub fn try_new(value: impl Into<String>) -> source::Result<Self> {
             source::trimmed_non_empty(value, source::Error::EmptyProviderSchemaVersion).map(Self)
         }
 
-        /// Returns the provider or domain identifier as a string slice.
+        /// Gingr schema-version label exposed for mapper selection and drift review.
         pub fn as_str(&self) -> &str {
             &self.0
         }
@@ -861,12 +868,12 @@ pub mod gingr {
     pub struct ProviderStatus(String);
 
     impl ProviderStatus {
-        /// Promotes non-empty provider or import text into a source-lineage value.
+        /// Validates Gingr status text before normalization into reservation workflow state.
         pub fn try_new(value: impl Into<String>) -> source::Result<Self> {
             source::trimmed_non_empty(value, source::Error::EmptyProviderStatus).map(Self)
         }
 
-        /// Returns the provider or domain identifier as a string slice.
+        /// Gingr status text exposed for reviewer mapping when promotion is uncertain.
         pub fn as_str(&self) -> &str {
             &self.0
         }
@@ -904,37 +911,37 @@ pub mod gingr {
     }
 
     impl Provenance {
-        /// Returns the source system evidence carried by this source-lineage value.
+        /// Source system for this Gingr provenance, always Gingr.
         pub const fn source_system(&self) -> source::System {
             source::System::Gingr
         }
 
-        /// Returns the endpoint evidence carried by this source-lineage value.
+        /// Gingr endpoint that produced the provider payload.
         pub const fn endpoint(&self) -> &Endpoint {
             &self.endpoint
         }
 
-        /// Returns the provider record id evidence carried by this source-lineage value.
+        /// Gingr provider-native record id retained before domain promotion.
         pub const fn provider_record_id(&self) -> &ProviderRecordId {
             &self.provider_record_id
         }
 
-        /// Returns the related provider ids evidence carried by this source snapshot.
+        /// Gingr provider ids retained for reconciliation and promotion decisions.
         pub fn related_provider_ids(&self) -> &[RelatedProviderId] {
             &self.related_provider_ids
         }
 
-        /// Returns the extraction batch evidence carried by this source-lineage value.
+        /// Gingr extraction batch for freshness and replay review.
         pub const fn extraction_batch(&self) -> &ExtractionBatchId {
             &self.extraction_batch
         }
 
-        /// Returns the pulled at evidence carried by this source-lineage value.
+        /// UTC timestamp when the Gingr payload was pulled.
         pub const fn pulled_at(&self) -> &source::Timestamp {
             &self.pulled_at
         }
 
-        /// Returns the raw payload ref evidence carried by this source-lineage value.
+        /// Raw Gingr payload reference kept for reviewer/source-evidence lookup.
         pub const fn raw_payload_ref(&self) -> &source::RawPayloadRef {
             &self.raw_payload_ref
         }
@@ -961,7 +968,7 @@ pub mod gingr {
         }
     }
 
-    /// Reservation boundary for source contracts.
+    /// Reservation source snapshots and assumptions retained for booking/review workflows.
     pub mod reservation {
         use serde::{Deserialize, Serialize};
 
@@ -973,9 +980,9 @@ pub mod gingr {
         pub enum OwnerPetRelationship {
             /// Owner-pet relationship was matched to a single confident record.
             Resolved,
-            /// Number of provider records that could match this relationship.
+            /// Multiple Gingr owner/animal records could match, blocking confident promotion until reviewed.
             Ambiguous {
-                /// Candidate count carried by this variant.
+                /// Number of possible provider owner/pet matches reviewers must reconcile before promotion.
                 candidate_count: u16,
             },
         }
@@ -1004,42 +1011,42 @@ pub mod gingr {
         }
 
         impl Snapshot {
-            /// Returns the builder evidence carried by this source-lineage value.
+            /// Starts a Gingr reservation source snapshot builder.
             pub const fn builder() -> SnapshotBuilder {
                 SnapshotBuilder::new()
             }
 
-            /// Returns the provenance evidence carried by this source-lineage value.
+            /// Gingr source-system evidence for this snapshot.
             pub const fn provenance(&self) -> &Provenance {
                 &self.provenance
             }
 
-            /// Returns the owner provider id evidence carried by this source-lineage value.
+            /// Gingr owner id retained for customer reconciliation.
             pub const fn owner_provider_id(&self) -> Option<&ProviderRecordId> {
                 self.owner_provider_id.as_ref()
             }
 
-            /// Returns the animal provider id evidence carried by this source-lineage value.
+            /// Gingr animal id retained for pet reconciliation.
             pub const fn animal_provider_id(&self) -> Option<&ProviderRecordId> {
                 self.animal_provider_id.as_ref()
             }
 
-            /// Returns the location provider id evidence carried by this source-lineage value.
+            /// Gingr location id retained for location reconciliation.
             pub const fn location_provider_id(&self) -> Option<&ProviderRecordId> {
                 self.location_provider_id.as_ref()
             }
 
-            /// Returns the service type provider id evidence carried by this source-lineage value.
+            /// Gingr service-type id retained for service reconciliation.
             pub const fn service_type_provider_id(&self) -> Option<&ProviderRecordId> {
                 self.service_type_provider_id.as_ref()
             }
 
-            /// Returns the provider status evidence carried by this source-lineage value.
+            /// Gingr status text retained until it is mapped into normalized reservation status.
             pub const fn provider_status(&self) -> Option<&ProviderStatus> {
                 self.provider_status.as_ref()
             }
 
-            /// Returns the relationship evidence carried by this source-lineage value.
+            /// Gingr owner/pet relationship confidence used during promotion.
             pub const fn relationship(&self) -> &OwnerPetRelationship {
                 &self.relationship
             }
@@ -1102,31 +1109,31 @@ pub mod gingr {
                 }
             }
 
-            /// Returns the provenance evidence carried by this source snapshot.
+            /// Sets Gingr source-system evidence for the reservation snapshot's audit trail.
             pub fn provenance(mut self, provenance: Provenance) -> Self {
                 self.provenance = Some(provenance);
                 self
             }
 
-            /// Returns the owner provider id evidence carried by this source snapshot.
+            /// Attaches the optional Gingr owner id retained for customer reconciliation.
             pub fn owner_provider_id(mut self, id: impl Into<Option<ProviderRecordId>>) -> Self {
                 self.owner_provider_id = id.into();
                 self
             }
 
-            /// Returns the animal provider id evidence carried by this source snapshot.
+            /// Attaches the optional Gingr animal id retained for pet reconciliation.
             pub fn animal_provider_id(mut self, id: impl Into<Option<ProviderRecordId>>) -> Self {
                 self.animal_provider_id = id.into();
                 self
             }
 
-            /// Returns the location provider id evidence carried by this source snapshot.
+            /// Attaches the optional Gingr location id used for resort-level reconciliation.
             pub fn location_provider_id(mut self, id: impl Into<Option<ProviderRecordId>>) -> Self {
                 self.location_provider_id = id.into();
                 self
             }
 
-            /// Returns the service type provider id evidence carried by this source snapshot.
+            /// Attaches the optional Gingr service-type id before domain-service promotion.
             pub fn service_type_provider_id(
                 mut self,
                 id: impl Into<Option<ProviderRecordId>>,
@@ -1135,13 +1142,13 @@ pub mod gingr {
                 self
             }
 
-            /// Returns the provider status evidence carried by this source snapshot.
+            /// Records observed Gingr status evidence that drives promotion or exception review.
             pub fn provider_status(mut self, status: impl Into<Option<ProviderStatus>>) -> Self {
                 self.provider_status = status.into();
                 self
             }
 
-            /// Returns the relationship evidence carried by this source snapshot.
+            /// Records whether Gingr owner/animal linkage is resolved or reviewer-ambiguous.
             pub fn relationship(mut self, relationship: OwnerPetRelationship) -> Self {
                 self.relationship = Some(relationship);
                 self

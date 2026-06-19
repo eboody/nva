@@ -11,51 +11,51 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Direction of a message relative to the resort operation: inbound, outbound draft, queued, or sent.
 pub enum Direction {
-    /// Inbound received message direction, channel, approval state, or delivery state.
+    /// Customer or staff message received by the resort and available as source context.
     InboundReceived,
-    /// Outbound draft message direction, channel, approval state, or delivery state.
+    /// Outbound content exists only as a draft and must pass approval before queueing.
     OutboundDraft,
-    /// Outbound queued message direction, channel, approval state, or delivery state.
+    /// Approved outbound message is queued for delivery through the configured channel.
     OutboundQueued,
-    /// Outbound sent message direction, channel, approval state, or delivery state.
+    /// Outbound message was sent and should have delivery evidence recorded separately.
     OutboundSent,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Message channel used for customer, staff, portal, phone-note, or internal communication.
 pub enum Channel {
-    /// Email message direction, channel, approval state, or delivery state.
+    /// Email channel, subject to email consent, address validation, and approval rules.
     Email,
-    /// Sms message direction, channel, approval state, or delivery state.
+    /// SMS channel, subject to texting consent, quiet-hour, and approval rules.
     Sms,
-    /// Phone note message direction, channel, approval state, or delivery state.
+    /// Staff note from a call or voicemail, not an automated outbound send.
     PhoneNote,
-    /// Portal message direction, channel, approval state, or delivery state.
+    /// Customer portal channel controlled by portal delivery and consent settings.
     Portal,
-    /// Internal message direction, channel, approval state, or delivery state.
+    /// Internal staff communication that should not be treated as customer-facing delivery.
     Internal,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Normalized lifecycle states used to reconcile source-system data with domain workflows.
 pub enum Status {
-    /// Draft created message direction, channel, approval state, or delivery state.
+    /// Draft exists but has not yet requested approval or entered a send queue.
     DraftCreated,
-    /// Approval requested message direction, channel, approval state, or delivery state.
+    /// Draft is waiting for the required human or policy approval.
     ApprovalRequested,
-    /// Approved to queue message direction, channel, approval state, or delivery state.
+    /// Approval was granted and the message may be queued through its channel.
     ApprovedToQueue,
-    /// Queued message direction, channel, approval state, or delivery state.
+    /// Message is queued for sending but has no delivery result yet.
     Queued,
-    /// Send attempted message direction, channel, approval state, or delivery state.
+    /// Delivery attempt was made and needs success/failure evidence.
     SendAttempted,
-    /// Delivered message direction, channel, approval state, or delivery state.
+    /// Delivery evidence says the message reached the channel or provider.
     Delivered,
-    /// Deposit collection was attempted but did not succeed.
+    /// Send failed and the message needs retry, suppression, or staff review before customer contact.
     Failed,
-    /// Suppressed message direction, channel, approval state, or delivery state.
+    /// Message was intentionally suppressed because consent, policy, duplicate, or review rules blocked sending.
     Suppressed,
-    /// Reservation is no longer active.
+    /// Message send was cancelled before delivery and must not be retried without a new approval path.
     Cancelled,
 }
 

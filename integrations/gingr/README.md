@@ -1,16 +1,20 @@
 # `integrations/gingr`
 
-`integrations/gingr` is the Gingr provider adapter crate. It owns the provider-facing boundary for Gingr configuration, endpoint request construction, transport seams, response envelopes, webhook verification, provider DTOs, and the first mapping step from provider records into semantic `domain::*` candidates.
+Operator translation: Gingr is the outside pet-resort operating system this repo reads as evidence. These pages explain how raw Gingr requests, responses, webhooks, DTOs, and provider records stay separate, get checked, and only become usable NVA workflow facts after explicit validation; they do not mean this repo can change Gingr live unless a separate approved runtime path exists.
+
+`integrations/gingr` is the Gingr provider adapter crate. It owns the provider-facing boundary for Gingr configuration, endpoint request construction, transport seams, response envelopes, webhook verification, provider DTOs, and the first mapping step from provider records into [semantic](../../docs/glossary-architecture-terms.md#semantic) `domain::*` candidates.
 
 Start at [`src/lib.rs`](./src/lib.rs). The crate root exposes [`config`](./src/config.rs), [`endpoint`](./src/endpoint/mod.rs), [`transport`](./src/transport.rs), [`response`](./src/response.rs), [`webhook`](./src/webhook.rs), [`dto`](./src/dto/mod.rs), and [`mapping`](./src/mapping/mod.rs). New maintainers should read those modules in boundary order: configure a Gingr account, build endpoint requests, send/capture transport requests, parse raw provider response shapes, verify webhooks, deserialize documented provider DTOs, then explicitly promote usable provider fields into domain values.
 
-This crate is not domain truth. Gingr ids, status strings, endpoint shapes, undocumented fields, webhooks, and API quirks are provider facts. `domain` owns normalized business concepts such as customer names, pet names, retail products, source provenance, data-quality issues, workflow decisions, and service-line policy. `storage` owns durable projection records and stable persisted codes. Treat every provider payload here as evidence that must be validated, mapped, or quarantined before downstream automation depends on it.
+This crate is not domain truth. Gingr ids, status strings, endpoint shapes, undocumented fields, webhooks, and API quirks are provider facts. `domain` owns normalized business concepts such as customer names, pet names, retail products, source provenance, data-quality issues, workflow decisions, and service-line policy. `storage` owns durable [projection](../../docs/glossary-architecture-terms.md#projection) records and stable persisted codes. Treat every provider payload here as evidence that must be validated, mapped, quarantined, or [promoted](../../docs/glossary-architecture-terms.md#promotion-demotion) through an explicit conversion before downstream automation depends on it.
 
 ## README vs Rustdoc contract
 
 This README is the Gingr boundary wiki: use it to orient maintainers around provider configuration, endpoint builders, transport seams, DTOs, webhooks, mapping, fixtures, and documented provider gaps. Keep API usage examples in source/Rustdoc rather than duplicating request-building snippets here.
 
 Executable Gingr examples belong in Rustdoc on [`src/lib.rs`](./src/lib.rs), endpoint modules, transport/mapping modules, and webhook/response surfaces. They should compile under the Gingr package doctest gate and stay fixture-safe, secret-free, and explicit that provider ids/payloads are evidence to be promoted into `domain` or `storage` contracts, not operational truth by themselves.
+
+Non-coder glossary help: [`integrations/gingr`](../../docs/glossary-architecture-terms.md#integration-integrationsgingr) is the provider boundary; [Gingr](../../docs/glossary-source-data-terms.md#domainsourcesystemgingr-gingr) is an evidence source, not automatic NVA truth. [Provider records](../../docs/glossary-source-data-terms.md#provider-record), [DTOs](../../docs/glossary-architecture-terms.md#dto), [adapters](../../docs/glossary-architecture-terms.md#adapter), [source-of-record](../../docs/glossary-source-data-terms.md#source-of-record), [source refs](../../docs/glossary-architecture-terms.md#source-ref-domainsourcerecordref), and [data-quality issues](../../docs/glossary-source-data-terms.md#domaindata_qualityissue-data-quality-issue) are linked before endpoint or mapping Rustdocs ask readers to understand provider vocabulary.
 
 ## Module navigation
 

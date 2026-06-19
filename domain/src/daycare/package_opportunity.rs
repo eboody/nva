@@ -30,7 +30,7 @@ use crate::policy;
 pub struct AttendanceVisitCount(u16);
 
 impl AttendanceVisitCount {
-    /// Creates an attendance visit count from source-derived history.
+    /// Creates an attendance visit count from prior daycare check-in history.
     pub const fn new(value: u16) -> Self {
         Self(value)
     }

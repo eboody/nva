@@ -124,7 +124,7 @@ impl Request for GetImmunizationTypes {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-/// Request descriptor for Gingr animal immunization records; medical interpretation remains outside this boundary.
+/// Request descriptor for Gingr animal immunization records; medical interpretation remains in downstream review.
 pub struct GetAnimalImmunizations {
     animal: AnimalId,
 }

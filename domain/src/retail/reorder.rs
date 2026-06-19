@@ -1,4 +1,4 @@
-//! Reorder contracts for stock-threshold decisions and manager/vendor workflow creation.
+//! Reorder models for stock-threshold decisions and manager/vendor workflow creation.
 
 use serde::{Deserialize, Serialize};
 
@@ -11,11 +11,11 @@ use super::product::Sku;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Reorder policy deciding whether low stock creates a manager review, staff task, or vendor notice.
 pub enum Policy {
-    /// Manual review retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Low-stock findings stop for manager review instead of creating automatic vendor action.
     ManualReview,
-    /// Auto create manager task retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Low-stock findings create a staff/manager task for human ordering follow-up.
     AutoCreateManagerTask,
-    /// Vendor managed retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Low-stock findings create a vendor-managed notice but do not place an order.
     VendorManaged,
 }
 
@@ -47,31 +47,31 @@ impl Policy {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Reorder decision produced when available units are at or below threshold.
 pub enum Decision {
-    /// No action retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Available stock remains above threshold, so no staff or vendor follow-up is needed.
     NoAction,
-    /// Create staff task retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Creates a human task with location, SKU, reason, and manager approval gate for reorder follow-up.
     CreateStaffTask {
-        /// Source-derived location id carried by this retail contract.
+        /// Location where staff should inspect stock or complete the reorder task.
         location_id: LocationId,
-        /// Source-derived sku carried by this retail contract.
+        /// SKU that fell to or below the reorder threshold.
         sku: Sku,
-        /// Business reason staff should review before proceeding.
+        /// Reorder reason shown to staff or managers before purchasing or vendor follow-up.
         reason: Reason,
-        /// Source-derived gate carried by this retail contract.
+        /// Manager approval gate required before staff treat the reorder task as authorized.
         gate: policy::ReviewGate,
     },
-    /// Manager review required retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Low-stock finding requires manager approval before any purchasing or vendor action.
     ManagerReviewRequired {
-        /// Business reason staff should review before proceeding.
+        /// Reorder reason shown to staff or managers before purchasing or vendor follow-up.
         reason: Reason,
-        /// Source-derived gate carried by this retail contract.
+        /// Manager approval gate required before staff treat the reorder task as authorized.
         gate: policy::ReviewGate,
     },
-    /// Vendor managed notice retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Vendor-managed item produces a notice for review rather than an automatic order.
     VendorManagedNotice {
-        /// Source-derived sku carried by this retail contract.
+        /// SKU that fell to or below the reorder threshold.
         sku: Sku,
-        /// Business reason staff should review before proceeding.
+        /// Reorder reason shown to staff or managers before purchasing or vendor follow-up.
         reason: Reason,
     },
 }
@@ -79,10 +79,10 @@ pub enum Decision {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Business reason explaining why reorder action or vendor notice is needed.
 pub enum Reason {
-    /// At or below threshold retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Available stock is at or below the configured threshold for this SKU.
     AtOrBelowThreshold,
-    /// Vendor backorder retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Vendor reports the SKU is backordered, so staff can plan substitutes or waitlist notes.
     VendorBackorder,
-    /// Forecasted boarding diet depletion retail operational signal for inventory, POS, reorder, recommendation, or review handling.
+    /// Upcoming boarding diet demand may deplete stock and should prompt manager review.
     ForecastedBoardingDietDepletion,
 }

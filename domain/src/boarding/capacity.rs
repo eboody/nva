@@ -51,7 +51,7 @@ impl RoomCount {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-/// Validation errors for room-count promotion from boundary data.
+/// Validation errors for room-count promotion from provider or staff-entered data.
 pub enum RoomCountError {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Builder)]
@@ -113,7 +113,7 @@ impl Snapshot {
         Ok(Self { segments })
     }
 
-    /// Returns the source-derived accommodation segments considered by capacity policy.
+    /// Returns the nightly accommodation inventory segments considered by capacity policy.
     pub fn segments(&self) -> &[NightlySegmentSnapshot] {
         &self.segments
     }
@@ -208,7 +208,7 @@ pub enum WaitlistReason {
 pub struct Policy;
 
 impl Policy {
-    /// Evaluates a boarding request against source-derived inventory and returns confirm, waitlist, or denial evidence.
+    /// Evaluates a boarding request against room inventory and returns confirm, waitlist, or denial evidence.
     pub fn evaluate(&self, request: &Request, snapshot: &Snapshot) -> Decision {
         let mut compatible_but_full = false;
 

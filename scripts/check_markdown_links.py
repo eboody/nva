@@ -9,6 +9,7 @@ labor-cost workflows without stale links or missing module entrypoints.
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 import tomllib
@@ -59,11 +60,14 @@ CODE_FENCE_PATTERN = re.compile(r"```.*?```", re.DOTALL)
 
 
 def iter_markdown_files(repo_root: Path):
-    for path in sorted(repo_root.rglob("*.md")):
-        relative_parts = path.relative_to(repo_root).parts
-        if any(part in EXCLUDED_DIR_NAMES for part in relative_parts):
-            continue
-        yield path
+    for current_root, dirnames, filenames in os.walk(repo_root):
+        dirnames[:] = sorted(
+            dirname for dirname in dirnames if dirname not in EXCLUDED_DIR_NAMES
+        )
+        current_path = Path(current_root)
+        for filename in sorted(filenames):
+            if filename.endswith(".md"):
+                yield current_path / filename
 
 
 def is_external_or_nonlocal_link(raw_target: str) -> bool:
@@ -132,6 +136,19 @@ def is_within_repo(repo_root: Path, target: Path) -> bool:
     return True
 
 
+def rustdoc_target_for_check(repo_root: Path, target: Path) -> Path:
+    """Map checked-in target/doc links to an isolated Cargo target when one is active."""
+    cargo_target_dir = os.environ.get("CARGO_TARGET_DIR")
+    if not cargo_target_dir:
+        return target
+    repo_doc_root = repo_root / "target" / "doc"
+    try:
+        relative_doc_path = target.relative_to(repo_doc_root)
+    except ValueError:
+        return target
+    return Path(cargo_target_dir).resolve() / "doc" / relative_doc_path
+
+
 def check_local_markdown_links(repo_root: Path) -> list[str]:
     failures: list[str] = []
     repo_root = repo_root.resolve()
@@ -150,7 +167,8 @@ def check_local_markdown_links(repo_root: Path) -> list[str]:
                         f"{relative_file}:{line_number}: local link leaves repository: {raw_target}"
                     )
                     continue
-                if not target.exists():
+                target_for_check = rustdoc_target_for_check(repo_root, target)
+                if not target_for_check.exists():
                     failures.append(
                         f"{relative_file}:{line_number}: missing local markdown link target: {raw_target}"
                     )

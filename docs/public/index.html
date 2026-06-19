@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>NVA Pet Resorts AI workflow evidence</title>
+  <title>NVA Pet Resorts entity atlas</title>
   <style>
     :root {
       color-scheme: light;
@@ -130,33 +130,34 @@
 </head>
 <body>
   <header>
-    <p class="eyebrow">NVA Pet Resorts · source-grounded AI workflow evidence</p>
+    <p class="eyebrow">NVA Pet Resorts · entity-first operating model</p>
     <div class="hero">
       <div>
-        <h1>Safe AI workflows for reducing pet-resort labor cost</h1>
-        <p class="lead">This repo demonstrates how a deterministic pet-resort app can give agents source-grounded context, validate reviewable drafts, block unsafe side effects, and capture labor-minute outcomes for managers and front-desk teams.</p>
+        <h1>Start with the pet-resort entity atlas</h1>
+        <p class="lead">This public docs landing page is the front door to an entity-first operating model for labor-cost reduction. Pick a source fact, pet, reservation, review gate, workflow packet, outcome record, Gingr boundary, or runtime surface; then follow the path to workflows, safety boundaries, value metrics, and source/Rustdoc/test evidence.</p>
         <nav class="ctas" aria-label="Primary navigation">
-          <a href="#labor-thesis">See the labor-cost thesis</a>
-          <a href="#workflows" class="secondary">Start with workflows</a>
+          <a href="#entity-index">Browse entity index</a>
+          <a href="#front-door" class="secondary">Choose a reading path</a>
+          <a href="#audiences" class="secondary">Audience paths</a>
+          <a href="#workflows" class="secondary">Workflow-to-entity map</a>
           <a href="#safety" class="secondary">Review safety boundaries</a>
-          <a href="#glossary-translation" class="secondary">Translate repo terms</a>
-          <a href="#rustdocs" class="secondary">Inspect Rustdocs evidence</a>
+          <a href="#rustdocs" class="secondary">Inspect evidence</a>
         </nav>
       </div>
       <aside class="hero-card" aria-label="What this is not">
-        <h2 style="font-size:1.35rem;letter-spacing:-.02em">What this is</h2>
-        <p>A safe automation foundation for pet-resort operations: source facts, workflow state, review gates, draft workflows, storage/audit records, and provider integration boundaries.</p>
-        <p><strong>What it is not:</strong> a claim that agents can operate live NVA systems, message customers, change schedules, move money, or resolve ambiguous source facts without deterministic app approvals and human review.</p>
+        <h2 style="font-size:1.35rem;letter-spacing:-.02em">The README maxim</h2>
+        <p><strong>Entity-first operating model for labor-cost reduction</strong> means every important thing in the system should be legible before the crate name: what it is, why it exists, which workflows use it, who is authoritative, what automation may draft, what stays human-reviewed, how value is measured, and where proof lives.</p>
+        <p><strong>What it is not:</strong> a crate-first Rust index or a claim that agents can operate live NVA systems, message customers, change schedules, move money, or resolve ambiguous source facts without deterministic app approvals and human review.</p>
       </aside>
     </div>
   </header>
 
   <main>
     <section id="labor-thesis" class="panel">
-      <p class="eyebrow">Executive thesis</p>
-      <h2>Labor cost falls when staff stop rediscovering the same source facts</h2>
-      <p>Across a 170-site pet-resort operating context, repeated manager and front-desk work appears in morning dashboard reconciliation, checkout exception review, retention prioritization, source-data cleanup, and repetitive customer or staff drafts. The useful AI pattern is not a free-form chatbot. It is source-grounded workflow automation with review gates and measured outcomes.</p>
-      <p>The app owns source facts, workflow state, policy gates, audit trails, outcome capture, and every external side effect. Agents only summarize, rank, draft, and recommend from app-owned context packets.</p>
+      <p class="eyebrow">Why entity-first lowers labor cost</p>
+      <h2>Labor cost falls when every workflow starts from named, traceable operating facts</h2>
+      <p>Across a 170-site pet-resort operating context, repeated manager and front-desk work appears in morning dashboard reconciliation, checkout exception review, retention prioritization, source-data cleanup, and repetitive customer or staff drafts. The entity atlas turns those repeated lookups into named things a reviewer can understand: source systems, provenance, pets, reservations, service-line contracts, care facts, review gates, workflow packets, blocked actions, outcome records, and labor-minute evidence.</p>
+      <p>The useful AI pattern is not a free-form chatbot and not crate-first architecture. It is source-grounded workflow automation with review gates and measured outcomes. Agents only summarize, rank, draft, and recommend from app-owned packets; the app/domain contracts and human/system-of-record approvals decide what can happen.</p>
       <ul class="link-list">
         <li><a href="https://github.com/eboody/nva/blob/main/nva-pet-resorts-ai-context.md">Business context: NVA Pet Resorts AI lens</a></li>
         <li><a href="https://github.com/eboody/nva/blob/main/docs/design/labor-cost-reduction-crosswalk.md">Labor-cost reduction crosswalk</a></li>
@@ -164,23 +165,24 @@
       </ul>
     </section>
 
-    <section id="what-is-here">
-      <p class="eyebrow">What is here</p>
-      <h2>Plain-English lead before the crate list</h2>
+    <section id="front-door">
+      <p class="eyebrow">Front-door navigation</p>
+      <h2>Choose an entity, role, workflow, safety boundary, or evidence path</h2>
       <div class="grid two">
         <div class="panel">
-          <h3>Plain-language map</h3>
-          <p>The repository models operating facts, source evidence, review gates, draft workflows, storage records, and integration boundaries so AI agents can help staff without owning business truth.</p>
+          <h3>How a non-coder should enter</h3>
+          <p>The repository models operating facts, source evidence, review gates, draft workflows, storage records, and integration boundaries so AI agents can help staff without owning business truth. Start from the business thing you recognize, then use code-derived evidence only after the operating meaning is clear.</p>
           <ul>
-            <li>Pet-resort facts and policy explain what staff can trust, when facts are ambiguous, and what must stay reviewed.</li>
-            <li>Reviewable workflow packets explain what an agent may draft or recommend for a manager, front desk, or reviewer.</li>
-            <li>Outcome and audit records explain what work was completed, deferred, suppressed, or sent back as wrong-source cleanup.</li>
-            <li>Gingr/source-system boundaries explain how provider data becomes evidence before any workflow uses it.</li>
+            <li><a href="#entity-index">Entity index</a>: choose the important thing and see meaning, authority, automation, blocked actions, value, and proof.</li>
+            <li><a href="#audiences">Audience paths</a>: operations, resort manager, IT/integration, safety/compliance, and product/customer-success routes.</li>
+            <li><a href="#workflows">Workflow-to-entity navigation</a>: enter from labor loops and return to the entities each loop depends on.</li>
+            <li><a href="#safety">Safety boundaries</a>: read what agents may draft/recommend and what must remain human-reviewed or blocked.</li>
+            <li><a href="#rustdocs">Evidence links</a>: inspect source/Rustdoc/test proof without making crate names the front door.</li>
           </ul>
         </div>
         <div class="panel">
           <h3>Audience paths</h3>
-          <p>Start with the path that matches the decision you need to make, then use the Rustdocs as code-derived evidence after the business explanation.</p>
+          <p>Start with the path that matches the decision you need to make, then use the entity index and Rustdocs as code-derived evidence after the business explanation.</p>
           <ul class="link-list">
             <li><a href="#audiences">Operations leader</a>: labor saved, status, and human-owned approvals.</li>
             <li><a href="#audiences">AI program evaluator</a>: governed agent/app workflow pattern.</li>
@@ -192,6 +194,59 @@
       </div>
     </section>
 
+    <section id="entity-index" class="panel">
+      <p class="eyebrow">Entity-first operating model</p>
+      <h2>The entity atlas is the public docs spine</h2>
+      <p>The canonical entity index is the shared spine for README and public-doc navigation. It lets a non-coder choose a source fact, customer, pet, reservation, service-line contract, review gate, workflow packet, outcome record, Gingr provider boundary, or runtime/storage surface and see what it is, why it saves labor, who is authoritative, what an agent may draft, what remains blocked, how value is measured, and where source/Rustdoc/test proof lives.</p>
+      <div class="grid three">
+        <article class="path-card">
+          <h3>Start by entity</h3>
+          <p>Use the index when the question is “what is this thing and why does it matter?” rather than “which Rust crate owns it?”</p>
+          <ul class="link-list">
+            <li><a href="#entity-index">NVA Pet Resorts entity index</a></li>
+          </ul>
+        </article>
+        <article class="path-card">
+          <h3>Follow relationships</h3>
+          <p>Trace the safe flow from provider/staff evidence to provenance, domain truth, app packet, agent draft, human review, outcome record, and storage/API proof.</p>
+          <ul class="link-list">
+            <li><a href="#entity-index">Entity relationship summary on this landing page</a></li>
+          </ul>
+        </article>
+        <article class="path-card">
+          <h3>Use source-backed families</h3>
+          <p>Family pages keep plain-English operations, blocked actions, value metrics, and source/Rustdoc evidence together without making Markdown the behavior authority.</p>
+          <ul class="link-list">
+            <li><a href="domain/">Core pet-resort entities</a></li>
+            <li><a href="domain/workflow/">Workflow packets and agents</a></li>
+          </ul>
+        </article>
+      </div>
+      <div class="grid two" style="margin-top: 1rem;">
+        <article class="path-card">
+          <h3>Crosswalk from entity to proof</h3>
+          <p>Use the contract crosswalk when the question is “show me where this entity enters, normalizes, appears in workflows, persists, and is exposed.”</p>
+          <ul class="link-list">
+            <li><a href="#rustdocs">Rustdoc crate evidence table</a></li>
+            <li><a href="#rustdocs">Runtime/source/storage evidence surfaces</a></li>
+            <li><a href="gingr/">Generated Gingr source/provider Rustdocs</a></li>
+            <li><a href="domain/workflow/">Generated workflow packet Rustdocs</a></li>
+            <li><a href="storage/">Generated storage/persistence Rustdocs</a></li>
+            <li><a href="#rustdocs">Runtime shell Rustdoc links</a></li>
+          </ul>
+        </article>
+        <article class="path-card">
+          <h3>Evidence anchors for page writers</h3>
+          <p>When adding or checking entity pages, use the evidence anchor map to keep public claims tied to source, generated Rustdocs, tests, and explicit gaps.</p>
+          <ul class="link-list">
+            <li><a href="#rustdocs">Generated Rustdoc evidence links</a></li>
+            <li><a href="#entity-index">Entity-atlas summary on this landing page</a></li>
+            <li><a href="#entity-index">Landing-page entity inventory</a></li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
     <section id="glossary-translation" class="panel">
       <p class="eyebrow">Glossary translation layer</p>
       <h2>Use nearby term explanations before reading Rust names</h2>
@@ -199,25 +254,28 @@
       <div class="grid three">
         <article class="path-card">
           <h3>Architecture layers</h3>
-          <p><a href="https://github.com/eboody/nva/blob/main/docs/glossary-architecture-terms.md#domain">domain</a> is business truth, <a href="https://github.com/eboody/nva/blob/main/docs/glossary-architecture-terms.md#app">app</a> builds workflow/review bundles, and <a href="https://github.com/eboody/nva/blob/main/docs/glossary-architecture-terms.md#storage">storage</a> persists projections and outcomes.</p>
+          <p><a href="domain/">domain</a> is business truth, <a href="app/">app</a> builds workflow/review bundles, and <a href="storage/">storage</a> persists projections and outcomes.</p>
         </article>
         <article class="path-card">
           <h3>Source evidence</h3>
-          <p><a href="https://github.com/eboody/nva/blob/main/docs/glossary-source-data-terms.md#domainsourcesystemgingr-gingr">Gingr</a>, <a href="https://github.com/eboody/nva/blob/main/docs/glossary-source-data-terms.md#provider-record">provider records</a>, <a href="https://github.com/eboody/nva/blob/main/docs/glossary-architecture-terms.md#dto">DTOs</a>, <a href="https://github.com/eboody/nva/blob/main/docs/glossary-architecture-terms.md#source-ref-domainsourcerecordref">source refs</a>, and <a href="https://github.com/eboody/nva/blob/main/docs/glossary-architecture-terms.md#provenance-domainsourceprovenance">provenance</a> explain what evidence exists and what it still does not authorize.</p>
+          <p><a href="gingr/">Gingr</a>, <a href="gingr/dto/">provider records</a>, <a href="gingr/dto/">DTOs</a>, <a href="domain/source/">source refs</a>, and <a href="domain/source/">provenance</a> explain what evidence exists and what it still does not authorize.</p>
         </article>
         <article class="path-card">
           <h3>Workflow safety</h3>
-          <p><a href="https://github.com/eboody/nva/blob/main/docs/glossary-workflow-state-terms.md#workflow-packet">workflow packets</a>, <a href="https://github.com/eboody/nva/blob/main/docs/glossary-workflow-state-terms.md#draft">drafts</a>, <a href="https://github.com/eboody/nva/blob/main/docs/glossary-workflow-state-terms.md#review-gate">review gates</a>, <a href="https://github.com/eboody/nva/blob/main/docs/glossary-workflow-state-terms.md#blocked-action">blocked actions</a>, and <a href="https://github.com/eboody/nva/blob/main/docs/glossary-workflow-state-terms.md#outcome-capture">outcome capture</a> explain why agent help stays reviewable and measured.</p>
+          <p><a href="domain/workflow/">workflow packets</a>, <a href="domain/workflow/">drafts</a>, <a href="domain/policy/">review gates</a>, <a href="domain/policy/">blocked actions</a>, and <a href="storage/operations/">outcome capture</a> explain why agent help stays reviewable and measured.</p>
         </article>
       </div>
       <ul class="link-list">
-        <li><a href="https://github.com/eboody/nva/blob/main/docs/glossary.md">Full glossary index</a> for readers moving between landing pages, operator workflow docs, and generated Rustdocs.</li>
+        <li><a href="#glossary-translation">Glossary translation summary</a> for readers moving between landing pages, operator workflow docs, and generated Rustdocs.</li>
+        <li><a href="#glossary-translation">Core entity-linked term explanations</a> for cross-cutting terms that touch authority, evidence, safety, automation, value measurement, and Rustdoc proof.</li>
+        <li><a href="#glossary-translation">Glossary-to-entity link convention</a> for downstream docs workers who need the current cross-linking pattern.</li>
       </ul>
     </section>
 
     <section id="workflows">
-      <p class="eyebrow">Workflow map</p>
-      <h2>Start from labor loops, not crate names</h2>
+      <p class="eyebrow">Workflow-to-entity map</p>
+      <h2>Workflows are entry paths back to entities</h2>
+      <p>For non-coders who arrive through a labor loop, use the <a href="https://github.com/eboody/nva/blob/main/docs/workflows/operator/README.md">operator workflow index</a> and workflow-to-entity summary before Rustdoc. They link <a href="https://github.com/eboody/nva/blob/main/docs/workflows/operator/manager-daily-brief.md">Manager Daily Brief</a>, <a href="https://github.com/eboody/nva/blob/main/docs/workflows/operator/booking-triage.md">Booking Triage</a>, <a href="https://github.com/eboody/nva/blob/main/docs/workflows/operator/data-quality-hygiene.md">Data Quality Hygiene</a>, <a href="https://github.com/eboody/nva/blob/main/docs/workflows/operator/checkout-completion.md">Checkout Completion</a>, <a href="https://github.com/eboody/nva/blob/main/docs/workflows/operator/grooming-rebooking-retention.md">Grooming Rebooking / Retention</a>, <a href="https://github.com/eboody/nva/blob/main/docs/workflows/operator/daily-updates-pawgress-drafts.md">Daily Updates / Pawgress Drafts</a>, and <a href="https://github.com/eboody/nva/blob/main/docs/workflows/operator/regional-labor-exceptions.md">Regional Labor Exceptions</a> back to the featured entities, related entities, contracts, authority, approvals, blocked actions, outcomes, and source/Rustdoc/test backing each workflow depends on.</p>
       <div class="grid two">
         <article class="workflow-card">
           <span class="status ready">strongest current loop</span>
@@ -288,51 +346,56 @@
 
     <section id="audiences">
       <p class="eyebrow">Choose your path</p>
-      <h2>Audience paths</h2>
+      <h2>Audience paths through the entity atlas</h2>
+      <p>Pick the path that matches the decision you need to make, then use the entity atlas and Rustdocs as proof. The full path guide explains which entities to read first, what automation may draft or recommend, what remains human-reviewed, and how labor-cost value is measured.</p>
+      <ul class="link-list" style="margin-bottom: 1rem;">
+        <li><a href="#audiences">Audience path guide on this landing page</a></li>
+        <li><a href="#entity-index">Landing-page entity index</a> and <a href="#entity-index">relationship summary</a></li>
+      </ul>
       <div class="grid three">
         <article class="path-card">
-          <h3>Operations leader</h3>
-          <p>Will this reduce manager/front-desk work across resorts without creating operational risk?</p>
+          <h3>Operations leaders</h3>
+          <p>Decide which labor loops to prioritize across resorts: manager brief, data-quality hygiene, retention, checkout exceptions, or draft-writing reduction.</p>
           <ul class="link-list">
-            <li><a href="#labor-thesis">Labor-cost thesis</a></li>
-            <li><a href="#workflows">Manager Daily Brief and Data-Quality Hygiene</a></li>
-            <li><a href="#ready-planned">Ready vs planned matrix</a></li>
+            <li>Read first: operations portfolio, manager brief outcome records, data-quality issues, review gates, storage outcomes.</li>
+            <li>Human-reviewed: staffing, money, schedules, customer/provider side effects, safety exceptions.</li>
+            <li>Value proof: actual minutes, reporting group, completed/deferred/suppressed/wrong-source outcomes.</li>
           </ul>
         </article>
         <article class="path-card">
-          <h3>AI program evaluator</h3>
-          <p>Is this a reusable, governable way to use enterprise agents inside operations?</p>
+          <h3>Resort managers</h3>
+          <p>Route daily queue work to front desk, manager, care reviewer, approved sender, or payment/source owner without losing the safety boundary.</p>
           <ul class="link-list">
-            <li><a href="https://github.com/eboody/nva/blob/main/docs/architecture/agent-app-infrastructure.md">Agent/app infrastructure</a></li>
-            <li><a href="app/agents/">Rustdoc evidence: app::agents</a></li>
-            <li><a href="app/tools/">Rustdoc evidence: app::tools</a></li>
+            <li>Read first: reservations, customers, pets, care/vaccine/document facts, booking/checkout/daily-update/retention packets.</li>
+            <li>Human-reviewed: booking/status changes, customer sends, care/safety approvals, payments, policy exceptions.</li>
+            <li>Value proof: fewer source lookups, faster handoffs, draft-writing time, reviewed dispositions.</li>
           </ul>
         </article>
         <article class="path-card">
-          <h3>Safety/compliance reviewer</h3>
-          <p>What can agents not do, and where are review gates and audit records enforced?</p>
+          <h3>IT and integration readers / Gingr/integration owner</h3>
+          <p>Judge how source systems such as Gingr are modeled as evidence without pretending provider records are canonical truth or mutating live systems.</p>
           <ul class="link-list">
-            <li><a href="#safety">Safety boundary</a></li>
-            <li><a href="domain/policy/">Rustdoc evidence: domain::policy</a></li>
-            <li><a href="domain/audit/">Rustdoc evidence: domain::audit</a></li>
+            <li>Read first: source refs, provenance, Gingr endpoints/DTOs/mappings/webhooks, data-quality issues, runtime/storage surfaces.</li>
+            <li>Human-reviewed: provider/PMS writes, credential exposure, hidden source cleanup, unsupported endpoint assumptions.</li>
+            <li>Value proof: reconciliation minutes, hygiene outcomes, wrong-source counts, fewer integration handoffs.</li>
           </ul>
         </article>
         <article class="path-card">
-          <h3>Gingr/integration owner</h3>
-          <p>How does this treat source systems without over-assuming authority or mutating live provider records?</p>
+          <h3>Compliance and safety reviewers / safety/compliance reviewer</h3>
+          <p>Verify what agents cannot do, who approves risky actions, and where source ambiguity, audit evidence, and blocked actions are preserved.</p>
           <ul class="link-list">
-            <li><a href="https://github.com/eboody/nva/blob/main/integrations/gingr/README.md">Gingr README</a></li>
-            <li><a href="gingr/transport/">Rustdoc evidence: transport</a></li>
-            <li><a href="gingr/webhook/">Rustdoc evidence: webhooks</a></li>
+            <li>Read first: review gates, blocked actions, source/provenance, care/vaccine/incident/message facts, agent specs, tool ports.</li>
+            <li>Human-reviewed: all live customer, provider, money, schedule, safety, medical, incident, and policy-exception side effects.</li>
+            <li>Value proof: reviewed outcomes, audit records, source refs, omitted facts, blocked-action reasons.</li>
           </ul>
         </article>
         <article class="path-card">
-          <h3>Developer</h3>
-          <p>Where do I inspect or change the contracts without breaking the safety model?</p>
+          <h3>Product and customer success / AI program evaluator</h3>
+          <p>Tell honest product stories around reviewable queues and drafts while defining the proof a pilot or customer-success plan must capture.</p>
           <ul class="link-list">
-            <li><a href="https://github.com/eboody/nva/blob/main/README.md">Repository README</a></li>
-            <li><a href="domain/">Domain crate</a>, <a href="app/">app crate</a>, <a href="storage/">storage crate</a>, <a href="gingr/">Gingr crate</a></li>
-            <li><a href="https://github.com/eboody/nva/blob/main/docs/plans/rustdoc-external-source-of-truth.md">Rustdoc/source-of-truth plan</a></li>
+            <li>Read first: operations portfolio, workflow packets, customer/pet/reservation/message entities, revenue opportunities, outcome records.</li>
+            <li>Human-reviewed: outreach, offers/discounts, appointments, payments, service promises, safety conclusions, live labor-saving claims.</li>
+            <li>Value proof: role minutes, avoided rework, conversion/suppression outcomes, customer-message dispositions.</li>
           </ul>
         </article>
       </div>

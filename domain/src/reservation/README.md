@@ -1,8 +1,18 @@
 # `domain::reservation`
 
+Operator translation: reservation pages describe the reusable booking/stay policy facts that help staff route bookings, checkout handoffs, age/add-on checks, and transition reasons to the right queue. In code, that business meaning lives in `domain::reservation`; it supports review packets but does not confirm, cancel, check in/out, hold capacity, mutate a provider/PMS record, send a customer message, or move money.
+
 `domain::reservation` is the domain crate's small shared vocabulary for reservation policy facts that do not belong to one service line. It owns reusable reservation inputs such as minimum-age thresholds, customer-facing add-on labels, and transition reasons. The canonical reservation entity, identifier, source, and lifecycle status currently live in [`domain::entities::Reservation`](../entities.rs) and its nested [`domain::entities::reservation`](../entities.rs) module; this module complements that entity rather than replacing it.
 
 Start at [`mod.rs`](./mod.rs). It declares the module surface, re-exports [`domain::reservation::Error`](./error.rs) and [`Result`](./error.rs), validates [`MinimumAgeWeeks`](./mod.rs) and [`AddOnLabel`](./mod.rs), and names policy/transition reasons used by booking and provider-update workflows.
+
+## Operator summary
+
+Reservations support the staff decision about which queue owns a booking or departure next: routine front-desk collection, vaccine/document review, care or behavior review, payment/deposit review, manager exception, waitlist/availability follow-up, checkout handoff, or closeout reconciliation. This module reduces labor by keeping reusable reservation policy facts typed and source-neutral so booking triage and checkout packets can explain why work is ready, blocked, or review-gated without staff re-reading provider free text.
+
+It is not an automation authority. `domain::reservation` cannot confirm, reject, cancel, check in, check out, hold/release capacity, assign rooms or groups, mutate Gingr/provider/PMS records, send customer messages, or charge/refund/waive/discount payments. Provider/PMS lifecycle state, approved location policy, verified customer/pet/reservation snapshots, vaccine/document evidence, and trusted payment/deposit records remain authoritative; AI summaries and draft packets do not replace them.
+
+Review gates protect pets, customers, and staff whenever reservation facts touch availability, vaccine/document clearance, temperament or incident history, special-care acceptance, payment/deposit closeout, sensitive customer copy, or provider mutation. Unknown, stale, conflicting, or unmapped source facts should stay in review queues rather than becoming inferred readiness.
 
 ## Module navigation
 

@@ -1,13 +1,13 @@
 //! Boarding storage projection codes for accommodation, included care, and add-ons.
 //!
-//! These codes are durable serialization values for boarding service contracts;
+//! These codes are durable serialization values for boarding service rules;
 //! the domain layer owns the meaning of suites, Pawgress Reports, medication
 //! support, and cross-sell add-ons.
 
 use serde::{Deserialize, Serialize};
 
 use domain::operations::lodging_offer;
-/// Storage shape for a migrated boarding service contract.
+/// Storage shape for a migrated boarding service rules.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ContractRecord(pub domain::boarding::Contract);

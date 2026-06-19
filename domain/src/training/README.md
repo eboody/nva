@@ -1,8 +1,22 @@
 # `domain::training`
 
-`domain::training` is the domain crate's model for pet-training programs, enrollment readiness, trainer assignment, curriculum progress, package/session balance, progress reports, outcome documentation, and follow-up planning. It owns training concepts that should not be flattened into reservation notes or provider product names: program duration, curriculum units, milestone status, trainer requirements, package ledger entries, progress evidence, approval states, member-facing boundaries, and follow-up states.
+Operator translation: training pages describe how trainers, front-desk staff, and managers review enrollment, trainer availability, package/session balances, progress evidence, outcomes, and parent follow-up without letting automation assign trainers, move waitlists, adjust payments, or send messages by itself. In code, that business meaning lives in `domain::training`, where `Contract` means a source-backed training rule bundle, not a customer/legal contract.
+
+`domain::training` helps trainers, front-desk staff, and managers decide which training enrollments can move forward, which requests need a trainer/waitlist/package review, which progress or outcome updates have enough evidence, and which parent follow-up should remain a draft. It reduces repeated manual reconciliation around trainer capacity, session packages, missing progress evidence, outcome claims, and graduation/re-enrollment follow-up without turning those judgments into live automation.
 
 Start at [`mod.rs`](./mod.rs). The module is implemented in one file with nested semantic modules such as `domain::training::program`, `domain::training::enrollment`, `domain::training::curriculum`, `domain::training::availability`, `domain::training::progress`, `domain::training::outcome`, `domain::training::package`, and `domain::training::follow_up`.
+
+## Operator summary
+
+Training supports the staff queues around program enrollment, trainer assignment, progress reporting, outcome documentation, package/session reconciliation, and parent follow-up. A typical use is a Stay-and-Study, tutor-session, class, or private-lesson request where staff need to know whether the pet has enough care/behavior/payment facts, whether a qualified or named trainer is available, whether package sessions can be reserved or consumed, and whether a progress or graduation summary can be drafted from trainer evidence.
+
+The module can reduce labor by turning those checks into typed decisions and queues: [`enrollment::Readiness`](./mod.rs) records trainer, behavior/care, and package/payment blockers; [`availability::Policy`](./mod.rs) drafts assignment, waitlist, or review decisions from trainer/capacity facts; [`progress::ReportBuilder`](./mod.rs) rejects evidence-free reports; [`outcome::DocumentationBuilder`](./mod.rs) requires evidence-backed claims; [`package::UsagePolicy`](./mod.rs) reconciles reusable-session balances; and [`follow_up::Policy`](./mod.rs) separates due, evidence-blocked, approval-blocked, suppressed, and draftable follow-up.
+
+It is not allowed to automate live trainer assignments, waitlist movement, provider/PMS writes, customer messages, payment/package adjustments, credits/refunds, or outcome/graduation claims. This module may produce draftable internal decisions and review packets; live schedule/provider mutations, member-facing sends, manager overrides, safety-sensitive behavior/care interpretations, and payment changes require the explicit [`domain::policy::ReviewGate`](../policy.rs), [`ApprovalState`](./mod.rs), [`OutcomeReviewState`](./mod.rs), or [`MemberFacingBoundary`](./mod.rs) carried by the relevant value.
+
+Authoritative facts must remain in the source modules that own them. Customer, pet, location, staff, reservation, care, temperament, payment, and approval identity come from `domain::entities`, `domain::care`, `domain::temperament`, `domain::payment`, and `domain::policy`; provider/catalog evidence stays in `integrations::gingr` until mapped; durable program and service-offering records stay in `storage::service_line::training` and `storage::operations`; and this README is navigation, not new behavior beyond the Rustdoc/source contracts.
+
+Review gates protect pets, customers, and staff at each risky edge: incomplete care or behavior facts block assignment, named-trainer and capacity exceptions require trainer/manager review, reports and outcome claims require trainer/source evidence, package or payment mismatches route to reconciliation, and parent-facing follow-up remains internal or approval-blocked until the member-facing boundary permits send.
 
 ## Module navigation
 

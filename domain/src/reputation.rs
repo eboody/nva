@@ -1,4 +1,4 @@
-//! Canonical domain contracts for reputation-review triage.
+//! Reputation-review triage for customer-trust, safety-theme, and response workflows.
 //!
 //! Review signals and escalation decisions cut across service lines. A provider
 //! review becomes a validated reputation signal, then drives manager/reputation
@@ -49,53 +49,53 @@ pub struct PlatformName(String);
 pub struct Id(String);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Source-derived review signal for guest-experience trend and response workflows.
+/// Review signal that preserves platform evidence for manager triage and response drafting.
 pub struct Signal {
-    /// Location id fact promoted into this reputation contract.
+    /// Resort location connected to the review or escalation.
     pub location_id: LocationId,
-    /// Platform fact promoted into this reputation contract.
+    /// External review platform where staff can verify the source post.
     pub platform: PlatformName,
-    /// Review id fact promoted into this reputation contract.
+    /// Provider review id retained for traceability and duplicate checks.
     pub review_id: Id,
-    /// Sentiment fact promoted into this reputation contract.
+    /// Sentiment classification used to rank manager or reputation follow-up.
     pub sentiment: Sentiment,
-    /// Themes fact promoted into this reputation contract.
+    /// Topics staff should review before drafting or routing a response.
     pub themes: Vec<Theme>,
-    /// Escalation fact promoted into this reputation contract.
+    /// Required review path before customer-facing response or legal-sensitive handling.
     pub escalation: Escalation,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for sentiment decisions in reputation workflows.
+/// Review sentiment used to triage service recovery and reputation follow-up.
 pub enum Sentiment {
-    /// Positive review sentiment, topic, or response action for guest-experience follow-up.
+    /// Positive sentiment that may feed recognition, marketing, or low-risk thank-you drafting.
     Positive,
-    /// Neutral review sentiment, topic, or response action for guest-experience follow-up.
+    /// Neutral sentiment that may need monitoring but not automatic escalation by itself.
     Neutral,
-    /// Negative review sentiment, topic, or response action for guest-experience follow-up.
+    /// Negative sentiment that should trigger service-recovery review before any public response.
     Negative,
-    /// Mixed review sentiment, topic, or response action for guest-experience follow-up.
+    /// Mixed sentiment with both praise and concerns, requiring staff interpretation before response.
     Mixed,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for theme decisions in reputation workflows.
+/// Review theme that links customer feedback to service, staffing, facility, or pricing evidence.
 pub enum Theme {
-    /// Staff experience review sentiment, topic, or response action for guest-experience follow-up.
+    /// Feedback about staff interactions that should be verified against service context before response.
     StaffExperience,
-    /// Cleanliness review sentiment, topic, or response action for guest-experience follow-up.
+    /// Cleanliness theme that may connect to facility checks or manager follow-up.
     Cleanliness,
-    /// Pricing or billing review sentiment, topic, or response action for guest-experience follow-up.
+    /// Pricing or billing theme requiring invoice/payment evidence before customer response.
     PricingOrBilling,
-    /// Booking experience review sentiment, topic, or response action for guest-experience follow-up.
+    /// Booking-experience theme tied to availability, scheduling, or intake workflow evidence.
     BookingExperience,
-    /// Grooming outcome review sentiment, topic, or response action for guest-experience follow-up.
+    /// Grooming-outcome theme requiring service evidence before apology, refund, or corrective promises.
     GroomingOutcome,
-    /// Pet injury or safety review sentiment, topic, or response action for guest-experience follow-up.
+    /// Pet injury or safety theme that must route through manager/safety review before public reply.
     PetInjuryOrSafety,
-    /// Communication review sentiment, topic, or response action for guest-experience follow-up.
+    /// Communication theme that can point to missed messages, unclear updates, or follow-up gaps.
     Communication,
-    /// Wait time review sentiment, topic, or response action for guest-experience follow-up.
+    /// Wait-time theme that may need staffing, front-desk, or scheduling evidence.
     WaitTime,
     /// Non-dog, non-cat pet handled by exception policy.
     Other(operations::operational::Observation),
@@ -106,10 +106,10 @@ pub enum Theme {
 pub enum Escalation {
     /// No additional workflow gate is required.
     None,
-    /// Draft public response review sentiment, topic, or response action for guest-experience follow-up.
+    /// A public response may be drafted, but staff must verify service evidence before approval.
     DraftPublicResponse,
-    /// Manager review required review sentiment, topic, or response action for guest-experience follow-up.
+    /// Manager must review the signal before customer-facing or operational follow-up proceeds.
     ManagerReviewRequired,
-    /// Safety or legal review required review sentiment, topic, or response action for guest-experience follow-up.
+    /// Safety/legal-sensitive signal blocks public response until authorized review approves wording.
     SafetyOrLegalReviewRequired,
 }

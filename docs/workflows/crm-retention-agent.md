@@ -6,6 +6,8 @@ This document is a workflow/specification artifact only. It does not authorize l
 
 Anything marked candidate, draft, proposed, configurable, or review-gated requires explicit location/product/manager policy approval before it becomes production behavior. Customer-facing sends and offers remain gated unless a later deterministic policy fixes the category, template, channel, facts, suppression set, consent basis, quiet-hours/cadence, idempotency, audit, and execution adapter.
 
+Glossary help for non-coders: CRM/retention work should be read as a source-backed [workflow packet](../glossary-workflow-state-terms.md#workflow-packet) that may prepare outreach [drafts](../glossary-workflow-state-terms.md#draft), preserves [source refs](../glossary-architecture-terms.md#source-ref-domainsourcerecordref) and [provenance](../glossary-architecture-terms.md#provenance-domainsourceprovenance), requires [review gates](../glossary-workflow-state-terms.md#review-gate), leaves customer sends/offers/payment/provider mutation as [blocked actions](../glossary-workflow-state-terms.md#blocked-action), and records staff disposition through [outcome capture](../glossary-workflow-state-terms.md#outcome-capture).
+
 ## Purpose and non-goals
 
 The CRM and retention agent answers four operational questions:

@@ -15,7 +15,7 @@ fn push_optional<T: core::fmt::Display>(
 pub struct UserId(u64);
 
 impl UserId {
-    /// Constructs this typed Gingr boundary value after the caller has chosen the provider input to trust.
+    /// Wraps the Gingr staff/user id used to filter timeclock evidence for labor review.
     pub fn new(value: u64) -> Self {
         Self(value)
     }

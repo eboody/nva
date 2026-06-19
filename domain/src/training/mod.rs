@@ -1,6 +1,8 @@
-//! Training service-line contracts for enrollment readiness, trainer capacity, curriculum progress, package sessions, and parent-facing follow-up.
+//! Training service-line rules for enrollment readiness, trainer capacity, curriculum progress, package sessions, and parent-facing follow-up.
 //!
-//! Training programs are high-value operational upsells with stronger evidence requirements than simple appointment notes. This module keeps trainer availability, package balances, progress reports, outcome claims, and customer/parent-facing summaries as typed contracts so automation can draft assignments and follow-ups while trainer, manager, payment, and customer-message gates prevent unsupported live claims.
+//! Operator summary: training helps resort staff decide which program requests can be drafted, which trainer/package/progress/outcome queues need review, and which parent follow-up must stay internal. It can reduce repeated trainer-capacity checks, package/session reconciliation, evidence lookup, and graduation or re-enrollment follow-up by producing typed assignment, report, outcome, package, and follow-up decisions.
+//!
+//! This module is not permission for live automation. It does not assign trainers in a provider system, move waitlists, send customer messages, adjust packages or payments, or publish outcome/graduation claims. Source facts remain authoritative in `domain::entities`, `domain::care`, `domain::temperament`, `domain::payment`, `domain::policy`, `storage::service_line::training`, and provider/integration mappings; training values carry review gates so trainer, manager, payment, behavior/care, and member-facing approval boundaries protect pets, customers, and staff.
 
 use bon::Builder;
 use nutype::nutype;
@@ -16,7 +18,7 @@ macro_rules! positive_scalar {
         pub struct $name($primitive);
 
         impl $name {
-            /// Promotes boundary input into a validated training domain value.
+            /// Rejects zero or unsupported training values before they affect package balances, trainer scheduling, progress reports, or parent summaries.
             pub const fn try_new(value: $primitive) -> std::result::Result<Self, $error> {
                 if value == 0 {
                     return Err($error::Zero);
@@ -24,7 +26,7 @@ macro_rules! positive_scalar {
                 Ok(Self(value))
             }
 
-            /// Exposes the validated scalar for serialization and adapter boundaries.
+            /// Returns the training number used by package balances, scheduling, progress reports, or parent summaries.
             pub const fn get(self) -> $primitive {
                 self.0
             }
@@ -57,7 +59,7 @@ positive_scalar!(
     "training package requires at least one session"
 );
 
-/// Training-program duration boundary for single-session and multi-week offerings.
+/// Training-program duration policy for single-session and multi-week offerings.
 pub mod program {
     use super::*;
 
@@ -66,7 +68,7 @@ pub mod program {
     pub struct DurationWeeks(u8);
 
     impl DurationWeeks {
-        /// Promotes boundary input into a validated training domain value.
+        /// Rejects zero or unsupported training values before they affect package balances, trainer scheduling, progress reports, or parent summaries.
         pub const fn try_new(value: u8) -> std::result::Result<Self, DurationWeeksError> {
             if value == 0 {
                 return Err(DurationWeeksError::ZeroWeeks);
@@ -74,7 +76,7 @@ pub mod program {
             Ok(Self(value))
         }
 
-        /// Exposes the validated scalar for serialization and adapter boundaries.
+        /// Returns the training number used by package balances, scheduling, progress reports, or parent summaries.
         pub const fn get(self) -> u8 {
             self.0
         }
@@ -90,24 +92,24 @@ pub mod program {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-    /// Decision vocabulary for duration weeks error in training workflows.
+    /// Duration validation error for multi-week training programs that cannot use zero weeks.
     pub enum DurationWeeksError {
         #[error("training program duration requires at least one week")]
-        /// Zero weeks training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the zero weeks training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         ZeroWeeks,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
     /// Program duration shape used to plan trainer labor and customer expectations.
     pub enum Duration {
-        /// Single session training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the single session training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         SingleSession,
-        /// Weeks training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the weeks training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         Weeks(DurationWeeks),
     }
 }
 
-/// Enrollment readiness boundary for deciding whether a training assignment can be drafted.
+/// Enrollment readiness gate for deciding whether a training assignment can be drafted.
 pub mod enrollment {
     use super::*;
 
@@ -133,25 +135,25 @@ pub mod enrollment {
     pub enum Readiness {
         /// Enrollment has enough source facts to draft trainer assignment.
         Ready,
-        /// Source-derived gate carried by this training contract.
+        /// Review gate that must clear before this training decision affects assignment, package use, or parent-facing copy.
         TrainerReviewRequired {
-            /// Gate value carried by this review or workflow variant.
+            /// Approval gate staff must clear before acting on this variant.
             gate: policy::ReviewGate,
         },
-        /// Source-derived gate carried by this training contract.
+        /// Review gate that must clear before this training decision affects assignment, package use, or parent-facing copy.
         BehaviorOrCareReviewRequired {
-            /// Gate value carried by this review or workflow variant.
+            /// Approval gate staff must clear before acting on this variant.
             gate: policy::ReviewGate,
         },
-        /// Source-derived gate carried by this training contract.
+        /// Review gate that must clear before this training decision affects assignment, package use, or parent-facing copy.
         PackageOrPaymentReviewRequired {
-            /// Gate value carried by this review or workflow variant.
+            /// Approval gate staff must clear before acting on this variant.
             gate: policy::ReviewGate,
         },
     }
 
     impl Readiness {
-        /// Returns the blocking review gate recorded on this training contract.
+        /// Returns the review gate that blocks trainer assignment until staff clear it.
         pub fn blocking_gate(&self) -> Option<policy::ReviewGate> {
             match self {
                 Self::Ready => None,
@@ -163,11 +165,11 @@ pub mod enrollment {
     }
 }
 
-/// Curriculum boundary for program units, milestones, and evidence-backed progress tracking.
+/// Curriculum vocabulary for program units, milestones, and evidence-backed progress tracking.
 pub mod curriculum {
     use super::*;
 
-    /// Milestone boundary for normalized trainer-observed progress states.
+    /// Milestone vocabulary for normalized trainer-observed progress states.
     pub mod milestone {
         use super::*;
 
@@ -191,17 +193,17 @@ pub mod curriculum {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
         /// Normalized training milestone status observed from trainer notes or source-data ingestion.
         pub enum Status {
-            /// Not started training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+            /// Staff can see the not started training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
             NotStarted,
-            /// Introduced training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+            /// Staff can see the introduced training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
             Introduced,
-            /// Practicing training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+            /// Staff can see the practicing training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
             Practicing,
-            /// Generalized training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+            /// Staff can see the generalized training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
             Generalized,
-            /// Completed training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+            /// Staff can see the completed training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
             Completed,
-            /// Deferred needs trainer note training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+            /// Staff can see the deferred needs trainer note training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
             DeferredNeedsTrainerNote,
         }
     }
@@ -209,29 +211,29 @@ pub mod curriculum {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
     /// Curriculum unit that defines what trainers should work on and report against.
     pub enum Unit {
-        /// Puppy manners training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the puppy manners training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         PuppyManners,
-        /// Loose leash walking training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the loose leash walking training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         LooseLeashWalking,
-        /// Recall training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the recall training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         Recall,
-        /// Confidence building training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the confidence building training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         ConfidenceBuilding,
-        /// Canine good citizen prep training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the canine good citizen prep training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         CanineGoodCitizenPrep,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     /// Evidence-backed milestone progress entry included in internal and parent-facing reports.
     pub struct Progress {
-        /// Source-derived milestone id carried by this training contract.
+        /// Milestone identifier used by staff to prepare training assignment, package, progress, or parent-summary review.
         pub milestone_id: milestone::Id,
-        /// Source-derived status carried by this training contract.
+        /// Status used by staff to prepare training assignment, package, progress, or parent-summary review.
         pub status: milestone::Status,
     }
 
     impl Progress {
-        /// Assembles this training value from already-validated domain parts.
+        /// Creates this training value from already-checked enrollment, progress, or package inputs.
         pub const fn new(milestone_id: milestone::Id, status: milestone::Status) -> Self {
             Self {
                 milestone_id,
@@ -241,34 +243,34 @@ pub mod curriculum {
     }
 }
 
-/// Trainer assignment boundary for matching programs to certified, named, or program-qualified trainers.
+/// Trainer assignment policy for matching programs to certified, named, or program-qualified trainers.
 pub mod trainer {
     use super::*;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
     /// Trainer availability posture used to draft assignments or waitlists without inventing capacity.
     pub enum Availability {
-        /// Any certified trainer training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the any certified trainer training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         AnyCertifiedTrainer,
-        /// Named trainer required training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the named trainer required training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         NamedTrainerRequired,
-        /// Waitlist until trainer available training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the waitlist until trainer available training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         WaitlistUntilTrainerAvailable,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     /// Trainer requirement that constrains who may deliver a program or session.
     pub enum Requirement {
-        /// Any certified trainer training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the any certified trainer training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         AnyCertifiedTrainer,
-        /// Source-derived trainer id carried by this training contract.
+        /// Trainer identifier used by staff to prepare training assignment, package, progress, or parent-summary review.
         NamedTrainer {
-            /// Trainer id value carried by this review or workflow variant.
+            /// Trainer whose approval or requirement is tied to this state.
             trainer_id: StaffId,
         },
-        /// Source-derived program carried by this training contract.
+        /// Program used by staff to prepare training assignment, package, progress, or parent-summary review.
         ProgramQualified {
-            /// Program value carried by this review or workflow variant.
+            /// Training program that the trainer must be qualified to deliver.
             program: Program,
         },
     }
@@ -283,11 +285,11 @@ pub mod trainer {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
     /// Qualification evidence used to explain why a trainer may own a program.
     pub enum Qualification {
-        /// Certified trainer training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the certified trainer training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         CertifiedTrainer,
-        /// Program specialist training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the program specialist training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         ProgramSpecialist,
-        /// Manager approved exception training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the manager approved exception training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         ManagerApprovedException,
     }
 }
@@ -398,16 +400,16 @@ pub struct ProgressNote(String);
 /// Training-domain validation failures that prevent unsupported reports, outcomes, or package usage from entering workflow state.
 pub enum Error {
     #[error("training progress report requires evidence before it can be reviewed")]
-    /// Progress evidence required training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+    /// Staff can see the progress evidence required training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     ProgressEvidenceRequired,
     #[error("training outcome claim requires evidence for achieved/readiness claims")]
-    /// Outcome evidence required training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+    /// Staff can see the outcome evidence required training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     OutcomeEvidenceRequired,
     #[error("training outcome documentation requires at least one claim")]
-    /// Outcome claim required training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+    /// Staff can see the outcome claim required training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     OutcomeClaimRequired,
     #[error("training package policy does not define a reusable session balance")]
-    /// Package has no reusable balance training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+    /// Staff can see the package has no reusable balance training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     PackageHasNoReusableBalance,
 }
 
@@ -417,43 +419,43 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Training program sold or fulfilled by the resort, used for capacity, package, and outcome planning.
 pub enum Program {
-    /// Source-derived duration carried by this training contract.
+    /// Duration used by staff to prepare training assignment, package, progress, or parent-summary review.
     StayAndStudy {
-        /// Duration value carried by this review or workflow variant.
+        /// Stay-and-study duration staff should use for package and schedule planning.
         duration: program::DurationWeeks,
     },
-    /// Tutor session training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+    /// Staff can see the tutor session training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     TutorSession,
-    /// Group class training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+    /// Staff can see the group class training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     GroupClass,
-    /// Puppy kindergarten training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+    /// Staff can see the puppy kindergarten training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     PuppyKindergarten,
-    /// Private lesson training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+    /// Staff can see the private lesson training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     PrivateLesson,
-    /// Akc canine good citizen prep training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+    /// Staff can see the AKC canine good citizen prep training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     AkcCanineGoodCitizenPrep,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Required progress-recording depth for a training program.
 pub enum ProgressTracking {
-    /// Attendance only training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+    /// Staff can see the attendance only training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     AttendanceOnly,
-    /// Session notes and milestones training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+    /// Staff can see the session notes and milestones training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     SessionNotesAndMilestones,
-    /// Trainer scorecard training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+    /// Staff can see the trainer scorecard training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     TrainerScorecard,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Outcome claim vocabulary that must be backed by trainer evidence before customer-facing use.
 pub enum Outcome {
-    /// Basic manners training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+    /// Staff can see the basic manners training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     BasicManners,
-    /// Reduced reactivity training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+    /// Staff can see the reduced reactivity training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     ReducedReactivity,
-    /// Canine good citizen readiness training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+    /// Staff can see the canine good citizen readiness training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     CanineGoodCitizenReadiness,
-    /// Owner handling plan training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+    /// Staff can see the owner handling plan training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     OwnerHandlingPlan,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -461,45 +463,45 @@ pub enum Outcome {
 pub enum FollowUpCadence {
     /// No additional workflow gate is required.
     None,
-    /// After each session training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+    /// Staff can see the after each session training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     AfterEachSession,
-    /// After program completion training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+    /// Staff can see the after program completion training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     AfterProgramCompletion,
-    /// Thirty days after completion training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+    /// Staff can see the thirty days after completion training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     ThirtyDaysAfterCompletion,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Source evidence attached to progress reports and outcome claims.
 pub enum ProgressEvidence {
-    /// Trainer note training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+    /// Staff can see the trainer note training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     TrainerNote {
-        /// Source-derived evidence id carried by this training contract.
+        /// Evidence identifier used by staff to prepare training assignment, package, progress, or parent-summary review.
         evidence_id: EvidenceId,
-        /// Source-derived note carried by this training contract.
+        /// Note used by staff to prepare training assignment, package, progress, or parent-summary review.
         note: ProgressNote,
     },
-    /// Milestone observed training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+    /// Staff can see the milestone observed training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     MilestoneObserved {
-        /// Source-derived evidence id carried by this training contract.
+        /// Evidence identifier used by staff to prepare training assignment, package, progress, or parent-summary review.
         evidence_id: EvidenceId,
-        /// Source-derived milestone id carried by this training contract.
+        /// Milestone identifier used by staff to prepare training assignment, package, progress, or parent-summary review.
         milestone_id: curriculum::milestone::Id,
-        /// Source-derived status carried by this training contract.
+        /// Status used by staff to prepare training assignment, package, progress, or parent-summary review.
         status: curriculum::milestone::Status,
     },
-    /// Session completed training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+    /// Staff can see the session completed training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     SessionCompleted {
-        /// Source-derived evidence id carried by this training contract.
+        /// Evidence identifier used by staff to prepare training assignment, package, progress, or parent-summary review.
         evidence_id: EvidenceId,
-        /// Source-derived session id carried by this training contract.
+        /// Session identifier used by staff to prepare training assignment, package, progress, or parent-summary review.
         session_id: SessionId,
     },
-    /// Outcome candidate training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+    /// Staff can see the outcome candidate training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     OutcomeCandidate {
-        /// Source-derived evidence id carried by this training contract.
+        /// Evidence identifier used by staff to prepare training assignment, package, progress, or parent-summary review.
         evidence_id: EvidenceId,
-        /// Source-derived outcome carried by this training contract.
+        /// Outcome used by staff to prepare training assignment, package, progress, or parent-summary review.
         outcome: Outcome,
     },
 }
@@ -507,21 +509,21 @@ pub enum ProgressEvidence {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Approval state for progress reports before they become parent-facing summaries.
 pub enum ApprovalState {
-    /// Draft training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+    /// Staff can see the draft training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     Draft,
-    /// Trainer approved training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+    /// Staff can see the trainer approved training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     TrainerApproved {
-        /// Source-derived trainer id carried by this training contract.
+        /// Trainer identifier used by staff to prepare training assignment, package, progress, or parent-summary review.
         trainer_id: StaffId,
     },
-    /// Manager approved training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+    /// Staff can see the manager approved training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     ManagerApproved {
-        /// Source-derived manager id carried by this training contract.
+        /// Manager identifier used by staff to prepare training assignment, package, progress, or parent-summary review.
         manager_id: crate::entities::ManagerId,
     },
-    /// Rejected training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+    /// Staff can see the rejected training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     Rejected {
-        /// Source-derived gate carried by this training contract.
+        /// Review gate that must clear before this training decision affects assignment, package use, or parent-facing copy.
         gate: policy::ReviewGate,
     },
 }
@@ -529,36 +531,36 @@ pub enum ApprovalState {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Review state for outcome documentation before achievements are exposed to customers.
 pub enum OutcomeReviewState {
-    /// Draft training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+    /// Staff can see the draft training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     Draft,
-    /// Source-derived trainer id carried by this training contract.
+    /// Trainer identifier used by staff to prepare training assignment, package, progress, or parent-summary review.
     TrainerApproved {
-        /// Trainer id value carried by this review or workflow variant.
+        /// Trainer whose approval or requirement is tied to this state.
         trainer_id: StaffId,
     },
-    /// Source-derived approved by carried by this training contract.
+    /// Approved by used by staff to prepare training assignment, package, progress, or parent-summary review.
     ApprovedForMemberFacingUse {
-        /// Approved by value carried by this review or workflow variant.
+        /// Staff member who approved the outcome for parent-facing use.
         approved_by: StaffId,
     },
-    /// Source-derived gate carried by this training contract.
+    /// Review gate that must clear before this training decision affects assignment, package use, or parent-facing copy.
     Rejected {
-        /// Gate value carried by this review or workflow variant.
+        /// Approval gate staff must clear before acting on this variant.
         gate: policy::ReviewGate,
     },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Boundary for whether a training report or outcome may be shown to a pet parent.
+/// Parent-facing visibility state for a training report or outcome.
 pub enum MemberFacingBoundary {
-    /// Internal only training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+    /// Staff can see the internal only training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     InternalOnly,
-    /// Source-derived gate carried by this training contract.
+    /// Review gate that must clear before this training decision affects assignment, package use, or parent-facing copy.
     DraftRequiresApproval {
-        /// Gate value carried by this review or workflow variant.
+        /// Approval gate staff must clear before acting on this variant.
         gate: policy::ReviewGate,
     },
-    /// Approved for member facing use training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+    /// Staff can see the approved for member facing use training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     ApprovedForMemberFacingUse,
 }
 
@@ -567,34 +569,34 @@ pub enum MemberFacingBoundary {
 pub struct SessionBalance(u16);
 
 impl SessionBalance {
-    /// Assembles this training value from already-validated domain parts.
+    /// Creates this training value from already-checked enrollment, progress, or package inputs.
     pub const fn new(value: u16) -> Self {
         Self(value)
     }
-    /// Exposes the validated scalar for serialization and adapter boundaries.
+    /// Returns the training number used by package balances, scheduling, progress reports, or parent summaries.
     pub const fn get(self) -> u16 {
         self.0
     }
-    /// Returns the remaining evidence recorded on this training contract.
+    /// Returns the remaining value used by training assignment, progress, package, or parent-summary review.
     pub const fn remaining(self) -> Self {
         self
     }
-    /// Returns the reserve one evidence recorded on this training contract.
+    /// Returns the reserve one value used by training assignment, progress, package, or parent-summary review.
     pub const fn reserve_one(self) -> Self {
         Self(self.0.saturating_sub(1))
     }
 }
 
-/// Trainer availability evaluation boundary for assignment drafting and waitlisting.
+/// Trainer availability evaluation for assignment drafting and waitlisting.
 pub mod availability {
     use super::*;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision vocabulary for capacity outcomes in training workflows.
+    /// Trainer-capacity outcome used when drafting assignments or waitlists.
     pub enum CapacityDecision {
-        /// Available training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the available training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         Available,
-        /// Unavailable training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the unavailable training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         Unavailable,
         /// Estimate confidence is unknown and must be reviewed.
         UnknownRequiresReview,
@@ -603,43 +605,43 @@ pub mod availability {
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
     /// Assignment request combining enrollment readiness, trainer requirement, capacity evidence, and program details.
     pub struct Request {
-        /// Source-derived enrollment id carried by this training contract.
+        /// Enrollment identifier used by staff to prepare training assignment, package, progress, or parent-summary review.
         pub enrollment_id: enrollment::Id,
-        /// Pet receiving the grooming or care service.
+        /// Pet receiving the training service or parent-facing progress update.
         pub pet_id: PetId,
-        /// Source-derived program carried by this training contract.
+        /// Program used by staff to prepare training assignment, package, progress, or parent-summary review.
         pub program: Program,
-        /// Source-derived requirement carried by this training contract.
+        /// Requirement used by staff to prepare training assignment, package, progress, or parent-summary review.
         pub requirement: trainer::Requirement,
-        /// Source-derived capacity carried by this training contract.
+        /// Capacity used by staff to prepare training assignment, package, progress, or parent-summary review.
         pub capacity: CapacityDecision,
-        /// Source-derived readiness carried by this training contract.
+        /// Readiness used by staff to prepare training assignment, package, progress, or parent-summary review.
         pub readiness: enrollment::Readiness,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     /// Assignment decision showing whether to draft, waitlist, or require review before mutating provider schedules.
     pub enum Decision {
-        /// Assignment drafted training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the assignment drafted training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         AssignmentDrafted,
-        /// Waitlist training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the waitlist training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         Waitlist {
             /// Business reason staff should review before proceeding.
             reason: WaitlistReason,
-            /// Source-derived gate carried by this training contract.
+            /// Review gate that must clear before this training decision affects assignment, package use, or parent-facing copy.
             gate: policy::ReviewGate,
         },
-        /// Review required training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the review required training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         ReviewRequired {
             /// Business reason staff should review before proceeding.
             reason: ReviewReason,
-            /// Source-derived gate carried by this training contract.
+            /// Review gate that must clear before this training decision affects assignment, package use, or parent-facing copy.
             gate: policy::ReviewGate,
         },
     }
 
     impl Decision {
-        /// Returns the provider mutation review gate recorded on this training contract.
+        /// Returns the approval gate required before staff mutate provider trainer assignments.
         pub fn provider_mutation_gate(&self) -> Option<policy::ReviewGate> {
             match self {
                 Self::AssignmentDrafted => None,
@@ -651,20 +653,20 @@ pub mod availability {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision vocabulary for waitlist reason in training workflows.
+    /// Reason staff should waitlist a training assignment instead of drafting it.
     pub enum WaitlistReason {
-        /// Requested trainer unavailable training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the requested trainer unavailable training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         RequestedTrainerUnavailable,
-        /// Capacity snapshot unavailable training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the capacity snapshot unavailable training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         CapacitySnapshotUnavailable,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision vocabulary for review reason in training workflows.
+    /// Reason staff must review a training assignment before it can be drafted.
     pub enum ReviewReason {
-        /// Enrollment not ready training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the enrollment not ready training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         EnrollmentNotReady,
-        /// Capacity unknown training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the capacity unknown training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         CapacityUnknown,
     }
 
@@ -700,18 +702,18 @@ pub mod availability {
     }
 }
 
-/// Progress-report boundary for evidence-backed trainer updates and parent-facing approval gates.
+/// Progress-report workflow for evidence-backed trainer updates and parent-facing approval gates.
 pub mod progress {
     use super::*;
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     /// Training progress report carrying session evidence, milestones, and approval state.
     pub struct Report {
-        /// Source-derived report id carried by this training contract.
+        /// Report identifier used by staff to prepare training assignment, package, progress, or parent-summary review.
         pub report_id: ProgressReportId,
-        /// Source-derived enrollment id carried by this training contract.
+        /// Enrollment identifier used by staff to prepare training assignment, package, progress, or parent-summary review.
         pub enrollment_id: enrollment::Id,
-        /// Source-derived session ref carried by this training contract.
+        /// Session ref used by staff to prepare training assignment, package, progress, or parent-summary review.
         pub session_ref: SessionRef,
         evidence: Vec<ProgressEvidence>,
         milestones: Vec<curriculum::Progress>,
@@ -727,15 +729,15 @@ pub mod progress {
         pub fn has_evidence(&self) -> bool {
             !self.evidence.is_empty()
         }
-        /// Returns the milestones evidence recorded on this training contract.
+        /// Returns the milestones value used by training assignment, progress, package, or parent-summary review.
         pub fn milestones(&self) -> &[curriculum::Progress] {
             &self.milestones
         }
-        /// Returns the approval evidence recorded on this training contract.
+        /// Returns the approval value used by training assignment, progress, package, or parent-summary review.
         pub fn approval(&self) -> &ApprovalState {
             &self.approval
         }
-        /// Returns the parent facing boundary evidence recorded on this training contract.
+        /// Returns the parent-facing approval gate value used by training assignment, progress, package, or parent-summary review.
         pub fn parent_facing_boundary(&self) -> MemberFacingBoundary {
             match &self.approval {
                 ApprovalState::Draft | ApprovalState::TrainerApproved { .. } => {
@@ -763,32 +765,32 @@ pub mod progress {
     }
 
     impl ReportBuilder {
-        /// Sets the report id value on this training builder.
+        /// Sets the progress report identifier for the trainer update packet.
         pub fn report_id(mut self, value: ProgressReportId) -> Self {
             self.report_id = Some(value);
             self
         }
-        /// Sets the enrollment id value on this training builder.
+        /// Sets the enrollment identifier that anchors this training packet.
         pub fn enrollment_id(mut self, value: enrollment::Id) -> Self {
             self.enrollment_id = Some(value);
             self
         }
-        /// Sets the session ref value on this training builder.
+        /// Sets the session reference tied to the trainer evidence.
         pub fn session_ref(mut self, value: SessionRef) -> Self {
             self.session_ref = Some(value);
             self
         }
-        /// Returns the evidence recorded on this training contract.
+        /// Adds trainer/source evidence that must be present before a progress report can be reviewed.
         pub fn evidence(mut self, value: Vec<ProgressEvidence>) -> Self {
             self.evidence = value;
             self
         }
-        /// Sets the milestones value on this training builder.
+        /// Sets the milestone progress entries included in the trainer report.
         pub fn milestones(mut self, value: Vec<curriculum::Progress>) -> Self {
             self.milestones = value;
             self
         }
-        /// Sets the approval value on this training builder.
+        /// Sets the approval state before a progress report can become parent-facing.
         pub fn approval(mut self, value: ApprovalState) -> Self {
             self.approval = Some(value);
             self
@@ -810,42 +812,42 @@ pub mod progress {
     }
 }
 
-/// Outcome-documentation boundary for claims like manners readiness or CGC readiness.
+/// Outcome-documentation workflow for claims like manners readiness or CGC readiness.
 pub mod outcome {
     use super::*;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision vocabulary for claim status in training workflows.
+    /// Outcome-claim status used in trainer evidence and parent-facing documentation review.
     pub enum ClaimStatus {
-        /// Achieved training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the achieved training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         Achieved,
-        /// Readiness training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the readiness training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         Readiness,
-        /// Deferred training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the deferred training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         Deferred,
-        /// Not assessed training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the not assessed training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         NotAssessed,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     /// Evidence bundle used to promote an outcome claim into reviewed documentation.
     pub struct ClaimEvidence {
-        /// Source-derived outcome carried by this training contract.
+        /// Outcome used by staff to prepare training assignment, package, progress, or parent-summary review.
         pub outcome: Outcome,
-        /// Source-derived status carried by this training contract.
+        /// Status used by staff to prepare training assignment, package, progress, or parent-summary review.
         pub status: ClaimStatus,
-        /// Source-derived evidence carried by this training contract.
+        /// Evidence used by staff to prepare training assignment, package, progress, or parent-summary review.
         pub evidence: Vec<EvidenceId>,
-        /// Source-derived milestones carried by this training contract.
+        /// Milestones used by staff to prepare training assignment, package, progress, or parent-summary review.
         pub milestones: Vec<curriculum::milestone::Id>,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     /// Outcome claim whose achieved/readiness status cannot exist without supporting evidence.
     pub struct Claim {
-        /// Source-derived outcome carried by this training contract.
+        /// Outcome used by staff to prepare training assignment, package, progress, or parent-summary review.
         pub outcome: Outcome,
-        /// Source-derived status carried by this training contract.
+        /// Status used by staff to prepare training assignment, package, progress, or parent-summary review.
         pub status: ClaimStatus,
         evidence: Vec<EvidenceId>,
         milestones: Vec<curriculum::milestone::Id>,
@@ -866,11 +868,11 @@ pub mod outcome {
                 milestones: value.milestones,
             })
         }
-        /// Returns the evidence recorded on this training contract.
+        /// Returns the trainer/source evidence that supports this outcome claim.
         pub fn evidence(&self) -> &[EvidenceId] {
             &self.evidence
         }
-        /// Returns the milestones evidence recorded on this training contract.
+        /// Returns the milestones value used by training assignment, progress, package, or parent-summary review.
         pub fn milestones(&self) -> &[curriculum::milestone::Id] {
             &self.milestones
         }
@@ -879,13 +881,13 @@ pub mod outcome {
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     /// Training outcome documentation packet for customer/account history and manager review.
     pub struct Documentation {
-        /// Source-derived documentation id carried by this training contract.
+        /// Documentation identifier used by staff to prepare training assignment, package, progress, or parent-summary review.
         pub documentation_id: OutcomeDocumentationId,
-        /// Source-derived enrollment id carried by this training contract.
+        /// Enrollment identifier used by staff to prepare training assignment, package, progress, or parent-summary review.
         pub enrollment_id: enrollment::Id,
-        /// Pet receiving the grooming or care service.
+        /// Pet receiving the training service or parent-facing progress update.
         pub pet_id: PetId,
-        /// Source-derived location id carried by this training contract.
+        /// Location identifier used by staff to prepare training assignment, package, progress, or parent-summary review.
         pub location_id: LocationId,
         claims: Vec<Claim>,
         review: OutcomeReviewState,
@@ -896,15 +898,15 @@ pub mod outcome {
         pub fn builder() -> DocumentationBuilder {
             DocumentationBuilder::default()
         }
-        /// Returns the claims evidence recorded on this training contract.
+        /// Returns the claims value used by training assignment, progress, package, or parent-summary review.
         pub fn claims(&self) -> &[Claim] {
             &self.claims
         }
-        /// Returns the review evidence recorded on this training contract.
+        /// Returns the review value used by training assignment, progress, package, or parent-summary review.
         pub fn review(&self) -> &OutcomeReviewState {
             &self.review
         }
-        /// Returns the member facing boundary evidence recorded on this training contract.
+        /// Returns whether this training outcome can appear in parent-facing copy or must remain internal.
         pub fn member_facing_boundary(&self) -> MemberFacingBoundary {
             match &self.review {
                 OutcomeReviewState::ApprovedForMemberFacingUse { .. } => {
@@ -932,32 +934,32 @@ pub mod outcome {
     }
 
     impl DocumentationBuilder {
-        /// Sets the documentation id value on this training builder.
+        /// Sets the outcome-documentation identifier for the trainer evidence packet.
         pub fn documentation_id(mut self, value: OutcomeDocumentationId) -> Self {
             self.documentation_id = Some(value);
             self
         }
-        /// Sets the enrollment id value on this training builder.
+        /// Sets the enrollment identifier that anchors this training packet.
         pub fn enrollment_id(mut self, value: enrollment::Id) -> Self {
             self.enrollment_id = Some(value);
             self
         }
-        /// Sets the pet id value on this training builder.
+        /// Sets the pet whose training outcome documentation is being prepared.
         pub fn pet_id(mut self, value: PetId) -> Self {
             self.pet_id = Some(value);
             self
         }
-        /// Sets the location id value on this training builder.
+        /// Sets the resort location tied to the training outcome evidence.
         pub fn location_id(mut self, value: LocationId) -> Self {
             self.location_id = Some(value);
             self
         }
-        /// Sets the claims value on this training builder.
+        /// Sets the evidence-backed outcome claims for trainer or manager review.
         pub fn claims(mut self, value: Vec<Claim>) -> Self {
             self.claims = value;
             self
         }
-        /// Sets the review value on this training builder.
+        /// Sets the review state controlling parent-facing use of outcome claims.
         pub fn review(mut self, value: OutcomeReviewState) -> Self {
             self.review = Some(value);
             self
@@ -979,21 +981,21 @@ pub mod outcome {
     }
 }
 
-/// Package and session-ledger boundary for reserving, consuming, and reconciling training sessions.
+/// Package and session-ledger workflow for reserving, consuming, and reconciling training sessions.
 pub mod package {
     use super::*;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
     /// Groomer-assignment policies used when booking grooming work.
     pub enum Policy {
-        /// Pay per session training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the pay per session training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         PayPerSession,
-        /// Source-derived sessions carried by this training contract.
+        /// Sessions used by staff to prepare training assignment, package, progress, or parent-summary review.
         MultiSessionPackage {
-            /// Sessions value carried by this review or workflow variant.
+            /// Session count that sets the purchased or reusable package balance.
             sessions: SessionCount,
         },
-        /// Board and train bundle training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the board and train bundle training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         BoardAndTrainBundle,
     }
 
@@ -1015,42 +1017,42 @@ pub mod package {
     pub struct Id(String);
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision vocabulary for ledger entries in training workflows.
+    /// Training package ledger event for purchases, reservations, consumption, and releases.
     pub enum LedgerEntry {
-        /// Source-derived sessions carried by this training contract.
+        /// Sessions used by staff to prepare training assignment, package, progress, or parent-summary review.
         Purchased {
-            /// Sessions value carried by this review or workflow variant.
+            /// Session count that sets the purchased or reusable package balance.
             sessions: SessionCount,
         },
-        /// Source-derived session id carried by this training contract.
+        /// Session identifier used by staff to prepare training assignment, package, progress, or parent-summary review.
         Reserved {
-            /// Session id value carried by this review or workflow variant.
+            /// Training session tied to the package ledger or follow-up trigger.
             session_id: SessionId,
         },
-        /// Source-derived session id carried by this training contract.
+        /// Session identifier used by staff to prepare training assignment, package, progress, or parent-summary review.
         Consumed {
-            /// Session id value carried by this review or workflow variant.
+            /// Training session tied to the package ledger or follow-up trigger.
             session_id: SessionId,
         },
-        /// Source-derived session id carried by this training contract.
+        /// Session identifier used by staff to prepare training assignment, package, progress, or parent-summary review.
         Released {
-            /// Session id value carried by this review or workflow variant.
+            /// Training session tied to the package ledger or follow-up trigger.
             session_id: SessionId,
         },
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Source-derived opening ledger used to create a reusable multi-session package ledger.
+    /// Opening package ledger assembled from purchased, reserved, consumed, and released session facts.
     pub struct OpeningLedger {
-        /// Source-derived package id carried by this training contract.
+        /// Package identifier used by staff to prepare training assignment, package, progress, or parent-summary review.
         pub package_id: Id,
-        /// Source-derived customer id carried by this training contract.
+        /// Customer identifier used by staff to prepare training assignment, package, progress, or parent-summary review.
         pub customer_id: CustomerId,
-        /// Pet receiving the grooming or care service.
+        /// Pet receiving the training service or parent-facing progress update.
         pub pet_id: PetId,
-        /// Source-derived policy carried by this training contract.
+        /// Policy used by staff to prepare training assignment, package, progress, or parent-summary review.
         pub policy: Policy,
-        /// Source-derived entries carried by this training contract.
+        /// Entries used by staff to prepare training assignment, package, progress, or parent-summary review.
         pub entries: Vec<LedgerEntry>,
     }
 
@@ -1058,9 +1060,9 @@ pub mod package {
     /// Training package ledger used to compute remaining reusable sessions without raw counters.
     pub struct Ledger {
         package_id: Id,
-        /// Source-derived customer id carried by this training contract.
+        /// Customer identifier used by staff to prepare training assignment, package, progress, or parent-summary review.
         pub customer_id: CustomerId,
-        /// Pet receiving the grooming or care service.
+        /// Pet receiving the training service or parent-facing progress update.
         pub pet_id: PetId,
         policy: Policy,
         entries: Vec<LedgerEntry>,
@@ -1080,15 +1082,15 @@ pub mod package {
                 entries: opening.entries,
             })
         }
-        /// Returns the package id evidence recorded on this training contract.
+        /// Returns the package id value used by training assignment, progress, package, or parent-summary review.
         pub fn package_id(&self) -> &Id {
             &self.package_id
         }
-        /// Returns the entries evidence recorded on this training contract.
+        /// Returns the entries value used by training assignment, progress, package, or parent-summary review.
         pub fn entries(&self) -> &[LedgerEntry] {
             &self.entries
         }
-        /// Returns the balance evidence recorded on this training contract.
+        /// Returns the balance value used by training assignment, progress, package, or parent-summary review.
         pub fn balance(&self) -> SessionBalance {
             let Policy::MultiSessionPackage { sessions } = self.policy else {
                 return SessionBalance::new(0);
@@ -1107,31 +1109,31 @@ pub mod package {
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     /// Package usage decision for reserving the next session or escalating balance/reconciliation issues.
     pub enum UsageDecision {
-        /// Reserve next session training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the reserve next session training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         ReserveNextSession {
-            /// Source-derived package id carried by this training contract.
+            /// Package identifier used by staff to prepare training assignment, package, progress, or parent-summary review.
             package_id: Id,
-            /// Source-derived remaining after reservation carried by this training contract.
+            /// Remaining after reservation used by staff to prepare training assignment, package, progress, or parent-summary review.
             remaining_after_reservation: SessionBalance,
         },
-        /// No remaining sessions training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the no remaining sessions training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         NoRemainingSessions {
-            /// Source-derived package id carried by this training contract.
+            /// Package identifier used by staff to prepare training assignment, package, progress, or parent-summary review.
             package_id: Id,
-            /// Source-derived gate carried by this training contract.
+            /// Review gate that must clear before this training decision affects assignment, package use, or parent-facing copy.
             gate: policy::ReviewGate,
         },
-        /// Reconciliation required training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the reconciliation required training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         ReconciliationRequired {
-            /// Source-derived package id carried by this training contract.
+            /// Package identifier used by staff to prepare training assignment, package, progress, or parent-summary review.
             package_id: Id,
-            /// Source-derived gate carried by this training contract.
+            /// Review gate that must clear before this training decision affects assignment, package use, or parent-facing copy.
             gate: policy::ReviewGate,
         },
     }
 
     #[derive(Debug, Clone, Default)]
-    /// Represents the usage policy concept as a typed training operational contract instead of a raw primitive.
+    /// Training usage policy that reserves the next session or escalates package balance issues.
     pub struct UsagePolicy;
 
     impl UsagePolicy {
@@ -1153,88 +1155,88 @@ pub mod package {
     }
 }
 
-/// Follow-up boundary for progress updates, homework coaching, completion summaries, and re-enrollment prompts.
+/// Follow-up workflow for progress updates, homework coaching, completion summaries, and re-enrollment prompts.
 pub mod follow_up {
     use super::*;
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision vocabulary for trigger in training workflows.
+    /// Follow-up trigger for session completion, program completion, or later cadence checks.
     pub enum Trigger {
-        /// Source-derived session id carried by this training contract.
+        /// Session identifier used by staff to prepare training assignment, package, progress, or parent-summary review.
         SessionCompleted {
-            /// Session id value carried by this review or workflow variant.
+            /// Training session tied to the package ledger or follow-up trigger.
             session_id: SessionId,
         },
-        /// Source-derived enrollment id carried by this training contract.
+        /// Enrollment identifier used by staff to prepare training assignment, package, progress, or parent-summary review.
         ProgramCompleted {
-            /// Enrollment id value carried by this review or workflow variant.
+            /// Training enrollment that completed or needs later follow-up.
             enrollment_id: enrollment::Id,
         },
-        /// Source-derived enrollment id carried by this training contract.
+        /// Enrollment identifier used by staff to prepare training assignment, package, progress, or parent-summary review.
         LaterCadenceCheckpoint {
-            /// Enrollment id value carried by this review or workflow variant.
+            /// Training enrollment that completed or needs later follow-up.
             enrollment_id: enrollment::Id,
         },
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision vocabulary for purpose in training workflows.
+    /// Follow-up purpose staff review before progress, homework, completion, or re-enrollment copy is drafted.
     pub enum Purpose {
-        /// Progress update training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the progress update training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         ProgressUpdate,
-        /// Homework coaching training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the homework coaching training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         HomeworkCoaching,
-        /// Program completion summary training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the program completion summary training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         ProgramCompletionSummary,
-        /// Re enrollment prompt training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the re-enrollment prompt training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         ReEnrollmentPrompt,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision vocabulary for evidence readiness in training workflows.
+    /// Evidence-readiness state that decides whether training follow-up can be drafted or needs trainer input.
     pub enum EvidenceReadiness {
-        /// Progress and homework ready training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the progress and homework ready training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         ProgressAndHomeworkReady,
-        /// Needs trainer evidence training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the needs trainer evidence training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         NeedsTrainerEvidence,
-        /// Outcome disputed or ambiguous training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the outcome disputed or ambiguous training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         OutcomeDisputedOrAmbiguous,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision vocabulary for state in training workflows.
+    /// Follow-up state that keeps due/not-due, trainer-evidence, approval, and suppression decisions explicit.
     pub enum State {
-        /// Not due training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the not due training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         NotDue,
-        /// Source-derived gate carried by this training contract.
+        /// Review gate that must clear before this training decision affects assignment, package use, or parent-facing copy.
         TrainerEvidenceRequired {
-            /// Gate value carried by this review or workflow variant.
+            /// Approval gate staff must clear before acting on this variant.
             gate: policy::ReviewGate,
         },
-        /// Source-derived gate carried by this training contract.
+        /// Review gate that must clear before this training decision affects assignment, package use, or parent-facing copy.
         DraftRequiresApproval {
-            /// Gate value carried by this review or workflow variant.
+            /// Approval gate staff must clear before acting on this variant.
             gate: policy::ReviewGate,
         },
-        /// Suppressed training operational signal for enrollment, curriculum, progress, package, or follow-up handling.
+        /// Staff can see the suppressed training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
         Suppressed,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     /// Follow-up plan that separates due/not-due state from approval-gated customer messaging.
     pub struct Plan {
-        /// Source-derived trigger carried by this training contract.
+        /// Trigger used by staff to prepare training assignment, package, progress, or parent-summary review.
         pub trigger: Trigger,
         purpose: Purpose,
         state: State,
     }
 
     impl Plan {
-        /// Returns the purpose evidence recorded on this training contract.
+        /// Returns the purpose value used by training assignment, progress, package, or parent-summary review.
         pub const fn purpose(&self) -> Purpose {
             self.purpose
         }
-        /// Returns the state evidence recorded on this training contract.
+        /// Returns the state value used by training assignment, progress, package, or parent-summary review.
         pub fn state(&self) -> State {
             self.state.clone()
         }
@@ -1297,23 +1299,23 @@ pub mod follow_up {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Location training contract tying program duration, curriculum, progress depth, outcomes, trainer availability, package policy, and follow-up cadence together.
+/// Location training ruleset tying program duration, curriculum, progress depth, outcomes, trainer availability, package policy, and follow-up cadence together.
 pub struct Contract {
-    /// Source-derived program duration carried by this training contract.
+    /// Program duration used by staff to prepare training assignment, package, progress, or parent-summary review.
     pub program_duration: program::Duration,
     #[builder(default)]
-    /// Source-derived curriculum carried by this training contract.
+    /// Curriculum used by staff to prepare training assignment, package, progress, or parent-summary review.
     pub curriculum: Vec<curriculum::Unit>,
-    /// Source-derived progress carried by this training contract.
+    /// Progress used by staff to prepare training assignment, package, progress, or parent-summary review.
     pub progress: ProgressTracking,
     #[builder(default)]
-    /// Source-derived outcomes carried by this training contract.
+    /// Outcomes used by staff to prepare training assignment, package, progress, or parent-summary review.
     pub outcomes: Vec<Outcome>,
-    /// Source-derived trainer availability carried by this training contract.
+    /// Trainer availability used by staff to prepare training assignment, package, progress, or parent-summary review.
     pub trainer_availability: trainer::Availability,
-    /// Source-derived package carried by this training contract.
+    /// Package used by staff to prepare training assignment, package, progress, or parent-summary review.
     pub package: package::Policy,
-    /// Source-derived follow up carried by this training contract.
+    /// Follow up used by staff to prepare training assignment, package, progress, or parent-summary review.
     pub follow_up: FollowUpCadence,
 }
 
@@ -1326,11 +1328,11 @@ impl Contract {
                 | trainer::Availability::WaitlistUntilTrainerAvailable
         )
     }
-    /// Reports whether the training contract includes the requested outcome claim.
+    /// Reports whether the location training rules include the requested outcome claim.
     pub fn has_outcome(&self, outcome: &Outcome) -> bool {
         self.outcomes.contains(outcome)
     }
-    /// Builds a representative PetSuites-style training contract for docs/tests without claiming it is live policy.
+    /// Builds representative PetSuites-style training rules for docs/tests without claiming they are live policy.
     pub fn standard_petsuites() -> Self {
         Self::builder()
             .program_duration(program::Duration::Weeks(

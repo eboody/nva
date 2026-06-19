@@ -1,6 +1,12 @@
-//! Grooming service-line contracts for pet-resort labor planning, rebooking, reminders, and safe customer-facing grooming automation.
+//! Grooming service-line rules for pet-resort scheduling, no-show, rebooking, reminder, and review queues.
 //!
-//! This module models mini/full grooms, baths, coat/skin add-ons, groomer assignment, duration estimates, no-show consequences, service history, and reminder cadence as source-derived operational facts. AI or adapter code may draft estimates, reminders, and rebooking prompts through these types, but manager/groomer/care review gates preserve the boundary between recommendation and live scheduling or customer messaging.
+//! Operators use this module to answer grooming queue questions without rereading notes by hand: how much groomer time a mini/full groom, bath, nail service, or coat/skin add-on should reserve; whether repeat no-show history requires a deposit or manager review; when a completed service should become a rebooking prompt; and whether a reminder draft is safe to prepare. The labor reduction is triage and evidence assembly, not unattended execution.
+//!
+//! Use it when the business question is "what grooming work can be prepared for staff or customer review, and what calendar, deposit, handling, or message approval still blocks live execution?" Next step: start with the location rules and `Service` for policy and request type, then follow `duration_estimate`, `no_show`, `rebooking`, `reminder`, or `calendar` depending on the queue you are trying to explain.
+//!
+//! The authoritative facts are the location rules, the requested `Service`, breed/coat facts on `EstimationRequest`, prior approved `history::ServiceHistoryEntry` records, pet/customer/location/staff identity from `domain::entities`, and shared `domain::policy::ReviewGate` approvals. Provider catalog names, adapter defaults, and AI suggestions must be promoted into these values or remain pending review evidence.
+//!
+//! This module must not book or move appointments, assign a live provider-calendar slot, send a customer message, charge or waive a deposit, or decide medical/handling safety on its own. `ReviewRequirement::calendar_execution_gate`, `no_show::Decision`, and `reminder::Plan::customer_message_gate` preserve the human review gates that protect pets, customers, groomers, and managers before app/storage/integration layers perform live work.
 
 use bon::Builder;
 use chrono::NaiveDate;
@@ -15,7 +21,7 @@ macro_rules! positive_scalar {
         pub struct $name($primitive);
 
         impl $name {
-            /// Promotes boundary input into a validated grooming domain value.
+            /// Rejects zero or unsupported grooming values before they affect groomer calendars, duration estimates, deposits, reminders, or rebooking prompts.
             pub const fn try_new(value: $primitive) -> std::result::Result<Self, $error> {
                 if value == 0 {
                     return Err($error::Zero);
@@ -23,7 +29,7 @@ macro_rules! positive_scalar {
                 Ok(Self(value))
             }
 
-            /// Exposes the validated scalar for serialization and adapter boundaries.
+            /// Returns the grooming number used by scheduling, estimate, reminder, or rebooking calculations.
             pub const fn get(self) -> $primitive {
                 self.0
             }
@@ -81,7 +87,7 @@ positive_scalar!(
     "grooming appointment estimate requires at least one minute"
 );
 
-/// Groomer-calendar policy boundary for assigning grooming work without inventing availability.
+/// Groomer-calendar policy for assigning grooming work without inventing availability.
 pub mod calendar {
     use super::*;
 
@@ -96,7 +102,7 @@ pub mod calendar {
         FirstAvailableWithManagerOverride,
     }
 }
-/// Breed/coat boundary for converting pet profile facts into labor-time estimates.
+/// Breed/coat inputs for converting pet profile facts into labor-time estimates.
 pub mod breed_coat {
     use super::*;
 
@@ -135,7 +141,7 @@ pub mod breed_coat {
     }
 
     impl TimeEstimate {
-        /// Assembles this grooming value from already-validated domain parts.
+        /// Creates this grooming value from already-checked resort workflow inputs.
         pub const fn new(
             breed: BreedCategory,
             coat: CoatCondition,
@@ -148,7 +154,7 @@ pub mod breed_coat {
             }
         }
 
-        /// Returns the minutes evidence recorded on this grooming contract.
+        /// Returns the minutes value used by grooming schedule/rebooking review.
         pub const fn minutes(&self) -> AppointmentMinutes {
             self.minutes
         }
@@ -166,7 +172,7 @@ pub enum HistoryRequirement {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Source-derived request used to estimate grooming duration before a schedule mutation is proposed.
+/// Grooming estimate request assembled from pet profile facts before staff propose any calendar change.
 pub struct EstimationRequest {
     /// Pet receiving the grooming or care service.
     pub pet_id: PetId,
@@ -181,7 +187,7 @@ pub struct EstimationRequest {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Evidence basis that explains why a grooming duration was chosen for scheduling review.
 pub enum EstimateBasis {
-    /// Estimate came from the location contract for breed/coat combinations.
+    /// Estimate came from the location breed/coat policy.
     BreedCoatPolicy,
     /// Estimate came from prior groomer history for this pet.
     GroomerHistory,
@@ -260,22 +266,22 @@ impl DurationEstimate {
         }
     }
 
-    /// Returns the minutes evidence recorded on this grooming contract.
+    /// Returns the minutes value used by grooming schedule/rebooking review.
     pub const fn minutes(&self) -> AppointmentMinutes {
         self.minutes
     }
 
-    /// Returns the basis evidence recorded on this grooming contract.
+    /// Returns the basis value used by grooming schedule/rebooking review.
     pub const fn basis(&self) -> EstimateBasis {
         self.basis
     }
 
-    /// Returns the confidence evidence recorded on this grooming contract.
+    /// Returns the confidence value used by grooming schedule/rebooking review.
     pub const fn confidence(&self) -> EstimateConfidence {
         self.confidence
     }
 
-    /// Returns the review evidence recorded on this grooming contract.
+    /// Returns the review value used by grooming schedule/rebooking review.
     pub const fn review(&self) -> ReviewRequirement {
         self.review
     }
@@ -287,11 +293,11 @@ impl DurationEstimate {
 }
 
 #[derive(Debug, Clone, Default)]
-/// Policy object that chooses a grooming duration from pet history first, then contracted breed/coat defaults.
+/// Policy object that chooses a grooming duration from pet history first, then location breed/coat defaults.
 pub struct EstimationPolicy;
 
 impl EstimationPolicy {
-    /// Estimates appointment minutes from source history or contract defaults and records any required review gate.
+    /// Estimates appointment minutes from source history or local policy defaults and records any required review gate.
     pub fn estimate(
         &self,
         request: EstimationRequest,
@@ -346,64 +352,64 @@ impl EstimationPolicy {
     }
 }
 
-/// No-show and late-cancel boundary for protecting groomer capacity and rebooking policy.
+/// No-show and late-cancel policy for protecting groomer capacity and rebooking decisions.
 pub mod no_show {
     use super::*;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision vocabulary for rule in grooming workflows.
+    /// Rebooking rule that tells staff whether history only, deposit review, or manager review applies.
     pub enum Rule {
-        /// Note history only grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the note history only grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         NoteHistoryOnly,
-        /// Require deposit for rebooking grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the require deposit for rebooking grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         RequireDepositForRebooking,
-        /// Manager review before rebooking grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the manager review before rebooking grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         ManagerReviewBeforeRebooking,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-    /// Represents the count concept as a typed grooming operational contract instead of a raw primitive.
+    /// No-show count considered during grooming deposit and rebooking review.
     pub struct Count(u16);
 
     impl Count {
-        /// Promotes boundary input into a validated grooming domain value.
+        /// Rejects zero or unsupported grooming values before they affect groomer calendars, duration estimates, deposits, reminders, or rebooking prompts.
         pub const fn try_new(value: u16) -> std::result::Result<Self, std::convert::Infallible> {
             Ok(Self(value))
         }
 
-        /// Exposes the validated scalar for serialization and adapter boundaries.
+        /// Returns the grooming number used by scheduling, estimate, reminder, or rebooking calculations.
         pub const fn get(self) -> u16 {
             self.0
         }
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-    /// Represents the late cancel count concept as a typed grooming operational contract instead of a raw primitive.
+    /// Late-cancel count considered with no-shows during grooming rebooking review.
     pub struct LateCancelCount(u16);
 
     impl LateCancelCount {
-        /// Promotes boundary input into a validated grooming domain value.
+        /// Rejects zero or unsupported grooming values before they affect groomer calendars, duration estimates, deposits, reminders, or rebooking prompts.
         pub const fn try_new(value: u16) -> std::result::Result<Self, std::convert::Infallible> {
             Ok(Self(value))
         }
 
-        /// Exposes the validated scalar for serialization and adapter boundaries.
+        /// Returns the grooming number used by scheduling, estimate, reminder, or rebooking calculations.
         pub const fn get(self) -> u16 {
             self.0
         }
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Represents the history concept as a typed grooming operational contract instead of a raw primitive.
+    /// Repeat grooming history staff review before clearing a rebooking path.
     pub struct History {
-        /// Source-derived no shows carried by this grooming contract.
+        /// No shows from source or staff evidence used during grooming schedule/rebooking review; it does not authorize live changes by itself.
         pub no_shows: Count,
-        /// Source-derived late cancels carried by this grooming contract.
+        /// Late cancels from source or staff evidence used during grooming schedule/rebooking review; it does not authorize live changes by itself.
         pub late_cancels: LateCancelCount,
     }
 
     impl History {
-        /// Assembles this grooming value from already-validated domain parts.
+        /// Creates this grooming value from already-checked resort workflow inputs.
         pub const fn new(no_shows: Count, late_cancels: LateCancelCount) -> Self {
             Self {
                 no_shows,
@@ -411,48 +417,48 @@ pub mod no_show {
             }
         }
 
-        /// Returns the repeat behavior count evidence recorded on this grooming contract.
+        /// Returns the repeat behavior count value used by grooming schedule/rebooking review.
         pub const fn repeat_behavior_count(&self) -> u16 {
             self.no_shows.get().saturating_add(self.late_cancels.get())
         }
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision vocabulary for workflow outcomes in grooming workflows.
+    /// Grooming rebooking outcome that tells staff whether to clear, collect a deposit, or seek manager review.
     pub enum Decision {
-        /// Clear to rebook grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the clear to rebook grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         ClearToRebook,
-        /// Source-derived gate carried by this grooming contract.
+        /// Review gate that must clear before this grooming decision can trigger a live schedule, deposit, or message action.
         DepositRequired {
-            /// Gate value carried by this review or workflow variant.
+            /// Approval gate staff must clear before acting on this variant.
             gate: crate::policy::ReviewGate,
         },
-        /// Source-derived gate carried by this grooming contract.
+        /// Review gate that must clear before this grooming decision can trigger a live schedule, deposit, or message action.
         ManagerReviewRequired {
-            /// Gate value carried by this review or workflow variant.
+            /// Approval gate staff must clear before acting on this variant.
             gate: crate::policy::ReviewGate,
         },
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Represents the evaluation concept as a typed grooming operational contract instead of a raw primitive.
+    /// Grooming rebooking evaluation packet tying customer, pet, and repeat-history facts together.
     pub struct Evaluation {
-        /// Source-derived customer id carried by this grooming contract.
+        /// Customer whose grooming reminder, deposit review, or rebooking packet is being prepared.
         pub customer_id: CustomerId,
         /// Pet receiving the grooming or care service.
         pub pet_id: PetId,
-        /// Source-derived history carried by this grooming contract.
+        /// No-show and late-cancel history staff review before choosing a rebooking path.
         pub history: History,
     }
 
     #[derive(Debug, Clone)]
-    /// Represents the policy concept as a typed grooming operational contract instead of a raw primitive.
+    /// Grooming policy object that turns local rules into staff review decisions.
     pub struct Policy {
         rule: Rule,
     }
 
     impl Policy {
-        /// Assembles this grooming value from already-validated domain parts.
+        /// Creates this grooming value from already-checked resort workflow inputs.
         pub const fn new(rule: Rule) -> Self {
             Self { rule }
         }
@@ -485,11 +491,11 @@ pub mod no_show {
     }
 }
 
-/// History boundary for grooming contracts.
+/// History workflow gate for the grooming schedule, estimate, history, rebooking, reminder, or review workflow.
 pub mod history {
     use super::*;
 
-    /// Style note boundary for grooming contracts.
+    /// Style note workflow gate for the grooming schedule, estimate, history, rebooking, reminder, or review workflow.
     pub mod style_note {
         use nutype::nutype;
 
@@ -512,47 +518,47 @@ pub mod history {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision vocabulary for care reference in grooming workflows.
+    /// Care references that keep product, medical, or handling notes visible to groomer review.
     pub enum CareReference {
-        /// Sensitive skin product grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the sensitive skin product grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         SensitiveSkinProduct,
-        /// Medicated product requires review grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the medicated product requires review grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         MedicatedProductRequiresReview,
-        /// Handling or medical concern grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the handling or medical concern grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         HandlingOrMedicalConcern,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision vocabulary for service outcome in grooming workflows.
+    /// Service outcome recorded for grooming history, estimates, and rebooking prompts.
     pub enum ServiceOutcome {
-        /// Completed grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the completed grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         Completed,
-        /// No show grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the no show grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         NoShow,
-        /// Late cancelled grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the late cancelled grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         LateCancelled,
-        /// Needs follow up grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the needs follow up grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         NeedsFollowUp,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision vocabulary for approval state in grooming workflows.
+    /// Approval state controlling whether grooming history can support future estimates or rebooking.
     pub enum ApprovalState {
-        /// Draft grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the draft grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         Draft,
-        /// Source-derived gate carried by this grooming contract.
+        /// Review gate that must clear before this grooming decision can trigger a live schedule, deposit, or message action.
         ReviewRequired {
-            /// Gate value carried by this review or workflow variant.
+            /// Approval gate staff must clear before acting on this variant.
             gate: crate::policy::ReviewGate,
         },
-        /// Source-derived groomer id carried by this grooming contract.
+        /// Groomer who approved the history entry for later estimate, care, or rebooking review.
         ApprovedByGroomer {
-            /// Groomer id value carried by this review or workflow variant.
+            /// Groomer who approved this grooming history or review state.
             groomer_id: StaffId,
         },
-        /// Source-derived gate carried by this grooming contract.
+        /// Review gate that must clear before this grooming decision can trigger a live schedule, deposit, or message action.
         Rejected {
-            /// Gate value carried by this review or workflow variant.
+            /// Approval gate staff must clear before acting on this variant.
             gate: crate::policy::ReviewGate,
         },
     }
@@ -565,19 +571,19 @@ pub mod history {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-    /// Represents the service history entry concept as a typed grooming operational contract instead of a raw primitive.
+    /// Grooming history entry used for future duration estimates, style continuity, care review, and rebooking.
     pub struct ServiceHistoryEntry {
         /// Pet receiving the grooming or care service.
         pub pet_id: PetId,
-        /// Source-derived location id carried by this grooming contract.
+        /// Resort location whose grooming history should be considered for this pet.
         pub location_id: LocationId,
         /// Requested service that drives scheduling and labor estimates.
         pub service: super::Service,
-        /// Source-derived completed on carried by this grooming contract.
+        /// Date the grooming outcome was completed or recorded for cadence and history review.
         pub completed_on: NaiveDate,
-        /// Source-derived outcome carried by this grooming contract.
+        /// Service outcome used to decide whether future estimates, rebooking prompts, or follow-up are appropriate.
         pub outcome: ServiceOutcome,
-        /// Source-derived approval carried by this grooming contract.
+        /// Approval state that keeps sensitive grooming history out of automation until review clears.
         pub approval: ApprovalState,
         #[builder(default)]
         style_notes: Vec<style_note::StyleNote>,
@@ -587,17 +593,17 @@ pub mod history {
     }
 
     impl ServiceHistoryEntry {
-        /// Returns the style notes evidence recorded on this grooming contract.
+        /// Returns the style notes value used by grooming schedule/rebooking review.
         pub fn style_notes(&self) -> &[style_note::StyleNote] {
             &self.style_notes
         }
 
-        /// Returns the care refs evidence recorded on this grooming contract.
+        /// Returns the care refs value used by grooming schedule/rebooking review.
         pub fn care_refs(&self) -> &[CareReference] {
             &self.care_refs
         }
 
-        /// Returns the duration evidence recorded on this grooming contract.
+        /// Returns the duration value used by grooming schedule/rebooking review.
         pub const fn duration(&self) -> Option<AppointmentMinutes> {
             self.duration
         }
@@ -609,16 +615,16 @@ pub mod history {
     }
 }
 
-/// Rebooking cadence boundary for identifying due, overdue, or history-insufficient grooming follow-up.
+/// Rebooking cadence policy for identifying due, overdue, or history-insufficient grooming follow-up.
 pub mod rebooking {
     use super::*;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-    /// Represents the cadence weeks concept as a typed grooming operational contract instead of a raw primitive.
+    /// Grooming cadence in weeks for due/overdue rebooking prompts.
     pub struct CadenceWeeks(u8);
 
     impl CadenceWeeks {
-        /// Promotes boundary input into a validated grooming domain value.
+        /// Rejects zero or unsupported grooming values before they affect groomer calendars, duration estimates, deposits, reminders, or rebooking prompts.
         pub const fn try_new(value: u8) -> std::result::Result<Self, CadenceWeeksError> {
             if value == 0 {
                 return Err(CadenceWeeksError::ZeroWeeks);
@@ -626,7 +632,7 @@ pub mod rebooking {
             Ok(Self(value))
         }
 
-        /// Exposes the validated scalar for serialization and adapter boundaries.
+        /// Returns the grooming number used by scheduling, estimate, reminder, or rebooking calculations.
         pub const fn get(self) -> u8 {
             self.0
         }
@@ -642,19 +648,19 @@ pub mod rebooking {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-    /// Decision vocabulary for cadence weeks error in grooming workflows.
+    /// Cadence validation error for rebooking prompts that cannot use zero weeks.
     pub enum CadenceWeeksError {
         #[error("grooming cadence requires at least one week")]
-        /// Zero weeks grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the zero weeks grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         ZeroWeeks,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-    /// Represents the ordinary cadence weeks concept as a typed grooming operational contract instead of a raw primitive.
+    /// Ordinary grooming cadence band used when staff expect repeat appointments every few weeks.
     pub struct OrdinaryCadenceWeeks(u8);
 
     impl OrdinaryCadenceWeeks {
-        /// Promotes boundary input into a validated grooming domain value.
+        /// Rejects zero or unsupported grooming values before they affect groomer calendars, duration estimates, deposits, reminders, or rebooking prompts.
         pub const fn try_new(value: u8) -> std::result::Result<Self, OrdinaryCadenceWeeksError> {
             if value < 2 || value > 8 {
                 return Err(OrdinaryCadenceWeeksError::OutsideOrdinaryGroomingBand);
@@ -662,7 +668,7 @@ pub mod rebooking {
             Ok(Self(value))
         }
 
-        /// Exposes the validated scalar for serialization and adapter boundaries.
+        /// Returns the grooming number used by scheduling, estimate, reminder, or rebooking calculations.
         pub const fn get(self) -> u8 {
             self.0
         }
@@ -678,21 +684,21 @@ pub mod rebooking {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-    /// Decision vocabulary for ordinary cadence weeks error in grooming workflows.
+    /// Cadence validation error for values outside the ordinary grooming rebooking band.
     pub enum OrdinaryCadenceWeeksError {
         #[error("ordinary grooming rebooking cadence must be between 2 and 8 weeks")]
-        /// Outside ordinary grooming band grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the outside ordinary grooming band grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         OutsideOrdinaryGroomingBand,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision vocabulary for cadence in grooming workflows.
+    /// Rebooking cadence source used for due-date prompts and groomer-recommended follow-up.
     pub enum Cadence {
-        /// Every weeks grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the every weeks grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         EveryWeeks(CadenceWeeks),
-        /// As needed grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the as needed grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         AsNeeded,
-        /// Groomer recommended grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the groomer recommended grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         GroomerRecommended,
         /// Provider role or status could not be mapped confidently.
         Unknown,
@@ -701,46 +707,46 @@ pub mod rebooking {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
     /// Normalized reservation states observed during source-data ingestion.
     pub enum Status {
-        /// Due later grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the due later grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         DueLater,
-        /// Due now grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the due now grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         DueNow,
-        /// Overdue grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the overdue grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         Overdue,
-        /// Needs groomer recommendation grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the needs groomer recommendation grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         NeedsGroomerRecommendation,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision vocabulary for rationale in grooming workflows.
+    /// Reason explaining why a grooming rebooking prompt is due or needs groomer input.
     pub enum Rationale {
-        /// Last completed service cadence grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the last completed service cadence grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         LastCompletedServiceCadence,
-        /// No completed history grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the no completed history grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         NoCompletedHistory,
-        /// Groomer recommended cadence required grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the groomer recommended cadence required grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         GroomerRecommendedCadenceRequired,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Represents the recommendation concept as a typed grooming operational contract instead of a raw primitive.
+    /// Grooming rebooking recommendation staff can review before drafting customer follow-up.
     pub struct Recommendation {
         /// Pet receiving the grooming or care service.
         pub pet_id: PetId,
-        /// Source-derived due on carried by this grooming contract.
+        /// Date when the next grooming reminder or rebooking prompt becomes due.
         pub due_on: Option<NaiveDate>,
-        /// Source-derived status carried by this grooming contract.
+        /// Rebooking status staff use to decide whether to prompt, wait, or request groomer input.
         pub status: Status,
-        /// Source-derived rationale carried by this grooming contract.
+        /// Reason explaining why the rebooking recommendation is due, overdue, or blocked for groomer input.
         pub rationale: Rationale,
     }
 
     #[derive(Debug, Clone, Default)]
-    /// Represents the policy concept as a typed grooming operational contract instead of a raw primitive.
+    /// Grooming policy object that turns local rules into staff review decisions.
     pub struct Policy;
 
     impl Policy {
-        /// Returns the recommend from history evidence recorded on this grooming contract.
+        /// Returns the recommend from history value used by grooming schedule/rebooking review.
         pub fn recommend_from_history(
             &self,
             pet_id: PetId,
@@ -793,73 +799,73 @@ pub mod rebooking {
     }
 }
 
-/// Reminder boundary for drafting appointment confirmations, prep instructions, and cadence winback messages.
+/// Reminder policy for drafting appointment confirmations, prep instructions, and cadence winback messages.
 pub mod reminder {
     use super::*;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision vocabulary for rule in grooming workflows.
+    /// Rebooking rule that tells staff whether history only, deposit review, or manager review applies.
     pub enum Rule {
-        /// One week before grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the one week before grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         OneWeekBefore,
-        /// Forty eight hours before grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the forty eight hours before grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         FortyEightHoursBefore,
-        /// Morning of grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the morning of grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         MorningOf,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision vocabulary for kind in grooming workflows.
+    /// Reminder purpose for grooming confirmations, prep instructions, and cadence follow-up drafts.
     pub enum Kind {
-        /// Appointment confirmation grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the appointment confirmation grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         AppointmentConfirmation,
-        /// Prep instructions grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the prep instructions grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         PrepInstructions,
-        /// Morning of grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the morning of grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         MorningOf,
-        /// Rebooking due grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the rebooking due grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         RebookingDue,
-        /// Lapsed cadence winback grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the lapsed cadence winback grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         LapsedCadenceWinback,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision vocabulary for consent in grooming workflows.
+    /// Customer-message consent state used before grooming reminder drafts proceed.
     pub enum Consent {
-        /// Granted grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the granted grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         Granted,
-        /// Not granted grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the not granted grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         NotGranted,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision vocabulary for send boundary in grooming workflows.
+    /// Customer-message send status for grooming reminder plans.
     pub enum SendBoundary {
-        /// Draft requires approval grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the draft requires approval grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         DraftRequiresApproval,
-        /// Ready for approved send grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the ready for approved send grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         ReadyForApprovedSend,
-        /// Suppressed until consent grooming operational signal for schedule, estimate, history, or review handling.
+        /// Staff can see the suppressed until consent grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         SuppressedUntilConsent,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Represents the plan concept as a typed grooming operational contract instead of a raw primitive.
+    /// Grooming reminder plan that separates message purpose from send approval.
     pub struct Plan {
-        /// Source-derived customer id carried by this grooming contract.
+        /// Customer whose grooming reminder, deposit review, or rebooking packet is being prepared.
         pub customer_id: CustomerId,
-        /// Source-derived kind carried by this grooming contract.
+        /// Reminder purpose that controls whether the draft is confirmation, prep, same-day, or cadence follow-up copy.
         pub kind: Kind,
         boundary: SendBoundary,
     }
 
     impl Plan {
-        /// Returns the send boundary evidence recorded on this grooming contract.
+        /// Returns the customer-message send gate value used by grooming schedule/rebooking review.
         pub const fn send_boundary(&self) -> SendBoundary {
             self.boundary
         }
 
-        /// Returns the customer message review gate recorded on this grooming contract.
+        /// Returns the customer-message approval gate required before this grooming reminder is sent.
         pub const fn customer_message_gate(&self) -> Option<crate::policy::ReviewGate> {
             match self.boundary {
                 SendBoundary::DraftRequiresApproval => {
@@ -871,7 +877,7 @@ pub mod reminder {
     }
 
     #[derive(Debug, Clone, Default)]
-    /// Represents the policy concept as a typed grooming operational contract instead of a raw primitive.
+    /// Grooming policy object that turns local rules into staff review decisions.
     pub struct Policy;
 
     impl Policy {
@@ -891,21 +897,21 @@ pub mod reminder {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Location grooming contract tying calendar assignment, estimate policy, no-show rules, rebooking cadence, reminders, and history retention together.
+/// Location grooming ruleset tying calendar assignment, estimate policy, no-show rules, rebooking cadence, reminders, and history retention together.
 pub struct Contract {
-    /// Source-derived calendar carried by this grooming contract.
+    /// Calendar-assignment rule staff honor before drafting or reviewing grooming work.
     pub calendar: calendar::Policy,
     #[builder(default)]
-    /// Source-derived time estimates carried by this grooming contract.
+    /// Breed/coat duration estimates staff use for groomer-calendar planning.
     pub time_estimates: Vec<breed_coat::TimeEstimate>,
-    /// Source-derived no show carried by this grooming contract.
+    /// No-show rule that controls whether repeat history creates deposit or manager review.
     pub no_show: no_show::Rule,
-    /// Source-derived rebooking carried by this grooming contract.
+    /// Rebooking cadence staff use when preparing due or overdue grooming prompts.
     pub rebooking: rebooking::Cadence,
     #[builder(default)]
-    /// Source-derived reminders carried by this grooming contract.
+    /// Reminder timing options that can be drafted only through customer-message review.
     pub reminders: Vec<reminder::Rule>,
-    /// Source-derived history carried by this grooming contract.
+    /// No-show and late-cancel history staff review before choosing a rebooking path.
     pub history: HistoryRequirement,
 }
 
@@ -917,7 +923,7 @@ impl Contract {
             no_show::Rule::RequireDepositForRebooking | no_show::Rule::ManagerReviewBeforeRebooking
         )
     }
-    /// Builds a representative PetSuites-style grooming contract for docs/tests without claiming it is live policy.
+    /// Builds representative PetSuites-style grooming rules for docs/tests without claiming they are live policy.
     pub fn standard_petsuites() -> Self {
         Self::builder()
             .calendar(calendar::Policy::GroomerSpecific)

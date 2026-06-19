@@ -1,4 +1,4 @@
-//! App-owned external tool-port contracts.
+//! App-owned external tool-port rules.
 //!
 //! These ports describe narrow capabilities the deterministic app may call.
 //! Constructing a request is not authority for an agent to perform the side
@@ -57,7 +57,7 @@ pub use error::{Error, ExternalFailure, Resource, ResourceId, Result};
 /// Read-only customer/reservation evidence store exposed to app workflows.
 ///
 /// Implementations fetch source-grounded customer, pet, and reservation records
-/// for deterministic workflow evaluation. The trait is a read boundary: returned
+/// for deterministic workflow evaluation. The trait is a read gate: returned
 /// facts may be summarized or used to prepare review packets, but callers must
 /// use separate draft/review ports for any customer message, booking update, or
 /// provider-system write.
@@ -243,28 +243,28 @@ pub mod draft_update {
     use super::*;
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Input contract for building the workflow packet from source-grounded records.
+    /// Input rules for building the workflow packet from source-grounded records.
     pub struct Request {
-        /// Source-derived Reservation id retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+        /// Reservation id copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
         pub reservation_id: reservation::Id,
-        /// Source-derived Proposed status retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+        /// Proposed status copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
         pub proposed_status: reservation::Status,
-        /// Source-derived Rationale retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+        /// Rationale copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
         pub rationale: Rationale,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision taxonomy for rationale in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
+    /// Decision choices for rationale in the agent tool workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
     pub enum Rationale {
-        /// Represents capacity unavailable in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+        /// Selects capacity unavailable for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
         CapacityUnavailable,
-        /// Represents policy hard stop in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+        /// Selects policy hard stop for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
         PolicyHardStop,
-        /// Represents missing required information in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+        /// Selects missing required information for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
         MissingRequiredInformation,
-        /// Represents manager review required in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+        /// Selects manager review required for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
         ManagerReviewRequired,
-        /// Represents customer accepted offer in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+        /// Selects customer accepted offer for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
         CustomerAcceptedOffer,
     }
 
@@ -308,76 +308,76 @@ pub mod portal {
         use super::*;
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-        /// Input contract for building the workflow packet from source-grounded records.
+        /// Input rules for building the workflow packet from source-grounded records.
         pub struct Request {
-            /// Source-derived Provider retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Provider copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub provider: Provider,
-            /// Source-derived Account retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Account copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub account: AccountId,
-            /// Source-derived Criteria retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Criteria copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub criteria: Criteria,
-            /// Source-derived Include retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Include copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub include: Vec<Include>,
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-        /// Outcome carried by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
+        /// Outcome used by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
         pub struct Outcome {
-            /// Source-derived Provider retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Provider copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub provider: Provider,
-            /// Source-derived Matched retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Matched copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub matched: Match,
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-        /// Decision taxonomy for match in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
+        /// Decision choices for match in the agent tool workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
         pub enum Match {
-            /// Represents customer in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+            /// Selects customer for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
             Customer(CustomerId),
-            /// Represents pet in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+            /// Selects pet for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
             Pet(PetId),
-            /// Represents reservation in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+            /// Selects reservation for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
             Reservation(reservation::Id),
-            /// Represents not found in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+            /// Selects not found for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
             NotFound,
-            /// Source-derived Candidates retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Candidates copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             Ambiguous {
-                /// Candidates carried by this variant.
+                /// Candidates value stored on this variant.
                 candidates: Vec<ExternalRecordId>,
             },
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-        /// Decision taxonomy for criteria in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
+        /// Decision choices for criteria in the agent tool workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
         pub enum Criteria {
-            /// Represents customer in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+            /// Selects customer for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
             Customer(CustomerId),
-            /// Represents pet in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+            /// Selects pet for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
             Pet(PetId),
-            /// Represents reservation in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+            /// Selects reservation for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
             Reservation(reservation::Id),
-            /// Represents external in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+            /// Selects external for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
             External(ExternalRecordId),
         }
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision taxonomy for provider in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
+    /// Decision choices for provider in the agent tool workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
     pub enum Provider {
-        /// Represents gingr in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+        /// Selects gingr for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
         Gingr,
-        /// Represents pms in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+        /// Selects pms for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
         Pms,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision taxonomy for include in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
+    /// Decision choices for include in the agent tool workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
     pub enum Include {
-        /// Represents customer contact in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+        /// Selects customer contact for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
         CustomerContact,
-        /// Represents pet profile in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+        /// Selects pet profile for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
         PetProfile,
-        /// Represents reservation ledger in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+        /// Selects reservation ledger for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
         ReservationLedger,
     }
 
@@ -416,7 +416,7 @@ pub mod portal {
     pub struct ExternalRecordId(String);
 }
 
-/// Payment helper contracts that keep authorizations, refunds, and deposits auditable.
+/// Payment helper rules that keep authorizations, refunds, and deposits auditable.
 pub mod payment {
     use super::*;
 
@@ -438,27 +438,27 @@ pub mod payment {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision taxonomy for subject in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
+    /// Decision choices for subject in the agent tool workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
     pub enum Subject {
-        /// Represents reservation deposit in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+        /// Selects reservation deposit for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
         ReservationDeposit(reservation::Id),
-        /// Represents reservation balance in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+        /// Selects reservation balance for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
         ReservationBalance(reservation::Id),
-        /// Represents customer account in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+        /// Selects customer account for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
         CustomerAccount(CustomerId),
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision taxonomy for capture policy in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
+    /// Decision choices for capture policy in the agent tool workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
     pub enum CapturePolicy {
-        /// Represents authorize only in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+        /// Selects authorize only for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
         AuthorizeOnly,
-        /// Represents capture immediately in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+        /// Selects capture immediately for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
         CaptureImmediately,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision taxonomy for review reason in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
+    /// Decision choices for review reason in the agent tool workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
     pub enum ReviewReason {
         /// Uses amount mismatch as source-grounded evidence for the deterministic decision.
         AmountMismatch,
@@ -490,15 +490,15 @@ pub mod payment {
         use super::*;
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-        /// Input contract for building the workflow packet from source-grounded records.
+        /// Input rules for building the workflow packet from source-grounded records.
         pub struct Request {
-            /// Source-derived Subject retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Subject copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub subject: Subject,
-            /// Source-derived Amount retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Amount copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub amount: Money,
-            /// Source-derived Capture policy retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Capture policy copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub capture_policy: CapturePolicy,
-            /// Source-derived Idempotency key retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Idempotency key copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub idempotency_key: IdempotencyKey,
         }
 
@@ -509,29 +509,29 @@ pub mod payment {
             pub use authorization_id::Id as AuthorizationId;
 
             #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-            /// Decision taxonomy for result in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
+            /// Decision choices for result in the agent tool workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
             pub enum Result {
-                /// Represents authorized in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+                /// Selects authorized for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
                 Authorized {
-                    /// Source-derived Authorization id retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+                    /// Authorization id copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
                     authorization_id: AuthorizationId,
-                    /// Source-derived Amount retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+                    /// Amount copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
                     amount: Money,
                 },
-                /// Represents declined in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+                /// Selects declined for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
                 Declined {
-                    /// Source-derived Reason retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+                    /// Reason copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
                     reason: DeclineReason,
                 },
-                /// Represents requires human review in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+                /// Selects requires human review for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
                 RequiresHumanReview {
-                    /// Source-derived Reason retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+                    /// Reason copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
                     reason: ReviewReason,
                 },
             }
 
             #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-            /// Decision taxonomy for decline reason in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
+            /// Decision choices for decline reason in the agent tool workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
             pub enum DeclineReason {
                 /// Uses card declined as source-grounded evidence for the deterministic decision.
                 CardDeclined,
@@ -572,20 +572,20 @@ pub mod payment {
         use super::*;
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-        /// Input contract for building the workflow packet from source-grounded records.
+        /// Input rules for building the workflow packet from source-grounded records.
         pub struct Request {
-            /// Source-derived Payment reference retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Payment reference copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub payment_reference: domain::payment::Reference,
-            /// Source-derived Amount retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Amount copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub amount: Money,
-            /// Source-derived Reason retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Reason copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub reason: Reason,
-            /// Source-derived Idempotency key retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Idempotency key copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub idempotency_key: IdempotencyKey,
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-        /// Decision taxonomy for reason in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
+        /// Decision choices for reason in the agent tool workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
         pub enum Reason {
             /// Uses reservation canceled as source-grounded evidence for the deterministic decision.
             ReservationCanceled,
@@ -602,22 +602,22 @@ pub mod payment {
             pub use refund_id::Id as RefundId;
 
             #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-            /// Decision taxonomy for result in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
+            /// Decision choices for result in the agent tool workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
             pub enum Result {
-                /// Source-derived Refund id retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+                /// Refund id copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
                 Accepted {
-                    /// Refund id carried by this variant.
+                    /// Refund id value stored on this variant.
                     refund_id: RefundId,
                 },
-                /// Source-derived Reason retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+                /// Reason copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
                 Rejected {
-                    /// Reason carried by this variant.
+                    /// Reason value stored on this variant.
                     reason: RejectionReason,
                 },
             }
 
             #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-            /// Decision taxonomy for rejection reason in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
+            /// Decision choices for rejection reason in the agent tool workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
             pub enum RejectionReason {
                 /// Uses payment not found as source-grounded evidence for the deterministic decision.
                 PaymentNotFound,
@@ -658,28 +658,28 @@ pub mod payment {
         use super::*;
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-        /// Record request carried by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
+        /// Record request used by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
         pub struct RecordRequest {
-            /// Source-derived Reservation id retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Reservation id copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub reservation_id: reservation::Id,
-            /// Source-derived Payment reference retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Payment reference copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub payment_reference: domain::payment::Reference,
-            /// Source-derived Amount retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Amount copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub amount: Money,
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-        /// Record result carried by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
+        /// Record result used by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
         pub struct RecordResult {
-            /// Source-derived Reservation id retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Reservation id copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub reservation_id: reservation::Id,
-            /// Source-derived Deposit status retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Deposit status copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub deposit_status: domain::payment::DepositStatus,
         }
     }
 }
 
-/// Customer-message drafting contracts that never send without staff approval.
+/// Customer-message drafting rules that never send without staff approval.
 pub mod messaging {
     use super::*;
 
@@ -691,33 +691,33 @@ pub mod messaging {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision taxonomy for delivery channel in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
+    /// Decision choices for delivery channel in the agent tool workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
     pub enum DeliveryChannel {
-        /// Represents email in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+        /// Selects email for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
         Email,
-        /// Represents sms in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+        /// Selects sms for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
         Sms,
-        /// Represents portal in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+        /// Selects portal for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
         Portal,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision taxonomy for recipient in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
+    /// Decision choices for recipient in the agent tool workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
     pub enum Recipient {
-        /// Represents customer in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+        /// Selects customer for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
         Customer(CustomerId),
-        /// Represents staff in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+        /// Selects staff for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
         Staff(domain::entities::StaffId),
-        /// Represents manager in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+        /// Selects manager for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
         Manager(domain::entities::ManagerId),
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision taxonomy for review policy in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
+    /// Decision choices for review policy in the agent tool workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
     pub enum ReviewPolicy {
-        /// Represents draft only in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+        /// Selects draft only for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
         DraftOnly,
-        /// Represents manager approval required in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+        /// Selects manager approval required for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
         ManagerApprovalRequired,
     }
 
@@ -726,33 +726,33 @@ pub mod messaging {
         use super::*;
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-        /// Input contract for building the workflow packet from source-grounded records.
+        /// Input rules for building the workflow packet from source-grounded records.
         pub struct Request {
-            /// Source-derived Channel retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Channel copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub channel: DeliveryChannel,
-            /// Source-derived Recipient retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Recipient copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub recipient: Recipient,
-            /// Source-derived Body retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Body copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub body: message_body::Body,
-            /// Source-derived Review retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Review copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub review: ReviewPolicy,
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-        /// Result carried by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
+        /// Result used by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
         pub struct Result {
-            /// Source-derived Draft id retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Draft id copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub draft_id: draft_update::draft::Id,
-            /// Source-derived Status retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Status copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub status: Status,
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-        /// Decision taxonomy for status in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
+        /// Decision choices for status in the agent tool workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
         pub enum Status {
-            /// Labels work as drafted for queueing, review, and downstream agent context.
+            /// Routes the item to drafted for staff queueing, review, and downstream agent context.
             Drafted,
-            /// Labels work as drafted requires review for queueing, review, and downstream agent context.
+            /// Routes the item to drafted requires review for staff queueing, review, and downstream agent context.
             DraftedRequiresReview,
         }
     }
@@ -798,57 +798,57 @@ pub mod documents {
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-        /// Intake request carried by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
+        /// Intake request used by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
         pub struct IntakeRequest {
-            /// Source-derived Document retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Document copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub document: reference::Ref,
-            /// Source-derived Source retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Source copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub source: Source,
-            /// Source-derived Expected content retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Expected content copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub expected_content: ExpectedContent,
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-        /// Intake result carried by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
+        /// Intake result used by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
         pub struct IntakeResult {
-            /// Source-derived Document retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Document copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub document: reference::Ref,
-            /// Source-derived Classification retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Classification copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub classification: Classification,
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-        /// Decision taxonomy for source in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
+        /// Decision choices for source in the agent tool workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
         pub enum Source {
-            /// Represents customer upload in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+            /// Selects customer upload for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
             CustomerUpload,
-            /// Represents staff scan in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+            /// Selects staff scan for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
             StaffScan,
-            /// Represents portal import in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+            /// Selects portal import for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
             PortalImport,
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-        /// Decision taxonomy for expected content in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
+        /// Decision choices for expected content in the agent tool workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
         pub enum ExpectedContent {
-            /// Represents vaccine proof in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+            /// Selects vaccine proof for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
             VaccineProof,
-            /// Represents medication instructions in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+            /// Selects medication instructions for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
             MedicationInstructions,
-            /// Represents boarding agreement in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+            /// Selects boarding agreement for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
             BoardingAgreement,
-            /// Represents incident report in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+            /// Selects incident report for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
             IncidentReport,
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-        /// Decision taxonomy for classification in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
+        /// Decision choices for classification in the agent tool workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
         pub enum Classification {
-            /// Represents matches expected content in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+            /// Selects matches expected content for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
             MatchesExpectedContent,
-            /// Represents mismatch in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+            /// Selects mismatch for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
             Mismatch,
-            /// Represents unreadable in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+            /// Selects unreadable for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
             Unreadable,
         }
 
@@ -880,31 +880,31 @@ pub mod documents {
         use super::*;
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-        /// Input contract for building the workflow packet from source-grounded records.
+        /// Input rules for building the workflow packet from source-grounded records.
         pub struct Request {
-            /// Source-derived Document retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Document copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub document: super::document::reference::Ref,
-            /// Source-derived Expected content retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Expected content copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub expected_content: super::document::ExpectedContent,
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-        /// Decision taxonomy for result in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
+        /// Decision choices for result in the agent tool workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
         pub enum Result {
-            /// Source-derived Text retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Text copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             Extracted {
-                /// Text carried by this variant.
+                /// Text value stored on this variant.
                 text: extracted_text::Text,
             },
-            /// Source-derived Reason retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Reason copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             NeedsHumanReview {
-                /// Reason carried by this variant.
+                /// Reason value stored on this variant.
                 reason: ReviewReason,
             },
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-        /// Decision taxonomy for review reason in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
+        /// Decision choices for review reason in the agent tool workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
         pub enum ReviewReason {
             /// Uses low confidence as source-grounded evidence for the deterministic decision.
             LowConfidence,
@@ -950,44 +950,44 @@ pub mod media {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Snapshot request carried by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
+    /// Snapshot request used by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
     pub struct SnapshotRequest {
-        /// Source-derived Location id retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+        /// Location id copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
         pub location_id: LocationId,
-        /// Source-derived Camera id retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+        /// Camera id copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
         pub camera_id: CameraId,
-        /// Source-derived Purpose retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+        /// Purpose copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
         pub purpose: CapturePurpose,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision taxonomy for snapshot result in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
+    /// Decision choices for snapshot result in the agent tool workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
     pub enum SnapshotResult {
-        /// Source-derived Media ref retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+        /// Media ref copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
         Captured {
-            /// Media ref carried by this variant.
+            /// Media ref value stored on this variant.
             media_ref: Ref,
         },
-        /// Source-derived Reason retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+        /// Reason copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
         Unavailable {
-            /// Reason carried by this variant.
+            /// Reason value stored on this variant.
             reason: UnavailableReason,
         },
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision taxonomy for capture purpose in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
+    /// Decision choices for capture purpose in the agent tool workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
     pub enum CapturePurpose {
-        /// Represents pet status check in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+        /// Selects pet status check for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
         PetStatusCheck(PetId),
-        /// Represents facility safety check in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+        /// Selects facility safety check for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
         FacilitySafetyCheck,
-        /// Represents incident review in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+        /// Selects incident review for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
         IncidentReview(reservation::Id),
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision taxonomy for unavailable reason in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
+    /// Decision choices for unavailable reason in the agent tool workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
     pub enum UnavailableReason {
         /// Uses camera offline as source-grounded evidence for the deterministic decision.
         CameraOffline,
@@ -1056,15 +1056,15 @@ pub mod hermes {
         use super::*;
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-        /// Draft request carried by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
+        /// Draft request used by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
         pub struct DraftRequest {
-            /// Source-derived Title retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Title copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub title: workflow::task::Title,
-            /// Source-derived Body retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Body copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub body: workflow::task::Body,
-            /// Source-derived Queue retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Queue copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub queue: QueueName,
-            /// Source-derived Trigger retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Trigger copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub trigger: Trigger,
         }
 
@@ -1075,11 +1075,11 @@ pub mod hermes {
             pub use task_id::Id as TaskId;
 
             #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-            /// Draft result carried by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
+            /// Draft result used by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
             pub struct DraftResult {
-                /// Source-derived Task id retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+                /// Task id copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
                 pub task_id: TaskId,
-                /// Source-derived Status retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+                /// Status copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
                 pub status: DraftStatus,
             }
 
@@ -1112,33 +1112,33 @@ pub mod hermes {
         use super::*;
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-        /// Draft request carried by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
+        /// Draft request used by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
         pub struct DraftRequest {
-            /// Source-derived Name retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Name copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub name: Name,
-            /// Source-derived Cadence retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Cadence copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub cadence: Cadence,
-            /// Source-derived Queue retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Queue copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub queue: QueueName,
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-        /// Draft result carried by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
+        /// Draft result used by the agent tool workflow; it exposes tightly-scoped read/draft helpers agents can call behind review gates.
         pub struct DraftResult {
-            /// Source-derived Schedule id retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Schedule id copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub schedule_id: Id,
-            /// Source-derived Status retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+            /// Status copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
             pub status: DraftStatus,
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-        /// Decision taxonomy for cadence in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
+        /// Decision choices for cadence in the agent tool workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
         pub enum Cadence {
-            /// Represents daily in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+            /// Selects daily for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
             Daily,
-            /// Represents hourly in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+            /// Selects hourly for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
             Hourly,
-            /// Represents manual only in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+            /// Selects manual only for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
             ManualOnly,
         }
 
@@ -1178,22 +1178,22 @@ pub mod hermes {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision taxonomy for trigger in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
+    /// Decision choices for trigger in the agent tool workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
     pub enum Trigger {
-        /// Represents workflow review in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+        /// Selects workflow review for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
         WorkflowReview,
-        /// Represents operations brief in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+        /// Selects operations brief for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
         OperationsBrief,
-        /// Represents integration failure in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+        /// Selects integration failure for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
         IntegrationFailure,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Decision taxonomy for draft status in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
+    /// Decision choices for draft status in the agent tool workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
     pub enum DraftStatus {
-        /// Labels work as drafted for queueing, review, and downstream agent context.
+        /// Routes the item to drafted for staff queueing, review, and downstream agent context.
         Drafted,
-        /// Labels work as drafted requires review for queueing, review, and downstream agent context.
+        /// Routes the item to drafted requires review for staff queueing, review, and downstream agent context.
         DraftedRequiresReview,
     }
 
@@ -1216,26 +1216,26 @@ pub mod hermes {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Decision taxonomy for external tool candidate in the agent tool workflow; each value carries operational meaning for source-grounded routing and review.
+/// Decision choices for external tool candidate in the agent tool workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
 pub enum ExternalToolCandidate {
-    /// Represents gingr portal in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects gingr portal for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
     GingrPortal,
-    /// Represents payment provider in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects payment provider for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
     PaymentProvider,
-    /// Represents sms provider in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects sms provider for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
     SmsProvider,
-    /// Represents email provider in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects email provider for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
     EmailProvider,
-    /// Represents file storage in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects file storage for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
     FileStorage,
-    /// Represents ocr or document ai in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects ocr or document ai for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
     OcrOrDocumentAi,
-    /// Represents camera or webcam provider in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects camera or webcam provider for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
     CameraOrWebcamProvider,
-    /// Represents hermes kanban in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects hermes kanban for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
     HermesKanban,
-    /// Represents hermes cron or webhook in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects hermes cron or webhook for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
     HermesCronOrWebhook,
-    /// Represents postgres in the agent tool decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects postgres for the agent tool decision model so the app can choose a review, evidence, or draft path without taking live action.
     Postgres,
 }

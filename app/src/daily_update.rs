@@ -10,7 +10,7 @@ use crate::agents::WorkflowAgent;
 use domain::{agent, audit, customer, entities, message, pet, policy, workflow};
 
 #[derive(Debug, thiserror::Error, Clone, PartialEq, Eq)]
-/// Decision taxonomy for error in the daily update workflow; each value carries operational meaning for source-grounded routing and review.
+/// Decision choices for error in the daily update workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
 pub enum Error {
     #[error("daily update preview requires a DailyNoteCreated or DailyUpdateNeeded workflow event")]
     /// Identifies unsupported workflow event as the reason the workflow must stop, retry, or request review.
@@ -30,34 +30,34 @@ pub enum Error {
 pub type Result<T> = core::result::Result<T, Error>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Mvp preview request carried by the daily update workflow; it packages operational changes into reviewable staff updates instead of free-form agent output.
+/// Mvp preview request used by the daily update workflow; it packages operational changes into reviewable staff updates instead of free-form agent output.
 pub struct MvpPreviewRequest {
-    /// Source-derived Event retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Event copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub event: workflow::Event,
-    /// Source-derived Pet name retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Pet name copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub pet_name: pet::Name,
-    /// Source-derived Owner display name retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Owner display name copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub owner_display_name: customer::Name,
-    /// Source-derived Policy snapshot id retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Policy snapshot id copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub policy_snapshot_id: policy::Id,
-    /// Source-derived Notes retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Notes copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub notes: Vec<entities::CareNote>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Mvp preview carried by the daily update workflow; it packages operational changes into reviewable staff updates instead of free-form agent output.
+/// Mvp preview used by the daily update workflow; it packages operational changes into reviewable staff updates instead of free-form agent output.
 pub struct MvpPreview {
-    /// Source-derived Agent packet retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Agent packet copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub agent_packet: agents::AgentPromptPacket<daily_care_update::Input>,
-    /// Source-derived Output retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Output copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub output: daily_care_update::Output,
-    /// Source-derived Owner message draft retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Owner message draft copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub owner_message_draft: CustomerMessageDraft,
-    /// Source-derived Approval retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Approval copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub approval: entities::approval::Record,
-    /// Source-derived Send stub retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Send stub copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub send_stub: SendStub,
-    /// Source-derived Audit log retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Audit log copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub audit_log: Vec<entities::audit::Event>,
 }
 
@@ -71,51 +71,51 @@ pub mod daily_care_update {
     };
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Input carried by the daily update workflow; it packages operational changes into reviewable staff updates instead of free-form agent output.
+    /// Input used by the daily update workflow; it packages operational changes into reviewable staff updates instead of free-form agent output.
     pub struct Input {
-        /// Source-derived Pet name retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+        /// Pet name copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
         pub pet_name: pet::Name,
-        /// Source-derived Owner display name retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+        /// Owner display name copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
         pub owner_display_name: customer::Name,
-        /// Source-derived Policy snapshot id retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+        /// Policy snapshot id copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
         pub policy_snapshot_id: policy::Id,
-        /// Source-derived Notes retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+        /// Notes copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
         pub notes: Vec<entities::CareNote>,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Output carried by the daily update workflow; it packages operational changes into reviewable staff updates instead of free-form agent output.
+    /// Output used by the daily update workflow; it packages operational changes into reviewable staff updates instead of free-form agent output.
     pub struct Output {
-        /// Source-derived Customer message retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+        /// Customer message copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
         pub customer_message: CustomerMessageDraft,
-        /// Source-derived Internal flags retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+        /// Internal flags copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
         pub internal_flags: Vec<InternalFlag>,
         #[serde(flatten)]
-        /// Source-derived Disposition retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+        /// Disposition copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
         pub disposition: ReviewDisposition,
-        /// Source-derived Included facts retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+        /// Included facts copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
         pub included_facts: Vec<IncludedFact>,
-        /// Source-derived Omitted facts retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+        /// Omitted facts copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
         pub omitted_facts: Vec<OmittedFact>,
     }
 
     #[derive(Debug, Clone, Copy)]
-    /// Agent carried by the daily update workflow; it packages operational changes into reviewable staff updates instead of free-form agent output.
+    /// Agent used by the daily update workflow; it packages operational changes into reviewable staff updates instead of free-form agent output.
     pub struct Agent;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-/// Decision taxonomy for review disposition in the daily update workflow; each value carries operational meaning for source-grounded routing and review.
+/// Decision choices for review disposition in the daily update workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
 pub enum ReviewDisposition {
-    /// Source-derived Reason retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Reason copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     DraftOnlyRequiresReview {
-        /// Reason carried by this variant.
+        /// Reason value stored on this variant.
         reason: ReviewReason,
     },
 }
 
 impl ReviewDisposition {
-    /// Returns the allows live send source evidence carried by this daily update workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the allows live send evidence available to daily update review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn allows_live_send(&self) -> bool {
         false
     }
@@ -125,7 +125,7 @@ impl ReviewDisposition {
         true
     }
 
-    /// Returns the review reason source evidence carried by this daily update workflow artifact without changing provider, customer, payment, or schedule state.
+    /// Returns the review reason evidence available to daily update review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn review_reason(&self) -> &ReviewReason {
         match self {
             Self::DraftOnlyRequiresReview { reason } => reason,
@@ -177,31 +177,31 @@ impl<'de> Deserialize<'de> for ReviewDisposition {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Customer message draft carried by the daily update workflow; it packages operational changes into reviewable staff updates instead of free-form agent output.
+/// Customer message draft used by the daily update workflow; it packages operational changes into reviewable staff updates instead of free-form agent output.
 pub struct CustomerMessageDraft {
-    /// Source-derived Body ref retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Body ref copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub body_ref: message::BodyRef,
-    /// Source-derived Channel hint retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Channel hint copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub channel_hint: message::Channel,
-    /// Source-derived Language retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Language copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub language: LanguageTag,
-    /// Source-derived Tone retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Tone copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub tone: ToneLabel,
-    /// Source-derived Audience retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Audience copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub audience: Audience,
-    /// Source-derived Redaction profile retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Redaction profile copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub redaction_profile: RedactionProfile,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Decision taxonomy for audience in the daily update workflow; each value carries operational meaning for source-grounded routing and review.
+/// Decision choices for audience in the daily update workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
 pub enum Audience {
-    /// Represents customer in the daily update decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects customer for the daily update decision model so the app can choose a review, evidence, or draft path without taking live action.
     Customer,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Decision taxonomy for internal flag code in the daily update workflow; each value carries operational meaning for source-grounded routing and review.
+/// Decision choices for internal flag code in the daily update workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
 pub enum InternalFlagCode {
     /// Uses customer message approval not configured as source-grounded evidence for the deterministic decision.
     CustomerMessageApprovalNotConfigured,
@@ -216,64 +216,64 @@ pub enum InternalFlagCode {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Decision taxonomy for internal flag severity in the daily update workflow; each value carries operational meaning for source-grounded routing and review.
+/// Decision choices for internal flag severity in the daily update workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
 pub enum InternalFlagSeverity {
-    /// Represents info in the daily update decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects info for the daily update decision model so the app can choose a review, evidence, or draft path without taking live action.
     Info,
-    /// Represents needs staff review in the daily update decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects needs staff review for the daily update decision model so the app can choose a review, evidence, or draft path without taking live action.
     NeedsStaffReview,
-    /// Represents needs manager review in the daily update decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects needs manager review for the daily update decision model so the app can choose a review, evidence, or draft path without taking live action.
     NeedsManagerReview,
-    /// Represents do not send in the daily update decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects do not send for the daily update decision model so the app can choose a review, evidence, or draft path without taking live action.
     DoNotSend,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Decision taxonomy for recommended flag action in the daily update workflow; each value carries operational meaning for source-grounded routing and review.
+/// Decision choices for recommended flag action in the daily update workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
 pub enum RecommendedFlagAction {
-    /// Represents staff review in the daily update decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects staff review for the daily update decision model so the app can choose a review, evidence, or draft path without taking live action.
     StaffReview,
-    /// Represents manager review in the daily update decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects manager review for the daily update decision model so the app can choose a review, evidence, or draft path without taking live action.
     ManagerReview,
-    /// Represents suppress update in the daily update decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects suppress update for the daily update decision model so the app can choose a review, evidence, or draft path without taking live action.
     SuppressUpdate,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Internal flag carried by the daily update workflow; it packages operational changes into reviewable staff updates instead of free-form agent output.
+/// Internal flag used by the daily update workflow; it packages operational changes into reviewable staff updates instead of free-form agent output.
 pub struct InternalFlag {
-    /// Source-derived Code retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Code copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub code: InternalFlagCode,
-    /// Source-derived Severity retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Severity copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub severity: InternalFlagSeverity,
-    /// Source-derived Message retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Message copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub message: FlagMessage,
-    /// Source-derived Source note ids retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Source note ids copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub source_note_ids: Vec<entities::care_note::Id>,
-    /// Source-derived Recommended action retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Recommended action copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub recommended_action: RecommendedFlagAction,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Included fact carried by the daily update workflow; it packages operational changes into reviewable staff updates instead of free-form agent output.
+/// Included fact used by the daily update workflow; it packages operational changes into reviewable staff updates instead of free-form agent output.
 pub struct IncludedFact {
-    /// Source-derived Source note id retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Source note id copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub source_note_id: entities::care_note::Id,
-    /// Source-derived Summary retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Summary copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub summary: FactSummary,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Omitted fact carried by the daily update workflow; it packages operational changes into reviewable staff updates instead of free-form agent output.
+/// Omitted fact used by the daily update workflow; it packages operational changes into reviewable staff updates instead of free-form agent output.
 pub struct OmittedFact {
-    /// Source-derived Source note id retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Source note id copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub source_note_id: entities::care_note::Id,
-    /// Source-derived Reason retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Reason copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub reason: OmissionReason,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Decision taxonomy for omission reason in the daily update workflow; each value carries operational meaning for source-grounded routing and review.
+/// Decision choices for omission reason in the daily update workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
 pub enum OmissionReason {
     /// Uses internal only as source-grounded evidence for the deterministic decision.
     InternalOnly,
@@ -282,13 +282,13 @@ pub enum OmissionReason {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Send stub carried by the daily update workflow; it packages operational changes into reviewable staff updates instead of free-form agent output.
+/// Send stub used by the daily update workflow; it packages operational changes into reviewable staff updates instead of free-form agent output.
 pub struct SendStub {
-    /// Source-derived Mode retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Mode copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub mode: SendMode,
-    /// Source-derived Blocked by retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Blocked by copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub blocked_by: Vec<policy::ReviewGate>,
-    /// Source-derived Audit action retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Audit action copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub audit_action: entities::audit::Action,
 }
 
@@ -300,9 +300,9 @@ impl SendStub {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Decision taxonomy for send mode in the daily update workflow; each value carries operational meaning for source-grounded routing and review.
+/// Decision choices for send mode in the daily update workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
 pub enum SendMode {
-    /// Represents approval required stub in the daily update decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects approval required stub for the daily update decision model so the app can choose a review, evidence, or draft path without taking live action.
     ApprovalRequiredStub,
 }
 

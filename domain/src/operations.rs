@@ -1,4 +1,4 @@
-//! Portfolio and cross-service operating contracts for pet-resort automation.
+//! Portfolio and cross-service operating values for pet-resort automation.
 //!
 //! This module models the external source-of-truth chain at the broad operations layer:
 //! portfolio facts, Gingr/adjacent-system access patterns, service-line offerings,
@@ -33,33 +33,33 @@ use crate::entities::LocationId;
 )]
 /// Validated operations metric label used for KPI/read-model dimensions.
 ///
-/// Metric names label source-derived facts such as labor-to-revenue risk,
+/// Metric names label provider/read-model facts such as labor-to-revenue risk,
 /// occupancy, utilization, or conversion measures without treating free text as
 /// authoritative workflow state.
 pub struct MetricName(String);
 
-/// Operating day boundary for operations contracts.
+/// Operating-day key used to group service-line demand, staffing, and reporting.
 pub mod operating_day {
     use super::*;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-    /// Typed date domain value that keeps raw primitives out of operations workflows.
+    /// Operating-day date used when manager briefs compare booked demand against staffing and room capacity.
     pub struct Date(NaiveDate);
 
     impl Date {
-        /// Promotes boundary input into a validated operations domain value.
+        /// Accepts a source/read-model operating date after the adapter has already chosen the resort business day.
         pub const fn try_new(value: NaiveDate) -> Result<Self> {
             Ok(Self(value))
         }
 
-        /// Exposes the validated scalar for serialization and adapter boundaries.
+        /// Returns the operating-day date for storage records, analytics projections, or adapter output.
         pub const fn get(self) -> NaiveDate {
             self.0
         }
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-    /// Typed key domain value that keeps raw primitives out of operations workflows.
+    /// Location/service/date key that groups the demand and staffing facts a manager brief can rank.
     pub struct Key {
         location_id: LocationId,
         service_line: super::service_core::ServiceLine,
@@ -67,7 +67,7 @@ pub mod operating_day {
     }
 
     impl Key {
-        /// Assembles this operations value from already-validated domain parts.
+        /// Assembles the resort, service line, and operating day used before analytics can compare labor to demand.
         pub const fn new(
             location_id: LocationId,
             service_line: super::service_core::ServiceLine,
@@ -80,17 +80,17 @@ pub mod operating_day {
             }
         }
 
-        /// Returns this operations value's location id.
+        /// Returns the resort/location whose staffing or capacity queue is being evaluated.
         pub const fn location_id(&self) -> LocationId {
             self.location_id
         }
 
-        /// Returns this operations value's service line.
+        /// Returns the service line whose boarding, daycare, grooming, training, or retail demand is being grouped.
         pub const fn service_line(&self) -> super::service_core::ServiceLine {
             self.service_line
         }
 
-        /// Returns this operations value's date.
+        /// Returns the business day for the manager or regional reporting workflow.
         pub const fn date(&self) -> Date {
             self.date
         }
@@ -100,7 +100,7 @@ pub mod operating_day {
     /// Validation failures returned by operations domain constructors.
     pub enum Error {}
 
-    /// Result type returned by fallible operations operations.
+    /// Result type for operations values that must reject impossible reporting keys before automation sees them.
     pub type Result<T> = std::result::Result<T, Error>;
 }
 
@@ -155,17 +155,17 @@ pub mod operational {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
     /// Portfolio pain area that can become a bounded automation or labor-improvement lane.
     pub enum PainArea {
-        /// Labor efficiency operations signal for labor, capacity, or task planning.
+        /// Labor-efficiency pain area where automation should reduce manual staffing and demand reconciliation.
         LaborEfficiency,
-        /// Customer communication load operations signal for labor, capacity, or task planning.
+        /// Customer-communication pain area where drafting or triage may reduce phone and inbox load.
         CustomerCommunicationLoad,
-        /// Reservation capacity optimization operations signal for labor, capacity, or task planning.
+        /// Reservation-capacity pain area where recommendations must respect room, yard, staff, and policy gates.
         ReservationCapacityOptimization,
-        /// Data fragmentation operations signal for labor, capacity, or task planning.
+        /// Data-fragmentation pain area where duplicate or missing source facts make workflows slower and less safe.
         DataFragmentation,
-        /// Sales retention marketing operations signal for labor, capacity, or task planning.
+        /// Sales/retention pain area where outreach candidates can be ranked but customer contact remains reviewed.
         SalesRetentionMarketing,
-        /// Training and standards operations signal for labor, capacity, or task planning.
+        /// Training/standards pain area where assistants reduce lookup and documentation labor without replacing manager approval.
         TrainingAndStandards,
     }
 }
@@ -177,117 +177,117 @@ pub mod pet_resort {
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
     /// Validated portfolio context used to scope cross-resort automation and reporting.
     pub struct Portfolio {
-        /// Operator fact promoted into this operations contract.
+        /// Operator whose portfolio context explains why the same labor and source-governance contracts apply across resorts.
         pub operator: Operator,
-        /// Resort count fact promoted into this operations contract.
+        /// Number of resorts used to size portfolio rollups; zero resorts is rejected before outcome metrics are reported.
         pub resort_count: ResortCount,
-        /// Structure fact promoted into this operations contract.
+        /// Portfolio structure used to decide whether a brief is local, brand-level, or cross-brand comparison context.
         pub structure: PortfolioStructure,
-        /// Business lines fact promoted into this operations contract.
+        /// Business lines that keep pet-resort automation scoped away from veterinary or equine assumptions unless explicitly modeled.
         pub business_lines: Vec<BusinessLine>,
-        /// Brands fact promoted into this operations contract.
+        /// Pet-resort brands used for navigation and reporting filters, not as automatic permission to change local policy.
         pub brands: Vec<Brand>,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for operator decisions in operations workflows.
+    /// Portfolio operator vocabulary used to scope source evidence and labor-value claims.
     pub enum Operator {
-        /// National veterinary associates operations signal for labor, capacity, or task planning.
+        /// NVA portfolio context for cross-resort reporting; it does not override local manager approval gates.
         NationalVeterinaryAssociates,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for portfolio structure decisions in operations workflows.
+    /// Portfolio structure vocabulary that tells reports whether comparisons are single-brand or federated.
     pub enum PortfolioStructure {
-        /// Federated multi brand operations signal for labor, capacity, or task planning.
+        /// Multi-brand portfolio context where regional reports compare patterns without assuming one brand policy fits every site.
         FederatedMultiBrand,
-        /// Single brand operations signal for labor, capacity, or task planning.
+        /// Single-brand context where comparisons can use a narrower policy and vocabulary set.
         SingleBrand,
         /// Provider role or status could not be mapped confidently.
         Unknown,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for business line decisions in operations workflows.
+    /// NVA business-line vocabulary used to keep pet-resort labor claims separate from other NVA operating models.
     pub enum BusinessLine {
-        /// General practice veterinary hospitals operations signal for labor, capacity, or task planning.
+        /// Veterinary-hospital line of business retained as adjacent context, not a source for pet-resort policy.
         GeneralPracticeVeterinaryHospitals,
-        /// Pet resorts operations signal for labor, capacity, or task planning.
+        /// Pet-resort line of business where boarding, daycare, grooming, training, and retail workflows are in scope.
         PetResorts,
-        /// Equine operations signal for labor, capacity, or task planning.
+        /// Equine line of business retained as out-of-scope portfolio context unless a source contract models it directly.
         Equine,
-        /// Specialty emergency hospitals operations signal for labor, capacity, or task planning.
+        /// Specialty/emergency hospital context retained so reports do not confuse medical operations with resort labor loops.
         SpecialtyEmergencyHospitals,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for brand decisions in operations workflows.
+    /// Pet-resort brand vocabulary used for portfolio filtering and source reconciliation.
     pub enum Brand {
-        /// Nva pet resorts operations signal for labor, capacity, or task planning.
+        /// NVA Pet Resorts portfolio label for rollups and navigation across resort brands.
         NvaPetResorts,
-        /// Pet suites operations signal for labor, capacity, or task planning.
+        /// PetSuites brand label used when comparing resort workflows that may carry brand-specific naming.
         PetSuites,
-        /// Pooch hotel operations signal for labor, capacity, or task planning.
+        /// Pooch Hotel brand label used for portfolio reports without inventing local policy authority.
         PoochHotel,
-        /// Elite suites operations signal for labor, capacity, or task planning.
+        /// Elite Suites brand label for source and reporting filters.
         EliteSuites,
-        /// The bark side operations signal for labor, capacity, or task planning.
+        /// The Bark Side brand label for source and reporting filters.
         TheBarkSide,
-        /// Woofdorf astoria operations signal for labor, capacity, or task planning.
+        /// Woofdorf Astoria brand label for source and reporting filters.
         WoofdorfAstoria,
-        /// Doggie district operations signal for labor, capacity, or task planning.
+        /// Doggie District brand label for source and reporting filters.
         DoggieDistrict,
-        /// Contact or display name used by staff.
+        /// Local or acquired brand name that staff recognize but the domain cannot classify into a known portfolio brand.
         Other {
-            /// Name carried by this variant.
+            /// Display name retained so a reviewer can map the local brand before it appears in portfolio reporting.
             name: crate::location::Name,
         },
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for operating term decisions in operations workflows.
+    /// Operating terms from public/provider context that become labels for labor, source, and workflow discovery.
     pub enum OperatingTerm {
-        /// Pawgress reports operations signal for labor, capacity, or task planning.
+        /// Customer care-report workflow where automation may draft narrative updates but staff approve sends.
         PawgressReports,
-        /// Boarding reservations operations signal for labor, capacity, or task planning.
+        /// Boarding reservation workflow whose demand, suites, and stay dates drive capacity and labor planning.
         BoardingReservations,
-        /// Daycare packages operations signal for labor, capacity, or task planning.
+        /// Daycare package workflow where eligibility, unused sessions, and staffed playgroups affect value and safety.
         DaycarePackages,
-        /// Pet points rewards operations signal for labor, capacity, or task planning.
+        /// Loyalty/rewards context useful for customer questions; it does not authorize point or billing changes by automation.
         PetPointsRewards,
-        /// Gingr customer portal operations signal for labor, capacity, or task planning.
+        /// Gingr portal context for customer self-service evidence before source promotion.
         GingrCustomerPortal,
-        /// Lead capture and conversion operations signal for labor, capacity, or task planning.
+        /// Lead conversion workflow where automation may rank follow-up work but cannot book or message without approval.
         LeadCaptureAndConversion,
-        /// Website email social outreach operations signal for labor, capacity, or task planning.
+        /// Marketing/outreach source context for demand discovery and drafted responses.
         WebsiteEmailSocialOutreach,
-        /// Local market plans operations signal for labor, capacity, or task planning.
+        /// Local-market planning context for human-reviewed growth work, not an automatic pricing or staffing decision.
         LocalMarketPlans,
-        /// Sales labor expenses customer satisfaction kpis operations signal for labor, capacity, or task planning.
+        /// KPI bundle used to compare revenue, labor expense, and satisfaction without treating any one metric as final authority.
         SalesLaborExpensesCustomerSatisfactionKpis,
-        /// Osha cash handling operational compliance operations signal for labor, capacity, or task planning.
+        /// Compliance context that must stay human-reviewed before safety, cash-handling, or personnel actions occur.
         OshaCashHandlingOperationalCompliance,
-        /// Training certification completion operations signal for labor, capacity, or task planning.
+        /// Staff training completion context for standards follow-up and manager coaching queues.
         TrainingCertificationCompletion,
-        /// Resort level ebitda profitability operations signal for labor, capacity, or task planning.
+        /// Resort profitability context for regional reporting; automation may summarize variance, not change budgets.
         ResortLevelEbitdaProfitability,
-        /// Grooming cadence operations signal for labor, capacity, or task planning.
+        /// Grooming rebooking cadence context for staff-reviewed outreach and schedule-fill opportunities.
         GroomingCadence,
-        /// Daycare eligibility rules operations signal for labor, capacity, or task planning.
+        /// Daycare eligibility context where temperament, vaccine, and ratio rules remain safety gates.
         DaycareEligibilityRules,
-        /// Guest experience operations signal for labor, capacity, or task planning.
+        /// Guest-experience context for reputation and follow-up queues where customer contact stays review-gated.
         GuestExperience,
-        /// Team member engagement retention operations signal for labor, capacity, or task planning.
+        /// Team-member engagement context for manager coaching and labor risk summaries, not personnel action automation.
         TeamMemberEngagementRetention,
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-/// Nonzero count of resorts in the operating portfolio.
+/// Nonzero count of resorts used when portfolio metrics claim regional or cross-brand labor impact.
 pub struct ResortCount(u16);
 
 impl ResortCount {
-    /// Promotes boundary input into a validated operations domain value.
+    /// Accepts a source/read-model operating date after the adapter has already chosen the resort business day.
     pub const fn try_new(value: u16) -> Result<Self, ResortCountError> {
         if value == 0 {
             return Err(ResortCountError::ZeroResorts);
@@ -295,7 +295,7 @@ impl ResortCount {
         Ok(Self(value))
     }
 
-    /// Exposes the validated scalar for serialization and adapter boundaries.
+    /// Returns the operating-day date for storage records, analytics projections, or adapter output.
     pub const fn get(self) -> u16 {
         self.0
     }
@@ -311,10 +311,10 @@ impl<'de> Deserialize<'de> for ResortCount {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-/// Domain vocabulary for resort count error decisions in operations workflows.
+/// Resort-count validation failure that prevents meaningless portfolio reports.
 pub enum ResortCountError {
     #[error("pet resort portfolios require at least one resort")]
-    /// Zero resorts operations signal for labor, capacity, or task planning.
+    /// Zero resorts would make labor-value and portfolio comparisons fictitious, so construction fails.
     ZeroResorts,
 }
 
@@ -323,37 +323,37 @@ pub enum ResortCountError {
 pub enum ServiceOffering {
     /// Overnight stay service line.
     Boarding {
-        /// Accommodation fact promoted into this operations contract.
+        /// Boarding room/suite choice that drives capacity checks and room-labor expectations.
         accommodation: lodging_offer::Accommodation,
-        /// Included care fact promoted into this operations contract.
+        /// Included boarding care features that explain kennel labor before any upsell or customer copy is drafted.
         included_care: Vec<lodging_offer::CareFeature>,
-        /// Add ons fact promoted into this operations contract.
+        /// Optional boarding add-ons that can become reviewed upsell or staffing signals.
         add_ons: Vec<lodging_offer::AddOn>,
     },
-    /// Daycare operations signal for labor, capacity, or task planning.
+    /// Daycare service offering where group-play eligibility and staffing ratios gate automation suggestions.
     Daycare {
-        /// Format fact promoted into this operations contract.
+        /// Daycare format used to estimate play-yard, room, and supervision needs.
         format: DaycareFormat,
-        /// Eligibility rules fact promoted into this operations contract.
+        /// Daycare rules that must be satisfied before group-play recommendations or package value claims are shown.
         eligibility_rules: Vec<DaycareEligibilityRule>,
     },
     /// Grooming service line or care-note category.
     Grooming {
         /// Requested service that drives scheduling and labor estimates.
         service: crate::grooming::Service,
-        /// Cadence fact promoted into this operations contract.
+        /// Grooming rebooking cadence used to explain follow-up timing; it does not send customer outreach by itself.
         cadence: crate::grooming::rebooking::Cadence,
     },
     /// Training service line or care-note category.
     Training {
-        /// Program fact promoted into this operations contract.
+        /// Training program context used for package progress, trainer handoff, and graduation/follow-up tasks.
         program: crate::training::Program,
     },
-    /// Retail partner product operations signal for labor, capacity, or task planning.
+    /// Retail partner product context for inventory and recommendation workflows; purchasing and discounts stay gated.
     RetailPartnerProduct {
-        /// Partner fact promoted into this operations contract.
+        /// Retail partner whose catalog evidence can explain recommendations but cannot override local inventory policy.
         partner: crate::retail::Partner,
-        /// Category fact promoted into this operations contract.
+        /// Retail category used to match checkout, inventory, and care-sensitive recommendation rules.
         category: crate::retail::product::Category,
     },
 }
@@ -363,45 +363,45 @@ pub mod lodging_offer {
     use super::*;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for accommodation decisions in operations workflows.
+    /// Boarding accommodation vocabulary used for room capacity and housekeeping-labor math.
     pub enum Accommodation {
-        /// Classic suite operations signal for labor, capacity, or task planning.
+        /// Standard boarding suite option used as baseline capacity and housekeeping labor.
         ClassicSuite,
-        /// Luxury suite operations signal for labor, capacity, or task planning.
+        /// Premium boarding suite option that may affect capacity, add-on value, and service expectations.
         LuxurySuite,
-        /// Cat condo operations signal for labor, capacity, or task planning.
+        /// Cat lodging option kept distinct from dog suites for capacity and care-labor planning.
         CatCondo,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for care feature decisions in operations workflows.
+    /// Boarding care-feature vocabulary used to explain included labor and customer-update obligations.
     pub enum CareFeature {
-        /// Daily housekeeping operations signal for labor, capacity, or task planning.
+        /// Daily housekeeping care feature that contributes predictable kennel labor.
         DailyHousekeeping,
-        /// Potty walks operations signal for labor, capacity, or task planning.
+        /// Potty-walk care feature that affects labor scheduling and owner expectations.
         PottyWalks,
-        /// Bedding operations signal for labor, capacity, or task planning.
+        /// Bedding care feature that affects room setup and cleaning labor.
         Bedding,
         /// Progress report shared with the customer during care.
         PawgressReport,
-        /// Feeding support operations signal for labor, capacity, or task planning.
+        /// Feeding-support feature that can require staff instructions and care-note evidence.
         FeedingSupport,
-        /// Medication support operations signal for labor, capacity, or task planning.
+        /// Medication-support feature that stays safety-sensitive and must not be changed by automation.
         MedicationSupport,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for add on decisions in operations workflows.
+    /// Boarding add-on vocabulary used for reviewed upsell, capacity, and labor signals.
     pub enum AddOn {
-        /// Playtime operations signal for labor, capacity, or task planning.
+        /// Playtime add-on that creates extra yard or staff time before it can be offered or scheduled.
         Playtime,
         /// Bath offered before departure from boarding.
         ExitBath,
-        /// Premium suite operations signal for labor, capacity, or task planning.
+        /// Premium-suite add-on that changes room value and capacity expectations.
         PremiumSuite,
         /// Grooming service line or care-note category.
         Grooming,
-        /// Training session operations signal for labor, capacity, or task planning.
+        /// Training-session add-on that requires trainer availability and human-reviewed scheduling.
         TrainingSession,
     }
 }
@@ -409,54 +409,54 @@ pub mod lodging_offer {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Daycare format whose eligibility and supervision needs affect staffing.
 pub enum DaycareFormat {
-    /// All day play operations signal for labor, capacity, or task planning.
+    /// Full-day daycare format with the largest playgroup labor and ratio exposure.
     AllDayPlay,
-    /// Half day play operations signal for labor, capacity, or task planning.
+    /// Half-day daycare format that changes demand units and staffing windows.
     HalfDayPlay,
     /// Daytime boarding care with lodging-style supervision.
     DayBoarding,
-    /// Day play plus room operations signal for labor, capacity, or task planning.
+    /// Daycare format with both playgroup and room capacity implications.
     DayPlayPlusRoom,
-    /// Cat individual playtime operations signal for labor, capacity, or task planning.
+    /// Cat playtime format kept separate from dog group-play eligibility and staffing assumptions.
     CatIndividualPlaytime,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Daycare rule that gates group-play workflow and protects staffing/safety decisions.
 pub enum DaycareEligibilityRule {
-    /// Temperament review required operations signal for labor, capacity, or task planning.
+    /// Temperament review gate that blocks group-play automation until a human/source record supports it.
     TemperamentReviewRequired,
-    /// Spay neuter required for group play operations signal for labor, capacity, or task planning.
+    /// Spay/neuter rule that can explain a daycare hold but cannot be bypassed by an agent recommendation.
     SpayNeuterRequiredForGroupPlay,
-    /// Vaccine proof required operations signal for labor, capacity, or task planning.
+    /// Vaccine-proof rule that keeps daycare safety review ahead of package or playgroup recommendations.
     VaccineProofRequired,
-    /// Staff to pet ratio required operations signal for labor, capacity, or task planning.
+    /// Staff-to-pet ratio rule that turns demand into a labor-capacity constraint.
     StaffToPetRatioRequired,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 /// Validated technology/source-system context for integrations and read models.
 pub struct TechnologyEcosystem {
-    /// Core portal fact promoted into this operations contract.
+    /// Primary operating system whose records may feed workflows after DTO quarantine and domain promotion.
     pub core_portal: service_core::OperatingSystem,
-    /// Data access fact promoted into this operations contract.
+    /// Access patterns that describe how source facts arrive before validation and redaction.
     pub data_access: Vec<DataAccessPattern>,
-    /// Adjacent systems fact promoted into this operations contract.
+    /// Adjacent systems that can corroborate labor, revenue, marketing, or review evidence without becoming domain policy.
     pub adjacent_systems: Vec<AdjacentSystem>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Way operational source facts can enter the platform before validation.
 pub enum DataAccessPattern {
-    /// Api operations signal for labor, capacity, or task planning.
+    /// Direct API access path for source facts, subject to transport redaction and mapping contracts.
     Api,
-    /// Webhook operations signal for labor, capacity, or task planning.
+    /// Webhook access path for event-driven evidence that still requires idempotent mapping and review gates.
     Webhook,
-    /// Data export operations signal for labor, capacity, or task planning.
+    /// Batch export path used for reconciliation when live API authority is unavailable or inappropriate.
     DataExport,
-    /// Warehouse operations signal for labor, capacity, or task planning.
+    /// Warehouse path used for aggregate reporting rather than live provider writes.
     Warehouse,
-    /// Business intelligence dashboard operations signal for labor, capacity, or task planning.
+    /// BI dashboard source used as reporting evidence, not as a workflow authority.
     BusinessIntelligenceDashboard,
     /// Provider role or status could not be mapped confidently.
     Unknown,
@@ -465,252 +465,252 @@ pub enum DataAccessPattern {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Adjacent enterprise system that can provide labor, revenue, marketing, or review evidence.
 pub enum AdjacentSystem {
-    /// Avature recruiting operations signal for labor, capacity, or task planning.
+    /// Recruiting system context for staffing risk and hiring pipeline evidence.
     AvatureRecruiting,
-    /// Ga4 operations signal for labor, capacity, or task planning.
+    /// GA4 marketing/traffic evidence for demand and lead-funnel context.
     Ga4,
-    /// Amplitude operations signal for labor, capacity, or task planning.
+    /// Amplitude product analytics evidence for portal or app behavior.
     Amplitude,
-    /// Google tag manager operations signal for labor, capacity, or task planning.
+    /// Google Tag Manager context for instrumentation evidence, not customer-contact authority.
     GoogleTagManager,
-    /// Hris operations signal for labor, capacity, or task planning.
+    /// HRIS context for staffing evidence; personnel actions remain outside automation authority.
     Hris,
     /// Labor scheduling source for staffing plans.
     LaborScheduling,
     /// Payroll source for labor-cost reconciliation.
     Payroll,
-    /// Marketing automation operations signal for labor, capacity, or task planning.
+    /// Marketing automation context for campaign evidence; customer sends stay approval-gated.
     MarketingAutomation,
-    /// Ticketing operations signal for labor, capacity, or task planning.
+    /// Ticketing context for support workload and unresolved exception queues.
     Ticketing,
-    /// Call center telephony operations signal for labor, capacity, or task planning.
+    /// Call-center telephony evidence for repeat-question volume and deflection opportunities.
     CallCenterTelephony,
-    /// Reviews operations signal for labor, capacity, or task planning.
+    /// Review-platform evidence for reputation triage and human-approved responses.
     Reviews,
-    /// Email sms marketing operations signal for labor, capacity, or task planning.
+    /// Email/SMS marketing evidence for retention outreach; sends remain human-approved.
     EmailSmsMarketing,
     /// Reporting or BI data source.
     BusinessIntelligence,
-    /// Data lake operations signal for labor, capacity, or task planning.
+    /// Data-lake context for aggregate evidence and historical reconciliation.
     DataLake,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Bounded AI use case mapped to a measurable workflow and human-approval boundary.
+/// Bounded AI use case mapped to a measurable workflow and human-approval gate.
 pub enum AiUseCase {
-    /// Resort manager daily briefing operations signal for labor, capacity, or task planning.
+    /// Daily manager brief ranks source-backed exceptions so managers can avoid morning spreadsheet reconciliation.
     ResortManagerDailyBriefing,
-    /// Regional ops exception reporting operations signal for labor, capacity, or task planning.
+    /// Regional exception reports summarize cross-site risks for review without changing local workflows automatically.
     RegionalOpsExceptionReporting,
-    /// Customer inbox and call deflection operations signal for labor, capacity, or task planning.
+    /// Inbox/call deflection drafts answers for repeat questions while customer sends remain gated.
     CustomerInboxAndCallDeflection,
-    /// Lead conversion operations signal for labor, capacity, or task planning.
+    /// Lead conversion ranks follow-up opportunities; booking, pricing, and messages remain approval-gated.
     LeadConversion,
-    /// Grooming rebooking operations signal for labor, capacity, or task planning.
+    /// Grooming rebooking identifies cadence gaps and drafts follow-up for staff review.
     GroomingRebooking,
-    /// Post stay pawgress report assistant operations signal for labor, capacity, or task planning.
+    /// Post-stay Pawgress assistant drafts care summaries from evidence that staff approve before sending.
     PostStayPawgressReportAssistant,
-    /// Review reputation triage operations signal for labor, capacity, or task planning.
+    /// Reputation triage classifies review risk and drafts responses for human approval.
     ReviewReputationTriage,
-    /// Sop knowledge assistant operations signal for labor, capacity, or task planning.
+    /// SOP knowledge assistant reduces lookup labor but does not replace manager judgment or safety policy.
     SopKnowledgeAssistant,
-    /// Data quality ops hygiene operations signal for labor, capacity, or task planning.
+    /// Data-quality hygiene queues duplicate, stale, or missing-source records for review.
     DataQualityOpsHygiene,
-    /// Incident report drafting operations signal for labor, capacity, or task planning.
+    /// Incident report drafting organizes facts for safety review; it does not finalize incident determinations.
     IncidentReportDrafting,
-    /// Training onboarding assistant operations signal for labor, capacity, or task planning.
+    /// Training onboarding assistant drafts learning paths and checklists for manager review.
     TrainingOnboardingAssistant,
-    /// Lapsed customer winback operations signal for labor, capacity, or task planning.
+    /// Lapsed-customer winback ranks outreach candidates while customer contact remains approval-gated.
     LapsedCustomerWinback,
-    /// Boarding pre arrival checklist automation operations signal for labor, capacity, or task planning.
+    /// Boarding pre-arrival checklist surfaces vaccine, feeding, and accommodation gaps before check-in.
     BoardingPreArrivalChecklistAutomation,
-    /// Capacity alerts operations signal for labor, capacity, or task planning.
+    /// Capacity alerts warn staff about room, yard, or service-slot pressure before accepting more demand.
     CapacityAlerts,
-    /// Labor revenue anomaly detection operations signal for labor, capacity, or task planning.
+    /// Labor/revenue anomaly detection flags variance for manager review before staffing or pricing changes.
     LaborRevenueAnomalyDetection,
-    /// Website reservation assistant operations signal for labor, capacity, or task planning.
+    /// Website reservation assistant can draft intake help, not commit bookings or provider writes.
     WebsiteReservationAssistant,
-    /// Vaccination document collection operations signal for labor, capacity, or task planning.
+    /// Vaccination document collection reduces chase-down labor while medical/safety acceptance remains reviewed.
     VaccinationDocumentCollection,
-    /// Demand forecasting operations signal for labor, capacity, or task planning.
+    /// Demand forecasting projects service-line workload so staffing plans can be reviewed earlier.
     DemandForecasting,
-    /// Staffing recommendations operations signal for labor, capacity, or task planning.
+    /// Staffing recommendations compare forecast demand with labor signals but remain manager-reviewed.
     StaffingRecommendations,
-    /// Regional performance benchmarking operations signal for labor, capacity, or task planning.
+    /// Regional benchmarking compares sites for coaching and investigation, not automatic enforcement.
     RegionalPerformanceBenchmarking,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Portfolio-level hygiene issue type that can explain unreliable labor/read-model signals.
 pub enum DataQualityIssue {
-    /// Missing pet vaccination records operations signal for labor, capacity, or task planning.
+    /// Missing vaccine record issue queues document follow-up and blocks unsafe eligibility assumptions.
     MissingPetVaccinationRecords,
-    /// Incomplete pet profiles operations signal for labor, capacity, or task planning.
+    /// Incomplete pet profile issue explains why care, eligibility, or communication drafts need staff review.
     IncompletePetProfiles,
-    /// Duplicate customers operations signal for labor, capacity, or task planning.
+    /// Duplicate customer issue reduces lookup and billing confusion after a human verifies merge safety.
     DuplicateCustomers,
-    /// Missing temperament notes operations signal for labor, capacity, or task planning.
+    /// Missing temperament note issue blocks group-play confidence until staff/source evidence exists.
     MissingTemperamentNotes,
-    /// Open invoices operations signal for labor, capacity, or task planning.
+    /// Open invoice issue surfaces checkout or payment follow-up without authorizing payment movement.
     OpenInvoices,
-    /// Unclosed reservations operations signal for labor, capacity, or task planning.
+    /// Unclosed reservation issue helps staff finish stays before occupancy, billing, or labor reports drift.
     UnclosedReservations,
-    /// Unused packages operations signal for labor, capacity, or task planning.
+    /// Unused package issue can explain retention opportunities while outreach and account changes stay reviewed.
     UnusedPackages,
-    /// Staff notes too vague operations signal for labor, capacity, or task planning.
+    /// Vague staff-note issue queues cleanup because weak evidence makes summaries and safety handoffs unreliable.
     StaffNotesTooVague,
-    /// Inconsistent service naming across sites operations signal for labor, capacity, or task planning.
+    /// Inconsistent service-name issue prevents cross-site reporting from merging unlike offerings by accident.
     InconsistentServiceNamingAcrossSites,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Resort operating function whose workload can be reduced or coordinated by automation.
 pub enum OperatingFunction {
-    /// Front desk operations signal for labor, capacity, or task planning.
+    /// Front desk workload includes check-in, checkout, phone, inbox, and source-correction queues.
     FrontDesk,
-    /// Call center operations signal for labor, capacity, or task planning.
+    /// Call-center workload covers repeat questions and lead routing that automation may draft or classify.
     CallCenter,
-    /// General managers operations signal for labor, capacity, or task planning.
+    /// General managers own daily review gates for staffing, capacity, exceptions, and customer-impacting actions.
     GeneralManagers,
-    /// Assistant general managers operations signal for labor, capacity, or task planning.
+    /// Assistant general managers share local exception review and handoff cleanup work.
     AssistantGeneralManagers,
-    /// Regional operations operations signal for labor, capacity, or task planning.
+    /// Regional operations reviews portfolio variance and coaching opportunities without bypassing site authority.
     RegionalOperations,
     /// Grooming service line or care-note category.
     Grooming,
     /// Training service line or care-note category.
     Training,
-    /// Marketing operations signal for labor, capacity, or task planning.
+    /// Marketing workload includes reviewed outreach, campaign evidence, and retention queues.
     Marketing,
-    /// Information technology operations signal for labor, capacity, or task planning.
+    /// IT workload includes integration, access, and source-system hygiene needed before automation can trust evidence.
     InformationTechnology,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Training/standards workflow where AI can reduce lookup or documentation labor.
 pub enum StaffTrainingWorkflow {
-    /// New hire onboarding operations signal for labor, capacity, or task planning.
+    /// New-hire onboarding workflow can draft checklists and quizzes but manager certification remains authoritative.
     NewHireOnboarding,
-    /// Sop lookup operations signal for labor, capacity, or task planning.
+    /// SOP lookup workflow reduces policy-search time while safety-sensitive interpretation stays reviewed.
     SopLookup,
-    /// Incident documentation operations signal for labor, capacity, or task planning.
+    /// Incident documentation workflow drafts chronology and evidence packets for safety review.
     IncidentDocumentation,
-    /// Pet behavior note consistency operations signal for labor, capacity, or task planning.
+    /// Pet-behavior note consistency workflow helps staff rewrite vague notes into source-backed handoffs.
     PetBehaviorNoteConsistency,
-    /// Manager coaching operations signal for labor, capacity, or task planning.
+    /// Manager coaching workflow summarizes patterns for human coaching, not personnel action automation.
     ManagerCoaching,
-    /// Regulatory safety policy operations signal for labor, capacity, or task planning.
+    /// Regulatory/safety policy workflow keeps compliance answers review-gated and source-cited.
     RegulatorySafetyPolicy,
-    /// Customer complaint handling operations signal for labor, capacity, or task planning.
+    /// Customer complaint workflow drafts summaries and responses for manager approval.
     CustomerComplaintHandling,
-    /// Training quiz generation operations signal for labor, capacity, or task planning.
+    /// Training quiz workflow drafts knowledge checks that managers review before using for certification.
     TrainingQuizGeneration,
-    /// Shift lead copilot operations signal for labor, capacity, or task planning.
+    /// Shift-lead copilot workflow summarizes tasks and risks but does not assign safety-sensitive work unsupervised.
     ShiftLeadCopilot,
-    /// Shift summary operations signal for labor, capacity, or task planning.
+    /// Shift summary workflow converts source-backed notes into handoffs that supervisors can verify.
     ShiftSummary,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// High-volume customer communication workflow suitable for drafting or triage.
 pub enum CustomerCommunicationWorkflow {
-    /// Availability question operations signal for labor, capacity, or task planning.
+    /// Availability questions can be answered from source-backed capacity only when booking remains review-gated.
     AvailabilityQuestion,
-    /// Vaccine requirement question operations signal for labor, capacity, or task planning.
+    /// Vaccine requirement questions need policy/source citations and cannot approve medical compliance automatically.
     VaccineRequirementQuestion,
-    /// Multi pet boarding question operations signal for labor, capacity, or task planning.
+    /// Multi-pet boarding questions combine room capacity, household context, and staff-reviewed booking rules.
     MultiPetBoardingQuestion,
-    /// Group play eligibility question operations signal for labor, capacity, or task planning.
+    /// Group-play eligibility questions depend on temperament, vaccine, and ratio evidence before recommendations.
     GroupPlayEligibilityQuestion,
-    /// Daycare readiness question operations signal for labor, capacity, or task planning.
+    /// Daycare readiness questions turn profile evidence into staff-reviewed eligibility guidance.
     DaycareReadinessQuestion,
-    /// Add bath request operations signal for labor, capacity, or task planning.
+    /// Add-bath requests affect grooming/exit-bath capacity and require schedule confirmation.
     AddBathRequest,
-    /// Pet update request operations signal for labor, capacity, or task planning.
+    /// Pet-update requests may draft from care notes, but customer-visible messages remain staff-approved.
     PetUpdateRequest,
-    /// Checkout time question operations signal for labor, capacity, or task planning.
+    /// Checkout-time questions use reservation policy evidence and do not change stay or fee state automatically.
     CheckoutTimeQuestion,
-    /// Cancel or change reservation operations signal for labor, capacity, or task planning.
+    /// Cancel/change questions require human approval before schedule mutation, fee, or provider write.
     CancelOrChangeReservation,
-    /// Loyalty points question operations signal for labor, capacity, or task planning.
+    /// Loyalty-points questions can summarize account evidence but cannot adjust balances automatically.
     LoyaltyPointsQuestion,
-    /// Training options question operations signal for labor, capacity, or task planning.
+    /// Training-options questions can rank programs while enrollment and scheduling remain reviewed.
     TrainingOptionsQuestion,
-    /// Anxiety or special handling question operations signal for labor, capacity, or task planning.
+    /// Anxiety/special-handling questions stay safety-sensitive and require staff review before care commitments.
     AnxietyOrSpecialHandlingQuestion,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Constraint that limits capacity utilization or creates labor mismatch risk.
 pub enum CapacityConstraintKind {
-    /// Room or suite availability operations signal for labor, capacity, or task planning.
+    /// Room/suite availability constraint blocks overbooking and informs waitlist or staffing review.
     RoomOrSuiteAvailability,
-    /// Play yard availability operations signal for labor, capacity, or task planning.
+    /// Play-yard availability constraint links daycare demand to space and supervision limits.
     PlayYardAvailability,
-    /// Groomer slot availability operations signal for labor, capacity, or task planning.
+    /// Groomer-slot availability constraint protects schedule promises and grooming labor plans.
     GroomerSlotAvailability,
-    /// Trainer availability operations signal for labor, capacity, or task planning.
+    /// Trainer availability constraint protects package scheduling and trainer handoff promises.
     TrainerAvailability,
-    /// Staff ratio operations signal for labor, capacity, or task planning.
+    /// Staff-ratio constraint turns pet counts into safety and labor review requirements.
     StaffRatio,
-    /// Pet temperament operations signal for labor, capacity, or task planning.
+    /// Pet-temperament constraint can block group play or require manager review before recommendations.
     PetTemperament,
-    /// Holiday peak operations signal for labor, capacity, or task planning.
+    /// Holiday-peak constraint flags demand periods where minimum stays, staffing, and capacity need review.
     HolidayPeak,
-    /// Check in checkout bottleneck operations signal for labor, capacity, or task planning.
+    /// Check-in/checkout bottleneck constraint explains front-desk labor pressure and queue risk.
     CheckInCheckoutBottleneck,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Labor, capacity, or revenue optimization lever supported by validated source facts.
 pub enum OptimizationOpportunity {
-    /// Demand forecasting operations signal for labor, capacity, or task planning.
+    /// Demand forecasting projects service-line workload so staffing plans can be reviewed earlier.
     DemandForecasting,
-    /// No show prediction operations signal for labor, capacity, or task planning.
+    /// No-show prediction can rank follow-up or waitlist work but cannot cancel or rebook automatically.
     NoShowPrediction,
-    /// Dynamic waitlist filling operations signal for labor, capacity, or task planning.
+    /// Dynamic waitlist filling recommends candidates for human-approved booking outreach.
     DynamicWaitlistFilling,
-    /// Capacity recommendation operations signal for labor, capacity, or task planning.
+    /// Capacity recommendation summarizes source-backed pressure while booking decisions stay reviewed.
     CapacityRecommendation,
-    /// Add on recommendation operations signal for labor, capacity, or task planning.
+    /// Add-on recommendation can surface relevant services but customer offers remain approved by staff.
     AddOnRecommendation,
-    /// Holiday planning operations signal for labor, capacity, or task planning.
+    /// Holiday planning uses forecast demand to prepare staffing and capacity reviews ahead of peak periods.
     HolidayPlanning,
-    /// Over under staffing alert operations signal for labor, capacity, or task planning.
+    /// Over/under-staffing alert compares demand with schedules so managers can review labor changes.
     OverUnderStaffingAlert,
-    /// Revenue optimization without care degradation operations signal for labor, capacity, or task planning.
+    /// Revenue optimization is constrained by care and safety evidence before any pricing or offer change is considered.
     RevenueOptimizationWithoutCareDegradation,
 }
 
-/// Core service-line boundary joining source systems to service contracts.
+/// Core service-line vocabulary joining source systems to resort operating models.
 pub mod service_core {
     use super::*;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for operating system decisions in operations workflows.
+    /// Operating-system vocabulary that tells source adapters which provider facts need quarantine before domain promotion.
     pub enum OperatingSystem {
         /// Gingr reservation and pet-care operating system.
         Gingr,
-        /// Mixed systems operations signal for labor, capacity, or task planning.
+        /// Mixed operating systems require source reconciliation before automation trusts cross-system facts.
         MixedSystems,
         /// Provider role or status could not be mapped confidently.
         Unknown,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-    /// Service-line contract bundle for one resort/location's operating model.
+    /// Service-line operating bundle for one resort/location.
     pub struct ServiceContracts {
-        /// Location id fact promoted into this operations contract.
+        /// Location whose service contracts and outcomes are being compared in local or regional reports.
         pub location_id: LocationId,
-        /// Boarding fact promoted into this operations contract.
+        /// Boarding contract that owns stay, suite, minimum-stay, and checkout-exception rules.
         pub boarding: crate::boarding::Contract,
-        /// Daycare fact promoted into this operations contract.
+        /// Daycare contract that owns group-play eligibility, package, and ratio rules.
         pub daycare: crate::daycare::Contract,
-        /// Grooming fact promoted into this operations contract.
+        /// Grooming contract that owns service duration, rebooking cadence, add-on, and no-show rules.
         pub grooming: crate::grooming::Contract,
-        /// Training fact promoted into this operations contract.
+        /// Training contract that owns program progress, package, graduation, and trainer handoff rules.
         pub training: crate::training::Contract,
-        /// Retail fact promoted into this operations contract.
+        /// Retail contract that owns catalog, inventory, POS, recommendation, and reorder gates.
         pub retail: crate::retail::Contract,
     }
 
@@ -732,13 +732,13 @@ pub mod service_core {
     pub enum ServiceLine {
         /// Overnight stay service line.
         Boarding,
-        /// Daycare operations signal for labor, capacity, or task planning.
+        /// Daycare service offering where group-play eligibility and staffing ratios gate automation suggestions.
         Daycare,
         /// Grooming service line or care-note category.
         Grooming,
         /// Training service line or care-note category.
         Training,
-        /// Retail operations signal for labor, capacity, or task planning.
+        /// Retail service line partitions inventory, checkout, and recommendation work from care-service capacity.
         Retail,
     }
 }

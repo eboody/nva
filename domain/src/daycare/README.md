@@ -1,8 +1,20 @@
 # `domain::daycare`
 
+Operator translation: daycare pages describe how the system helps front-desk and care teams route day-play/day-boarding check-ins, package questions, staffing ratios, group-play eligibility, incident restrictions, and package opportunities to the right review lane. In code, that business meaning lives in `domain::daycare`, where `Contract` means a source-backed daycare rule bundle, not a customer/legal contract.
+
 `domain::daycare` is the domain crate's model for daytime pet-resort care. It owns daycare concepts that should not be flattened into provider payloads, database codes, or front-desk notes: service variants and care modes, attendance rules, prepaid package policy, staff-to-pet coverage, group-play eligibility, playgroup assignment, incident restrictions, front-desk check-in lanes, and package-opportunity review.
 
 Start at [`mod.rs`](./mod.rs). It declares the module surface, defines shared validated scalars such as [`domain::daycare::PackageVisits`](./mod.rs), [`StaffCount`](./mod.rs), and [`PetCount`](./mod.rs), maps [`domain::daycare::ServiceVariant`](./mod.rs) values to [`CareMode`](./mod.rs), and collects policy values into [`domain::daycare::Contract`](./mod.rs). `Contract::standard_petsuites` is a fixture-like standard contract used by service-contract storage and tests; it is not a complete catalog of every daycare product.
+
+## Operator summary
+
+Daycare supports the staff decisions that happen before and during a busy check-in window: whether a pet belongs in fast-lane check-in, collection, care-team review, manager review, policy block, waitlist, group-play eligibility review, playgroup assignment, incident restriction, or package-opportunity review. The module reduces labor by turning repeated manual lookups of attendance policy, package state, staff-to-pet ratios, temperament/vaccine readiness, incident restrictions, and customer-message readiness into typed routing decisions that front-desk, care-team, and manager workflows can review.
+
+It is not allowed to automate live admission, playgroup placement, customer messaging, payment collection, package enrollment, reservation mutation, incident reinstatement, or manager override by itself. Daycare domain decisions are readiness, classification, queue, and review-gate facts; app/runtime code must still require the relevant human approval before any customer-, pet-safety-, billing-, staffing-, or provider-facing side effect.
+
+The authoritative source facts remain outside this README: reservation and attendance state from `domain::entities::Reservation` / `domain::entities::reservation::Id` and provider-promoted reservation snapshots; pet identity, species, spay/neuter, temperament, care profile, vaccine/document state, and incident history from the shared domain modules; location contract values in `domain::daycare::Contract`; staff coverage from labor/roster inputs represented as `domain::daycare::coverage::RosterSnapshot`; package/payment state from the approved package and payment sources; and provider provenance through `domain::source::RecordRef` / `domain::source::Provenance`. If those packets do not prove a fact, daycare should return a review lane or discovery need instead of inventing the answer.
+
+Review gates protect pets, customers, and staff at every escalation point: behavior review for missing/stale temperament evidence or group-play concerns, medical/document review for vaccine or care-readiness gaps, manager approval for ratio/capacity overrides and serious incident restrictions, customer-message approval for package recommendations or outbound updates, and billing review before package/payment actions. Those gates explain the next staff queue; they do not clear themselves.
 
 ## Module navigation
 

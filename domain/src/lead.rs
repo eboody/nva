@@ -1,4 +1,4 @@
-//! Canonical domain contracts for cross-service lead conversion triage.
+//! Cross-service lead conversion triage for resort sales follow-up.
 //!
 //! These types describe resort sales/intake state independent of any one
 //! service line. They promote web/phone/SMS/source facts into validated sales
@@ -49,101 +49,101 @@ pub struct SourceName(String);
 pub struct CampaignName(String);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Source-derived lead triage record for sales follow-up and booking workflows.
+/// Lead triage record that turns source contact evidence into safe sales follow-up work.
 pub struct Triage {
-    /// Customer id fact promoted into this lead contract.
+    /// Existing customer record when staff can link the lead to a known account.
     pub customer_id: Option<CustomerId>,
-    /// Source fact promoted into this lead contract.
+    /// Channel or campaign that explains where the lead came from.
     pub source: Source,
-    /// Intent fact promoted into this lead contract.
+    /// Service or change the customer appears to be asking about.
     pub intent: Intent,
-    /// Stage fact promoted into this lead contract.
+    /// Sales stage used to rank follow-up labor and booking readiness.
     pub stage: ConversionStage,
-    /// Requested service fact promoted into this lead contract.
+    /// Requested resort service when the source evidence is specific enough.
     pub requested_service: Option<ServiceKind>,
-    /// Next action fact promoted into this lead contract.
+    /// Staff-safe next step; automation may draft, route, or summarize but not book or promise capacity.
     pub next_action: NextAction,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for source decisions in lead workflows.
+/// Lead source retained so marketing and intake teams can audit where demand originated.
 pub enum Source {
-    /// Website form sales lead state, source, or follow-up signal.
+    /// Lead originated from a website form and may be routed to intake follow-up.
     WebsiteForm,
-    /// Phone sales lead state, source, or follow-up signal.
+    /// Lead originated from a phone call or voicemail that staff may need to summarize or return.
     Phone,
-    /// Sms sales lead state, source, or follow-up signal.
+    /// Lead originated from SMS and should respect texting consent and response boundaries.
     Sms,
-    /// Email sales lead state, source, or follow-up signal.
+    /// Lead originated from email and can support draft replies after staff-safe triage.
     Email,
-    /// Social media sales lead state, source, or follow-up signal.
+    /// Lead originated from social media and may need attribution or identity verification.
     SocialMedia,
-    /// Source name fact promoted into this lead contract.
+    /// Local referral name staff can verify before attributing the lead source.
     LocalReferral {
-        /// Source name carried by this variant.
+        /// Referral source name preserved for staff attribution and deduplication.
         source_name: SourceName,
     },
     /// Contact or display name used by staff.
     Campaign {
-        /// Name carried by this variant.
+        /// Campaign name preserved for marketing attribution and follow-up reporting.
         name: CampaignName,
     },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for intent decisions in lead workflows.
+/// Prospect intent signal used to route boarding, daycare, grooming, or training follow-up.
 pub enum Intent {
-    /// New customer intake sales lead state, source, or follow-up signal.
+    /// New prospect asking about onboarding, requirements, availability, or first booking.
     NewCustomerIntake,
-    /// Boarding quote sales lead state, source, or follow-up signal.
+    /// Prospect wants boarding pricing or availability that staff must confirm before promising.
     BoardingQuote,
-    /// Daycare trial sales lead state, source, or follow-up signal.
+    /// Prospect is asking about daycare trial or evaluation; staff must confirm eligibility steps.
     DaycareTrial,
-    /// Grooming appointment sales lead state, source, or follow-up signal.
+    /// Prospect wants grooming scheduling, which depends on service, pet, and capacity review.
     GroomingAppointment,
-    /// Training consult sales lead state, source, or follow-up signal.
+    /// Prospect wants training consultation routed to the appropriate trainer or intake path.
     TrainingConsult,
-    /// Existing customer change sales lead state, source, or follow-up signal.
+    /// Existing customer appears to need a booking or profile change rather than new intake.
     ExistingCustomerChange,
-    /// Provider role or status could not be mapped confidently.
+    /// Lead intent is unclear; automation may summarize but staff must classify before booking promises.
     Unknown,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for conversion stage decisions in lead workflows.
+/// Conversion stage that separates new inquiries from booked, lost, or inactive demand.
 pub enum ConversionStage {
-    /// New sales lead state, source, or follow-up signal.
+    /// New lead awaiting first staff or automated draft response.
     New,
-    /// Contact attempted sales lead state, source, or follow-up signal.
+    /// Staff or automation attempted contact and the next step depends on response evidence.
     ContactAttempted,
-    /// Waiting on customer sales lead state, source, or follow-up signal.
+    /// Lead is paused until the customer supplies missing answers or documents.
     WaitingOnCustomer,
-    /// Missing requirements sales lead state, source, or follow-up signal.
+    /// Lead cannot be booked until vaccine, pet profile, policy, or other requirements are confirmed.
     MissingRequirements,
-    /// Ready to book sales lead state, source, or follow-up signal.
+    /// Intake evidence looks booking-ready, but staff must still confirm capacity and policies before committing.
     ReadyToBook,
-    /// Converted sales lead state, source, or follow-up signal.
+    /// Lead has converted into booked or active customer work and should avoid duplicate sales follow-up.
     Converted,
-    /// Lost sales lead state, source, or follow-up signal.
+    /// Lead is inactive or declined, retained for attribution and future analysis.
     Lost,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Human-safe next step for converting a lead without overpromising capacity or policy.
 pub enum NextAction {
-    /// Draft reply sales lead state, source, or follow-up signal.
+    /// Automation may draft a reply, but sending still follows channel and approval gates.
     DraftReply,
-    /// Request missing pet profile sales lead state, source, or follow-up signal.
+    /// Ask for pet profile details needed before eligibility or booking review.
     RequestMissingPetProfile,
-    /// Request vaccine proof sales lead state, source, or follow-up signal.
+    /// Ask for vaccine proof before trial, daycare, boarding, or grooming readiness decisions.
     RequestVaccineProof,
-    /// Offer reservation times sales lead state, source, or follow-up signal.
+    /// Staff-confirmed availability can be offered; automation must not invent or hold times.
     OfferReservationTimes,
-    /// Route to human sales lead state, source, or follow-up signal.
+    /// Route to staff when source facts, policy, or customer context are too ambiguous for automation.
     RouteToHuman {
         /// Business reason staff should review before proceeding.
         reason: operations::operational::Observation,
     },
-    /// No action sales lead state, source, or follow-up signal.
+    /// No current follow-up is appropriate, usually because the lead is converted, lost, or waiting.
     NoAction,
 }

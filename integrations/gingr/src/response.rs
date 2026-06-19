@@ -47,7 +47,7 @@ pub struct Raw {
 }
 
 impl Raw {
-    /// Constructs this typed Gingr boundary value after the caller has chosen the provider input to trust.
+    /// Captures the raw Gingr status and body so decoding, retry decisions, and audit can happen later.
     pub fn new(status: HttpStatus, body: impl Into<Bytes>) -> Self {
         Self {
             status,
@@ -66,7 +66,7 @@ impl Raw {
     }
 }
 
-/// Provider response envelope boundary for Gingr provider payloads.
+/// Provider response envelopes that preserve Gingr success/error/data fields before DTO decoding.
 pub mod provider {
     use std::fmt;
 
@@ -78,7 +78,7 @@ pub mod provider {
     }
 
     impl Error {
-        /// Constructs this typed Gingr boundary value after the caller has chosen the provider input to trust.
+        /// Captures the Gingr error detail shown to reviewers when a provider request fails.
         pub fn new(detail: impl Into<String>) -> Self {
             Self {
                 detail: detail.into(),
@@ -113,7 +113,7 @@ pub mod provider {
     pub struct Email(String);
 
     impl Email {
-        /// Constructs this typed Gingr boundary value after the caller has chosen the provider input to trust.
+        /// Stores the owner email exactly as Gingr returned it until customer-contact validation runs.
         pub fn new(value: impl Into<String>) -> Self {
             Self(value.into())
         }
@@ -151,10 +151,10 @@ pub struct OwnerRecord {
     /// Provider record identifier observed in the Gingr payload.
     pub id: endpoint::OwnerId,
     #[serde(default)]
-    /// Owner first name observed in Gingr and used only as provider-sourced contact context.
+    /// Owner first name observed in Gingr and used only as provider contact context.
     pub first_name: Option<String>,
     #[serde(default)]
-    /// Owner last name observed in Gingr and used only as provider-sourced contact context.
+    /// Owner last name observed in Gingr and used only as provider contact context.
     pub last_name: Option<String>,
     #[serde(default)]
     /// Email address observed from Gingr and carried as customer-contact evidence.

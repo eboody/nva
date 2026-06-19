@@ -4,49 +4,49 @@ use domain::{entities, policy};
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, thiserror::Error, Clone, PartialEq, Eq)]
-/// Decision taxonomy for error in the agent tool error boundary; each value carries operational meaning for source-grounded routing and review.
+/// Decision choices for error in the agent tool error surface; each value guides source-grounded routing and review.
 pub enum Error {
     #[error("not found: {resource} {id}")]
-    /// Source-derived Resource retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Resource copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     NotFound {
-        /// Resource carried by this variant.
+        /// Resource value stored on this variant.
         resource: Resource,
-        /// Id carried by this variant.
+        /// Id value stored on this variant.
         id: ResourceId,
     },
     #[error("policy denied: {reason}")]
-    /// Source-derived Reason retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Reason copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     PolicyDenied {
-        /// Reason carried by this variant.
+        /// Reason value stored on this variant.
         reason: policy::denial::Reason,
     },
     #[error("external system error: {failure}")]
-    /// Source-derived Failure retained for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Failure copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     External {
-        /// Failure carried by this variant.
+        /// Failure value stored on this variant.
         failure: ExternalFailure,
     },
 }
 
 impl Error {
-    /// Builds policy denied for the agent tool error boundary contract from validated source facts while preserving review gates and draft-only side-effect boundaries.
+    /// Builds policy denied for the agent tool error gate rules from validated source facts while preserving review gates and draft-only side effects.
     pub fn policy_denied(reason: policy::denial::Reason) -> Self {
         Self::PolicyDenied { reason }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// Decision taxonomy for resource in the agent tool error boundary; each value carries operational meaning for source-grounded routing and review.
+/// Decision choices for resource in the agent tool error surface; each value guides source-grounded routing and review.
 pub enum Resource {
-    /// Represents customer in the tool error decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects customer for the tool error decision model so the app can choose a review, evidence, or draft path without taking live action.
     Customer,
-    /// Represents pet in the tool error decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects pet for the tool error decision model so the app can choose a review, evidence, or draft path without taking live action.
     Pet,
-    /// Represents reservation in the tool error decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects reservation for the tool error decision model so the app can choose a review, evidence, or draft path without taking live action.
     Reservation,
-    /// Represents availability snapshot in the tool error decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects availability snapshot for the tool error decision model so the app can choose a review, evidence, or draft path without taking live action.
     AvailabilitySnapshot,
-    /// Represents draft reservation update in the tool error decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects draft reservation update for the tool error decision model so the app can choose a review, evidence, or draft path without taking live action.
     DraftReservationUpdate,
 }
 
@@ -64,19 +64,19 @@ impl std::fmt::Display for Resource {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-/// Decision taxonomy for resource id in the agent tool error boundary; each value carries operational meaning for source-grounded routing and review.
+/// Decision choices for resource id in the agent tool error surface; each value guides source-grounded routing and review.
 pub enum ResourceId {
-    /// Represents customer in the tool error decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects customer for the tool error decision model so the app can choose a review, evidence, or draft path without taking live action.
     Customer(entities::CustomerId),
-    /// Represents pet in the tool error decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects pet for the tool error decision model so the app can choose a review, evidence, or draft path without taking live action.
     Pet(entities::PetId),
-    /// Represents reservation in the tool error decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects reservation for the tool error decision model so the app can choose a review, evidence, or draft path without taking live action.
     Reservation(entities::reservation::Id),
-    /// Represents snapshot in the tool error decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects snapshot for the tool error decision model so the app can choose a review, evidence, or draft path without taking live action.
     Snapshot(super::availability::CapacitySnapshotId),
-    /// Represents draft in the tool error decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects draft for the tool error decision model so the app can choose a review, evidence, or draft path without taking live action.
     Draft(super::draft_update::draft::Id),
-    /// Represents external in the tool error decision model so the app can choose the correct evidence, review, or draft path without taking live action.
+    /// Selects external for the tool error decision model so the app can choose a review, evidence, or draft path without taking live action.
     External(String),
 }
 
@@ -94,7 +94,7 @@ impl std::fmt::Display for ResourceId {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-/// Decision taxonomy for external failure in the agent tool error boundary; each value carries operational meaning for source-grounded routing and review.
+/// Decision choices for external failure in the agent tool error surface; each value guides source-grounded routing and review.
 pub enum ExternalFailure {
     /// Identifies portal unavailable as the reason the workflow must stop, retry, or request review.
     PortalUnavailable,

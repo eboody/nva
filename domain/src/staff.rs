@@ -1,6 +1,6 @@
-//! Canonical domain contracts for staff tasking and assignment.
+//! Staff tasking decisions for resort labor assignment and closeout.
 //!
-//! Staff work is shared across service lines. These contracts turn validated daily-brief,
+//! Staff work is shared across service lines. These types turn validated daily-brief,
 //! reservation, pet, and workflow signals into assignable labor, making the cost levers
 //! explicit: what work exists, who/what role owns it, priority, due time, and completion
 //! evidence.
@@ -15,7 +15,7 @@ use crate::daily_brief::{self, FollowUpReason};
 use crate::entities::{self, CustomerId, LocationId, PetId, StaffId};
 use crate::workflow::task as workflow_task;
 
-/// Completion evidence boundary for staff contracts.
+/// Staff-task completion evidence retained for audit and BI reconciliation.
 pub mod completion_evidence {
     use super::*;
 
@@ -39,25 +39,25 @@ pub mod completion_evidence {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Assignable unit of resort labor generated from validated operational signals.
+/// Staff task assembled from source-backed resort work so managers can route labor without guessing.
 pub struct Task {
-    /// Location id fact promoted into this staff contract.
+    /// Resort location whose team owns this task.
     pub location_id: LocationId,
-    /// Kind fact promoted into this staff contract.
+    /// Type of labor staff must perform or review.
     pub kind: task::Kind,
-    /// Title fact promoted into this staff contract.
+    /// Staff-visible task title used in work queues and manager briefs.
     pub title: workflow_task::Title,
-    /// Status fact promoted into this staff contract.
+    /// Current workflow state controlling whether staff can act, wait, or review.
     pub status: task::Status,
-    /// Priority fact promoted into this staff contract.
+    /// Urgency used to rank the labor queue for leads and managers.
     pub priority: task::Priority,
-    /// Due at fact promoted into this staff contract.
+    /// Time by which the resort work should be completed or escalated.
     pub due_at: DateTime<Utc>,
-    /// Assignment fact promoted into this staff contract.
+    /// Staff member or labor role currently responsible for the work.
     pub assignment: task::Assignment,
-    /// Source fact promoted into this staff contract.
+    /// Source record or workflow event that explains why this task exists.
     pub source: task::Source,
-    /// Completion evidence fact promoted into this staff contract.
+    /// Optional closeout note proving the task was finished before reports treat it as done.
     pub completion_evidence: Option<completion_evidence::Evidence>,
 }
 
@@ -86,61 +86,61 @@ impl Task {
     }
 }
 
-/// Task boundary for staff contracts.
+/// Staff-task vocabulary for routing work, ranking urgency, and preserving source proof.
 pub mod task {
     use super::*;
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     /// Type of labor a staff task represents across check-in, care, cleanup, and follow-up.
     pub enum Kind {
-        /// Check in prep staff role, schedule, or labor-planning signal.
+        /// Labor to prepare a reservation for arrival, documents, room, and front-desk handoff.
         CheckInPrep {
-            /// Reservation id fact promoted into this staff contract.
+            /// Reservation that requires this staff preparation or closeout work.
             reservation_id: entities::reservation::Id,
         },
-        /// Check out prep staff role, schedule, or labor-planning signal.
+        /// Labor to prepare pickup, belongings, invoice, and checkout communication.
         CheckOutPrep {
-            /// Reservation id fact promoted into this staff contract.
+            /// Reservation that requires this staff preparation or closeout work.
             reservation_id: entities::reservation::Id,
         },
-        /// Feeding staff role, schedule, or labor-planning signal.
+        /// Pet-care labor for feeding instructions or exceptions that staff must complete.
         Feeding {
-            /// Pet receiving the grooming or care service.
+            /// Pet whose care task needs staff handling.
             pet_id: PetId,
         },
-        /// Medication service that requires care instructions.
+        /// Medication labor that requires reviewed instructions and completion evidence.
         MedicationAdministration {
-            /// Pet receiving the grooming or care service.
+            /// Pet whose medication task needs reviewed instructions and completion evidence.
             pet_id: PetId,
         },
-        /// Playgroup assessment staff role, schedule, or labor-planning signal.
+        /// Labor for temperament or group-play assessment before daycare assignment.
         PlaygroupAssessment {
-            /// Pet receiving the grooming or care service.
+            /// Pet whose playgroup assessment needs temperament or eligibility review.
             pet_id: PetId,
         },
-        /// Cleaning turnover staff role, schedule, or labor-planning signal.
+        /// Labor for kennel, room, or run turnover tied to a reservation.
         CleaningTurnover {
-            /// Reservation id fact promoted into this staff contract.
+            /// Reservation that requires this staff preparation or closeout work.
             reservation_id: entities::reservation::Id,
         },
-        /// Daily update draft staff role, schedule, or labor-planning signal.
+        /// Labor to prepare a customer-safe daily update draft from care evidence.
         DailyUpdateDraft {
-            /// Reservation id fact promoted into this staff contract.
+            /// Reservation that requires this staff preparation or closeout work.
             reservation_id: entities::reservation::Id,
         },
-        /// Document review staff role, schedule, or labor-planning signal.
+        /// Labor to review document evidence before compliance or care workflows trust it.
         DocumentReview {
-            /// Pet receiving the grooming or care service.
+            /// Pet whose document evidence must be reviewed before staff trust it.
             pet_id: PetId,
         },
-        /// Incident follow up staff role, schedule, or labor-planning signal.
+        /// Labor to investigate, document, or communicate about a safety/customer incident.
         IncidentFollowUp {
-            /// Pet receiving the grooming or care service.
+            /// Pet connected to the incident follow-up labor.
             pet_id: PetId,
         },
-        /// Customer follow up staff role, schedule, or labor-planning signal.
+        /// Labor to contact a customer for missing proof, changes, review response, or service recovery.
         CustomerFollowUp {
-            /// Customer id fact promoted into this staff contract.
+            /// Customer whose follow-up should be routed to staff.
             customer_id: CustomerId,
             /// Business reason staff should review before proceeding.
             reason: FollowUpReason,
@@ -150,46 +150,46 @@ pub mod task {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
     /// Current workflow state for an assignable staff task.
     pub enum Status {
-        /// Open staff role, schedule, or labor-planning signal.
+        /// Work is visible in the queue but not yet being handled.
         Open,
-        /// In progress staff role, schedule, or labor-planning signal.
+        /// A staff member or role is actively handling the work.
         InProgress,
-        /// Blocked staff role, schedule, or labor-planning signal.
+        /// Work cannot proceed until missing proof, policy, or approval is resolved.
         Blocked,
-        /// Needs manager review staff role, schedule, or labor-planning signal.
+        /// Manager must review the task before staff treat it as complete.
         NeedsManagerReview,
-        /// Completed staff role, schedule, or labor-planning signal.
+        /// Evidence says the resort work is complete and can feed reports.
         Completed,
-        /// Reservation is no longer active.
+        /// Staff task was cancelled or suppressed before completion and should not count as done labor.
         Cancelled,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
     /// Priority level used to sequence staff labor and manager attention.
     pub enum Priority {
-        /// Estimate is uncertain and may require staff confirmation.
+        /// Low urgency task that can wait behind normal and safety-sensitive labor.
         Low,
-        /// Normal staff role, schedule, or labor-planning signal.
+        /// Routine resort work that can follow normal queue order.
         Normal,
-        /// Estimate is reliable enough for normal scheduling.
+        /// High urgency task that should be handled ahead of routine resort work.
         High,
-        /// Critical staff role, schedule, or labor-planning signal.
+        /// Safety, customer-trust, or operations issue that should jump the queue.
         Critical,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for assignment decisions in staff workflows.
+    /// Staff assignment state used to distinguish scheduled coverage from backup or inactive labor.
     pub enum Assignment {
-        /// Unassigned staff role, schedule, or labor-planning signal.
+        /// No staff member or role owns this work yet.
         Unassigned,
-        /// Staff staff role, schedule, or labor-planning signal.
+        /// Named staff member owns the task.
         Staff(StaffId),
-        /// Role staff role, schedule, or labor-planning signal.
+        /// Labor role owns the task until a person claims it.
         Role(super::Role),
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Domain vocabulary for source decisions in staff workflows.
+    /// Staff source system retained so labor records can be reconciled with provider authority.
     pub enum Source {
         /// Reservation record participating in the workflow.
         Reservation(entities::reservation::Id),
@@ -197,11 +197,11 @@ pub mod task {
         Pet(PetId),
         /// Customer record participating in the workflow.
         Customer(CustomerId),
-        /// Daily brief staff role, schedule, or labor-planning signal.
+        /// Daily brief snapshot raised this task for staff review.
         DailyBrief(daily_brief::snapshot::Id),
-        /// Workflow event staff role, schedule, or labor-planning signal.
+        /// Workflow event raised this task for staff review.
         WorkflowEvent(crate::workflow::EventId),
-        /// Staff created staff role, schedule, or labor-planning signal.
+        /// Staff created the task directly outside automated source ingestion.
         StaffCreated,
     }
 }
@@ -209,16 +209,16 @@ pub mod task {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Resort labor role that can own or be assigned a staff task.
 pub enum Role {
-    /// Front desk staff role, schedule, or labor-planning signal.
+    /// Front desk team handling check-in, checkout, customer, or document work.
     FrontDesk,
-    /// Kennel technician staff role, schedule, or labor-planning signal.
+    /// Kennel technician team handling pet care, feeding, medication, or cleanup work.
     KennelTechnician,
-    /// Groomer staff role, schedule, or labor-planning signal.
+    /// Groomer handling grooming preparation, service, or follow-up work.
     Groomer,
-    /// Trainer staff role, schedule, or labor-planning signal.
+    /// Trainer handling training assignment, progress, package, or follow-up work.
     Trainer,
-    /// Lead staff staff role, schedule, or labor-planning signal.
+    /// Lead staff member triaging work before manager escalation.
     LeadStaff,
-    /// Manager staff role, schedule, or labor-planning signal.
+    /// Manager accountable for approvals, exceptions, and queue escalation.
     Manager,
 }

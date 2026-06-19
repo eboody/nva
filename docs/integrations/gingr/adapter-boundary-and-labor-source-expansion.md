@@ -4,15 +4,17 @@ Date: 2026-06-17
 
 ## Purpose
 
-This note documents the post-refactor boundary for source-derived reservation and
-stay facts. It keeps Gingr quarantined as one adapter/source namespace while the
-core reservation snapshot, analytics stay fact, and later workflow validators
-remain source-agnostic.
+This note helps regional ops leaders and engineering maintainers avoid re-reading
+raw Gingr reservation exports every time a boarding exception queue changes. It
+shows which Gingr reservation/stay facts can explain an open stay, checkout
+exception, or capacity mismatch, which source-agnostic records carry that
+evidence forward, and which live actions still require human-approved workflow
+contracts.
 
-The north star is labor-cost reduction through multi-source operational
-intelligence. Gingr is important because it contributes reservation/stay,
-customer/pet, service, revenue, location, and limited labor/report facts. It is
-not the whole operating model, and its DTOs must not become the domain core.
+Gingr contributes reservation/stay, customer/pet, service, revenue, location, and
+limited labor/report evidence. That evidence can feed source-backed summaries and
+review queues, but it does not authorize schedule changes, checkout decisions, or
+customer outreach by itself, and its DTO names must not become the domain core.
 
 ## Final boundary chain
 

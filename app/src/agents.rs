@@ -1,13 +1,25 @@
-//! Agent specs and prompt packet contracts.
+//! Agent specs and prompt packet rules.
 //!
-//! This module is the app-layer contract for safe workflow automation. Agent
+//! # Operator framing
+//!
+//! Use this page when you want to understand what an AI workflow is allowed to
+//! see, draft, or summarize before a person reviews it. It is for operators,
+//! managers, and implementers checking the safety gate between helpful
+//! automation and live resort actions.
+//!
+//! The next step is to read `baseline_agent_specs` for the built-in workflow
+//! list, then open `AgentPromptPacket` to see the evidence bundle each run
+//! receives. The Rust API details below remain the implementer rules; the
+//! framing here explains how to interpret those rules operationally.
+//!
+//! This module is the app-layer rules for safe workflow automation. Agent
 //! specs describe narrow read/draft capabilities for resort workflows, and
 //! prompt packets carry the source event, typed workflow input, policy language,
 //! and expected output schema an agent may use to prepare a draft or evidence
 //! bundle. They are not live authority to mutate bookings, customer messages,
 //! schedules, deposits, incident records, or policy decisions.
 //!
-//! Specs make the app boundary visible to the runtime: allowed tools are narrow
+//! Specs make the app gate visible to the runtime: allowed tools are narrow
 //! read/draft surfaces, forbidden actions name unsafe authority, and default
 //! review gates remain deterministic app policy.
 //!
@@ -43,14 +55,14 @@ pub use domain::agent::{OutputSchemaName, PolicyInstruction};
 
 /// App-facing alias for the domain agent specification used by workflow automation.
 ///
-/// A spec is the stable contract an agent runner receives before it builds a
+/// A spec is the stable rules an agent runner receives before it builds a
 /// prompt packet: the workflow identity, business purpose, read/draft tools it
 /// may use, actions it must never take directly, and deterministic review gates
 /// that keep resort staff in control of bookings, messages, schedules, and
 /// safety-sensitive decisions.
 pub type AgentSpec = agent::Spec;
 
-/// Contract implemented by app workflow agents that prepare safe prompt packets.
+/// Rules implemented by app workflow agents that prepare safe prompt packets.
 ///
 /// Implementors expose their immutable [`AgentSpec`], package an event and typed
 /// input into an [`AgentPromptPacket`], then validate model/tool output before it
@@ -79,7 +91,7 @@ pub trait WorkflowAgent<Input, Output> {
     /// Validates a proposed workflow output before downstream app code can use it.
     ///
     /// Implementations should preserve deterministic policy failures and reject
-    /// unsafe output rather than treating generated text as authority to mutate
+    /// unsafe output rather than treating agent text as authority to mutate
     /// bookings, messages, schedules, incident records, or customer commitments.
     fn validate_output(&self, output: workflow::Result<Output>) -> workflow::Result<Output>;
 }
@@ -87,9 +99,20 @@ pub trait WorkflowAgent<Input, Output> {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 /// Safe prompt-and-evidence packet exchanged with an automation agent.
 ///
+/// Operator framing: this is the checklist packet an agent receives for one
+/// reviewable workflow run. It matters to managers because every suggested
+/// action, brief, classification, or customer-message draft should trace back to
+/// the workflow name, source event, approved input facts, policy instructions,
+/// and expected output shape recorded here.
+///
+/// Next step: compare the packet fields with the workflow's `AgentSpec` and
+/// review gates before treating any generated output as usable evidence. The
+/// field-level Rustdoc below documents the API shape; it does not grant live
+/// authority to book, charge, message, schedule, or override policy.
+///
 /// An agent prompt packet bundles the workflow identity, triggering source event,
 /// typed app input, policy instructions, and expected output schema sent to an
-/// agent runner. It is a draft/evidence boundary: agents can use it to prepare a
+/// agent runner. It is a draft/evidence gate: agents can use it to prepare a
 /// briefing, follow-up draft, classification, or manager-review packet, but the
 /// packet itself is not permission to mutate live resort systems.
 pub struct AgentPromptPacket<T> {
@@ -97,7 +120,7 @@ pub struct AgentPromptPacket<T> {
     ///
     /// Examples include `manager-daily-brief`, `booking-triage`, and
     /// `grooming-rebooking`; the name lets audits connect a packet back to the
-    /// workflow contract that defined its allowed tools and forbidden actions.
+    /// workflow rules that defined its allowed tools and forbidden actions.
     pub workflow_name: agent::Name,
     /// Business goal the agent should pursue while preparing only draft output.
     ///
@@ -120,7 +143,7 @@ pub struct AgentPromptPacket<T> {
     /// Policy instructions the runner must include in the agent context.
     ///
     /// These instructions state review gates, safety limits, escalation rules,
-    /// and source-grounding requirements that constrain generated drafts and make
+    /// and source-grounding requirements that constrain agent drafts and make
     /// policy compliance reviewable after the run.
     pub policies: Vec<agent::PolicyInstruction>,
     /// Name of the output schema expected from the agent.

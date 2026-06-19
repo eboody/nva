@@ -1,5 +1,21 @@
 //! Temperament and behavior-observation contracts for daycare and care safety.
 //!
+//! ## Operator-summary
+//!
+//! This module supports behavior-review and play-assignment queues by naming group-play
+//! observations, people orientation, overall rating, and specific behavior evidence such
+//! as bite history, human selectivity, escape risk, or food guarding. It can reduce labor
+//! by turning staff/provider notes into a consistent watchlist for daycare eligibility,
+//! staffing plans, daily briefs, and customer-safe follow-up drafts.
+//!
+//! It must not automate live group assignment, behavior determinations, training advice,
+//! customer blame, or safety exceptions. Authoritative facts remain the reviewed staff
+//! observations, source notes, incident history, location play policy, and approval records;
+//! these values only preserve redacted signals for downstream review. Review gates protect
+//! pets, customers, and staff by routing stale, missing, manager-review, bite-history, or
+//! selectivity evidence to behavior/manager review before it changes play access or
+//! customer-visible messaging.
+//!
 //! These values promote staff/source notes into validated, redacted domain signals before
 //! they influence group-play eligibility, daily-brief watchlists, staffing plans, or
 //! customer communication. Review evidence remains explicit so automation supports staff
@@ -38,16 +54,16 @@ impl fmt::Debug for BehaviorObservationLabel {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-/// Domain vocabulary for group play observation decisions in temperament workflows.
+/// Reviewed group-play status that gates daycare assignment and intro-assessment work.
 pub enum GroupPlayObservation {
     #[default]
-    /// Not yet observed temperament signal for playgroup and handling decisions.
+    /// No reviewed group-play observation exists yet, so staff need fresh behavior evidence before assignment.
     NotYetObserved,
-    /// Comfortable in observed group temperament signal for playgroup and handling decisions.
+    /// Staff have observed comfortable group play, supporting normal playgroup consideration.
     ComfortableInObservedGroup,
-    /// Stressed in group setting temperament signal for playgroup and handling decisions.
+    /// Group setting caused stress, so care staff should consider quieter handling or alternate placement.
     StressedInGroupSetting,
-    /// Needs intro assessment temperament signal for playgroup and handling decisions.
+    /// Pet needs an intro assessment before group play can be offered or promised.
     NeedsIntroAssessment,
 }
 
@@ -59,51 +75,51 @@ impl GroupPlayObservation {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-/// Domain vocabulary for people orientation decisions in temperament workflows.
+/// Staff-observed people orientation used to plan handling, staffing, and customer follow-up.
 pub enum PeopleOrientation {
-    /// People seeking temperament signal for playgroup and handling decisions.
+    /// Pet actively seeks human interaction, which helps staff plan handling and enrichment.
     PeopleSeeking,
-    /// Neutral temperament signal for playgroup and handling decisions.
+    /// Pet shows no strong people-seeking or avoidant signal in reviewed notes.
     Neutral,
-    /// People avoidant temperament signal for playgroup and handling decisions.
+    /// Pet avoids people, so staff should use slower handling and review before customer-facing assurances.
     PeopleAvoidant,
     #[default]
-    /// Provider role or status could not be mapped confidently.
+    /// People-orientation evidence is missing or unclear and should not drive handling policy by itself.
     Unknown,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-/// Domain vocabulary for rating decisions in temperament workflows.
+/// Overall temperament rating used to rank play eligibility and behavior-review attention.
 pub enum Rating {
-    /// Easygoing temperament signal for playgroup and handling decisions.
+    /// Reviewed temperament is easygoing enough for normal handling unless other watchlist evidence exists.
     Easygoing,
-    /// Moderate temperament signal for playgroup and handling decisions.
+    /// Temperament needs ordinary staff awareness but does not by itself block care workflows.
     Moderate,
-    /// Needs structure temperament signal for playgroup and handling decisions.
+    /// Pet benefits from structured handling or play rules that staff should review before assignment.
     NeedsStructure,
-    /// Review required temperament signal for playgroup and handling decisions.
+    /// Temperament evidence requires behavior or manager review before it changes play access.
     ReviewRequired,
     #[default]
-    /// Provider role or status could not be mapped confidently.
+    /// People-orientation evidence is missing or unclear and should not drive handling policy by itself.
     Unknown,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Domain vocabulary for behavior observation decisions in temperament workflows.
+/// Specific behavior evidence that can block play access or require manager review.
 pub enum BehaviorObservation {
-    /// Anxiety temperament signal for playgroup and handling decisions.
+    /// Anxiety observed in source notes, signaling care attention and possible lower-stimulation handling.
     Anxiety,
-    /// Bite history temperament signal for playgroup and handling decisions.
+    /// Bite history is safety-sensitive evidence that must route to behavior/manager review.
     BiteHistory,
-    /// Dog selective temperament signal for playgroup and handling decisions.
+    /// Dog-selective behavior means group pairing needs staff judgment instead of automatic assignment.
     DogSelective,
-    /// Human selective temperament signal for playgroup and handling decisions.
+    /// Human-selective behavior affects handling plans and should create review evidence.
     HumanSelective,
-    /// Escape risk temperament signal for playgroup and handling decisions.
+    /// Escape-risk evidence alerts staff to containment and handoff precautions.
     EscapeRisk,
-    /// Food guarding temperament signal for playgroup and handling decisions.
+    /// Food-guarding evidence affects feeding, enrichment, and group-care supervision.
     FoodGuarding,
-    /// Requires manager review temperament signal for playgroup and handling decisions.
+    /// Source notes explicitly require manager review before changing access or messaging.
     RequiresManagerReview,
     /// Extension point for provider-specific values not modeled directly.
     Extension(BehaviorObservationLabel),

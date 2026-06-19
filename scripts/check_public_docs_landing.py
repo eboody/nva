@@ -12,6 +12,11 @@ html = LANDING.read_text(encoding="utf-8")
 lower = html.lower()
 
 required_fragments = [
+    "start with the pet-resort entity atlas",
+    "entity-first operating model for labor-cost reduction",
+    "browse entity index",
+    "choose a reading path",
+    "workflow-to-entity map",
     "operations leader",
     "ai program evaluator",
     "safety/compliance reviewer",

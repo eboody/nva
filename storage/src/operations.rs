@@ -1,13 +1,13 @@
-//! Persistence records for app/domain operational contracts.
+//! Persistence records for app/domain operational rules.
 //!
-//! This module documents the storage/public projection boundary for the
+//! This module documents the storage/public projection gate for the
 //! pet-resort AI program: portfolio seed facts, service-line offerings, core
-//! service contracts, manager daily-brief labor outcomes, data-quality hygiene
+//! service rules, manager daily-brief labor outcomes, data-quality hygiene
 //! outcomes, and source-system ecosystem records. Storage code is allowed to
 //! speak in stable record codes, flattened optional fields, and JSON payloads,
 //! but promotion back into `domain` values is explicit and source-grounded.
 //!
-//! The boundary is deliberately narrow:
+//! The gate is deliberately narrow:
 //!
 //! - `domain` owns business meaning and invariants such as daycare eligibility,
 //!   grooming cadence, training duration, source evidence, and review gates.
@@ -18,6 +18,13 @@
 //! - `integration` adapters attach `StoredSourceRecordRef` values so a derived
 //!   record can be audited back to Gingr, a warehouse export, or another source
 //!   instead of becoming an invented operational fact.
+//!
+//! Crosswalk navigation: this module backs the storage/persistence rows for
+//! outcome records, source refs, service offerings, portfolio records, and
+//! reporting groups. Use
+//! `docs/entity-atlas/contract-crosswalk/storage-persistence.md` from entity
+//! pages, `workflow-packets.md` from workflow pages, and the storage/API tests
+//! named there as the executable proof.
 //!
 //! ```rust
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -95,7 +102,7 @@ pub enum Error {
 }
 
 #[derive(Debug, thiserror::Error)]
-/// JSON codec failures at the storage boundary.
+/// JSON codec failures at the storage gate.
 pub enum CodecError {
     #[error("failed to decode json: {source}")]
     /// JSON could not be decoded into the expected storage record.
@@ -118,7 +125,7 @@ pub enum RecordKind {
     PetResortPortfolio,
     /// Flattened record for one boarding, daycare, grooming, training, or retail offering.
     ServiceOffering,
-    /// Location-level snapshot of enabled service-line contracts.
+    /// Location-level snapshot of enabled service-line rules.
     CoreServiceContracts,
     /// Labor-evidence record for a data-quality hygiene workflow outcome.
     DataQualityHygieneOutcome,
@@ -210,7 +217,7 @@ pub enum ManagerDailyBriefActionKindCode {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Dimensions used to aggregate manager daily-brief labor outcomes by location, day, action, and owner role.
 pub struct ManagerDailyBriefReportingGroup {
-    /// Location whose operating day or service contract is described.
+    /// Location whose operating day or service rules is described.
     pub location_id: String,
     /// Business date used for labor and reporting aggregation.
     pub operating_day: String,
@@ -238,7 +245,7 @@ impl StoredManagerDailyBriefLaborMinutes {
         Ok(Self(value))
     }
 
-    /// Returns the validated numeric quantity carried by this storage wrapper.
+    /// Returns the validated numeric quantity kept on this storage wrapper.
     pub const fn get(self) -> u16 {
         self.0
     }
@@ -278,7 +285,7 @@ pub struct ManagerDailyBriefOutcomeRecord {
     pub recorded_at: String,
     /// Cross-system identifier tying the record to a workflow run or request.
     pub correlation_id: String,
-    /// Location whose operating day or service contract is described.
+    /// Location whose operating day or service rules is described.
     pub location_id: String,
     /// Business date used for labor and reporting aggregation.
     pub operating_day: String,
@@ -392,7 +399,7 @@ pub enum DataQualityResolutionStatusCode {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Dimensions used to group data-quality hygiene outcomes by location, day, issue type, and owner role.
 pub struct DataQualityHygieneReportingGroup {
-    /// Location whose operating day or service contract is described.
+    /// Location whose operating day or service rules is described.
     pub location_id: String,
     /// Business date used for labor and reporting aggregation.
     pub operating_day: String,
@@ -420,7 +427,7 @@ impl StoredDataQualityHygieneLaborMinutes {
         Ok(Self(value))
     }
 
-    /// Returns the validated resort count carried by this storage wrapper.
+    /// Returns the validated resort count kept on this storage wrapper.
     pub const fn get(self) -> u16 {
         self.0
     }
@@ -465,7 +472,7 @@ pub struct DataQualityHygieneOutcomeRecord {
     pub recorded_at: String,
     /// Cross-system identifier tying the record to a workflow run or request.
     pub correlation_id: String,
-    /// Location whose operating day or service contract is described.
+    /// Location whose operating day or service rules is described.
     pub location_id: String,
     /// Business date used for labor and reporting aggregation.
     pub operating_day: String,
@@ -617,7 +624,7 @@ impl StoredResortCount {
         Ok(Self(value))
     }
 
-    /// Returns the provider numeric identifier carried by this wrapper.
+    /// Returns the provider numeric identifier kept on this wrapper.
     pub const fn get(self) -> u16 {
         self.0
     }
@@ -1150,19 +1157,19 @@ impl TryFrom<ServiceOfferingRecord> for domain::operations::ServiceOffering {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Storage snapshot of the service-line contracts enabled for a location.
+/// Storage snapshot of the service-line rules enabled for a location.
 pub struct CoreServiceContractsRecord {
-    /// Location whose operating day or service contract is described.
+    /// Location whose operating day or service rules is described.
     pub location_id: domain::entities::LocationId,
-    /// Boarding contract capabilities for the location.
+    /// Boarding rules capabilities for the location.
     pub boarding: boarding::ContractRecord,
-    /// Daycare contract capabilities for the location.
+    /// Daycare rules capabilities for the location.
     pub daycare: daycare::ContractRecord,
-    /// Grooming contract capabilities for the location.
+    /// Grooming rules capabilities for the location.
     pub grooming: grooming::ContractRecord,
-    /// Training contract capabilities for the location.
+    /// Training rules capabilities for the location.
     pub training: training::ContractRecord,
-    /// Retail contract capabilities for the location.
+    /// Retail rules capabilities for the location.
     pub retail: retail::ContractRecord,
 }
 

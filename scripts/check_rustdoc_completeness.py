@@ -18,7 +18,8 @@ from html import unescape
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DOC_ROOT = REPO_ROOT / "target" / "doc"
+TARGET_ROOT = Path(os.environ.get("CARGO_TARGET_DIR", REPO_ROOT / "target"))
+DOC_ROOT = TARGET_ROOT / "doc"
 STRICT_COMMAND = ["cargo", "doc", "--workspace", "--no-deps"]
 STRICT_ENV = {"RUSTDOCFLAGS": "-D missing_docs"}
 
@@ -72,7 +73,7 @@ RENDERED_DOC_EXPECTATIONS = (
             "Attaches pet profile evidence before the request can move to policy decisioning.",
             "method.attach_policy_snapshot",
             "method.mark_ready_for_policy_decision",
-            "Returns the reservation carried by this booking-readiness workflow value.",
+            "Returns the reservation identifier this booking-readiness packet is evaluating.",
         ),
     ),
 )

@@ -25,7 +25,7 @@ use crate::policy;
 
 pub use playgroup_id::Id as PlaygroupId;
 
-/// Playgroup identifier boundary for daycare assignment contracts.
+/// Playgroup identifier chosen from scheduling/source data for daycare assignment review.
 pub mod playgroup_id {
     use super::*;
 

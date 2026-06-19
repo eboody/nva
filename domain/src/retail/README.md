@@ -1,8 +1,20 @@
 # `domain::retail`
 
+Operator translation: retail pages describe how the system helps staff review products, POS decisions, recommendations, reorder needs, and vendor/catalog relationships without letting automation sell items, place orders, change inventory, move payments, or send customer copy by itself. In code, that business meaning lives in `domain::retail`, where `Contract` means a source-backed retail rule bundle, not a vendor/customer/legal contract.
+
 `domain::retail` is the domain crate's model for retail products inside pet-resort operations. It owns the semantic retail concepts that are not just provider payloads or database records: product identity and categories, per-location offerings, POS sale policy, inventory positions, recommendation review policy, reorder decisions, and vendor/catalog relationships.
 
 Start at [`mod.rs`](./mod.rs). It declares the module surface, re-exports the common product/vendor types, defines the module-local [`domain::retail::Error`](./mod.rs), and collects the retail sub-policies into [`domain::retail::Contract`](./mod.rs). `Contract::standard_petsuites` is a fixture-like standard contract, not an exhaustive catalog: it wires one `Product`, POS policy, inventory policy, recommendation rule, and reorder policy together.
+
+## Operator summary
+
+Retail supports the staff decision queues around sellable products: whether a retail line can be drafted at POS or reservation checkout, whether a product recommendation is safe enough to show staff, whether customer-facing copy must be blocked or approved, and whether a low-stock SKU needs manager or vendor attention. It can reduce front-desk and manager labor by turning catalog, inventory, preference, checkout-source, and threshold checks into typed decisions instead of asking staff to manually inspect item lists, stock counts, prior purchase context, and price exceptions for every opportunity.
+
+The module is not allowed to automate live customer or provider side effects. It does not send upsell messages, promise medical or care outcomes, place vendor orders, mutate Gingr/POS transactions, reconcile payments, approve comps/refunds, or attach products to a reservation checkout. It only emits draft-allowed, denied, suppressed, staff-review, manager-review, customer-message-approval, staff-task, or vendor-notice decisions that application, storage, and integration layers can route through explicit workflow gates.
+
+Authoritative facts must stay with their source boundary: Gingr/provider retail item payloads and commerce endpoints remain in [`integrations/gingr`](../../../integrations/gingr/README.md), DTOs, endpoint builders, and retail mappers; persisted partner/category codes and service-offering shape checks remain in [`storage::service_line::retail`](../../../storage/src/service_line/retail.rs) and [`storage::operations`](../../../storage/src/operations.rs); domain policy truth remains in this module's `product`, `inventory`, `pos`, `recommendation`, `reorder`, and `vendor` types. Source-derived SKU, product category, offering status, on-hand/reserved units, customer preference, care-sensitivity, checkout source, price adjustment, vendor relationship, and source/provenance evidence should be promoted into these types rather than copied into free-text automation rules.
+
+Review gates protect pets, customers, and staff at the risky boundaries: unavailable or non-sellable items are denied before checkout, opted-out customers and unavailable products suppress recommendations, supplement/diet or care-plan conflicts route to staff or manager review, medical-claim language is rejected before customer copy leaves draft state, reservation-checkout attachments require customer-message approval, price exceptions require manager approval, impossible inventory math is rejected, and reorder actions are threshold-backed manager tasks or vendor notices rather than live purchase orders.
 
 ## Module navigation
 

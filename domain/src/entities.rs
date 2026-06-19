@@ -1,7 +1,22 @@
 //! Core pet-resort entities and operational records.
 //!
+//! ## Operator-summary
+//!
+//! This module supports the shared staff view of pets, customers, reservations, care profiles,
+//! documents, vaccine records, care notes, incidents, messages, and approval records. It can
+//! reduce labor by keeping the facts needed for triage, safety review, handoff, document review,
+//! customer-message approval, and manager queues in one normalized shape instead of scattering
+//! them across source-system payloads and free-text notes.
+//!
+//! It must not automate live booking changes, provider writes, customer sends, payment/refund
+//! actions, medical/vaccine/behavior decisions, incident closure, or policy exceptions.
+//! Authoritative facts remain the named source record, source document/storage object, policy
+//! snapshot, reviewer approval, audit event, and typed domain value for each field. Review
+//! gates protect pets, customers, and staff by tying sensitive records to explicit approval
+//! targets and lifecycle states before downstream workflows may treat them as cleared.
+//!
 //! These structs and enums are the normalized domain facts used by workflow, policy, storage, and
-//! source adapters. They should be read as external contracts: every field is either a source-backed
+//! source adapters. They should be read as normalized operating records: every field is either a source-backed
 //! fact, a reviewable derived state, or a safety/labor signal used to reduce manual resort work
 //! without bypassing manager, medical, behavior, payment, or customer-message gates.
 
@@ -128,17 +143,17 @@ pub struct ManagerId(String);
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Resort location record that scopes local capabilities, timezone, brand, and policy references.
 pub struct Location {
-    /// Source-backed id carried by this normalized pet-resort entity.
+    /// Id retained from source records for staff review, safety gates, and workflow joins.
     pub id: LocationId,
-    /// Source-backed brand carried by this normalized pet-resort entity.
+    /// Brand retained from source records for staff review, safety gates, and workflow joins.
     pub brand: Brand,
     /// Contact or display name used by staff.
     pub name: location::Name,
-    /// Source-backed timezone carried by this normalized pet-resort entity.
+    /// Timezone retained from source records for staff review, safety gates, and workflow joins.
     pub timezone: location::Timezone,
-    /// Source-backed capabilities carried by this normalized pet-resort entity.
+    /// Capabilities retained from source records for staff review, safety gates, and workflow joins.
     pub capabilities: Vec<ServiceKind>,
-    /// Source-backed policies carried by this normalized pet-resort entity.
+    /// Policies retained from source records for staff review, safety gates, and workflow joins.
     pub policies: LocationPolicyRefs,
 }
 
@@ -151,7 +166,7 @@ pub enum Brand {
     PetSuites,
     /// Contact or display name used by staff.
     NeighborhoodPetResort {
-        /// Name carried by this variant.
+        /// Name attached to this variant for reviewers and adapters.
         name: location::Name,
     },
 }
@@ -159,37 +174,37 @@ pub enum Brand {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// References to the local policy set that controls automation, vaccine, and play-safety decisions.
 pub struct LocationPolicyRefs {
-    /// Source-backed vaccine policy ID carried by this normalized pet-resort entity.
+    /// Vaccine policy id retained from source records for staff review, safety gates, and workflow joins.
     pub vaccine_policy_id: policy::Id,
-    /// Source-backed deposit policy ID carried by this normalized pet-resort entity.
+    /// Deposit policy id retained from source records for staff review, safety gates, and workflow joins.
     pub deposit_policy_id: policy::Id,
-    /// Source-backed playgroup policy ID carried by this normalized pet-resort entity.
+    /// Playgroup policy id retained from source records for staff review, safety gates, and workflow joins.
     pub playgroup_policy_id: policy::Id,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 /// Customer/account profile used for reservation ownership, consent-sensitive messaging, and follow-up work.
 pub struct Customer {
-    /// Source-backed id carried by this normalized pet-resort entity.
+    /// Id retained from source records for staff review, safety gates, and workflow joins.
     pub id: CustomerId,
-    /// Source-backed full name carried by this normalized pet-resort entity.
+    /// Full name retained from source records for staff review, safety gates, and workflow joins.
     pub full_name: customer::Name,
-    /// Source-backed email carried by this normalized pet-resort entity.
+    /// Email retained from source records for staff review, safety gates, and workflow joins.
     pub email: Option<customer::Email>,
-    /// Source-backed mobile phone carried by this normalized pet-resort entity.
+    /// Mobile phone retained from source records for staff review, safety gates, and workflow joins.
     pub mobile_phone: Option<customer::Phone>,
-    /// Source-backed preferred contact carried by this normalized pet-resort entity.
+    /// Preferred contact retained from source records for staff review, safety gates, and workflow joins.
     pub preferred_contact: ContactChannel,
-    /// Source-backed portal account carried by this normalized pet-resort entity.
+    /// Portal account retained from source records for staff review, safety gates, and workflow joins.
     pub portal_account: Option<PortalAccountRef>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Link to the customer portal account that supplied or owns source records.
 pub struct PortalAccountRef {
-    /// Source-backed provider carried by this normalized pet-resort entity.
+    /// Provider retained from source records for staff review, safety gates, and workflow joins.
     pub provider: PortalProvider,
-    /// Source-backed external customer ID carried by this normalized pet-resort entity.
+    /// External customer id retained from source records for staff review, safety gates, and workflow joins.
     pub external_customer_id: portal::CustomerId,
 }
 
@@ -218,25 +233,25 @@ pub enum ContactChannel {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 /// Pet profile carrying identity, species, age, sex, sterilization, temperament, and care facts for safe service decisions.
 pub struct Pet {
-    /// Source-backed id carried by this normalized pet-resort entity.
+    /// Id retained from source records for staff review, safety gates, and workflow joins.
     pub id: PetId,
-    /// Source-backed customer ID carried by this normalized pet-resort entity.
+    /// Customer id retained from source records for staff review, safety gates, and workflow joins.
     pub customer_id: CustomerId,
     /// Contact or display name used by staff.
     pub name: pet::Name,
-    /// Source-backed species carried by this normalized pet-resort entity.
+    /// Species retained from source records for staff review, safety gates, and workflow joins.
     pub species: Species,
-    /// Source-backed birth date carried by this normalized pet-resort entity.
+    /// Birth date retained from source records for staff review, safety gates, and workflow joins.
     pub birth_date: Option<NaiveDate>,
-    /// Source-backed sex carried by this normalized pet-resort entity.
+    /// Sex retained from source records for staff review, safety gates, and workflow joins.
     pub sex: Option<Sex>,
-    /// Source-backed spay neuter status carried by this normalized pet-resort entity.
+    /// Spay neuter status retained from source records for staff review, safety gates, and workflow joins.
     pub spay_neuter_status: SpayNeuterStatus,
     #[builder(default)]
-    /// Source-backed temperament carried by this normalized pet-resort entity.
+    /// Temperament retained from source records for staff review, safety gates, and workflow joins.
     pub temperament: TemperamentProfile,
     #[builder(default)]
-    /// Source-backed care profile carried by this normalized pet-resort entity.
+    /// Care profile retained from source records for staff review, safety gates, and workflow joins.
     pub care_profile: CareProfile,
 }
 
@@ -279,19 +294,19 @@ pub enum SpayNeuterStatus {
 /// Temperament evidence used to decide group-play, individual care, and behavior-review routing.
 pub struct TemperamentProfile {
     #[builder(default)]
-    /// Source-backed group play observation carried by this normalized pet-resort entity.
+    /// Group play observation retained from source records for staff review, safety gates, and workflow joins.
     pub group_play_observation: temperament::GroupPlayObservation,
     #[builder(default)]
-    /// Source-backed people orientation carried by this normalized pet-resort entity.
+    /// People orientation retained from source records for staff review, safety gates, and workflow joins.
     pub people_orientation: temperament::PeopleOrientation,
     #[builder(default)]
-    /// Source-backed rating carried by this normalized pet-resort entity.
+    /// Rating retained from source records for staff review, safety gates, and workflow joins.
     pub rating: temperament::Rating,
     #[builder(default)]
-    /// Source-backed behavior observations carried by this normalized pet-resort entity.
+    /// Behavior observations retained from source records for staff review, safety gates, and workflow joins.
     pub behavior_observations: Vec<temperament::BehaviorObservation>,
     #[builder(default)]
-    /// Source-backed staff notes carried by this normalized pet-resort entity.
+    /// Staff notes retained from source records for staff review, safety gates, and workflow joins.
     pub staff_notes: Vec<temperament::StaffNote>,
 }
 
@@ -305,17 +320,17 @@ impl TemperamentProfile {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 /// Feeding, medication, handling, and special-care summary used for staff handoffs and briefings.
 pub struct CareProfile {
-    /// Source-backed feeding instructions carried by this normalized pet-resort entity.
+    /// Feeding instructions retained from source records for staff review, safety gates, and workflow joins.
     pub feeding_instructions: Option<care::FeedingInstruction>,
-    /// Source-backed medications carried by this normalized pet-resort entity.
+    /// Medications retained from source records for staff review, safety gates, and workflow joins.
     pub medications: Vec<MedicationInstruction>,
-    /// Source-backed allergies carried by this normalized pet-resort entity.
+    /// Allergies retained from source records for staff review, safety gates, and workflow joins.
     pub allergies: Vec<care::AllergyName>,
-    /// Source-backed medical conditions carried by this normalized pet-resort entity.
+    /// Medical conditions retained from source records for staff review, safety gates, and workflow joins.
     pub medical_conditions: Vec<care::MedicalConditionName>,
-    /// Source-backed emergency contact carried by this normalized pet-resort entity.
+    /// Emergency contact retained from source records for staff review, safety gates, and workflow joins.
     pub emergency_contact: Option<care::ContactRef>,
-    /// Source-backed veterinarian contact carried by this normalized pet-resort entity.
+    /// Veterinarian contact retained from source records for staff review, safety gates, and workflow joins.
     pub veterinarian_contact: Option<care::ContactRef>,
 }
 
@@ -324,42 +339,42 @@ pub struct CareProfile {
 pub struct MedicationInstruction {
     /// Contact or display name used by staff.
     pub name: care::MedicationName,
-    /// Source-backed dose carried by this normalized pet-resort entity.
+    /// Dose retained from source records for staff review, safety gates, and workflow joins.
     pub dose: care::MedicationDose,
-    /// Source-backed schedule carried by this normalized pet-resort entity.
+    /// Schedule retained from source records for staff review, safety gates, and workflow joins.
     pub schedule: care::MedicationSchedule,
-    /// Source-backed review requirement carried by this normalized pet-resort entity.
+    /// Review requirement retained from source records for staff review, safety gates, and workflow joins.
     pub review_requirement: care::MedicationReviewRequirement,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 /// Reservation record tying customer, pet, service, status, deposit, add-ons, and safety stops together.
 pub struct Reservation {
-    /// Source-backed id carried by this normalized pet-resort entity.
+    /// Id retained from source records for staff review, safety gates, and workflow joins.
     pub id: reservation::Id,
-    /// Source-backed location ID carried by this normalized pet-resort entity.
+    /// Location id retained from source records for staff review, safety gates, and workflow joins.
     pub location_id: LocationId,
-    /// Source-backed customer ID carried by this normalized pet-resort entity.
+    /// Customer id retained from source records for staff review, safety gates, and workflow joins.
     pub customer_id: CustomerId,
-    /// Source-backed pet IDs carried by this normalized pet-resort entity.
+    /// Pet ids retained from source records for staff review, safety gates, and workflow joins.
     pub pet_ids: Vec<PetId>,
     /// Requested service that drives scheduling and labor estimates.
     pub service: ServiceKind,
-    /// Source-backed status carried by this normalized pet-resort entity.
+    /// Status retained from source records for staff review, safety gates, and workflow joins.
     pub status: reservation::Status,
-    /// Source-backed starts at carried by this normalized pet-resort entity.
+    /// Starts at retained from source records for staff review, safety gates, and workflow joins.
     pub starts_at: DateTime<Utc>,
-    /// Source-backed ends at carried by this normalized pet-resort entity.
+    /// Ends at retained from source records for staff review, safety gates, and workflow joins.
     pub ends_at: DateTime<Utc>,
-    /// Source-backed deposit carried by this normalized pet-resort entity.
+    /// Deposit retained from source records for staff review, safety gates, and workflow joins.
     pub deposit: Option<Deposit>,
-    /// Source-backed source carried by this normalized pet-resort entity.
+    /// Source retained from source records for staff review, safety gates, and workflow joins.
     pub source: reservation::Source,
     #[builder(default)]
-    /// Source-backed requested add ons carried by this normalized pet-resort entity.
+    /// Requested add ons retained from source records for staff review, safety gates, and workflow joins.
     pub requested_add_ons: Vec<AddOn>,
     #[builder(default)]
-    /// Source-backed hard stops carried by this normalized pet-resort entity.
+    /// Hard stops retained from source records for staff review, safety gates, and workflow joins.
     pub hard_stops: Vec<HardStop>,
 }
 
@@ -380,9 +395,9 @@ pub enum ServiceKind {
     DaySpa,
 }
 
-/// Shared deposit type used across the entities boundary.
+/// Shared deposit type used by reservation, payment, and approval records.
 pub type Deposit = payment::Deposit;
-/// Shared payment status type used across the entities boundary.
+/// Shared payment status used by checkout, deposit, refund, and approval records.
 pub type PaymentStatus = payment::DepositStatus;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -475,7 +490,7 @@ pub mod care_note {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Visibility boundary that determines whether a care note may be shown to customers or only staff.
+    /// Visibility rule that determines whether a care note may be shown to customers or only staff.
     pub enum Visibility {
         /// Internal only state or source category preserved for normalized resort records.
         InternalOnly,
@@ -529,20 +544,20 @@ pub mod approval {
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
     /// Approval record showing who decided, what target was reviewed, and what lifecycle state resulted.
     pub struct Record {
-        /// Source-backed id carried by this normalized pet-resort entity.
+        /// Id retained from source records for staff review, safety gates, and workflow joins.
         pub id: Id,
-        /// Source-backed target carried by this normalized pet-resort entity.
+        /// Target retained from source records for staff review, safety gates, and workflow joins.
         pub target: Target,
-        /// Source-backed gate carried by this normalized pet-resort entity.
+        /// Gate retained from source records for staff review, safety gates, and workflow joins.
         pub gate: policy::ReviewGate,
-        /// Source-backed lifecycle carried by this normalized pet-resort entity.
+        /// Lifecycle retained from source records for staff review, safety gates, and workflow joins.
         pub lifecycle: Lifecycle,
-        /// Source-backed requested by carried by this normalized pet-resort entity.
+        /// Requested by retained from source records for staff review, safety gates, and workflow joins.
         pub requested_by: ActorRef,
-        /// Source-backed requested at carried by this normalized pet-resort entity.
+        /// Requested at retained from source records for staff review, safety gates, and workflow joins.
         pub requested_at: DateTime<Utc>,
         #[builder(default)]
-        /// Source-backed audit refs carried by this normalized pet-resort entity.
+        /// Audit refs retained from source records for staff review, safety gates, and workflow joins.
         pub audit_refs: Vec<crate::audit::EventId>,
     }
 
@@ -590,16 +605,16 @@ pub mod approval {
         ApprovalRequested,
         /// Approved state or source category preserved for normalized resort records.
         Approved {
-            /// Source-backed decided by carried by this normalized pet-resort entity.
+            /// Decided by retained from source records for staff review, safety gates, and workflow joins.
             decided_by: ActorRef,
-            /// Source-backed decided at carried by this normalized pet-resort entity.
+            /// Decided at retained from source records for staff review, safety gates, and workflow joins.
             decided_at: DateTime<Utc>,
         },
         /// Rejected state or source category preserved for normalized resort records.
         Rejected {
-            /// Source-backed decided by carried by this normalized pet-resort entity.
+            /// Decided by retained from source records for staff review, safety gates, and workflow joins.
             decided_by: ActorRef,
-            /// Source-backed decided at carried by this normalized pet-resort entity.
+            /// Decided at retained from source records for staff review, safety gates, and workflow joins.
             decided_at: DateTime<Utc>,
         },
         /// Reservation is no longer active.
@@ -660,32 +675,32 @@ pub mod approval {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 /// Document record tying storage, classification, source, scan, redaction, and review status together.
 pub struct Document {
-    /// Source-backed id carried by this normalized pet-resort entity.
+    /// Id retained from source records for staff review, safety gates, and workflow joins.
     pub id: DocumentId,
-    /// Source-backed location ID carried by this normalized pet-resort entity.
+    /// Location id retained from source records for staff review, safety gates, and workflow joins.
     pub location_id: LocationId,
-    /// Source-backed subject carried by this normalized pet-resort entity.
+    /// Subject retained from source records for staff review, safety gates, and workflow joins.
     pub subject: DocumentSubject,
-    /// Source-backed classification carried by this normalized pet-resort entity.
+    /// Classification retained from source records for staff review, safety gates, and workflow joins.
     pub classification: document::Classification,
-    /// Source-backed source carried by this normalized pet-resort entity.
+    /// Source retained from source records for staff review, safety gates, and workflow joins.
     pub source: document::Source,
-    /// Source-backed uploaded by actor carried by this normalized pet-resort entity.
+    /// Uploaded by actor retained from source records for staff review, safety gates, and workflow joins.
     pub uploaded_by_actor: ActorRef,
-    /// Source-backed uploaded at carried by this normalized pet-resort entity.
+    /// Uploaded at retained from source records for staff review, safety gates, and workflow joins.
     pub uploaded_at: DateTime<Utc>,
-    /// Source-backed original file carried by this normalized pet-resort entity.
+    /// Original file retained from source records for staff review, safety gates, and workflow joins.
     pub original_file: document::OriginalFile,
-    /// Source-backed storage ref carried by this normalized pet-resort entity.
+    /// Storage ref retained from source records for staff review, safety gates, and workflow joins.
     pub storage_ref: document::StorageRef,
-    /// Source-backed virus scan status carried by this normalized pet-resort entity.
+    /// Virus scan status retained from source records for staff review, safety gates, and workflow joins.
     pub virus_scan_status: document::VirusScanStatus,
-    /// Source-backed pii redaction status carried by this normalized pet-resort entity.
+    /// Pii redaction status retained from source records for staff review, safety gates, and workflow joins.
     pub pii_redaction_status: document::PiiRedactionStatus,
-    /// Source-backed verification status carried by this normalized pet-resort entity.
+    /// Verification status retained from source records for staff review, safety gates, and workflow joins.
     pub verification_status: document::Status,
     #[builder(default)]
-    /// Source-backed audit refs carried by this normalized pet-resort entity.
+    /// Audit refs retained from source records for staff review, safety gates, and workflow joins.
     pub audit_refs: Vec<crate::audit::EventId>,
 }
 
@@ -719,24 +734,24 @@ pub enum DocumentSubject {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 /// Vaccine compliance record linking pet, vaccine name, expiration, proof document, and review status.
 pub struct VaccineRecord {
-    /// Source-backed id carried by this normalized pet-resort entity.
+    /// Id retained from source records for staff review, safety gates, and workflow joins.
     pub id: VaccineRecordId,
     /// Pet receiving the grooming or care service.
     pub pet_id: PetId,
-    /// Source-backed vaccine name carried by this normalized pet-resort entity.
+    /// Vaccine name retained from source records for staff review, safety gates, and workflow joins.
     pub vaccine_name: policy::VaccineName,
-    /// Source-backed source document ID carried by this normalized pet-resort entity.
+    /// Source document id retained from source records for staff review, safety gates, and workflow joins.
     pub source_document_id: DocumentId,
-    /// Source-backed status carried by this normalized pet-resort entity.
+    /// Status retained from source records for staff review, safety gates, and workflow joins.
     pub status: vaccine::Status,
-    /// Source-backed effective on carried by this normalized pet-resort entity.
+    /// Effective on retained from source records for staff review, safety gates, and workflow joins.
     pub effective_on: NaiveDate,
-    /// Source-backed expires on carried by this normalized pet-resort entity.
+    /// Expires on retained from source records for staff review, safety gates, and workflow joins.
     pub expires_on: Option<NaiveDate>,
-    /// Source-backed review gate carried by this normalized pet-resort entity.
+    /// Review gate retained from source records for staff review, safety gates, and workflow joins.
     pub review_gate: policy::ReviewGate,
     #[builder(default)]
-    /// Source-backed audit refs carried by this normalized pet-resort entity.
+    /// Audit refs retained from source records for staff review, safety gates, and workflow joins.
     pub audit_refs: Vec<crate::audit::EventId>,
 }
 
@@ -756,22 +771,22 @@ impl VaccineRecord {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 /// Care note with author, visibility, subject, body, source, and review-sensitive timestamps.
 pub struct CareNote {
-    /// Source-backed id carried by this normalized pet-resort entity.
+    /// Id retained from source records for staff review, safety gates, and workflow joins.
     pub id: care_note::Id,
-    /// Source-backed subject carried by this normalized pet-resort entity.
+    /// Subject retained from source records for staff review, safety gates, and workflow joins.
     pub subject: care_note::Subject,
-    /// Source-backed kind carried by this normalized pet-resort entity.
+    /// Kind retained from source records for staff review, safety gates, and workflow joins.
     pub kind: care_note::Kind,
-    /// Source-backed visibility carried by this normalized pet-resort entity.
+    /// Visibility retained from source records for staff review, safety gates, and workflow joins.
     pub visibility: care_note::Visibility,
-    /// Source-backed body carried by this normalized pet-resort entity.
+    /// Body retained from source records for staff review, safety gates, and workflow joins.
     pub body: care_note::Body,
-    /// Source-backed author carried by this normalized pet-resort entity.
+    /// Author retained from source records for staff review, safety gates, and workflow joins.
     pub author: ActorRef,
-    /// Source-backed recorded at carried by this normalized pet-resort entity.
+    /// Recorded at retained from source records for staff review, safety gates, and workflow joins.
     pub recorded_at: DateTime<Utc>,
     #[builder(default)]
-    /// Source-backed audit refs carried by this normalized pet-resort entity.
+    /// Audit refs retained from source records for staff review, safety gates, and workflow joins.
     pub audit_refs: Vec<crate::audit::EventId>,
 }
 
@@ -789,29 +804,29 @@ impl CareNote {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 /// Incident record used for manager attention, safety follow-up, customer messaging, and audit evidence.
 pub struct Incident {
-    /// Source-backed id carried by this normalized pet-resort entity.
+    /// Id retained from source records for staff review, safety gates, and workflow joins.
     pub id: IncidentId,
-    /// Source-backed location ID carried by this normalized pet-resort entity.
+    /// Location id retained from source records for staff review, safety gates, and workflow joins.
     pub location_id: LocationId,
-    /// Source-backed primary subject carried by this normalized pet-resort entity.
+    /// Primary subject retained from source records for staff review, safety gates, and workflow joins.
     pub primary_subject: IncidentSubject,
-    /// Source-backed category carried by this normalized pet-resort entity.
+    /// Category retained from source records for staff review, safety gates, and workflow joins.
     pub category: incident::Category,
-    /// Source-backed severity carried by this normalized pet-resort entity.
+    /// Severity retained from source records for staff review, safety gates, and workflow joins.
     pub severity: incident::Severity,
-    /// Source-backed status carried by this normalized pet-resort entity.
+    /// Status retained from source records for staff review, safety gates, and workflow joins.
     pub status: incident::Status,
-    /// Source-backed reported by carried by this normalized pet-resort entity.
+    /// Reported by retained from source records for staff review, safety gates, and workflow joins.
     pub reported_by: ActorRef,
-    /// Source-backed reported at carried by this normalized pet-resort entity.
+    /// Reported at retained from source records for staff review, safety gates, and workflow joins.
     pub reported_at: DateTime<Utc>,
-    /// Source-backed summary carried by this normalized pet-resort entity.
+    /// Summary retained from source records for staff review, safety gates, and workflow joins.
     pub summary: incident::Summary,
     #[builder(default)]
-    /// Source-backed required review gates carried by this normalized pet-resort entity.
+    /// Required review gates retained from source records for staff review, safety gates, and workflow joins.
     pub required_review_gates: Vec<policy::ReviewGate>,
     #[builder(default)]
-    /// Source-backed audit refs carried by this normalized pet-resort entity.
+    /// Audit refs retained from source records for staff review, safety gates, and workflow joins.
     pub audit_refs: Vec<crate::audit::EventId>,
 }
 
@@ -846,22 +861,22 @@ pub enum IncidentSubject {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 /// Customer/internal message record that tracks subject, channel, draft/reference body, approval, and delivery state.
 pub struct Message {
-    /// Source-backed id carried by this normalized pet-resort entity.
+    /// Id retained from source records for staff review, safety gates, and workflow joins.
     pub id: MessageId,
-    /// Source-backed subject carried by this normalized pet-resort entity.
+    /// Subject retained from source records for staff review, safety gates, and workflow joins.
     pub subject: MessageSubject,
-    /// Source-backed direction carried by this normalized pet-resort entity.
+    /// Direction retained from source records for staff review, safety gates, and workflow joins.
     pub direction: message::Direction,
-    /// Source-backed channel carried by this normalized pet-resort entity.
+    /// Channel retained from source records for staff review, safety gates, and workflow joins.
     pub channel: message::Channel,
-    /// Source-backed status carried by this normalized pet-resort entity.
+    /// Status retained from source records for staff review, safety gates, and workflow joins.
     pub status: message::Status,
-    /// Source-backed body ref carried by this normalized pet-resort entity.
+    /// Body ref retained from source records for staff review, safety gates, and workflow joins.
     pub body_ref: message::BodyRef,
-    /// Source-backed approval gate carried by this normalized pet-resort entity.
+    /// Approval gate retained from source records for staff review, safety gates, and workflow joins.
     pub approval_gate: Option<policy::ReviewGate>,
     #[builder(default)]
-    /// Source-backed audit refs carried by this normalized pet-resort entity.
+    /// Audit refs retained from source records for staff review, safety gates, and workflow joins.
     pub audit_refs: Vec<crate::audit::EventId>,
 }
 
@@ -905,15 +920,15 @@ pub mod audit {
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     /// Audit event capturing actor, subject, action, timestamp, and metadata evidence.
     pub struct Event {
-        /// Source-backed at carried by this normalized pet-resort entity.
+        /// At retained from source records for staff review, safety gates, and workflow joins.
         pub at: DateTime<Utc>,
-        /// Source-backed actor carried by this normalized pet-resort entity.
+        /// Actor retained from source records for staff review, safety gates, and workflow joins.
         pub actor: super::ActorRef,
-        /// Source-backed subject carried by this normalized pet-resort entity.
+        /// Subject retained from source records for staff review, safety gates, and workflow joins.
         pub subject: Subject,
-        /// Source-backed action carried by this normalized pet-resort entity.
+        /// Action retained from source records for staff review, safety gates, and workflow joins.
         pub action: Action,
-        /// Source-backed metadata carried by this normalized pet-resort entity.
+        /// Metadata retained from source records for staff review, safety gates, and workflow joins.
         pub metadata: BTreeMap<MetadataKey, MetadataValue>,
     }
 
@@ -944,9 +959,9 @@ pub mod audit {
         WorkflowEvent(crate::workflow::EventId),
         /// External system object referenced from domain history.
         External {
-            /// Source-backed provider carried by this normalized pet-resort entity.
+            /// Provider retained from source records for staff review, safety gates, and workflow joins.
             provider: crate::workflow::external::Provider,
-            /// Source-backed id carried by this normalized pet-resort entity.
+            /// Id retained from source records for staff review, safety gates, and workflow joins.
             id: crate::workflow::external::Id,
         },
     }
@@ -1040,21 +1055,21 @@ pub mod audit {
 pub enum ActorRef {
     /// Customer record participating in the workflow.
     Customer(CustomerId),
-    /// Source-backed staff ID carried by this normalized pet-resort entity.
+    /// Staff id retained from source records for staff review, safety gates, and workflow joins.
     Staff {
-        /// Staff id carried by this variant.
+        /// Staff id attached to this variant for reviewers and adapters.
         staff_id: StaffId,
     },
-    /// Source-backed manager ID carried by this normalized pet-resort entity.
+    /// Manager id retained from source records for staff review, safety gates, and workflow joins.
     Manager {
-        /// Manager id carried by this variant.
+        /// Manager id attached to this variant for reviewers and adapters.
         manager_id: ManagerId,
     },
     /// System state or source category preserved for normalized resort records.
     System,
-    /// Source-backed workflow carried by this normalized pet-resort entity.
+    /// Workflow retained from source records for staff review, safety gates, and workflow joins.
     Agent {
-        /// Workflow carried by this variant.
+        /// Workflow attached to this variant for reviewers and adapters.
         workflow: agent::Name,
     },
 }

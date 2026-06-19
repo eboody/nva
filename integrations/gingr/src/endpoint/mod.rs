@@ -1,4 +1,4 @@
-//! Secret-free request builders for Gingr endpoint contracts.
+//! Secret-free request builders for Gingr endpoints used as source evidence.
 //!
 //! Endpoint structs describe provider requests without performing network I/O.
 //! Callers can inspect the path and parameters, attach source provenance, and only
@@ -25,19 +25,19 @@
 //! # }
 //! ```
 
-/// Gingr catalog endpoint boundary with provider parameters kept explicit.
+/// Catalog request documentation for service surfaces whose DTOs are still provider gaps.
 pub mod catalog;
-/// Gingr commerce retail endpoint boundary with provider parameters kept explicit.
+/// Retail and commerce requests used to collect inventory, package, transaction, and invoice evidence.
 pub mod commerce_retail;
-/// Gingr labor ops endpoint boundary with provider parameters kept explicit.
+/// Labor-operation requests used to collect timeclock evidence for manager review.
 pub mod labor_ops;
-/// Gingr owners animals endpoint boundary with provider parameters kept explicit.
+/// Owner and animal requests used to collect customer, pet, form, and care-info evidence.
 pub mod owners_animals;
-/// Gingr reference data endpoint boundary with provider parameters kept explicit.
+/// Reference-data requests for locations, veterinarians, immunization labels, and related lookups.
 pub mod reference_data;
-/// Gingr report cards files endpoint boundary with provider parameters kept explicit.
+/// Report-card file requests used to retrieve provider documents for later review.
 pub mod report_cards_files;
-/// Gingr reservations endpoint boundary with provider parameters kept explicit.
+/// Reservation requests used to collect occupancy, check-in, and service-demand evidence.
 pub mod reservations;
 
 pub use reservations::Reservations;
@@ -50,18 +50,18 @@ use std::fmt;
 pub type Result<T> = core::result::Result<T, Error>;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
-/// Errors raised when provider values cannot safely cross this Gingr boundary.
+/// Errors raised when Gingr request inputs cannot be represented as safe endpoint parameters.
 pub enum Error {
     #[error("invalid Gingr date {value:?}: expected YYYY-MM-DD")]
     /// Provider date did not match the endpoint date format.
     InvalidDate {
-        /// Original provider/caller value rejected before it could become a typed boundary value.
+        /// Raw value supplied by provider docs, fixtures, or caller code so request setup can be corrected.
         value: String,
     },
     #[error("invalid Gingr ISO date {value:?}: expected YYYY-MM-DD")]
     /// Provider ISO date could not be parsed for a Gingr request.
     InvalidIsoDate {
-        /// Original provider/caller value rejected before it could become a typed boundary value.
+        /// Raw value supplied by provider docs, fixtures, or caller code so request setup can be corrected.
         value: String,
     },
     #[error("invalid Gingr date range: start {start} must not be after end {end}")]
@@ -78,7 +78,7 @@ pub enum Error {
     #[error("invalid Gingr positive integer {value}: expected non-zero value")]
     /// Provider integer wrapper rejected zero or an invalid value.
     InvalidPositiveInteger {
-        /// Original provider/caller value rejected before it could become a typed boundary value.
+        /// Raw value supplied by provider docs, fixtures, or caller code so request setup can be corrected.
         value: u64,
     },
     #[error("invalid Gingr text value: expected non-empty text")]
@@ -95,19 +95,19 @@ pub enum Error {
     LegacyDateBoundary {
         /// Date carried with this error or record.
         date: String,
-        /// Boundary carried with this error or record.
+        /// Provider cutoff or range rule that the request violated.
         boundary: &'static str,
     },
     #[error("invalid Gingr pagination: {reason}")]
     /// Pagination parameters would produce an invalid Gingr request.
     InvalidPagination {
-        /// Boundary-level reason explaining why this provider request or parse step was rejected.
+        /// Reason the pagination pair would ask Gingr for an unsupported slice.
         reason: &'static str,
     },
     #[error("invalid Gingr subscription bill day {value}: expected 1..=31")]
     /// Subscription bill day was outside Gingr-supported month bounds.
     InvalidBillDayOfMonth {
-        /// Original provider/caller value rejected before it could become a typed boundary value.
+        /// Raw value supplied by provider docs, fixtures, or caller code so request setup can be corrected.
         value: u8,
     },
 }
@@ -126,7 +126,7 @@ pub enum Method {
 pub struct Date(NaiveDate);
 
 impl Date {
-    /// Parses provider-sourced text into this boundary type without promoting it to an NVA domain fact.
+    /// Validates a Gingr date parameter used for provider filtering, not a canonical reservation date.
     pub fn parse(raw: impl AsRef<str>) -> Result<Self> {
         let raw = raw.as_ref();
         NaiveDate::parse_from_str(raw, "%Y-%m-%d")
@@ -153,7 +153,7 @@ impl fmt::Display for Date {
 pub struct IsoDate(NaiveDate);
 
 impl IsoDate {
-    /// Parses provider-sourced text into this boundary type without promoting it to an NVA domain fact.
+    /// Validates a Gingr date parameter used for provider filtering, not a canonical reservation date.
     pub fn parse(raw: impl AsRef<str>) -> Result<Self> {
         let raw = raw.as_ref();
         NaiveDate::parse_from_str(raw, "%Y-%m-%d")
@@ -178,7 +178,7 @@ pub struct DateRange {
 }
 
 impl DateRange {
-    /// Constructs this typed Gingr boundary value after the caller has chosen the provider input to trust.
+    /// Builds an inclusive Gingr date window for reservation and commerce requests after range checks pass.
     pub fn new(start: Date, end: Date) -> Result<Self> {
         if start > end {
             return Err(Error::ReversedDateRange { start, end });
@@ -224,7 +224,7 @@ macro_rules! id_type {
                 Self(value)
             }
 
-            /// Returns the provider numeric identifier carried by this wrapper.
+            /// Returns the raw Gingr numeric id so it can be linked to source provenance or endpoint parameters.
             pub const fn get(self) -> u64 {
                 self.0
             }
@@ -251,7 +251,7 @@ id_type!(ReferenceId);
 pub struct Path(&'static str);
 
 impl Path {
-    /// Wraps an already-observed Gingr identifier without claiming anything beyond provider provenance.
+    /// Stores the static Gingr API path emitted by a typed request descriptor.
     pub const fn new(value: &'static str) -> Self {
         Self(value)
     }
@@ -279,7 +279,7 @@ impl fmt::Display for Path {
 pub struct Limit(u64);
 
 impl Limit {
-    /// Constructs this typed Gingr boundary value after the caller has chosen the provider input to trust.
+    /// Validates the maximum number of provider records to request from a Gingr list endpoint.
     pub fn new(value: u64) -> Result<Self> {
         if value == 0 {
             return Err(Error::InvalidPositiveInteger { value });
@@ -296,18 +296,18 @@ impl fmt::Display for Limit {
 
 /// Defines the behavior required from a request participant in the endpoint workflow.
 pub trait Request {
-    /// Describes the provider wire contract for this Gingr request.
+    /// Returns the HTTP method Gingr expects for this request.
     fn method(&self) -> Method;
-    /// Describes the provider wire contract for this Gingr request.
+    /// Returns the Gingr API path used for request capture and transport.
     fn path(&self) -> &'static str;
-    /// Describes the provider wire contract for this Gingr request.
+    /// Returns the query or form parameters that document exactly what provider facts are requested.
     fn parameters(&self) -> Vec<(String, String)>;
-    /// Describes the provider wire contract for this Gingr request.
+    /// Names provider parameters such as phone, email, or API key that must be redacted in diagnostics.
     fn sensitive_parameter_names(&self) -> &'static [&'static str] {
         &[]
     }
 
-    /// Describes the provider wire contract for this Gingr request.
+    /// Converts the descriptor into transport-ready parts without sending a live Gingr request.
     fn request_parts(&self) -> transport::RequestParts {
         transport::RequestParts::builder()
             .method(self.method())

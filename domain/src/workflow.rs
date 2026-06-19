@@ -1,6 +1,20 @@
 //! Workflow events and outcomes for reviewable resort operations.
 //!
-//! Workflows connect source-derived facts to staff-visible tasks, customer-message drafts, policy
+//! # Operator framing
+//!
+//! Use this page to understand how a source fact turns into a staff-visible task,
+//! review reason, draft message, or recommended next action. It matters to
+//! operators because workflow values preserve why something is being suggested,
+//! what evidence supports it, and which human review gate still controls the live
+//! care, labor, payment, or customer-communication step.
+//!
+//! The next step is to follow the type that matches the queue you are explaining:
+//! events identify why work started, task/message modules describe staff-facing
+//! drafts, review values explain why automation stopped, and outcomes record the
+//! evidence trail. The Rust API details below are the generated implementation surface for
+//! implementers; this framing is the business reading guide.
+//!
+//! Workflows connect provider/read-model facts to staff-visible tasks, customer-message drafts, policy
 //! context, and recommended next actions. They preserve evidence and review reasons so AI agents can
 //! reduce manual triage while keeping live care, labor, payment, and customer communications inside
 //! explicit approval boundaries.

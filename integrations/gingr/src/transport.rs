@@ -209,7 +209,7 @@ pub struct Client<T = HttpTransport> {
 }
 
 impl Client<HttpTransport> {
-    /// Constructs this typed Gingr boundary value after the caller has chosen the provider input to trust.
+    /// Pairs validated Gingr configuration with the transport implementation that will capture or send requests.
     pub fn new(config: config::Client) -> Self {
         Self {
             config,

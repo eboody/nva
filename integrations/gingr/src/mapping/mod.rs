@@ -1,7 +1,7 @@
 //! Promotion helpers from quarantined Gingr records into source-agnostic candidates.
 //!
 //! Mapping code may read Gingr-shaped DTOs, but the values it returns are domain
-//! candidates plus caller-owned source refs. Provider ids stay at this boundary;
+//! candidates plus caller-owned source refs. Provider ids stay inside this adapter;
 //! the domain does not learn Gingr vocabulary.
 //!
 //! ```rust
@@ -34,11 +34,11 @@
 //! # }
 //! ```
 
-/// Gingr customer mapper boundary that promotes provider payloads into domain candidates.
+/// Customer mapper that turns a Gingr owner record into a reviewable domain contact candidate.
 pub mod customer;
-/// Gingr pet mapper boundary that promotes provider payloads into domain candidates.
+/// Pet mapper that turns a Gingr animal record into a reviewable domain pet-name candidate.
 pub mod pet;
-/// Gingr retail mapper boundary that promotes provider payloads into domain candidates.
+/// Retail mapper that turns a Gingr item DTO into a reviewable domain product candidate.
 pub mod retail;
 
 /// Result type returned by fallible mapping operations.
@@ -65,7 +65,7 @@ pub enum ProviderField {
 }
 
 #[derive(Debug, thiserror::Error, Clone, PartialEq, Eq)]
-/// Errors raised when provider values cannot safely cross this Gingr boundary.
+/// Errors raised when Gingr records are missing fields or fail domain validation during mapping.
 pub enum Error {
     #[error("missing required Gingr provider field: {field}")]
     /// DTO mapping cannot proceed because Gingr omitted a required field.

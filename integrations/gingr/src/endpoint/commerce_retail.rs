@@ -14,7 +14,7 @@ fn push_optional<T: core::fmt::Display>(
     }
 }
 
-/// Gingr get endpoint boundary with provider parameters kept explicit.
+/// GET-style retail and package requests where each Gingr id/filter remains visible for reconciliation.
 pub mod get {
     use super::*;
 
@@ -41,7 +41,7 @@ pub mod get {
     pub struct SubscriptionId(u64);
 
     impl SubscriptionId {
-        /// Constructs this typed Gingr boundary value after the caller has chosen the provider input to trust.
+        /// Wraps the Gingr value used by this commerce request without treating it as NVA billing truth.
         pub fn new(value: u64) -> Self {
             Self(value)
         }
@@ -60,7 +60,7 @@ pub mod get {
     }
 
     impl Subscription {
-        /// Constructs this typed Gingr boundary value after the caller has chosen the provider input to trust.
+        /// Wraps the Gingr value used by this commerce request without treating it as NVA billing truth.
         pub fn new(id: SubscriptionId) -> Self {
             Self { id }
         }
@@ -85,7 +85,7 @@ pub mod get {
     pub struct BillDayOfMonth(u8);
 
     impl BillDayOfMonth {
-        /// Constructs this typed Gingr boundary value after the caller has chosen the provider input to trust.
+        /// Wraps the Gingr value used by this commerce request without treating it as NVA billing truth.
         pub fn new(value: u8) -> Result<Self> {
             if (1..=31).contains(&value) {
                 Ok(Self(value))
@@ -106,7 +106,7 @@ pub mod get {
     pub struct PackageId(u64);
 
     impl PackageId {
-        /// Constructs this typed Gingr boundary value after the caller has chosen the provider input to trust.
+        /// Wraps the Gingr value used by this commerce request without treating it as NVA billing truth.
         pub fn new(value: u64) -> Self {
             Self(value)
         }
@@ -126,7 +126,7 @@ pub mod get {
     }
 
     impl SubscriptionPagination {
-        /// Constructs this typed Gingr boundary value after the caller has chosen the provider input to trust.
+        /// Wraps the Gingr value used by this commerce request without treating it as NVA billing truth.
         pub fn new(limit: u64, offset: u64) -> Self {
             Self { limit, offset }
         }
@@ -236,7 +236,7 @@ pub mod get {
     }
 }
 
-/// Gingr list endpoint boundary with provider parameters kept explicit.
+/// List-style retail and billing requests where date windows and pagination are explicit for reconciliation.
 pub mod list {
     use super::*;
 
@@ -324,7 +324,7 @@ pub mod list {
     }
 
     impl InvoicePagination {
-        /// Constructs this typed Gingr boundary value after the caller has chosen the provider input to trust.
+        /// Wraps the Gingr value used by this commerce request without treating it as NVA billing truth.
         pub fn new(per_page: u64, page: u64) -> Result<Self> {
             if per_page == 0 {
                 return Err(Error::InvalidPagination {
@@ -448,7 +448,7 @@ pub mod list {
 pub struct TransactionId(u64);
 
 impl TransactionId {
-    /// Constructs this typed Gingr boundary value after the caller has chosen the provider input to trust.
+    /// Wraps the Gingr transaction id used to fetch raw payment evidence for review.
     pub fn new(value: u64) -> Self {
         Self(value)
     }
@@ -474,7 +474,7 @@ pub struct Transaction {
 }
 
 impl Transaction {
-    /// Constructs this typed Gingr boundary value after the caller has chosen the provider input to trust.
+    /// Wraps the Gingr transaction id used to fetch raw payment evidence for review.
     pub fn new(id: TransactionId) -> Self {
         Self { id }
     }
