@@ -1,5 +1,7 @@
 # Workflow event idempotency and replay rules
 
+> Successor route: this is a detailed specification/supporting-proof artifact, not the current reader spine. Start with the [docs successor and archive map](../design/successor-archive-map.md#older-workflow-and-specification-docs), [workflow-to-entity map](../design/workflow-to-entity-navigation-map.md), and [operator workflow index](operator/README.md) before using this page for current claims.
+
 Purpose: define a recommended idempotency and replay model for the MVP workflow events in `domain/src/workflow.rs`. This artifact is a design recommendation, not an approved implementation contract.
 
 Status: approval-gated design draft. The idempotency model itself requires human/reviewer approval before implementation. Do not wire live provider writes, outbound customer messages, payment actions, reservation mutations, or authoritative task creation from this document until the model is explicitly approved and covered by tests.

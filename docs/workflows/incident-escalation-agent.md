@@ -1,5 +1,7 @@
 # Incident/Escalation Agent
 
+> Successor route: this is a detailed specification/supporting-proof artifact, not the current reader spine. Start with the [docs successor and archive map](../design/successor-archive-map.md#older-workflow-and-specification-docs), [workflow-to-entity map](../design/workflow-to-entity-navigation-map.md), and [operator workflow index](operator/README.md) before using this page for current claims.
+
 Purpose: define the integrated Incident/Escalation Agent workflow from intake through classification, AI summaries, owner-message drafts, manager escalation, temporary profile flags, follow-up tasks, post-incident review, and closeout.
 
 Status: draft integration artifact. This document is not live operating policy and does not authorize autonomous incident closure, owner-facing communications, medical/safety decisions, behavior eligibility changes, provider writes, task completion, refunds, legal/compliance decisions, or final medium/high/emergency classification.

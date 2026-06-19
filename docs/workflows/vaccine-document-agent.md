@@ -1,5 +1,7 @@
 # Vaccine document agent workflow
 
+> Successor route: this is a detailed specification/supporting-proof artifact, not the current reader spine. Start with the [docs successor and archive map](../design/successor-archive-map.md#older-workflow-and-specification-docs), [workflow-to-entity map](../design/workflow-to-entity-navigation-map.md), and [operator workflow index](operator/README.md) before using this page for current claims.
+
 Status: integrated draft. This document is not approval for production LLM use, customer-facing sends, provider writes, booking/profile mutations, or autonomous medical-document acceptance. It defines the conservative upload, extraction, review, policy-comparison, audit, and fixture contracts that implementation cards should encode.
 
 ## Source artifacts synthesized

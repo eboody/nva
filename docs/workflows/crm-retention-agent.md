@@ -1,6 +1,8 @@
 # CRM and retention agent workflow
 
-Status: canonical workflow artifact for the current CRM/retention workstream. This document synthesizes the completed part artifacts in `docs/workflows/crm-retention-parts/` plus related customer-messaging policy into one integration contract for product, data-model, task-model, and implementation planning.
+> Successor route: this is a detailed specification/supporting-proof artifact, not the current reader spine. Start with the [docs successor and archive map](../design/successor-archive-map.md#older-workflow-and-specification-docs), [workflow-to-entity map](../design/workflow-to-entity-navigation-map.md), and [operator workflow index](operator/README.md) before using this page for current claims.
+
+Status: detailed supporting-proof artifact for the CRM/retention workstream. This document synthesizes the completed part artifacts in `docs/workflows/crm-retention-parts/` plus related customer-messaging policy into one integration contract for product, data-model, task-model, and implementation planning; use the successor routes above for current reader navigation.
 
 This document is a workflow/specification artifact only. It does not authorize live customer-facing marketing automation, review requests, rebooking sends, complaint responses, public-review replies, discounts, refunds, credits, waivers, retention offers, booking/provider mutations, consent/DNC changes, or production campaign execution.
 

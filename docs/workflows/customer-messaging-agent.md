@@ -1,5 +1,7 @@
 # Customer messaging agent
 
+> Successor route: this is a detailed specification/supporting-proof artifact, not the current reader spine. Start with the [docs successor and archive map](../design/successor-archive-map.md#older-workflow-and-specification-docs), [workflow-to-entity map](../design/workflow-to-entity-navigation-map.md), and [operator workflow index](operator/README.md) before using this page for current claims.
+
 Status: integration artifact synthesized from the Customer Messaging Agent definition cards. This document is a workflow/specification artifact only. It does not authorize live customer/member-facing sends, provider writes, reservation changes, payment actions, refunds, waivers, medical/vaccine decisions, incident closure, policy exceptions, or customer-portal script changes.
 
 Source artifacts:

@@ -1,5 +1,7 @@
 # Inquiry intake agent workflow
 
+> Successor route: this is a detailed specification/supporting-proof artifact, not the current reader spine. Start with the [docs successor and archive map](../design/successor-archive-map.md#older-workflow-and-specification-docs), [workflow-to-entity map](../design/workflow-to-entity-navigation-map.md), and [operator workflow index](operator/README.md) before using this page for current claims.
+
 Purpose: define the integrated workflow contract for the `inquiry-intake` agent. This document synthesizes the completed source-normalization, extraction-schema, triage-routing, draft-reply, internal-task, and test-fixture handoffs into the implementation artifact for `inquiry.received` / `WorkflowEventType::InquiryReceived`.
 
 Status: integrated draft. This document is not approval for production LLM use, customer-facing auto-sends, booking/provider mutations, payment actions, vaccine/medical/behavior decisions, group-play eligibility, or policy exceptions. It defines the conservative packet, output, task, draft, review, and fixture contracts that implementation and review cards should encode.

@@ -2,11 +2,33 @@
 
 Context for evaluating / preparing for an engineering role helping NVA Pet Resorts implement AI agents and operational automation.
 
+> **Status: background / discovery context.** This context pack preserves the original business reconnaissance, pitch framing, and discovery questions. It is **not** the current source of truth for repo architecture, contracts, authority boundaries, or implementation status. For current guidance, start with the [README canonical docs path](README.md#canonical-docs-path), then follow the entity atlas, workflow, safety, and proof links below. Treat Gingr references here as source clues from public discovery, not as the strategy or as automatic NVA business truth.
+
 ## Source messages
 
 > Yeah that sounds great. The gist is, I run IT/Tech for a portfolio 170 Pet Resorts in the US. I’m setting up an “ai program” to build agents to automate/optimize operations. We’re finalizing an enterprise Claude contract this month, and then I’m looking to bring on an engineer to build agents for us. If interested we can work out the term + rate. Timing is likely early July. We can chat more this week, but that’s the job in a nutshell
 
 > Hey dude my brother is hiring a dev to help his company NVA streamline processes with ai. He’s newly leading their AI adoption efforts. I mentioned you may be interested and he said to make an intro if you are. Want me to T up that convo?
+
+---
+
+## Where this maps into current docs
+
+Use this pack for business context and discovery framing, then move into the current docs spine for implementation authority, review gates, and proof:
+
+| If this context pack raises... | Current docs surface |
+| --- | --- |
+| The overall labor-cost reduction thesis and canonical reader path | [README canonical docs path](README.md#canonical-docs-path) and [Labor-cost reduction crosswalk](docs/design/labor-cost-reduction-crosswalk.md) |
+| Core pet-resort nouns: customer, pet, reservation, care/vaccine/incident facts, workflow packets, outcomes, storage/runtime shells | [NVA Pet Resorts entity index](docs/design/entity-index.md) |
+| How source evidence becomes domain facts, workflow packets, reviewed outcomes, and proof | [Entity atlas relationship map](docs/design/entity-atlas-relationships.md) |
+| A workflow-first question such as booking triage, checkout, grooming retention, Pawgress drafts, manager brief, or regional exceptions | [Workflow-to-entity navigation map](docs/design/workflow-to-entity-navigation-map.md) and [Operator workflow index](docs/workflows/operator/README.md) |
+| The current strongest measurable labor loop | [Manager Daily Brief workflow](docs/workflows/operator/manager-daily-brief.md) and [Manager Daily Brief measurable labor loop](docs/design/manager-daily-brief-measurable-labor-loop.md) |
+| Missing, stale, duplicate, conflicting, or ambiguous facts across source systems | [Data Quality Hygiene workflow](docs/workflows/operator/data-quality-hygiene.md) and [Source/provenance/data-quality atlas](docs/design/source-provenance-data-quality-atlas.md) |
+| Gingr as the visible PetSuites provider clue | [Gingr provider boundary atlas](docs/integrations/gingr/provider-boundary-atlas.md). Gingr can supply provider evidence; NVA domain/app contracts and human/system-of-record review decide workflow authority. |
+| What agents may draft/rank/summarize vs. what must stay blocked or reviewed | [Operator safety model](docs/safety/agent-safety-model-for-operators.md), [Review boundaries matrix](docs/safety/review-boundaries-matrix.md), and [Review gates / blocked actions atlas](docs/design/entity-atlas-review-safety-boundaries.md) |
+| Source/Rustdoc/test proof for claims | [Contract crosswalk closeout](docs/entity-atlas/contract-crosswalk/README.md) |
+
+The durable strategy is not “integrate Gingr and let agents act.” It is: source evidence -> provenance/data-quality status -> domain/entity contract -> app workflow packet -> agent-safe draft/ranking/summary -> human or system-of-record review gate -> outcome/labor-minutes record -> storage/runtime/reporting proof.
 
 ---
 

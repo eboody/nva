@@ -18,13 +18,26 @@ A reader should be able to pick any important entity and answer:
 
 Use the published/non-coder landing source at [docs/public/index.html](docs/public/index.html) when the audience needs the public entrypoint. It mirrors this README's operating model: entity atlas first, workflows and crate/Rustdoc pages as evidence after the business meaning is clear.
 
-The main public routes are:
+## Canonical docs path
 
-- [NVA Pet Resorts entity index](docs/design/entity-index.md): canonical atlas spine for source systems, provenance, customers, pets, reservations, service-line contracts, care/vaccine/incident facts, workflow packets, agents, review gates, blocked actions, outcomes, labor minutes, Gingr/provider boundaries, and storage/runtime shells.
-- [Entity atlas audience paths](docs/design/entity-atlas-audience-paths.md): operations leader, resort manager/front-desk, IT/integration, compliance/safety, and product/customer-success routes through the same entities.
-- [Entity atlas relationship map](docs/design/entity-atlas-relationships.md): how provider/staff/import evidence moves through source refs, domain facts, app packets, agent drafts, human review, outcomes, storage, and runtime proof.
-- [Workflow-to-entity navigation map](docs/design/workflow-to-entity-navigation-map.md): for readers who arrive through booking triage, data-quality hygiene, checkout, grooming retention, daily updates/Pawgress, manager brief, or regional exceptions and need to route back to the entity families.
-- [Glossary translation layer](docs/design/glossary-translation-layer.md) and [glossary index](docs/glossary.md): translations for repo/Rust terms that could otherwise hide the pet-resort meaning.
+If you are new, trust this sequence first. It is the canonical reader path for understanding the labor-saving operating model without starting from crate names:
+
+1. **Start here:** this README explains the strategy, authority layers, automation boundaries, and value-measurement contract.
+2. **Choose the business entity:** [NVA Pet Resorts entity index](docs/design/entity-index.md) is the canonical atlas spine for source systems, provenance, customers, pets, reservations, service-line contracts, care/vaccine/incident facts, workflow packets, agents, review gates, blocked actions, outcomes, labor minutes, Gingr/provider boundaries, and storage/runtime shells.
+3. **Follow relationships:** [Entity atlas relationship map](docs/design/entity-atlas-relationships.md) shows the proof chain from provider/staff/import evidence to source refs, domain facts, app packets, agent drafts, human review, outcomes, storage, and runtime proof.
+4. **Enter from a job-to-be-done:** [Workflow-to-entity navigation map](docs/design/workflow-to-entity-navigation-map.md) routes booking triage, data-quality hygiene, checkout, grooming retention, daily updates/Pawgress, manager brief, and regional exception questions back to the entity families.
+5. **Read operator workflows:** [Operator workflow index](docs/workflows/operator/README.md) contains the current workflow pages after the entity relationships and review gates are clear.
+6. **Verify proof:** [Contract crosswalk closeout](docs/entity-atlas/contract-crosswalk/README.md) is the source/Rustdoc/test proof layer for claims about source entry, normalization, workflow use, persistence, runtime exposure, evidence gaps, and caveats.
+
+Supporting routes are useful after the canonical path:
+
+- [Entity atlas audience paths](docs/design/entity-atlas-audience-paths.md) gives role-specific routes for operations leaders, resort managers/front-desk, IT/integration, compliance/safety, and product/customer-success readers.
+- [Glossary translation layer](docs/design/glossary-translation-layer.md) and [glossary index](docs/glossary.md) translate repo/Rust terms that could otherwise hide the pet-resort meaning.
+- [Docs successor and archive map](docs/design/successor-archive-map.md) labels current canonical pages, supporting proof, background/discovery docs, internal QA/audit reports, Kanban/planning artifacts, and superseded workflow/spec pages.
+- Safety maps, audits, QA notes, board artifacts, planning docs, and discovery/background pages are supporting evidence or work history. They should not outrank the canonical path above unless a page explicitly says it is the current source of record for a narrow safety, proof, or verification question.
+- Archived, superseded, duplicate, or older planning pages should be read as history unless they link forward to the current entity index, relationship map, workflow map, operator workflow pages, contract crosswalk, or successor/archive map.
+
+Front-door principle: the strategy is labor-saving, source-grounded, review-gated operational workflow automation with outcome capture. Gingr and other provider systems provide source evidence; they are not the strategy or automatic business truth. BI, read models, reporting databases, storage projections, and dashboards measure or visualize reviewed work; they do not own workflow authority or bypass human/system-of-record review gates.
 
 ## How to read any entity
 
@@ -82,9 +95,7 @@ The business acceptance lens and measurement docs are:
 
 ## Authority, automation, and human-review boundaries
 
-Automation is useful only where authority stays explicit. Agents may summarize, rank, draft, recommend, validate, route, and record reviewed evidence inside app-owned workflow contracts. They do not own customer sends, provider/PMS writes, schedule or capacity changes, payment movement, medical/safety decisions, source cleanup, policy exceptions, or labor/staffing mandates.
-
-Read these safety routes before treating any recommendation as action-ready:
+Canonical boundary: agents prepare source-backed review work inside app-owned workflow contracts; humans or approved systems of record keep live operational authority. Read these safety routes before treating any recommendation as action-ready, then use each operator workflow page for its specific blocked-action list:
 
 - [Source evidence map](docs/safety/source-evidence-map.md)
 - [Operator safety model](docs/safety/agent-safety-model-for-operators.md)
@@ -132,7 +143,7 @@ The docs-as-contracts plan is [docs/plans/2026-06-18-labor-cost-docs-as-contract
 For docs-only README/navigation changes, run:
 
 ```sh
-./scripts/check_markdown_links.py
+python scripts/check_markdown_links.py --repo-root .
 ```
 
 For executable docs and wiki/navigation checks, run:
