@@ -10,6 +10,69 @@ fn fake_client() -> transport::Client<transport::MockTransport> {
     transport::Client::with_transport(config, transport::MockTransport)
 }
 
+struct BadPathRequest;
+
+impl endpoint::Request for BadPathRequest {
+    fn method(&self) -> endpoint::Method {
+        endpoint::Method::Get
+    }
+
+    fn path(&self) -> &'static str {
+        "http://["
+    }
+
+    fn parameters(&self) -> Vec<(String, String)> {
+        vec![("email".to_owned(), "owner@example.test".to_owned())]
+    }
+
+    fn sensitive_parameter_names(&self) -> &'static [&'static str] {
+        &["email"]
+    }
+}
+
+#[test]
+fn transport_url_errors_attach_endpoint_context_without_leaking_sensitive_parameters() {
+    let client = fake_client();
+
+    let err = client.capture_request(&BadPathRequest).unwrap_err();
+    let rendered_error = format!("{err:?}");
+    assert!(!rendered_error.contains("owner@example.test"));
+
+    let transport::TransportError::BuildUrl {
+        method,
+        path,
+        redacted_parameters,
+        ..
+    } = err
+    else {
+        panic!("expected URL construction context error");
+    };
+    assert_eq!(method, endpoint::Method::Get);
+    assert_eq!(path, "http://[");
+    assert!(redacted_parameters.contains(&("email".to_owned(), "<redacted>".to_owned())));
+}
+
+#[test]
+fn unimplemented_http_transport_names_the_endpoint_that_would_have_been_sent() {
+    let config = config::Client::new(
+        config::BaseUrl::parse("https://example-pet-resort.gingrapp.com").unwrap(),
+        config::ApiKey::from_secret(SENTINEL_KEY),
+    );
+    let client = transport::Client::new(config);
+
+    let err = client
+        .send(&endpoint::reference_data::GetLocations)
+        .unwrap_err();
+
+    assert!(matches!(
+        err,
+        transport::TransportError::HttpNotImplemented {
+            method: endpoint::Method::Get,
+            path,
+        } if path == "/api/v1/get_locations"
+    ));
+}
+
 #[test]
 fn get_locations_is_a_get_request_with_api_key_added_by_transport() {
     let client = fake_client();

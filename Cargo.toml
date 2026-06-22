@@ -31,11 +31,9 @@ nonempty = { version = "0.12", features = ["serialize"] }
 domain = { path = "domain" }
 app = { path = "app" }
 storage = { path = "storage" }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 secrecy = "0.8"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-serde_urlencoded = "0.7"
 sha2 = "0.10"
 statum = "*"
 strum = { version = "0.27", features = ["derive"] }

@@ -129,6 +129,235 @@ fn data_quality_hygiene_draft_validation_rejects_ambiguity_hiding_and_side_effec
 }
 
 #[test]
+fn data_quality_hygiene_value_objects_reject_blank_deserialization() {
+    assert!(serde_json::from_str::<data_quality_hygiene::IssueRef>(r#""   ""#).is_err());
+    assert!(serde_json::from_str::<data_quality_hygiene::ActionId>(r#""   ""#).is_err());
+    assert!(serde_json::from_str::<data_quality_hygiene::ContextPacketId>(r#""   ""#).is_err());
+    assert!(serde_json::from_str::<data_quality_hygiene::CorrelationId>(r#""   ""#).is_err());
+    assert!(serde_json::from_str::<data_quality_hygiene::ActionRationale>(r#""   ""#).is_err());
+}
+
+#[test]
+fn data_quality_hygiene_value_objects_deserialize_with_constructor_hygiene() {
+    let issue_ref: data_quality_hygiene::IssueRef =
+        serde_json::from_str(r#""  dq-issue-7  ""#).unwrap();
+    let action_id: data_quality_hygiene::ActionId =
+        serde_json::from_str(r#""  dq-action-7  ""#).unwrap();
+    let context_packet_id: data_quality_hygiene::ContextPacketId =
+        serde_json::from_str(r#""  dq-context-7  ""#).unwrap();
+    let correlation_id: data_quality_hygiene::CorrelationId =
+        serde_json::from_str(r#""  dq-correlation-7  ""#).unwrap();
+    let action_rationale: data_quality_hygiene::ActionRationale =
+        serde_json::from_str(r#""  Review stale vaccine source evidence before cleanup  ""#)
+            .unwrap();
+
+    assert_eq!(issue_ref.as_str(), "dq-issue-7");
+    assert_eq!(action_id.as_str(), "dq-action-7");
+    assert_eq!(context_packet_id.as_str(), "dq-context-7");
+    assert_eq!(correlation_id.as_str(), "dq-correlation-7");
+    assert_eq!(
+        serde_json::to_value(&action_rationale).unwrap(),
+        serde_json::json!("Review stale vaccine source evidence before cleanup")
+    );
+}
+
+#[test]
+fn data_quality_hygiene_outcome_records_reject_empty_source_or_issue_proof() {
+    let without_source_refs = data_quality_hygiene::OutcomeRecord::builder()
+        .action_id(data_quality_hygiene::ActionId::try_new("dq-action-1").unwrap())
+        .recorded_by(entities::ActorRef::Manager {
+            manager_id: entities::ManagerId::try_new("gm-riley").unwrap(),
+        })
+        .outcome(data_quality_hygiene::FeedbackOutcome::Completed)
+        .before_minutes(data_quality_hygiene::LaborMinutes::try_new(25).unwrap())
+        .actual_minutes(data_quality_hygiene::LaborMinutes::try_new(9).unwrap())
+        .issue_refs(vec![issue_ref("dq-missing-vaccine-42")])
+        .reviewed_resolution_status(data_quality::ResolutionStatus::Acknowledged)
+        .build();
+    assert_eq!(
+        without_source_refs,
+        Err(data_quality_hygiene::Error::OutcomeSourceRecordRefRequired)
+    );
+
+    let without_issue_refs = data_quality_hygiene::OutcomeRecord::builder()
+        .action_id(data_quality_hygiene::ActionId::try_new("dq-action-1").unwrap())
+        .recorded_by(entities::ActorRef::Manager {
+            manager_id: entities::ManagerId::try_new("gm-riley").unwrap(),
+        })
+        .outcome(data_quality_hygiene::FeedbackOutcome::Completed)
+        .before_minutes(data_quality_hygiene::LaborMinutes::try_new(25).unwrap())
+        .actual_minutes(data_quality_hygiene::LaborMinutes::try_new(9).unwrap())
+        .source_record_refs(vec![source::RecordRef::from_provenance(
+            &source_provenance(),
+        )])
+        .reviewed_resolution_status(data_quality::ResolutionStatus::Acknowledged)
+        .build();
+    assert_eq!(
+        without_issue_refs,
+        Err(data_quality_hygiene::Error::OutcomeIssueRefRequired)
+    );
+}
+
+#[test]
+fn data_quality_hygiene_candidate_names_affected_entity_issue_category_and_redaction_boundary() {
+    let vaccine_candidate = candidate(
+        "dq-missing-vaccine-42",
+        data_quality_hygiene::CandidateKind::SourceIssue,
+        data_quality::Kind::MissingVaccinationRecord,
+    );
+    assert_eq!(
+        vaccine_candidate.affected_entity(),
+        data_quality_hygiene::AffectedEntity::VaccinationRecord
+    );
+    assert_eq!(
+        vaccine_candidate.issue_category(),
+        data_quality_hygiene::IssueCategory::SourceFreshness
+    );
+    assert_eq!(
+        vaccine_candidate.redaction_policy(),
+        data_quality_hygiene::RedactionPolicy::SummarizeMetadataOnly
+    );
+    assert!(
+        !vaccine_candidate
+            .redaction_policy()
+            .allows_agent_payload_access()
+    );
+
+    let payment_candidate = candidate(
+        "dq-payment-conflict-42",
+        data_quality_hygiene::CandidateKind::SourceIssue,
+        data_quality::Kind::PaymentStateConflict,
+    );
+    assert_eq!(
+        payment_candidate.affected_entity(),
+        data_quality_hygiene::AffectedEntity::PaymentRecord
+    );
+    assert_eq!(
+        payment_candidate.issue_category(),
+        data_quality_hygiene::IssueCategory::PaymentConflict
+    );
+    assert_eq!(
+        payment_candidate.redaction_policy(),
+        data_quality_hygiene::RedactionPolicy::QuarantineRawPayload
+    );
+    assert!(
+        !payment_candidate
+            .redaction_policy()
+            .allows_agent_payload_access()
+    );
+}
+
+#[test]
+fn data_quality_hygiene_actions_name_cleanup_action_and_reviewer_role_without_provider_write() {
+    let packet = data_quality_hygiene::Workflow::evaluate(
+        data_quality_hygiene::Request::builder()
+            .location_id(location_id())
+            .operating_day(operating_day())
+            .prepared_for(data_quality_hygiene::HygienePersona::GeneralManager)
+            .candidates(vec![candidate(
+                "dq-duplicate-pet-42",
+                data_quality_hygiene::CandidateKind::DuplicateCandidate,
+                data_quality::Kind::DuplicateSourceRecord,
+            )])
+            .build(),
+    );
+
+    let action = &packet.actions()[0];
+    assert_eq!(
+        action.cleanup_action(),
+        data_quality_hygiene::CleanupAction::PrepareDuplicateReview
+    );
+    assert_eq!(
+        action.reviewer_role(),
+        data_quality_hygiene::ReviewerRole::GeneralManager
+    );
+    assert!(action.requires_human_or_system_of_record_review());
+    assert!(
+        packet
+            .blocked_actions()
+            .contains(&data_quality_hygiene::BlockedAction::MutateProviderOrPmsRecord)
+    );
+}
+
+#[test]
+fn data_quality_hygiene_payment_conflicts_prepare_protected_payment_review_without_money_movement()
+{
+    let packet = data_quality_hygiene::Workflow::evaluate(
+        data_quality_hygiene::Request::builder()
+            .location_id(location_id())
+            .operating_day(operating_day())
+            .prepared_for(data_quality_hygiene::HygienePersona::GeneralManager)
+            .candidates(vec![candidate(
+                "dq-payment-conflict-42",
+                data_quality_hygiene::CandidateKind::SourceIssue,
+                data_quality::Kind::PaymentStateConflict,
+            )])
+            .build(),
+    );
+
+    let action = &packet.actions()[0];
+    assert_eq!(
+        action.cleanup_action(),
+        data_quality_hygiene::CleanupAction::PreparePaymentConflictReview
+    );
+    assert_eq!(
+        action.reviewer_role(),
+        data_quality_hygiene::ReviewerRole::FrontDeskLead
+    );
+    assert!(action.requires_human_or_system_of_record_review());
+    assert!(
+        action
+            .required_review_gates()
+            .contains(&policy::ReviewGate::RefundOrDepositException)
+    );
+    assert!(
+        packet
+            .blocked_actions()
+            .contains(&data_quality_hygiene::BlockedAction::MutateProviderOrPmsRecord)
+    );
+}
+
+#[test]
+fn data_quality_hygiene_derived_action_id_preserves_max_length_issue_ref_without_panicking() {
+    let max_length_issue_ref = format!("dq-{}", "x".repeat(117));
+    assert_eq!(max_length_issue_ref.len(), 120);
+
+    let packet = data_quality_hygiene::Workflow::evaluate(
+        data_quality_hygiene::Request::builder()
+            .location_id(location_id())
+            .operating_day(operating_day())
+            .prepared_for(data_quality_hygiene::HygienePersona::GeneralManager)
+            .candidates(vec![candidate(
+                &max_length_issue_ref,
+                data_quality_hygiene::CandidateKind::SourceIssue,
+                data_quality::Kind::MissingVaccinationRecord,
+            )])
+            .build(),
+    );
+
+    let action = &packet.actions()[0];
+    assert_eq!(action.issue_refs(), &[issue_ref(&max_length_issue_ref)]);
+    assert_eq!(action.id().as_str().len(), "dq-action-".len() + 120);
+}
+
+#[test]
+fn data_quality_hygiene_non_completed_outcomes_keep_feedback_but_do_not_claim_labor_savings() {
+    for outcome in [
+        data_quality_hygiene::FeedbackOutcome::Deferred,
+        data_quality_hygiene::FeedbackOutcome::SuppressedByManager,
+        data_quality_hygiene::FeedbackOutcome::SourceFactWasWrong,
+        data_quality_hygiene::FeedbackOutcome::NotActionable,
+    ] {
+        let record = outcome_record(outcome);
+        assert!(!record.outcome().can_claim_labor_savings());
+        assert!(!record.labor_minutes_are_claimable());
+        assert_eq!(record.actual_minutes_saved(), 16);
+        assert!(!record.source_record_refs().is_empty());
+        assert!(!record.issue_refs().is_empty());
+    }
+}
+
+#[test]
 fn data_quality_hygiene_outcome_records_actual_minutes_without_external_mutation() {
     let outcome = data_quality_hygiene::OutcomeRecord::builder()
         .action_id(data_quality_hygiene::ActionId::try_new("dq-action-1").unwrap())
@@ -143,7 +372,8 @@ fn data_quality_hygiene_outcome_records_actual_minutes_without_external_mutation
         )])
         .issue_refs(vec![issue_ref("dq-missing-vaccine-42")])
         .reviewed_resolution_status(data_quality::ResolutionStatus::Acknowledged)
-        .build();
+        .build()
+        .unwrap();
 
     assert_eq!(outcome.actual_minutes_saved(), 16);
     assert_eq!(
@@ -188,6 +418,26 @@ fn candidate(
 
 fn issue_ref(id: &str) -> data_quality_hygiene::IssueRef {
     data_quality_hygiene::IssueRef::try_new(id).unwrap()
+}
+
+fn outcome_record(
+    outcome: data_quality_hygiene::FeedbackOutcome,
+) -> data_quality_hygiene::OutcomeRecord {
+    data_quality_hygiene::OutcomeRecord::builder()
+        .action_id(data_quality_hygiene::ActionId::try_new("dq-action-1").unwrap())
+        .recorded_by(entities::ActorRef::Manager {
+            manager_id: entities::ManagerId::try_new("gm-riley").unwrap(),
+        })
+        .outcome(outcome)
+        .before_minutes(data_quality_hygiene::LaborMinutes::try_new(25).unwrap())
+        .actual_minutes(data_quality_hygiene::LaborMinutes::try_new(9).unwrap())
+        .source_record_refs(vec![source::RecordRef::from_provenance(
+            &source_provenance(),
+        )])
+        .issue_refs(vec![issue_ref("dq-missing-vaccine-42")])
+        .reviewed_resolution_status(data_quality::ResolutionStatus::Acknowledged)
+        .build()
+        .unwrap()
 }
 
 fn source_provenance() -> source::Provenance {

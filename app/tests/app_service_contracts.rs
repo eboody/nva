@@ -130,9 +130,21 @@ fn booking_triage_service_keeps_repository_misses_as_safe_app_errors() {
         reservation: reservation_with_hard_stops(Vec::new()),
     });
 
-    let missing = service.evaluate(entities::reservation::Id(Uuid::from_u128(99)));
+    let missing_id = entities::reservation::Id(Uuid::from_u128(99));
+    let missing = service.evaluate(missing_id);
 
-    assert_eq!(missing, Err(booking_triage::Error::ReservationNotFound));
+    assert_eq!(
+        missing,
+        Err(booking_triage::Error::ReservationNotFound {
+            reservation_id: missing_id,
+        })
+    );
+    assert!(
+        missing
+            .unwrap_err()
+            .to_string()
+            .contains(&missing_id.to_string())
+    );
 }
 
 #[test]

@@ -130,6 +130,28 @@ pub struct ActionId(String);
 )]
 pub struct ActionRationale(String);
 
+#[nutype(
+    sanitize(trim),
+    validate(not_empty, len_char_max = 500),
+    derive(
+        Debug,
+        Clone,
+        PartialEq,
+        Eq,
+        PartialOrd,
+        Ord,
+        Hash,
+        Serialize,
+        Deserialize
+    )
+)]
+/// Manager or front-desk feedback recorded after a reviewed brief action.
+///
+/// Feedback is evidence for the labor loop only; it explains the human/system-of-record
+/// disposition and never grants the agent authority to change schedules, provider records,
+/// customer messages, payments, refunds, discounts, or source data.
+pub struct ManagerFeedback(String);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 /// Labor minutes used by the manager daily brief workflow; it assembles reviewable manager brief packets from deterministic context and agent drafts.
 pub struct LaborMinutes(u16);
@@ -635,6 +657,68 @@ pub enum FeedbackOutcome {
     SourceFactWasWrong,
 }
 
+impl FeedbackOutcome {
+    /// Returns true only when the reviewed action was completed and may count toward measured labor savings.
+    pub const fn counts_as_labor_savings(self) -> bool {
+        matches!(self, Self::Completed)
+    }
+
+    /// Explains why a non-completed disposition must not be counted as realized labor savings.
+    pub const fn labor_savings_not_claimed_reason(self) -> Option<LaborSavingsNotClaimedReason> {
+        match self {
+            Self::Completed => None,
+            Self::Deferred => Some(LaborSavingsNotClaimedReason::ManagerDeferredReview),
+            Self::SuppressedByManager => {
+                Some(LaborSavingsNotClaimedReason::ManagerSuppressedAction)
+            }
+            Self::SourceFactWasWrong => Some(LaborSavingsNotClaimedReason::SourceFactWasWrong),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Human/system-of-record disposition used by reports before counting labor savings.
+pub enum ReviewDisposition {
+    /// Human completed the action and the measured minutes can be reported as realized savings.
+    CompletedWithMeasuredLaborSavings,
+    /// Human deferred the action; the estimate remains useful, but no realized savings are claimed.
+    DeferredByManager,
+    /// Human suppressed the action; the brief preserved review authority and claims no savings.
+    SuppressedByManager,
+    /// Human found the source fact was wrong; the workflow preserved provenance and claims no savings.
+    SourceFactRejected,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Reason an outcome is retained as feedback without counting optimistic labor savings.
+pub enum LaborSavingsNotClaimedReason {
+    /// The manager deferred review or action to a later time.
+    ManagerDeferredReview,
+    /// The manager suppressed the recommended action.
+    ManagerSuppressedAction,
+    /// The source fact was wrong, so the action is feedback for data quality rather than realized savings.
+    SourceFactWasWrong,
+    /// A completed outcome was not evaluated against the reviewable action that produced it.
+    MissingReviewableActionTrace,
+    /// A completed outcome did not cite all source records behind the reviewable action.
+    MissingActionSourceEvidence,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Reportable labor-savings claim after human disposition, not merely an agent estimate.
+pub enum LaborSavingsClaim {
+    /// Completed reviewed action with measured minutes saved.
+    Supported {
+        /// Actual minutes saved after the human/system-of-record disposition matches the reviewable action evidence.
+        minutes: u16,
+    },
+    /// Reviewed feedback retained, but realized savings are intentionally not claimed.
+    NotClaimed {
+        /// Why the workflow preserves feedback without counting optimistic labor savings.
+        reason: LaborSavingsNotClaimedReason,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
 /// Outcome record used by the manager daily brief workflow; it assembles reviewable manager brief packets from deterministic context and agent drafts.
 pub struct OutcomeRecord {
@@ -643,6 +727,7 @@ pub struct OutcomeRecord {
     outcome: FeedbackOutcome,
     before_minutes: LaborMinutes,
     actual_minutes: LaborMinutes,
+    manager_feedback: Option<ManagerFeedback>,
     #[builder(default)]
     source_record_refs: Vec<source::RecordRef>,
 }
@@ -681,6 +766,84 @@ impl OutcomeRecord {
     /// Returns the source record refs evidence available to manager daily brief review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn source_record_refs(&self) -> &[source::RecordRef] {
         &self.source_record_refs
+    }
+
+    /// Returns the optional manager feedback that explains the reviewed disposition without authorizing side effects.
+    pub const fn manager_feedback(&self) -> Option<&ManagerFeedback> {
+        self.manager_feedback.as_ref()
+    }
+
+    /// Reports whether the outcome refers to the reviewable brief action that produced it.
+    pub fn matches_action(&self, action: &BriefAction) -> bool {
+        self.action_id == *action.id()
+    }
+
+    /// Reports whether this outcome cites every source record used by the reviewable action.
+    pub fn cites_action_source_evidence(&self, action: &BriefAction) -> bool {
+        action
+            .source_facts()
+            .iter()
+            .flat_map(SourceFact::source_record_refs)
+            .all(|source_ref| self.source_record_refs.contains(source_ref))
+    }
+
+    /// Returns true only for completed reviewed outcomes proven against a matching action and all cited source evidence.
+    pub fn counts_as_labor_savings_for_action(&self, action: &BriefAction) -> bool {
+        matches!(
+            self.labor_savings_claim_for_action(action),
+            LaborSavingsClaim::Supported { .. }
+        )
+    }
+
+    /// Returns false for raw outcome records because supportable claims require a reviewable action and source-evidence trace.
+    pub const fn counts_as_labor_savings(&self) -> bool {
+        false
+    }
+
+    /// Converts the human disposition into the reporting disposition used by labor-loop proof.
+    pub const fn review_disposition(&self) -> ReviewDisposition {
+        match self.outcome {
+            FeedbackOutcome::Completed => ReviewDisposition::CompletedWithMeasuredLaborSavings,
+            FeedbackOutcome::Deferred => ReviewDisposition::DeferredByManager,
+            FeedbackOutcome::SuppressedByManager => ReviewDisposition::SuppressedByManager,
+            FeedbackOutcome::SourceFactWasWrong => ReviewDisposition::SourceFactRejected,
+        }
+    }
+
+    /// Returns the fail-closed claim state for a raw outcome without action/source proof.
+    ///
+    /// Completed outcomes must use [`Self::labor_savings_claim_for_action`] so the claim is tied
+    /// back to the reviewed [`BriefAction`] and its cited [`SourceFact`] records.
+    pub const fn labor_savings_claim(&self) -> LaborSavingsClaim {
+        match self.outcome.labor_savings_not_claimed_reason() {
+            Some(reason) => LaborSavingsClaim::NotClaimed { reason },
+            None => LaborSavingsClaim::NotClaimed {
+                reason: LaborSavingsNotClaimedReason::MissingReviewableActionTrace,
+            },
+        }
+    }
+
+    /// Returns whether this completed feedback supports realized savings for the given reviewable action.
+    pub fn labor_savings_claim_for_action(&self, action: &BriefAction) -> LaborSavingsClaim {
+        if let Some(reason) = self.outcome.labor_savings_not_claimed_reason() {
+            return LaborSavingsClaim::NotClaimed { reason };
+        }
+
+        if !self.matches_action(action) {
+            return LaborSavingsClaim::NotClaimed {
+                reason: LaborSavingsNotClaimedReason::MissingReviewableActionTrace,
+            };
+        }
+
+        if !action.is_source_grounded() || !self.cites_action_source_evidence(action) {
+            return LaborSavingsClaim::NotClaimed {
+                reason: LaborSavingsNotClaimedReason::MissingActionSourceEvidence,
+            };
+        }
+
+        LaborSavingsClaim::Supported {
+            minutes: self.actual_minutes_saved(),
+        }
     }
 
     /// Returns the records feedback without external mutation evidence available to manager daily brief review while leaving provider, customer, payment, and schedule systems unchanged.

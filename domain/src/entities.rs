@@ -48,6 +48,7 @@ pub struct PetId(pub Uuid);
 /// Reservation-facing source vocabulary embedded in core entity records.
 pub mod reservation {
     use serde::{Deserialize, Serialize};
+    use std::fmt;
     use uuid::Uuid;
 
     use super::PortalProvider;
@@ -55,6 +56,12 @@ pub mod reservation {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
     /// Provider or source identifier retained as the stable join key.
     pub struct Id(pub Uuid);
+
+    impl fmt::Display for Id {
+        fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            self.0.fmt(formatter)
+        }
+    }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     /// Normalized lifecycle states used to reconcile source-system data with domain workflows.

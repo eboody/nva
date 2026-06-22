@@ -1,3 +1,5 @@
+use core::fmt;
+
 use super::{AnimalId, FormId, Method, OwnerId, Request, ReservationId, non_empty_text};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -69,7 +71,7 @@ impl Request for Animals {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 /// Sensitive lookup term such as email or phone that must be redacted from request diagnostics.
 pub struct SensitiveLookup(String);
 
@@ -81,6 +83,12 @@ impl SensitiveLookup {
 
     fn as_str(&self) -> &str {
         &self.0
+    }
+}
+
+impl fmt::Debug for SensitiveLookup {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("SensitiveLookup(<redacted>)")
     }
 }
 
@@ -170,12 +178,14 @@ impl Request for Owner {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, derive_more::Display)]
 /// Gingr owner/animal form classes supported by form search endpoints.
 pub enum FormKind {
     /// Provider value refers to a Gingr owner/customer.
+    #[display("owner_form")]
     Owner,
     /// Provider value refers to a Gingr animal/pet.
+    #[display("animal_form")]
     Animal,
 }
 
@@ -186,16 +196,6 @@ impl FormKind {
             Self::Owner => FormId::new(1),
             Self::Animal => FormId::new(2),
         }
-    }
-}
-
-impl core::fmt::Display for FormKind {
-    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let value = match self {
-            Self::Owner => "owner_form",
-            Self::Animal => "animal_form",
-        };
-        formatter.write_str(value)
     }
 }
 

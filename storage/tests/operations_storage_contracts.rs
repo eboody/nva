@@ -181,6 +181,10 @@ fn storage_json_codecs_validate_semantic_newtypes_at_the_boundary() {
 
     assert!(matches!(
         err,
-        storage::operations::Error::Codec(storage::operations::CodecError::JsonDecode { .. })
+        storage::operations::Error::Codec(storage::operations::CodecError::JsonDecode {
+            record: storage::operations::RecordKind::PetResortPortfolio,
+            ..
+        })
     ));
+    assert!(err.to_string().contains("PetResortPortfolio"));
 }

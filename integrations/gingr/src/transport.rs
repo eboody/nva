@@ -7,12 +7,44 @@ pub type Result<T> = core::result::Result<T, TransportError>;
 #[derive(Debug, thiserror::Error)]
 /// Errors raised while building or sending Gingr transport requests.
 pub enum TransportError {
-    #[error("failed to construct Gingr URL: {0}")]
-    /// Gingr URL could not be built or parsed for transport.
-    Url(#[from] url::ParseError),
-    #[error("HTTP transport is not implemented for this SDK slice")]
+    #[error("failed to construct Gingr URL for {method:?} {path}: {source}")]
+    /// Gingr URL could not be built or parsed for a specific endpoint request.
+    BuildUrl {
+        /// HTTP method attached at the failure site.
+        method: endpoint::Method,
+        /// Provider endpoint path attached at the failure site.
+        path: endpoint::Path,
+        /// Log-safe request parameters available to diagnostics without exposing secrets.
+        redacted_parameters: Vec<(String, String)>,
+        /// Underlying URL parser or join error.
+        source: url::ParseError,
+    },
+    #[error("HTTP transport is not implemented for {method:?} {path}")]
     /// Real HTTP transport is not enabled in this build.
-    HttpNotImplemented,
+    HttpNotImplemented {
+        /// HTTP method that would have been sent.
+        method: endpoint::Method,
+        /// Provider endpoint path that would have been sent.
+        path: endpoint::Path,
+    },
+}
+
+impl TransportError {
+    fn build_url(request: &RequestParts, source: url::ParseError) -> Self {
+        Self::BuildUrl {
+            method: request.method,
+            path: request.path,
+            redacted_parameters: request.redacted().parameters,
+            source,
+        }
+    }
+
+    fn http_not_implemented(request: &RequestParts) -> Self {
+        Self::HttpNotImplemented {
+            method: request.method,
+            path: request.path,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -91,7 +123,9 @@ impl RequestParts {
     }
 
     fn url(&self, base_url: &config::BaseUrl) -> Result<url::Url> {
-        let mut url = base_url.join_path(self.path)?;
+        let mut url = base_url
+            .join_path(self.path)
+            .map_err(|source| TransportError::build_url(self, source))?;
         if self.method == endpoint::Method::Get {
             url.query_pairs_mut().extend_pairs(self.parameters.iter());
         }
@@ -196,8 +230,8 @@ impl Transport for MockTransport {
 pub struct HttpTransport;
 
 impl Transport for HttpTransport {
-    fn send(&self, _config: &config::Client, _request: RequestParts) -> Result<response::Raw> {
-        Err(TransportError::HttpNotImplemented)
+    fn send(&self, _config: &config::Client, request: RequestParts) -> Result<response::Raw> {
+        Err(TransportError::http_not_implemented(&request))
     }
 }
 

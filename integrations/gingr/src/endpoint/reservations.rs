@@ -251,32 +251,24 @@ impl Request for Reservations {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, derive_more::Display)]
 /// Typed Gingr/provider codes for restrict to values.
 pub enum RestrictTo {
     /// Restricts reservation lookup to pending Gingr requests.
+    #[display("pending_requests")]
     PendingRequests,
     /// Restricts reservation lookup to currently checked-in reservations.
+    #[display("currently_checked_in")]
     CurrentlyCheckedIn,
     /// Restricts reservation lookup to future reservations.
+    #[display("future")]
     Future,
     /// Restricts reservation lookup to past reservations.
+    #[display("past")]
     Past,
     /// Restricts reservation lookup to wait-listed reservations.
+    #[display("wait_listed")]
     WaitListed,
-}
-
-impl core::fmt::Display for RestrictTo {
-    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let value = match self {
-            Self::PendingRequests => "pending_requests",
-            Self::CurrentlyCheckedIn => "currently_checked_in",
-            Self::Future => "future",
-            Self::Past => "past",
-            Self::WaitListed => "wait_listed",
-        };
-        formatter.write_str(value)
-    }
 }
 
 /// Reservation lookup endpoints keyed by related Gingr owner or animal records.
@@ -294,48 +286,27 @@ pub mod by {
     impl Animal {
         /// Notes that Gingr scopes this lookup to the API user's current location.
         pub const LOCATION_SCOPE_CAVEAT: &'static str = "Reservation data for this endpoint is only pulled for the location the API user is currently logged into.";
-
-        /// Starts a builder that makes each provider parameter explicit before request capture.
-        pub fn builder() -> AnimalBuilder {
-            AnimalBuilder::default()
-        }
     }
 
-    #[derive(Clone, Debug, Default)]
-    /// Builder for animal-keyed reservation lookups and their provider filters.
-    pub struct AnimalBuilder {
-        animal_id: Option<AnimalId>,
-        restrict_to: Option<RestrictTo>,
-        filters: Option<reservation::SearchFilters>,
-    }
-
-    impl AnimalBuilder {
-        /// Adds a Gingr animal identifier as a provider filter.
-        pub fn animal_id(mut self, id: AnimalId) -> Self {
-            self.animal_id = Some(id);
-            self
-        }
-
-        /// Applies Gingr reservation-scope tokens such as future, past, or wait-listed.
-        pub fn restrict_to(mut self, restrict_to: RestrictTo) -> Self {
-            self.restrict_to = Some(restrict_to);
-            self
-        }
-
-        /// Adds nested Gingr reservation search filters to the lookup request.
-        pub fn filter(mut self, filters: reservation::SearchFilters) -> Self {
-            self.filters = Some(filters);
-            self
-        }
-
-        /// Finalizes the provider request descriptor after required fields are present and wrappers have validated local invariants.
-        pub fn build(self) -> Result<Animal> {
+    #[bon::bon]
+    impl Animal {
+        /// Starts a builder that keeps the provider animal id as a runtime-checked request parameter.
+        #[builder]
+        pub fn new(
+            /// Gingr animal identifier required by `/api/v1/reservations_by_animal`.
+            animal_id: Option<AnimalId>,
+            /// Optional Gingr reservation-scope token such as future, past, or wait-listed.
+            restrict_to: Option<RestrictTo>,
+            /// Optional nested Gingr reservation search filters for this lookup.
+            #[builder(name = filter)]
+            filters: Option<reservation::SearchFilters>,
+        ) -> Result<Animal> {
             Ok(Animal {
-                animal_id: self.animal_id.ok_or(Error::MissingRequiredParameter {
+                animal_id: animal_id.ok_or(Error::MissingRequiredParameter {
                     parameter: "animal_id",
                 })?,
-                restrict_to: self.restrict_to,
-                filters: self.filters,
+                restrict_to,
+                filters,
             })
         }
     }
@@ -372,48 +343,27 @@ pub mod by {
     impl Owner {
         /// Notes that Gingr scopes this lookup to the API user's current location.
         pub const LOCATION_SCOPE_CAVEAT: &'static str = Animal::LOCATION_SCOPE_CAVEAT;
-
-        /// Starts a builder that makes each provider parameter explicit before request capture.
-        pub fn builder() -> OwnerBuilder {
-            OwnerBuilder::default()
-        }
     }
 
-    #[derive(Clone, Debug, Default)]
-    /// Builder for owner-keyed reservation lookups and their provider filters.
-    pub struct OwnerBuilder {
-        owner_id: Option<OwnerId>,
-        restrict_to: Option<RestrictTo>,
-        filters: Option<reservation::SearchFilters>,
-    }
-
-    impl OwnerBuilder {
-        /// Narrows the provider request to one Gingr owner/customer identifier.
-        pub fn owner_id(mut self, id: OwnerId) -> Self {
-            self.owner_id = Some(id);
-            self
-        }
-
-        /// Applies Gingr reservation-scope tokens such as future, past, or wait-listed.
-        pub fn restrict_to(mut self, restrict_to: RestrictTo) -> Self {
-            self.restrict_to = Some(restrict_to);
-            self
-        }
-
-        /// Adds nested Gingr reservation search filters to the lookup request.
-        pub fn filter(mut self, filters: reservation::SearchFilters) -> Self {
-            self.filters = Some(filters);
-            self
-        }
-
-        /// Finalizes the provider request descriptor after required fields are present and wrappers have validated local invariants.
-        pub fn build(self) -> Result<Owner> {
+    #[bon::bon]
+    impl Owner {
+        /// Starts a builder that keeps the provider owner id as a runtime-checked request parameter.
+        #[builder]
+        pub fn new(
+            /// Gingr owner/customer identifier required by `/api/v1/reservations_by_owner`.
+            owner_id: Option<OwnerId>,
+            /// Optional Gingr reservation-scope token such as future, past, or wait-listed.
+            restrict_to: Option<RestrictTo>,
+            /// Optional nested Gingr reservation search filters for this lookup.
+            #[builder(name = filter)]
+            filters: Option<reservation::SearchFilters>,
+        ) -> Result<Owner> {
             Ok(Owner {
-                owner_id: self.owner_id.ok_or(Error::MissingRequiredParameter {
+                owner_id: owner_id.ok_or(Error::MissingRequiredParameter {
                     parameter: "owner_id",
                 })?,
-                restrict_to: self.restrict_to,
-                filters: self.filters,
+                restrict_to,
+                filters,
             })
         }
     }

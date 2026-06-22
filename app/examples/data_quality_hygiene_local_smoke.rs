@@ -85,7 +85,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .source_record_refs(action.source_record_refs().to_vec())
         .issue_refs(action.issue_refs().to_vec())
         .reviewed_resolution_status(data_quality::ResolutionStatus::Acknowledged)
-        .build();
+        .build()?;
 
     assert!(outcome.records_feedback_without_external_mutation());
     assert!(outcome.actual_minutes_saved() > 0);

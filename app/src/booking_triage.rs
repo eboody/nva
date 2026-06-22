@@ -839,9 +839,12 @@ impl StaffEvaluationPacket {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 /// Classifies error values that drive the booking-readiness workflow.
 pub enum Error {
-    #[error("booking triage reservation repository could not load requested reservation")]
-    /// Identifies reservation not found as the reason the workflow must stop, retry, or request review.
-    ReservationNotFound,
+    #[error("booking triage reservation repository could not load reservation {reservation_id}")]
+    /// Identifies the missing reservation evidence that stops the workflow before any review packet or agent draft is produced.
+    ReservationNotFound {
+        /// Reservation id requested from the read-only source evidence repository.
+        reservation_id: entities::reservation::Id,
+    },
 }
 
 /// Shared app result type used across the booking triage gate.
@@ -878,7 +881,7 @@ where
         let reservation = self
             .reservations
             .get(id)
-            .ok_or(Error::ReservationNotFound)?;
+            .ok_or(Error::ReservationNotFound { reservation_id: id })?;
         let deterministic_result =
             DeterministicResult::evaluate(evaluate_reservation(&reservation));
         Ok(StaffEvaluationPacket::new(

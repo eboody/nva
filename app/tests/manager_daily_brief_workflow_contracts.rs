@@ -358,6 +358,163 @@ fn manager_daily_brief_outcome_capture_records_feedback_without_external_mutatio
     );
 }
 
+#[test]
+fn manager_daily_brief_trace_links_source_fact_reviewable_action_and_completed_outcome() {
+    let request = manager_daily_brief::Request::builder()
+        .location_id(location_id())
+        .operating_day(operating_day())
+        .prepared_for(manager_daily_brief::ManagerBriefPersona::GeneralManager)
+        .demand_attention_threshold(manager_daily_brief::DemandThresholdUnits::try_new(10).unwrap())
+        .service_demand_facts(vec![service_demand_fact(12, vec![])])
+        .build();
+    let packet = manager_daily_brief::Workflow::evaluate(request);
+    let action = packet
+        .actions()
+        .iter()
+        .find(|action| {
+            action.kind() == manager_daily_brief::BriefActionKind::ReviewDemandAgainstStaffingPlan
+        })
+        .expect("demand action exists");
+    let source_record_refs = action
+        .source_facts()
+        .iter()
+        .flat_map(|fact| fact.source_record_refs().iter().cloned())
+        .collect::<Vec<_>>();
+
+    let outcome = manager_daily_brief::OutcomeRecord::builder()
+        .action_id(action.id().clone())
+        .recorded_by(entities::ActorRef::Manager {
+            manager_id: entities::ManagerId::try_new("gm-riley").unwrap(),
+        })
+        .outcome(manager_daily_brief::FeedbackOutcome::Completed)
+        .before_minutes(action.labor_impact().before_minutes())
+        .actual_minutes(manager_daily_brief::LaborMinutes::try_new(12).unwrap())
+        .manager_feedback(manager_daily_brief::ManagerFeedback::try_new(
+            "Reviewed source demand, adjusted the internal plan manually, and did not touch Gingr from the agent.",
+        ).unwrap())
+        .source_record_refs(source_record_refs)
+        .build();
+
+    assert!(outcome.matches_action(action));
+    assert!(outcome.cites_action_source_evidence(action));
+    assert_eq!(
+        outcome.labor_savings_claim_for_action(action),
+        manager_daily_brief::LaborSavingsClaim::Supported { minutes: 33 }
+    );
+    assert!(outcome.counts_as_labor_savings_for_action(action));
+    assert_eq!(
+        outcome.labor_savings_claim(),
+        manager_daily_brief::LaborSavingsClaim::NotClaimed {
+            reason: manager_daily_brief::LaborSavingsNotClaimedReason::MissingReviewableActionTrace
+        }
+    );
+    assert_eq!(
+        outcome.review_disposition(),
+        manager_daily_brief::ReviewDisposition::CompletedWithMeasuredLaborSavings
+    );
+    assert!(outcome.records_feedback_without_external_mutation());
+    assert!(
+        outcome
+            .blocked_actions()
+            .contains(&manager_daily_brief::BlockedAction::ChangeStaffSchedule)
+    );
+}
+
+#[test]
+fn manager_daily_brief_completed_outcome_needs_matching_action_and_source_trace_before_claiming_savings()
+ {
+    let request = manager_daily_brief::Request::builder()
+        .location_id(location_id())
+        .operating_day(operating_day())
+        .prepared_for(manager_daily_brief::ManagerBriefPersona::GeneralManager)
+        .demand_attention_threshold(manager_daily_brief::DemandThresholdUnits::try_new(10).unwrap())
+        .service_demand_facts(vec![service_demand_fact(12, vec![])])
+        .build();
+    let packet = manager_daily_brief::Workflow::evaluate(request);
+    let action = packet.actions().first().expect("demand action exists");
+
+    let wrong_action_record = manager_daily_brief::OutcomeRecord::builder()
+        .action_id(manager_daily_brief::ActionId::try_new("wrong-action-id").unwrap())
+        .recorded_by(entities::ActorRef::Manager {
+            manager_id: entities::ManagerId::try_new("gm-riley").unwrap(),
+        })
+        .outcome(manager_daily_brief::FeedbackOutcome::Completed)
+        .before_minutes(action.labor_impact().before_minutes())
+        .actual_minutes(manager_daily_brief::LaborMinutes::try_new(12).unwrap())
+        .source_record_refs(
+            action
+                .source_facts()
+                .iter()
+                .flat_map(|fact| fact.source_record_refs().iter().cloned())
+                .collect::<Vec<_>>(),
+        )
+        .build();
+    assert_eq!(
+        wrong_action_record.labor_savings_claim_for_action(action),
+        manager_daily_brief::LaborSavingsClaim::NotClaimed {
+            reason: manager_daily_brief::LaborSavingsNotClaimedReason::MissingReviewableActionTrace
+        }
+    );
+
+    let missing_source_record = manager_daily_brief::OutcomeRecord::builder()
+        .action_id(action.id().clone())
+        .recorded_by(entities::ActorRef::Manager {
+            manager_id: entities::ManagerId::try_new("gm-riley").unwrap(),
+        })
+        .outcome(manager_daily_brief::FeedbackOutcome::Completed)
+        .before_minutes(action.labor_impact().before_minutes())
+        .actual_minutes(manager_daily_brief::LaborMinutes::try_new(12).unwrap())
+        .build();
+    assert_eq!(
+        missing_source_record.labor_savings_claim_for_action(action),
+        manager_daily_brief::LaborSavingsClaim::NotClaimed {
+            reason: manager_daily_brief::LaborSavingsNotClaimedReason::MissingActionSourceEvidence
+        }
+    );
+}
+
+#[test]
+fn manager_daily_brief_wrong_source_deferred_and_suppressed_outcomes_do_not_claim_labor_savings() {
+    for (outcome, expected_reason) in [
+        (
+            manager_daily_brief::FeedbackOutcome::Deferred,
+            manager_daily_brief::LaborSavingsNotClaimedReason::ManagerDeferredReview,
+        ),
+        (
+            manager_daily_brief::FeedbackOutcome::SuppressedByManager,
+            manager_daily_brief::LaborSavingsNotClaimedReason::ManagerSuppressedAction,
+        ),
+        (
+            manager_daily_brief::FeedbackOutcome::SourceFactWasWrong,
+            manager_daily_brief::LaborSavingsNotClaimedReason::SourceFactWasWrong,
+        ),
+    ] {
+        let record = manager_daily_brief::OutcomeRecord::builder()
+            .action_id(manager_daily_brief::ActionId::try_new("demand-staffing-service-demand-42").unwrap())
+            .recorded_by(entities::ActorRef::Manager {
+                manager_id: entities::ManagerId::try_new("gm-riley").unwrap(),
+            })
+            .outcome(outcome)
+            .before_minutes(manager_daily_brief::LaborMinutes::try_new(45).unwrap())
+            .actual_minutes(manager_daily_brief::LaborMinutes::try_new(12).unwrap())
+            .manager_feedback(manager_daily_brief::ManagerFeedback::try_new(
+                "Manager recorded disposition; no autonomous schedule, PMS, customer, or payment side effect occurred.",
+            ).unwrap())
+            .source_record_refs(vec![source::RecordRef::from_provenance(&source_provenance())])
+            .build();
+
+        assert_eq!(
+            record.labor_savings_claim(),
+            manager_daily_brief::LaborSavingsClaim::NotClaimed {
+                reason: expected_reason
+            }
+        );
+        assert_eq!(record.actual_minutes_saved(), 33);
+        assert!(!record.counts_as_labor_savings());
+        assert!(record.records_feedback_without_external_mutation());
+    }
+}
+
 fn service_demand_fact(
     demand_units: u32,
     issues: Vec<data_quality::Issue>,

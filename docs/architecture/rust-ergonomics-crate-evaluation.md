@@ -69,9 +69,13 @@ Future trigger: a closed enum needs a dense, exhaustive, frequently indexed tabl
 
 ### Adjacent crates considered but not adopted
 
-- `indexmap`: no observed need to preserve insertion order in maps beyond ordinary JSON/provider unknown-field preservation, where `BTreeMap` / `serde_json::Map` are already adequate.
-- `smallvec`: no profiled tiny-vector hot path. Most `Vec` fields are boundary collections or semantic workflow lists where clarity matters more than stack optimization.
-- `arrayvec`: no fixed-capacity invariant surfaced that is not already better expressed by a semantic type or builder.
+Direct manifest/source check: none of `itertools`, `camino`, `smol_str`, `compact_str`, `enum-map`, `typed-index-collections`, `slotmap`, `indexmap`, `smallvec`, or `arrayvec` are direct workspace/package dependencies or direct production imports. `smallvec` appears only transitively through HTTP/URL/tracing dependencies, not as an NVA modeling choice.
+
+- `indexmap`: no observed need to preserve insertion order in maps beyond ordinary JSON/provider unknown-field preservation, where `BTreeMap` / `serde_json::Map` are already adequate. API in-memory stores use `BTreeMap<Uuid, ...>` for deterministic local-demo/read-model behavior; there is no repeated ordered-map review queue or provider-contract map that would become clearer with insertion-order semantics.
+- `smallvec`: no profiled tiny-vector hot path. Most `Vec` fields are boundary collections or semantic workflow lists: source refs, review gates, blocked actions, audit drafts, provider parameters, outcome refs, and service-line code lists. These lists are labor/review evidence, not allocation-sensitive internals, so stack optimization would hide meaning without proof.
+- `arrayvec`: no fixed-capacity invariant surfaced that is not already better expressed by a semantic type or builder. If a future service-line rule has an exact capacity, the domain should first name that capacity/rule rather than exposing a generic fixed buffer.
+- `typed-index-collections`: no typed arena/vector-index domain exists. Current entity identity is carried by semantic IDs (`customer::Id`, `pet::Id`, `source::record::Id`, `workflow::task::Id`) and source refs, not by process-local numeric indexes. Adding index wrappers would weaken the source/provenance proof chain unless a runtime graph/table algorithm appears.
+- `slotmap`: no production surface needs stable generational arena keys. Entity relationships are persisted/source-backed records and documentation proof chains; workflow packets should cite source/domain IDs rather than ephemeral arena handles.
 
 ## Adoption rule
 

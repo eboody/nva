@@ -80,7 +80,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, thiserror::Error)]
 /// Errors raised while validating storage records, codecs, or domain-to-storage projection.
 pub enum Error {
-    #[error("storage codec error")]
+    #[error("storage codec error: {0}")]
     /// Wraps a storage JSON codec failure without losing the underlying source error.
     Codec(#[from] CodecError),
     #[error("{record:?} storage shape mismatch: {reason:?}")]
@@ -104,18 +104,32 @@ pub enum Error {
 #[derive(Debug, thiserror::Error)]
 /// JSON codec failures at the storage gate.
 pub enum CodecError {
-    #[error("failed to decode json: {source}")]
-    /// JSON could not be decoded into the expected storage record.
+    #[error("failed to decode {record:?} json: {source}")]
+    /// JSON could not be decoded into the expected storage record family.
     JsonDecode {
+        /// Storage record family expected at this decode boundary.
+        record: RecordKind,
         /// Underlying serde error raised while decoding the stored payload.
         source: serde_json::Error,
     },
-    #[error("failed to encode json: {source}")]
-    /// Storage record could not be serialized as JSON.
+    #[error("failed to encode {record:?} json: {source}")]
+    /// Storage record could not be serialized as JSON for its record family.
     JsonEncode {
+        /// Storage record family being encoded.
+        record: RecordKind,
         /// Underlying serde error raised while encoding the stored payload.
         source: serde_json::Error,
     },
+}
+
+impl CodecError {
+    fn decode(record: RecordKind, source: serde_json::Error) -> Self {
+        Self::JsonDecode { record, source }
+    }
+
+    fn encode(record: RecordKind, source: serde_json::Error) -> Self {
+        Self::JsonEncode { record, source }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -127,6 +141,8 @@ pub enum RecordKind {
     ServiceOffering,
     /// Location-level snapshot of enabled service-line rules.
     CoreServiceContracts,
+    /// Manager-facing daily-brief labor evidence emitted by the booking triage workflow.
+    ManagerDailyBriefOutcome,
     /// Labor-evidence record for a data-quality hygiene workflow outcome.
     DataQualityHygieneOutcome,
 }
@@ -336,12 +352,16 @@ pub struct ManagerDailyBriefOutcomeRecord {
 impl ManagerDailyBriefOutcomeRecord {
     /// Decodes a JSON storage payload into its typed record shape.
     pub fn decode_json(raw: &str) -> Result<Self> {
-        serde_json::from_str(raw).map_err(|source| CodecError::JsonDecode { source }.into())
+        serde_json::from_str(raw).map_err(|source| {
+            CodecError::decode(RecordKind::ManagerDailyBriefOutcome, source).into()
+        })
     }
 
     /// Encodes the storage record as JSON for persistence or fixture comparison.
     pub fn encode_json(&self) -> Result<String> {
-        serde_json::to_string(self).map_err(|source| CodecError::JsonEncode { source }.into())
+        serde_json::to_string(self).map_err(|source| {
+            CodecError::encode(RecordKind::ManagerDailyBriefOutcome, source).into()
+        })
     }
 
     /// Returns the derived minutes saved from before/after labor evidence.
@@ -450,6 +470,8 @@ pub enum DataQualityHygieneActionKindCode {
     ReviewCheckoutOrUnclosedReservationEvidence,
     /// Stable storage code for escalate sensitive or quarantined payload.
     EscalateSensitiveOrQuarantinedPayload,
+    /// Stable storage code for protected payment conflict review without money movement.
+    ReviewPaymentStateConflict,
 }
 
 #[derive(
@@ -571,12 +593,16 @@ pub struct DataQualityHygieneOutcomeRecord {
 impl DataQualityHygieneOutcomeRecord {
     /// Decodes a JSON storage payload into its typed record shape.
     pub fn decode_json(raw: &str) -> Result<Self> {
-        serde_json::from_str(raw).map_err(|source| CodecError::JsonDecode { source }.into())
+        serde_json::from_str(raw).map_err(|source| {
+            CodecError::decode(RecordKind::DataQualityHygieneOutcome, source).into()
+        })
     }
 
     /// Encodes the storage record as JSON for persistence or fixture comparison.
     pub fn encode_json(&self) -> Result<String> {
-        serde_json::to_string(self).map_err(|source| CodecError::JsonEncode { source }.into())
+        serde_json::to_string(self).map_err(|source| {
+            CodecError::encode(RecordKind::DataQualityHygieneOutcome, source).into()
+        })
     }
 
     /// Returns or constructs the Gingr actual minutes saved value.
@@ -615,12 +641,14 @@ pub struct PetResortPortfolioRecord {
 impl PetResortPortfolioRecord {
     /// Decodes a JSON storage payload into its typed record shape.
     pub fn decode_json(raw: &str) -> Result<Self> {
-        serde_json::from_str(raw).map_err(|source| CodecError::JsonDecode { source }.into())
+        serde_json::from_str(raw)
+            .map_err(|source| CodecError::decode(RecordKind::PetResortPortfolio, source).into())
     }
 
     /// Encodes the storage record as JSON for persistence or fixture comparison.
     pub fn encode_json(&self) -> Result<String> {
-        serde_json::to_string(self).map_err(|source| CodecError::JsonEncode { source }.into())
+        serde_json::to_string(self)
+            .map_err(|source| CodecError::encode(RecordKind::PetResortPortfolio, source).into())
     }
 }
 
@@ -1037,12 +1065,14 @@ pub struct ServiceOfferingRecord {
 impl ServiceOfferingRecord {
     /// Decodes a JSON storage payload into its typed record shape.
     pub fn decode_json(raw: &str) -> Result<Self> {
-        serde_json::from_str(raw).map_err(|source| CodecError::JsonDecode { source }.into())
+        serde_json::from_str(raw)
+            .map_err(|source| CodecError::decode(RecordKind::ServiceOffering, source).into())
     }
 
     /// Encodes the storage record as JSON for persistence or fixture comparison.
     pub fn encode_json(&self) -> Result<String> {
-        serde_json::to_string(self).map_err(|source| CodecError::JsonEncode { source }.into())
+        serde_json::to_string(self)
+            .map_err(|source| CodecError::encode(RecordKind::ServiceOffering, source).into())
     }
 
     fn mismatch(reason: ShapeMismatchReason) -> Error {
@@ -1314,13 +1344,16 @@ impl CoreServiceContractsRecord {
 
     /// Encodes the storage record as JSON for persistence or fixture comparison.
     pub fn encode_json(&self) -> Result<String> {
-        serde_json::to_string(self)
-            .map_err(|source| Error::Codec(CodecError::JsonEncode { source }))
+        serde_json::to_string(self).map_err(|source| {
+            Error::Codec(CodecError::encode(RecordKind::CoreServiceContracts, source))
+        })
     }
 
     /// Decodes a JSON storage payload into its typed record shape.
     pub fn decode_json(raw: &str) -> Result<Self> {
-        serde_json::from_str(raw).map_err(|source| Error::Codec(CodecError::JsonDecode { source }))
+        serde_json::from_str(raw).map_err(|source| {
+            Error::Codec(CodecError::decode(RecordKind::CoreServiceContracts, source))
+        })
     }
 }
 

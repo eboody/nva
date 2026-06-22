@@ -81,6 +81,10 @@ fn core_service_contract_codecs_reject_invalid_validated_scalars() {
 
     assert!(matches!(
         err,
-        storage::operations::Error::Codec(storage::operations::CodecError::JsonDecode { .. })
+        storage::operations::Error::Codec(storage::operations::CodecError::JsonDecode {
+            record: storage::operations::RecordKind::CoreServiceContracts,
+            ..
+        })
     ));
+    assert!(err.to_string().contains("CoreServiceContracts"));
 }

@@ -132,6 +132,10 @@ fn data_quality_hygiene_storage_codes_parse_display_and_iterate_stably() {
             "escalate_sensitive_or_quarantined_payload",
             DataQualityHygieneActionKindCode::EscalateSensitiveOrQuarantinedPayload,
         ),
+        (
+            "review_payment_state_conflict",
+            DataQualityHygieneActionKindCode::ReviewPaymentStateConflict,
+        ),
     ];
     assert_eq!(
         DataQualityHygieneActionKindCode::VARIANTS,

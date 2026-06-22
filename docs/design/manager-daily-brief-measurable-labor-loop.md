@@ -78,9 +78,10 @@ Retention actions preserve `CustomerMessageApproval`. Checkout/data-quality exce
 - outcome (`Completed`, `Deferred`, `SuppressedByManager`, `SourceFactWasWrong`);
 - before minutes;
 - actual minutes;
+- optional manager feedback explaining the human/system-of-record disposition;
 - source record refs.
 
-Outcome capture is staff evidence only and returns the same blocked external actions. It records whether the loop actually reduced work without mutating provider systems.
+Outcome capture is staff evidence only and returns the same blocked external actions. It records whether the loop actually reduced work without mutating provider systems. `Completed` outcomes can produce a supported `LaborSavingsClaim` only through the action-aware claim path that verifies the outcome matches the reviewable `BriefAction` and cites all source records behind that action's `SourceFact` evidence. Completed raw outcomes with no action/source proof, deferred outcomes, suppressed outcomes, and wrong-source outcomes stay auditable feedback but intentionally do not count as realized labor savings.
 
 ## Before/after labor metric
 

@@ -51,7 +51,7 @@ Current needs:
 
 Decision: keep plain Serde attributes. `serde_with` does not improve the visible contract for `default`, `alias`, `flatten`, or transparent newtypes. The raw webhook/entity payloads should stay quarantined as `serde_json::Value`; using helper adapters there would hide a deliberate trust-boundary decision.
 
-Verification added: `integrations/gingr/tests/expanded_endpoint_contracts.rs` now roundtrips owner, animal, and retail DTOs through `serde_json::to_value`/`from_value`, and checks the `retail_category` alias still maps to `category`.
+Verification added: `integrations/gingr/tests/expanded_endpoint_contracts.rs` now asserts exact serialized JSON for owner, animal, and retail DTOs, roundtrips those wire strings through `serde_json`, and checks the `retail_category` alias still maps to `category`.
 
 ### App API DTOs
 

@@ -7,7 +7,7 @@ This policy is for pet-resort construction APIs that feed source evidence, provi
 
 ## Decision rules
 
-Use this order when adding or changing construction APIs.
+Use this order when adding or changing construction APIs. For the current `statum` audit and the documented "no new phase API yet" finding, see [`statum-phase-api-evaluation.md`](statum-phase-api-evaluation.md).
 
 1. Use a named constructor or small `bon` builder for plain shape assembly.
    - Use `bon` when fields are ordinary optional or required inputs and the generated API keeps the call site readable.

@@ -1960,6 +1960,7 @@ fn stored_data_quality_hygiene_action_kind(
             Stored::ReviewCheckoutOrUnclosedReservationEvidence
         }
         App::EscalateSensitiveOrQuarantinedPayload => Stored::EscalateSensitiveOrQuarantinedPayload,
+        App::ReviewPaymentStateConflict => Stored::ReviewPaymentStateConflict,
     }
 }
 
@@ -2042,6 +2043,9 @@ fn data_quality_hygiene_action_kind_code(kind: data_quality_hygiene::ActionKind)
         }
         data_quality_hygiene::ActionKind::EscalateSensitiveOrQuarantinedPayload => {
             "escalate_sensitive_or_quarantined_payload"
+        }
+        data_quality_hygiene::ActionKind::ReviewPaymentStateConflict => {
+            "review_payment_state_conflict"
         }
     }
 }

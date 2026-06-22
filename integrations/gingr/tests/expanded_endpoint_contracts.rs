@@ -205,6 +205,16 @@ fn owner_lookup_requires_one_discriminator_and_reference_endpoints_stay_typed() 
 }
 
 #[test]
+fn sensitive_owner_lookup_debug_redacts_lookup_text() {
+    let lookup = endpoint::owners_animals::SensitiveLookup::new("ana@example.test").unwrap();
+
+    let debug = format!("{lookup:?}");
+
+    assert_eq!(debug, "SensitiveLookup(<redacted>)");
+    assert!(!debug.contains("ana@example.test"));
+}
+
+#[test]
 fn forms_custom_field_and_back_of_house_are_explicitly_sensitive_or_v0_safe() {
     let client = fake_client();
     let form = endpoint::owners_animals::Form::new(endpoint::owners_animals::FormKind::Animal);
@@ -310,16 +320,24 @@ fn provider_dtos_preserve_unknown_fields_and_mappers_promote_only_existing_domai
     assert!(owner.unknown.contains_key("password"));
     assert!(animal.unknown.contains_key("custom_provider_blob"));
 
-    let owner_roundtrip: response::OwnerRecord = serde_json::from_value(
-        serde_json::to_value(&owner)
-            .expect("owner DTO serializes with quarantined provider fields"),
-    )
-    .expect("owner DTO deserializes after serialization");
-    let animal_roundtrip: response::AnimalRecord = serde_json::from_value(
-        serde_json::to_value(&animal)
-            .expect("animal DTO serializes with quarantined provider fields"),
-    )
-    .expect("animal DTO deserializes after serialization");
+    let owner_wire = serde_json::to_string(&owner)
+        .expect("owner DTO serializes with quarantined provider fields");
+    let animal_wire = serde_json::to_string(&animal)
+        .expect("animal DTO serializes with quarantined provider fields");
+
+    assert_eq!(
+        owner_wire,
+        r#"{"id":42,"first_name":" Ana ","last_name":" Rivera ","email":" ana@example.test ","cell_phone":" +1 555 0100 ","password":"provider-secret-shape-is-quarantined"}"#
+    );
+    assert_eq!(
+        animal_wire,
+        r#"{"id":9,"owner_id":42,"name":" Juniper ","species":"Dog","birthday":"2021-04-03","custom_provider_blob":{"ignored_by_mapping":true}}"#
+    );
+
+    let owner_roundtrip: response::OwnerRecord = serde_json::from_str(&owner_wire)
+        .expect("owner DTO deserializes after exact serialization");
+    let animal_roundtrip: response::AnimalRecord = serde_json::from_str(&animal_wire)
+        .expect("animal DTO deserializes after exact serialization");
     assert_eq!(owner_roundtrip, owner);
     assert_eq!(animal_roundtrip, animal);
 }
@@ -359,11 +377,14 @@ fn retail_item_dto_promotes_documented_provider_surface_into_retail_product_cand
     assert!(item.unknown.contains_key("provider_only_shape"));
     assert_eq!(alias_item.category.as_deref(), Some("toy"));
 
-    let item_roundtrip: dto::retail::Item = serde_json::from_value(
-        serde_json::to_value(&item)
-            .expect("retail DTO serializes with quarantined provider fields"),
-    )
-    .expect("retail DTO deserializes after serialization");
+    let item_wire = serde_json::to_string(&item)
+        .expect("retail DTO serializes with quarantined provider fields");
+    assert_eq!(
+        item_wire,
+        r#"{"id":41,"name":" Calming Chew ","sku":" CALM-CHEW ","category":"supplement","active":true,"quantity_on_hand":7,"provider_only_shape":{"kept":true}}"#
+    );
+    let item_roundtrip: dto::retail::Item = serde_json::from_str(&item_wire)
+        .expect("retail DTO deserializes after exact serialization");
     assert_eq!(item_roundtrip, item);
 }
 

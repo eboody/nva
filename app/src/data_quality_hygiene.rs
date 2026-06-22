@@ -10,6 +10,8 @@
 //! `app/tests/data_quality_hygiene_workflow_contracts.rs` plus API/storage tests
 //! for executable proof.
 
+use nonempty::NonEmpty;
+use nutype::nutype;
 use serde::{Deserialize, Serialize};
 
 use domain::{data_quality, entities, operations, policy, source};
@@ -19,80 +21,127 @@ pub const WORKFLOW_NAME: &str = "data-quality-hygiene";
 /// Stable Schema version constant for the data quality hygiene layer.
 pub const SCHEMA_VERSION: &str = "data-quality-hygiene-context-v1";
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[nutype(
+    sanitize(trim),
+    validate(not_empty, len_char_max = 120),
+    derive(
+        Debug,
+        Clone,
+        PartialEq,
+        Eq,
+        PartialOrd,
+        Ord,
+        Hash,
+        AsRef,
+        Serialize,
+        Deserialize
+    )
+)]
 /// Issue ref used by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct IssueRef(String);
 
 impl IssueRef {
-    /// Validates a non-zero value for the data-quality hygiene workflow before it can appear in a manager packet or outcome record.
-    pub fn try_new(value: impl Into<String>) -> Result<Self> {
-        trimmed_non_empty(value, Error::EmptyIssueRef).map(Self)
-    }
-
-    /// Returns the as str evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
+    /// Returns the source issue ref available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn as_str(&self) -> &str {
-        &self.0
+        self.as_ref()
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Action id used by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
+#[nutype(
+    sanitize(trim),
+    validate(not_empty, len_char_max = 130),
+    derive(
+        Debug,
+        Clone,
+        PartialEq,
+        Eq,
+        PartialOrd,
+        Ord,
+        Hash,
+        AsRef,
+        Serialize,
+        Deserialize
+    )
+)]
+/// Action id used by the data-quality hygiene workflow; it allows the `dq-action-` prefix plus a maximum-length issue ref while blocking automatic provider-system mutation.
 pub struct ActionId(String);
 
 impl ActionId {
-    /// Validates a non-zero value for the data-quality hygiene workflow before it can appear in a manager packet or outcome record.
-    pub fn try_new(value: impl Into<String>) -> Result<Self> {
-        trimmed_non_empty(value, Error::EmptyActionId).map(Self)
-    }
-
-    /// Returns the as str evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
+    /// Returns the action id available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn as_str(&self) -> &str {
-        &self.0
+        self.as_ref()
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[nutype(
+    sanitize(trim),
+    validate(not_empty, len_char_max = 120),
+    derive(
+        Debug,
+        Clone,
+        PartialEq,
+        Eq,
+        PartialOrd,
+        Ord,
+        Hash,
+        AsRef,
+        Serialize,
+        Deserialize
+    )
+)]
 /// Context packet id used by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct ContextPacketId(String);
 
 impl ContextPacketId {
-    /// Validates a non-zero value for the data-quality hygiene workflow before it can appear in a manager packet or outcome record.
-    pub fn try_new(value: impl Into<String>) -> Result<Self> {
-        trimmed_non_empty(value, Error::EmptyContextPacketId).map(Self)
-    }
-
-    /// Returns the as str evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
+    /// Returns the context packet id available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn as_str(&self) -> &str {
-        &self.0
+        self.as_ref()
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[nutype(
+    sanitize(trim),
+    validate(not_empty, len_char_max = 120),
+    derive(
+        Debug,
+        Clone,
+        PartialEq,
+        Eq,
+        PartialOrd,
+        Ord,
+        Hash,
+        AsRef,
+        Serialize,
+        Deserialize
+    )
+)]
 /// Correlation id used by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct CorrelationId(String);
 
 impl CorrelationId {
-    /// Validates a non-zero value for the data-quality hygiene workflow before it can appear in a manager packet or outcome record.
-    pub fn try_new(value: impl Into<String>) -> Result<Self> {
-        trimmed_non_empty(value, Error::EmptyCorrelationId).map(Self)
-    }
-
-    /// Returns the as str evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
+    /// Returns the correlation id available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn as_str(&self) -> &str {
-        &self.0
+        self.as_ref()
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[nutype(
+    sanitize(trim),
+    validate(not_empty, len_char_max = 500),
+    derive(
+        Debug,
+        Clone,
+        PartialEq,
+        Eq,
+        PartialOrd,
+        Ord,
+        Hash,
+        Serialize,
+        Deserialize
+    )
+)]
 /// Action rationale used by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct ActionRationale(String);
-
-impl ActionRationale {
-    /// Validates a non-zero value for the data-quality hygiene workflow before it can appear in a manager packet or outcome record.
-    pub fn try_new(value: impl Into<String>) -> Result<Self> {
-        trimmed_non_empty(value, Error::EmptyActionRationale).map(Self)
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 /// Labor minutes used by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
@@ -189,6 +238,110 @@ pub enum Sensitivity {
     QuarantinedSensitivePayload,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Entity or source fact family affected by a data-quality hygiene candidate.
+pub enum AffectedEntity {
+    /// Customer profile or owner identity evidence needs cleanup review.
+    CustomerProfile,
+    /// Pet profile, care, behavior, or vaccine-adjacent evidence needs cleanup review.
+    PetProfile,
+    /// Reservation or booking evidence needs cleanup review.
+    Reservation,
+    /// Service-line or reservation-type mapping evidence needs cleanup review.
+    ServiceLine,
+    /// Vaccination source evidence needs staff or document review before downstream workflows trust it.
+    VaccinationRecord,
+    /// Payment, deposit, discount, refund, invoice, or POS evidence needs protected review.
+    PaymentRecord,
+    /// Checkout or unclosed-stay evidence needs staff review.
+    CheckoutRecord,
+    /// Provider/source metadata itself is missing, stale, conflicting, or unverifiable.
+    SourceEvidence,
+    /// Quarantined payload evidence is present but raw contents must remain hidden from agent workflows.
+    SensitivePayload,
+    /// Location, regional, or policy-scope evidence needs cleanup review.
+    LocationPolicyScope,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Business category for a data-quality issue so cleanup queues can group similar ambiguity.
+pub enum IssueCategory {
+    /// Required source evidence is missing, unknown, or internally inconsistent.
+    MissingEvidence,
+    /// Duplicate source or profile evidence may cause repeated staff review or inflated demand.
+    DuplicateRecord,
+    /// Customer/pet profile completeness needs internal cleanup preparation.
+    ProfileCompleteness,
+    /// Source freshness, staleness, or trust needs review before downstream use.
+    SourceFreshness,
+    /// Service-line naming or source mapping needs normalization review.
+    ServiceLineMapping,
+    /// Checkout or unclosed-stay evidence needs review before labor/reporting use.
+    CheckoutEvidence,
+    /// Sensitive or quarantined payload evidence needs protected escalation.
+    SensitivePayload,
+    /// Payment, deposit, refund, or checkout payment state conflicts need manager-safe review.
+    PaymentConflict,
+    /// Owner-pet relationship ambiguity needs human review before communication or merge work.
+    AmbiguousRelationship,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Redaction boundary for agent-visible cleanup work.
+pub enum RedactionPolicy {
+    /// Agent workflows may reference the normalized source fact and source ref.
+    SourceFactVisible,
+    /// Agent workflows may summarize metadata and source refs, but not raw payload contents.
+    SummarizeMetadataOnly,
+    /// Raw payload is quarantined; only protected escalation metadata may flow to drafts.
+    QuarantineRawPayload,
+}
+
+impl RedactionPolicy {
+    /// Returns whether an agent may read raw source payload contents for the candidate.
+    pub const fn allows_agent_payload_access(self) -> bool {
+        matches!(self, Self::SourceFactVisible)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Review role named on a cleanup action before any provider/system-of-record mutation can happen.
+pub enum ReviewerRole {
+    /// General manager owns the cleanup review gate.
+    GeneralManager,
+    /// Assistant general manager owns the cleanup review gate.
+    AssistantGeneralManager,
+    /// Front desk lead owns the cleanup review gate.
+    FrontDeskLead,
+    /// Front desk agent can prepare the cleanup work but not close protected review gates.
+    FrontDeskAgent,
+    /// Regional operator owns portfolio or regional-policy cleanup review.
+    RegionalOperator,
+    /// Operations analyst owns reporting-quality review.
+    OperationsAnalyst,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Internal cleanup action family prepared by the workflow; these are draft/review tasks, not provider writes.
+pub enum CleanupAction {
+    /// Prepare missing or conflicting evidence investigation.
+    InvestigateEvidence,
+    /// Prepare duplicate customer/pet/source review without merging records.
+    PrepareDuplicateReview,
+    /// Prepare profile completion work for staff review.
+    PrepareProfileCompletion,
+    /// Prepare stale or missing vaccine source review.
+    PrepareVaccineSourceReview,
+    /// Prepare service-line mapping review.
+    PrepareServiceLineMapping,
+    /// Prepare checkout or unclosed-reservation evidence review.
+    PrepareCheckoutEvidenceReview,
+    /// Escalate sensitive payload handling without exposing raw payload contents.
+    EscalateSensitivePayload,
+    /// Prepare payment conflict review without moving money or changing invoices.
+    PreparePaymentConflictReview,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
 /// Candidate used by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct Candidate {
@@ -232,6 +385,21 @@ impl Candidate {
         self.sensitivity
     }
 
+    /// Names the affected entity family so operators know which record family needs cleanup review.
+    pub fn affected_entity(&self) -> AffectedEntity {
+        affected_entity_for_issue_kind(&self.issue.kind())
+    }
+
+    /// Groups this candidate into an issue category for ranking, queueing, and outcome reporting.
+    pub fn issue_category(&self) -> IssueCategory {
+        issue_category_for_issue_kind(&self.issue.kind())
+    }
+
+    /// Returns the redaction boundary that controls what an agent may see while drafting cleanup work.
+    pub fn redaction_policy(&self) -> RedactionPolicy {
+        redaction_policy_for_issue_and_sensitivity(&self.issue.kind(), self.sensitivity)
+    }
+
     fn effective_source_record_refs(&self) -> Vec<source::RecordRef> {
         let mut refs = self.source_record_refs.clone();
         let issue_ref = self.issue.source_record_ref().clone();
@@ -259,6 +427,8 @@ pub enum ActionKind {
     ReviewCheckoutOrUnclosedReservationEvidence,
     /// Selects escalate sensitive or quarantined payload for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     EscalateSensitiveOrQuarantinedPayload,
+    /// Selects protected payment conflict review for the data-quality hygiene decision model without moving money, changing invoices, or mutating provider records.
+    ReviewPaymentStateConflict,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -422,6 +592,22 @@ impl Action {
     /// Returns the labor impact evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn labor_impact(&self) -> &LaborImpactEstimate {
         &self.labor_impact
+    }
+
+    /// Names the internal cleanup action family without authorizing the action against the provider system.
+    pub const fn cleanup_action(&self) -> CleanupAction {
+        cleanup_action_for_kind(self.kind)
+    }
+
+    /// Names the human/operator role that must review this internal cleanup action.
+    pub const fn reviewer_role(&self) -> ReviewerRole {
+        reviewer_role_for_persona(self.owner_persona)
+    }
+
+    /// Reports that this action remains draft/review work until a human or system of record closes the gate.
+    pub fn requires_human_or_system_of_record_review(&self) -> bool {
+        !self.required_review_gates.is_empty()
+            && blocked_actions_for().contains(&BlockedAction::MutateProviderOrPmsRecord)
     }
 
     /// Reports whether the data-quality hygiene workflow satisfies the is source grounded safety condition.
@@ -681,7 +867,50 @@ pub enum FeedbackOutcome {
     NotActionable,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+impl FeedbackOutcome {
+    /// Returns whether this reviewed disposition can support a labor-savings claim.
+    pub const fn can_claim_labor_savings(self) -> bool {
+        matches!(self, Self::Completed)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Source-record proof for reviewed data-quality hygiene outcomes; construction rejects empty evidence so outcome feedback remains traceable to source facts.
+pub struct OutcomeSourceRecordRefs(NonEmpty<source::RecordRef>);
+
+impl OutcomeSourceRecordRefs {
+    /// Builds source-record proof for reviewed outcome feedback while preserving the source-grounding invariant.
+    pub fn try_new(source_record_refs: Vec<source::RecordRef>) -> Result<Self> {
+        NonEmpty::from_vec(source_record_refs)
+            .map(Self)
+            .ok_or(Error::OutcomeSourceRecordRefRequired)
+    }
+
+    /// Returns the source refs that justify reviewed outcome feedback without mutating provider, customer, payment, or schedule systems.
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = &source::RecordRef> {
+        self.0.iter()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Data-quality issue proof for reviewed data-quality hygiene outcomes; construction rejects empty evidence so feedback cannot drift away from a reviewed issue.
+pub struct OutcomeIssueRefs(NonEmpty<IssueRef>);
+
+impl OutcomeIssueRefs {
+    /// Builds data-quality issue proof for reviewed outcome feedback while preserving the source-grounding invariant.
+    pub fn try_new(issue_refs: Vec<IssueRef>) -> Result<Self> {
+        NonEmpty::from_vec(issue_refs)
+            .map(Self)
+            .ok_or(Error::OutcomeIssueRefRequired)
+    }
+
+    /// Returns the issue refs that justify reviewed outcome feedback without mutating provider, customer, payment, or schedule systems.
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = &IssueRef> {
+        self.0.iter()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Outcome record used by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct OutcomeRecord {
     action_id: ActionId,
@@ -689,14 +918,17 @@ pub struct OutcomeRecord {
     outcome: FeedbackOutcome,
     before_minutes: LaborMinutes,
     actual_minutes: LaborMinutes,
-    #[builder(default)]
-    source_record_refs: Vec<source::RecordRef>,
-    #[builder(default)]
-    issue_refs: Vec<IssueRef>,
+    source_record_refs: OutcomeSourceRecordRefs,
+    issue_refs: OutcomeIssueRefs,
     reviewed_resolution_status: Option<data_quality::ResolutionStatus>,
 }
 
 impl OutcomeRecord {
+    /// Starts a reviewed outcome builder that validates source-record and issue proof before producing an outcome record.
+    pub fn builder() -> OutcomeRecordBuilder {
+        OutcomeRecordBuilder::default()
+    }
+
     /// Returns the action id evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn action_id(&self) -> &ActionId {
         &self.action_id
@@ -727,14 +959,21 @@ impl OutcomeRecord {
         self.before_minutes.0.saturating_sub(self.actual_minutes.0)
     }
 
+    /// Reports whether this reviewed outcome has enough source proof and a completed disposition to claim labor savings.
+    pub fn labor_minutes_are_claimable(&self) -> bool {
+        self.outcome.can_claim_labor_savings()
+            && self.source_record_refs.iter().len() > 0
+            && self.issue_refs.iter().len() > 0
+    }
+
     /// Returns the source record refs evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
-    pub fn source_record_refs(&self) -> &[source::RecordRef] {
-        &self.source_record_refs
+    pub fn source_record_refs(&self) -> Vec<&source::RecordRef> {
+        self.source_record_refs.iter().collect()
     }
 
     /// Returns the issue refs evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
-    pub fn issue_refs(&self) -> &[IssueRef] {
-        &self.issue_refs
+    pub fn issue_refs(&self) -> Vec<&IssueRef> {
+        self.issue_refs.iter().collect()
     }
 
     /// Returns the reviewed resolution status evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
@@ -753,27 +992,109 @@ impl OutcomeRecord {
     }
 }
 
+#[derive(Debug, Default, Clone)]
+/// Builder for reviewed outcome records; build returns a domain error when required source or issue proof is absent.
+pub struct OutcomeRecordBuilder {
+    action_id: Option<ActionId>,
+    recorded_by: Option<entities::ActorRef>,
+    outcome: Option<FeedbackOutcome>,
+    before_minutes: Option<LaborMinutes>,
+    actual_minutes: Option<LaborMinutes>,
+    source_record_refs: Vec<source::RecordRef>,
+    issue_refs: Vec<IssueRef>,
+    reviewed_resolution_status: Option<data_quality::ResolutionStatus>,
+}
+
+impl OutcomeRecordBuilder {
+    /// Sets the action id for reviewed outcome feedback.
+    pub fn action_id(mut self, action_id: ActionId) -> Self {
+        self.action_id = Some(action_id);
+        self
+    }
+
+    /// Sets the reviewed actor for outcome feedback.
+    pub fn recorded_by(mut self, recorded_by: entities::ActorRef) -> Self {
+        self.recorded_by = Some(recorded_by);
+        self
+    }
+
+    /// Sets the reviewed outcome.
+    pub fn outcome(mut self, outcome: FeedbackOutcome) -> Self {
+        self.outcome = Some(outcome);
+        self
+    }
+
+    /// Sets the estimated pre-cleanup labor minutes.
+    pub fn before_minutes(mut self, before_minutes: LaborMinutes) -> Self {
+        self.before_minutes = Some(before_minutes);
+        self
+    }
+
+    /// Sets the actual reviewed labor minutes after cleanup.
+    pub fn actual_minutes(mut self, actual_minutes: LaborMinutes) -> Self {
+        self.actual_minutes = Some(actual_minutes);
+        self
+    }
+
+    /// Sets non-empty source-record proof for reviewed outcome feedback.
+    pub fn source_record_refs(mut self, source_record_refs: Vec<source::RecordRef>) -> Self {
+        self.source_record_refs = source_record_refs;
+        self
+    }
+
+    /// Sets non-empty data-quality issue proof for reviewed outcome feedback.
+    pub fn issue_refs(mut self, issue_refs: Vec<IssueRef>) -> Self {
+        self.issue_refs = issue_refs;
+        self
+    }
+
+    /// Sets the reviewed resolution status for outcome feedback.
+    pub fn reviewed_resolution_status(
+        mut self,
+        reviewed_resolution_status: data_quality::ResolutionStatus,
+    ) -> Self {
+        self.reviewed_resolution_status = Some(reviewed_resolution_status);
+        self
+    }
+
+    /// Builds the reviewed outcome record, rejecting absent source-record or issue proof with semantic errors.
+    pub fn build(self) -> Result<OutcomeRecord> {
+        Ok(OutcomeRecord {
+            action_id: self
+                .action_id
+                .ok_or(Error::OutcomeFieldRequired("action_id"))?,
+            recorded_by: self
+                .recorded_by
+                .ok_or(Error::OutcomeFieldRequired("recorded_by"))?,
+            outcome: self.outcome.ok_or(Error::OutcomeFieldRequired("outcome"))?,
+            before_minutes: self
+                .before_minutes
+                .ok_or(Error::OutcomeFieldRequired("before_minutes"))?,
+            actual_minutes: self
+                .actual_minutes
+                .ok_or(Error::OutcomeFieldRequired("actual_minutes"))?,
+            source_record_refs: OutcomeSourceRecordRefs::try_new(self.source_record_refs)?,
+            issue_refs: OutcomeIssueRefs::try_new(self.issue_refs)?,
+            reviewed_resolution_status: self.reviewed_resolution_status,
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 /// Decision choices for error in the data-quality hygiene workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
 pub enum Error {
-    #[error("issue ref cannot be empty")]
-    /// Identifies empty issue ref as the reason the workflow must stop, retry, or request review.
-    EmptyIssueRef,
-    #[error("action id cannot be empty")]
-    /// Identifies empty action id as the reason the workflow must stop, retry, or request review.
-    EmptyActionId,
-    #[error("context packet id cannot be empty")]
-    /// Identifies empty context packet id as the reason the workflow must stop, retry, or request review.
-    EmptyContextPacketId,
-    #[error("correlation id cannot be empty")]
-    /// Identifies empty correlation id as the reason the workflow must stop, retry, or request review.
-    EmptyCorrelationId,
-    #[error("action rationale cannot be empty")]
-    /// Identifies empty action rationale as the reason the workflow must stop, retry, or request review.
-    EmptyActionRationale,
     #[error("labor minutes must be greater than zero")]
     /// Identifies zero labor minutes as the reason the workflow must stop, retry, or request review.
     ZeroLaborMinutes,
+    #[error("outcome record requires at least one source record ref")]
+    /// Identifies missing source-record proof as the reason reviewed outcome capture must stop or request review.
+    OutcomeSourceRecordRefRequired,
+    #[error("outcome record requires at least one data-quality issue ref")]
+    /// Identifies missing issue proof as the reason reviewed outcome capture must stop or request review.
+    OutcomeIssueRefRequired,
+    #[error("outcome record requires field {0}")]
+    /// Identifies a missing required outcome field as the reason reviewed outcome capture must stop or request review.
+    OutcomeFieldRequired(&'static str),
 }
 
 /// Result type returned by fallible data quality hygiene operations.
@@ -817,6 +1138,106 @@ impl Workflow {
             before_minutes,
             after_minutes,
         }
+    }
+}
+
+fn affected_entity_for_issue_kind(kind: &data_quality::Kind) -> AffectedEntity {
+    match kind {
+        data_quality::Kind::MissingVaccinationRecord => AffectedEntity::VaccinationRecord,
+        data_quality::Kind::DuplicateSourceRecord => AffectedEntity::PetProfile,
+        data_quality::Kind::IncompletePetProfile => AffectedEntity::PetProfile,
+        data_quality::Kind::AmbiguousOwnerPetRelationship => AffectedEntity::CustomerProfile,
+        data_quality::Kind::UnmappedServiceType => AffectedEntity::ServiceLine,
+        data_quality::Kind::LocationScopeAmbiguity => AffectedEntity::LocationPolicyScope,
+        data_quality::Kind::CheckoutEvidenceMissing | data_quality::Kind::UnclosedReservation => {
+            AffectedEntity::CheckoutRecord
+        }
+        data_quality::Kind::PaymentStateConflict => AffectedEntity::PaymentRecord,
+        data_quality::Kind::SensitivePayloadQuarantined => AffectedEntity::SensitivePayload,
+        data_quality::Kind::MissingRequiredField { field } => match field {
+            data_quality::FieldPath::Reservation(_) => AffectedEntity::Reservation,
+            data_quality::FieldPath::Stay(_) => AffectedEntity::CheckoutRecord,
+            data_quality::FieldPath::Source(_) => AffectedEntity::SourceEvidence,
+        },
+        data_quality::Kind::AssumptionInForce { .. }
+        | data_quality::Kind::UnknownSourceStatus { .. }
+        | data_quality::Kind::ConflictingTimestamps => AffectedEntity::SourceEvidence,
+    }
+}
+
+fn issue_category_for_issue_kind(kind: &data_quality::Kind) -> IssueCategory {
+    match kind {
+        data_quality::Kind::MissingVaccinationRecord => IssueCategory::SourceFreshness,
+        data_quality::Kind::DuplicateSourceRecord => IssueCategory::DuplicateRecord,
+        data_quality::Kind::IncompletePetProfile => IssueCategory::ProfileCompleteness,
+        data_quality::Kind::AmbiguousOwnerPetRelationship => IssueCategory::AmbiguousRelationship,
+        data_quality::Kind::UnmappedServiceType | data_quality::Kind::LocationScopeAmbiguity => {
+            IssueCategory::ServiceLineMapping
+        }
+        data_quality::Kind::CheckoutEvidenceMissing | data_quality::Kind::UnclosedReservation => {
+            IssueCategory::CheckoutEvidence
+        }
+        data_quality::Kind::PaymentStateConflict => IssueCategory::PaymentConflict,
+        data_quality::Kind::SensitivePayloadQuarantined => IssueCategory::SensitivePayload,
+        data_quality::Kind::MissingRequiredField { .. }
+        | data_quality::Kind::AssumptionInForce { .. }
+        | data_quality::Kind::UnknownSourceStatus { .. }
+        | data_quality::Kind::ConflictingTimestamps => IssueCategory::MissingEvidence,
+    }
+}
+
+fn redaction_policy_for_issue_and_sensitivity(
+    kind: &data_quality::Kind,
+    sensitivity: Sensitivity,
+) -> RedactionPolicy {
+    match kind {
+        data_quality::Kind::SensitivePayloadQuarantined
+        | data_quality::Kind::PaymentStateConflict => RedactionPolicy::QuarantineRawPayload,
+        _ => redaction_policy_for_sensitivity(sensitivity),
+    }
+}
+
+const fn redaction_policy_for_sensitivity(sensitivity: Sensitivity) -> RedactionPolicy {
+    match sensitivity {
+        Sensitivity::StandardOperationalEvidence => RedactionPolicy::SourceFactVisible,
+        Sensitivity::VaccineEvidence
+        | Sensitivity::IncidentOrBehaviorEvidence
+        | Sensitivity::PaymentEvidence => RedactionPolicy::SummarizeMetadataOnly,
+        Sensitivity::QuarantinedSensitivePayload => RedactionPolicy::QuarantineRawPayload,
+    }
+}
+
+const fn cleanup_action_for_kind(kind: ActionKind) -> CleanupAction {
+    match kind {
+        ActionKind::InvestigateMissingSourceEvidence => CleanupAction::InvestigateEvidence,
+        ActionKind::ReconcileDuplicateCustomerOrPetCandidate => {
+            CleanupAction::PrepareDuplicateReview
+        }
+        ActionKind::CompleteMissingPetOrCustomerProfileFields => {
+            CleanupAction::PrepareProfileCompletion
+        }
+        ActionKind::ReviewStaleVaccinationSourceFreshness => {
+            CleanupAction::PrepareVaccineSourceReview
+        }
+        ActionKind::NormalizeAmbiguousServiceLineNaming => CleanupAction::PrepareServiceLineMapping,
+        ActionKind::ReviewCheckoutOrUnclosedReservationEvidence => {
+            CleanupAction::PrepareCheckoutEvidenceReview
+        }
+        ActionKind::EscalateSensitiveOrQuarantinedPayload => {
+            CleanupAction::EscalateSensitivePayload
+        }
+        ActionKind::ReviewPaymentStateConflict => CleanupAction::PreparePaymentConflictReview,
+    }
+}
+
+const fn reviewer_role_for_persona(persona: HygienePersona) -> ReviewerRole {
+    match persona {
+        HygienePersona::GeneralManager => ReviewerRole::GeneralManager,
+        HygienePersona::AssistantGeneralManager => ReviewerRole::AssistantGeneralManager,
+        HygienePersona::FrontDeskLead => ReviewerRole::FrontDeskLead,
+        HygienePersona::FrontDeskAgent => ReviewerRole::FrontDeskAgent,
+        HygienePersona::RegionalOperator => ReviewerRole::RegionalOperator,
+        HygienePersona::OperationsAnalyst => ReviewerRole::OperationsAnalyst,
     }
 }
 
@@ -899,11 +1320,17 @@ fn action_shape_for(
             20,
             8,
         ),
+        data_quality::Kind::PaymentStateConflict => (
+            ActionKind::ReviewPaymentStateConflict,
+            HygienePersona::FrontDeskLead,
+            RemovedManualWork::MissingEvidenceInvestigation,
+            25,
+            8,
+        ),
         data_quality::Kind::MissingRequiredField { .. }
         | data_quality::Kind::AssumptionInForce { .. }
         | data_quality::Kind::UnknownSourceStatus { .. }
-        | data_quality::Kind::ConflictingTimestamps
-        | data_quality::Kind::PaymentStateConflict => (
+        | data_quality::Kind::ConflictingTimestamps => (
             ActionKind::InvestigateMissingSourceEvidence,
             HygienePersona::FrontDeskLead,
             RemovedManualWork::MissingEvidenceInvestigation,
@@ -1073,13 +1500,4 @@ fn blocked_actions_for() -> Vec<BlockedAction> {
         BlockedAction::HideOrAutoResolveSourceAmbiguity,
         BlockedAction::ExposeQuarantinedSensitivePayload,
     ]
-}
-
-fn trimmed_non_empty(value: impl Into<String>, empty_error: Error) -> Result<String> {
-    let value = value.into().trim().to_owned();
-    if value.is_empty() {
-        Err(empty_error)
-    } else {
-        Ok(value)
-    }
 }
