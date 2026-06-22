@@ -119,6 +119,13 @@ redacted_debug!(MedicationDose, "MedicationDose(<redacted>)");
 redacted_debug!(MedicationSchedule, "MedicationSchedule(<redacted>)");
 redacted_debug!(ReviewReason, "ReviewReason(<redacted>)");
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Checkout care exception retained when care summary or departure-note evidence needs staff/manager review.
+pub enum CheckoutException {
+    /// Care summary or departure notes still need staff/manager review before checkout confidence.
+    DepartureCareReviewRequired,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Named staff or customer contact used for care-plan coordination.
 pub struct ContactRef {

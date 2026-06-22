@@ -114,6 +114,66 @@ fn checkout_completion_with_open_staff_handoff_routes_to_review_without_checkout
 }
 
 #[test]
+fn checkout_exception_packet_names_unresolved_work_and_reviewed_outcome_without_side_effects() {
+    let request = checkout_completion::Request::builder()
+        .reservation_id(reservation_id())
+        .source_provenance(source_provenance())
+        .observed_source_status(source::reservation::Status::CheckedOut)
+        .staff_handoff(open_staff_handoff())
+        .payment_exception(checkout_completion::PaymentException::BalanceOrRefundReviewRequired)
+        .source_exception(checkout_completion::SourceException::ProviderRecordConflict)
+        .estimated_manual_audit_minutes(checkout_completion::LaborMinutes::try_new(18).unwrap())
+        .estimated_packet_review_minutes(checkout_completion::LaborMinutes::try_new(6).unwrap())
+        .build();
+
+    let packet = checkout_completion::Workflow::evaluate(request);
+
+    assert_eq!(
+        packet.completion_status(),
+        checkout_completion::CompletionStatus::NeedsStaffHandoffReview
+    );
+    assert_eq!(
+        packet.unresolved_exceptions(),
+        &[
+            checkout_completion::UnresolvedException::Belongings,
+            checkout_completion::UnresolvedException::Care,
+            checkout_completion::UnresolvedException::Payment(
+                checkout_completion::PaymentException::BalanceOrRefundReviewRequired
+            ),
+            checkout_completion::UnresolvedException::Source(
+                checkout_completion::SourceException::ProviderRecordConflict
+            ),
+        ]
+    );
+    assert_eq!(
+        packet.staff_task_drafts(),
+        &[
+            checkout_completion::StaffTaskDraft::VerifyBelongingsReturn,
+            checkout_completion::StaffTaskDraft::ReviewCareAndDepartureNotes,
+            checkout_completion::StaffTaskDraft::ResolvePaymentException,
+            checkout_completion::StaffTaskDraft::ReconcileSourceStatus,
+        ]
+    );
+    assert_eq!(
+        packet.reviewed_disposition(),
+        checkout_completion::ReviewedDisposition::ManagerReviewRequired
+    );
+    assert_eq!(packet.labor_impact().manual_audit_minutes().get(), 18);
+    assert_eq!(packet.labor_impact().packet_review_minutes().get(), 6);
+    assert_eq!(packet.labor_impact().estimated_minutes_saved(), Some(12));
+    assert!(
+        packet
+            .blocked_actions()
+            .contains(&checkout_completion::BlockedAction::MoveRefundDiscountOrPayment)
+    );
+    assert!(
+        packet
+            .blocked_actions()
+            .contains(&checkout_completion::BlockedAction::MutateProviderOrPmsRecord)
+    );
+}
+
+#[test]
 fn checkout_completion_without_source_checkout_does_not_emit_false_checkout_observed_audit() {
     let request = checkout_completion::Request::builder()
         .reservation_id(reservation_id())

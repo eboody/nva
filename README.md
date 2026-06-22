@@ -39,6 +39,8 @@ Supporting routes are useful after the canonical path:
 
 Front-door principle: the strategy is labor-saving, source-grounded, review-gated operational workflow automation with outcome capture. Gingr and other provider systems provide source evidence; they are not the strategy or automatic business truth. BI, read models, reporting databases, storage projections, and dashboards measure or visualize reviewed work; they do not own workflow authority or bypass human/system-of-record review gates.
 
+Current proof-chain lens for this model-depth board: source/provider evidence and source refs must flow into domain/app contracts, then into agent-safe packets or drafts, then through a named human/system-of-record review gate, then into outcome/labor-minute evidence, and only then into storage/runtime/Rustdoc/reporting proof. If a page says an agent saves labor, it should name the role and workflow: front desk booking triage, checkout completion, grooming retention, Pawgress/daily-update copy drafting, manager daily brief, data-quality hygiene, training package review, retail reorder review, or daycare package review. If a page cannot show source evidence, a review gate, and outcome proof, treat the claim as planned or qualitative rather than measured labor reduction.
+
 ## How to read any entity
 
 Every important public entity page, README section, Rustdoc page, or operator guide should preserve this entity reading contract:

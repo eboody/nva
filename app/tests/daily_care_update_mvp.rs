@@ -1,5 +1,5 @@
 use app::daily_update;
-use domain::{entities, policy, workflow};
+use domain::{entities, message, policy, workflow};
 
 fn workflow_event(event_type: workflow::EventType) -> workflow::Event {
     workflow::Event {
@@ -188,6 +188,88 @@ fn concern_notes_are_suppressed_from_customer_copy_and_route_to_manager_review()
             .internal_flags
             .iter()
             .any(|flag| flag.code == daily_update::InternalFlagCode::BehaviorReviewRequired)
+    );
+    assert_eq!(preview.approval.gate, policy::ReviewGate::ManagerApproval);
+    assert!(preview.send_stub.is_blocked_until_human_approval());
+}
+
+#[test]
+fn sensitive_payment_incident_and_ambiguous_facts_create_suppression_records_not_customer_copy() {
+    let request = daily_update::MvpPreviewRequest::builder()
+        .event(workflow_event(workflow::EventType::DailyUpdateNeeded))
+        .pet_name(domain::pet::Name::try_new("Miso").unwrap())
+        .owner_display_name(domain::customer::Name::try_new("Avery Chen").unwrap())
+        .policy_snapshot_id(policy::Id::try_new("daily-care-update-mvp-v1").unwrap())
+        .notes(vec![
+            note(
+                uuid::Uuid::from_u128(4),
+                entities::care_note::Kind::Medical,
+                entities::care_note::Visibility::CustomerVisibleAfterReview,
+                "medication dose changed and needs care team review",
+            ),
+            note(
+                uuid::Uuid::from_u128(5),
+                entities::care_note::Kind::General,
+                entities::care_note::Visibility::CustomerVisibleAfterReview,
+                "payment refund question should not be included in Pawgress copy",
+            ),
+            note(
+                uuid::Uuid::from_u128(6),
+                entities::care_note::Kind::General,
+                entities::care_note::Visibility::CustomerVisibleAfterReview,
+                "incident follow-up is pending manager review",
+            ),
+            note(
+                uuid::Uuid::from_u128(7),
+                entities::care_note::Kind::General,
+                entities::care_note::Visibility::CustomerVisibleAfterReview,
+                "source ambiguous: wrong-pet note may be mixed in",
+            ),
+        ])
+        .media_document_refs(vec![daily_update::MediaDocumentRef {
+            document_id: entities::DocumentId(uuid::Uuid::from_u128(44)),
+            source_note_id: entities::care_note::Id(uuid::Uuid::from_u128(7)),
+            review_state: message::ReviewState::ApprovalRequested,
+        }])
+        .build();
+
+    let preview = daily_update::build_mvp_preview(request).expect("suppressed preview builds");
+    let body = preview.owner_message_draft.body_ref.clone().into_inner();
+
+    assert!(body.contains("update is being reviewed"));
+    for unsafe_phrase in [
+        "medication dose",
+        "payment refund",
+        "incident follow-up",
+        "wrong-pet",
+    ] {
+        assert!(
+            !body.contains(unsafe_phrase),
+            "customer-facing draft leaked sensitive phrase: {unsafe_phrase}"
+        );
+    }
+    assert!(preview.owner_message_draft.media_document_refs.is_empty());
+    assert_eq!(
+        preview.output.suppressed_media_document_refs[0].reason,
+        message::SuppressionReason::MediaReviewRequired
+    );
+
+    let omitted_reasons: Vec<_> = preview
+        .output
+        .omitted_facts
+        .iter()
+        .map(|fact| fact.reason)
+        .collect();
+    assert!(omitted_reasons.contains(&daily_update::OmissionReason::MedicalOrMedicationReview));
+    assert!(omitted_reasons.contains(&daily_update::OmissionReason::PaymentOrBillingReview));
+    assert!(omitted_reasons.contains(&daily_update::OmissionReason::IncidentOrSafetyReview));
+    assert!(omitted_reasons.contains(&daily_update::OmissionReason::SourceAmbiguousReview));
+    assert!(
+        preview
+            .output
+            .suppression_records
+            .iter()
+            .any(|record| record.reason == message::SuppressionReason::SourceAmbiguity)
     );
     assert_eq!(preview.approval.gate, policy::ReviewGate::ManagerApproval);
     assert!(preview.send_stub.is_blocked_until_human_approval());

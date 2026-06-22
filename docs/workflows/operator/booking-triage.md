@@ -11,7 +11,7 @@ Navigation: start with the [operator workflow index](README.md). Entity-first ba
 - Problem solved: availability, vaccine/document, deposit/payment, behavior, special-care, holiday, staffing, and provider-state facts are often missing, stale, conflicting, or scattered before staff can safely answer a booking request.
 - First role whose time is saved: front-desk agents reviewing inquiries, booking requests, and reservation changes.
 - Secondary reviewers/operators: front-desk leads, managers, medical/document reviewers, behavior leads, care-team reviewers, and payment/manager approvers.
-- Pet-resort example: a holiday boarding inquiry can be ranked as `vaccine_pending` plus `deposit_or_payment_review`, with a draft missing-info message and manager packet ready for staff approval instead of an unsafe confirmation.
+- Pet-resort example: a holiday boarding inquiry can be ranked as `vaccine_pending` plus `deposit_or_payment_review`, with source refs for missing dates/pet profile/vaccine/payment/policy blockers, a draft missing-info message, and a manager packet ready for staff approval instead of an unsafe confirmation.
 
 ## Source data and featured entities
 
@@ -43,7 +43,7 @@ Related entities to mention without making them the page center:
 
 | Layer | Contract | What it authorizes | What it does not authorize |
 | --- | --- | --- | --- |
-| `app` | `app::booking_triage::{Request, Service, DeterministicResult, StaffEvaluationPacket, ConfirmationDraft, AuditEventDraft, SafeAgentAction, BlockedAction}` | Source-grounded request progression, deterministic readiness ranking, review packet assembly, draft confirmation/missing-info language for approval, and audit-event draft markers. | Live booking confirmation/rejection, provider/PMS mutation, room/group assignment, waitlist promotion, customer sends, vaccine/care/behavior approvals, or payment movement. |
+| `app` | `app::booking_triage::{Request, Service, DeterministicResult, StaffEvaluationPacket, ConfirmationDraft, MissingInfoDraft, AuditEventDraft, SafeAgentAction, BlockedAction, ApprovalGate, MissingInfoReason, BlockerKind, BlockerEvidence}` | Source-grounded request progression, deterministic readiness ranking, missing-info reason capture, care/vaccine/payment/policy blocker evidence, review packet assembly, draft confirmation/missing-info language for approval, and audit-event draft markers. | Live booking confirmation/rejection, provider/PMS mutation, room/group assignment, waitlist promotion, customer sends, vaccine/care/behavior approvals, or payment movement. |
 | `domain` | `domain::entities::{Reservation, Customer, Pet, reservation::Status}`, `domain::policy::ReviewGate`, `domain::workflow::{PolicyContext, RecommendedAction}` | Business vocabulary for reservation state, customer/pet facts, policy review gates, workflow recommendations, and source-aware decisions. | Provider payload truth by itself, approved side effects, or local policy invention. |
 | `integrations/gingr` | `integrations/gingr::endpoint::reservations::{reservation::Types, reservation::SearchFilters, Reservations, BackOfHouse, GetServicesByType}` and mapping docs | Provider/read-model evidence for reservation types, dates, animal ids, statuses, services, and back-of-house context. | Domain authority, customer-safe messaging, or direct booking mutation from docs prose. |
 | `storage` | No dedicated booking-triage outcome projection is identified in the current evidence map. | Future durable labor/outcome capture could store handle-time, disposition, source-wrong, or reviewed outcome evidence. | Current page must not claim a shipped booking-triage storage outcome record unless code adds one. |
@@ -90,7 +90,7 @@ Blocked by default:
 
 - Estimated labor value: fewer manual front-desk minutes per request spent checking availability, vaccine proof, deposits, behavior/care notes, and manager-review reasons across systems.
 - Measured outcome to capture: triage handle time, readiness bucket, rule reason codes, missing/stale/conflicting source fact counts, draft/review disposition, staff-approved vs deferred/suppressed/wrong-source result, and fewer unsafe confirmations.
-- Current evidence status: supported local/MVP app contract and tests for deterministic readiness, blocked actions, confirmation-draft gating, audit-event drafts, and payment/deposit composition.
+- Current evidence status: supported local/MVP app contract and tests for deterministic readiness, missing-info reasons, blocker evidence, blocked actions, confirmation/missing-info draft gating, audit-event drafts, and payment/deposit composition.
 - Gap/future source need: a dedicated durable booking-triage outcome projection was not identified in the current evidence map, so persistent labor-value reporting should be described as planned/future until storage/API code exists.
 
 ## Contract crosswalk links
@@ -99,14 +99,14 @@ Use the [workflow packet row](../../entity-atlas/contract-crosswalk/workflow-pac
 
 ## Evidence citations
 
-- Source: `app/src/booking_triage.rs` (`app::booking_triage::{Request, Service, DeterministicResult, StaffEvaluationPacket, ConfirmationDraft, AuditEventDraft, SafeAgentAction, BlockedAction, ApprovalGate, ReadinessBucket, FailureCode}`) backs deterministic readiness, staff packet assembly, allowed draft work, and blocked actions.
+- Source: `app/src/booking_triage.rs` (`app::booking_triage::{Request, Service, DeterministicResult, StaffEvaluationPacket, ConfirmationDraft, MissingInfoDraft, AuditEventDraft, SafeAgentAction, BlockedAction, ApprovalGate, ReadinessBucket, FailureCode, MissingInfoReason, BlockerKind, BlockerEvidence}`) backs deterministic readiness, staff packet assembly, allowed draft work, missing-info/blocker evidence, and blocked actions.
 - Source: `domain/src/entities.rs` (`domain::entities::{Reservation, Customer, Pet, reservation::Status, reservation::Source}`) backs normalized reservation/customer/pet/source entities.
 - Source: `domain/src/reservation/mod.rs` backs reservation policy vocabulary such as capacity-unavailable, policy-hard-stop, missing-required-information, and staff override transition reasons.
 - Source: `domain/src/policy.rs` (`domain::policy::ReviewGate`) backs shared human-review gates for manager, medical document, behavior, customer-message, and refund/deposit exception decisions.
 - Source: `domain/src/workflow.rs` (`domain::workflow::{PolicyContext, RecommendedAction}`) backs workflow recommendation and policy-context vocabulary.
 - Source: `integrations/gingr/src/endpoint/reservations.rs` backs Gingr reservation type/search/provider-read surfaces; provider values are evidence to normalize, not domain truth by themselves.
 - Rustdoc: `target/doc/app/booking_triage/index.html`, `target/doc/domain/entities/index.html`, `target/doc/domain/reservation/index.html`, `target/doc/domain/policy/index.html`, `target/doc/domain/workflow/index.html`, and `target/doc/gingr/endpoint/reservations/index.html` after `cargo doc --no-deps --workspace`.
-- Tests: `app/tests/booking_triage_mvp.rs` covers vaccine-review blocking, staff-bounded confirmation draft/audit events, behavior special review, hard rejection dominance, and deterministic gate rejection of premature confirmation drafts.
+- Tests: `app/tests/booking_triage_mvp.rs` covers vaccine-review blocking, missing-info reasons, blocker evidence families, staff-bounded confirmation/missing-info drafts, audit events, behavior special review, hard rejection dominance, and deterministic gate rejection of premature confirmation drafts.
 - Tests: `app/tests/workflow_service_composition_contracts.rs` covers composition with boarding deposit policy and ensures booking triage blocks payment movement when deposit readiness is unresolved.
 - Supporting docs: `docs/workflows/booking-triage-agent.md`; `docs/design/entity-driven-workflow-page-template.md`; `docs/design/operator-workflow-page-inventory.md`; `docs/design/workflow-page-source-rustdoc-map.md`; `docs/safety/review-boundaries-matrix.md`; `docs/safety/evidence-policy-blocked-actions-outcomes.md`.
 - Evidence status: supported local/MVP contract; no autonomous booking/provider/payment/vaccine/waitlist/customer-send authority; durable labor outcome storage is planned/future unless a later storage record is added.

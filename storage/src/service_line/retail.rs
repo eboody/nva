@@ -15,6 +15,17 @@ use domain::retail::product;
 #[serde(transparent)]
 pub struct ContractRecord(pub domain::retail::Contract);
 
+/// Storage shape for a retail reorder review decision.
+///
+/// The domain decision exposes manager/customer review gates and blocked vendor,
+/// inventory/POS, and payment side effects; persistence must not turn it into a
+/// purchase order or provider write.
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, derive_more::From, derive_more::Into,
+)]
+#[serde(transparent)]
+pub struct ReorderDecisionRecord(pub domain::retail::reorder::Decision);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 /// Storage-facing retail partner product code.

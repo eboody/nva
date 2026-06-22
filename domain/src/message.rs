@@ -59,6 +59,38 @@ pub enum Status {
     Cancelled,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Review state for customer-message draft material before it can be queued or shown.
+pub enum ReviewState {
+    /// Human approval has been requested and the material must remain draft-only.
+    ApprovalRequested,
+    /// Human/system-of-record approval says this material may be used in the approved channel path.
+    Approved,
+    /// Reviewer rejected the material; it must not be used in customer-facing output.
+    Rejected,
+    /// The material was suppressed before review because policy, sensitivity, or source quality blocked it.
+    Suppressed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Reason a draft fact, media/document reference, or send attempt is suppressed before delivery.
+pub enum SuppressionReason {
+    /// Raw internal staff content is not customer-safe.
+    InternalOnly,
+    /// Medical, medication, allergy, or care-plan content requires specialist review.
+    SensitiveCareFact,
+    /// Behavior or temperament content requires behavior/manager review.
+    BehaviorReviewRequired,
+    /// Incident, safety, complaint, legal, or liability content requires manager review.
+    IncidentOrSafetyReview,
+    /// Payment, refund, deposit, discount, waiver, or forfeiture content requires billing review.
+    PaymentOrBillingReview,
+    /// Source evidence is ambiguous, conflicting, unverified, wrong-subject, stale, or incomplete.
+    SourceAmbiguity,
+    /// Media or document evidence is not approved for customer-facing use.
+    MediaReviewRequired,
+}
+
 #[nutype(
     sanitize(trim),
     validate(not_empty, len_char_max = 500),

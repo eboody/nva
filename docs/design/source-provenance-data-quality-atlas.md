@@ -158,7 +158,7 @@ outcome_fields: ["system", "endpoint", "record id", "related record ids", "extra
 
 ### Plain-English pet-resort definition
 
-Provenance is the receipt that says exactly where a fact came from: source system, endpoint or import route, record id, extraction batch, pull time, request scope, schema version, payload hash, and raw payload reference. A record ref is the short pointer derived from that receipt: source system plus record id.
+Provenance is the receipt that says exactly where a fact came from: source system, endpoint or import route, record id, extraction batch, pull time, request scope, schema version, payload hash, and raw payload reference. A record ref is the short pointer derived from that receipt: source system plus record id. Persisted provenance value objects must re-run their smart-constructor validation on rehydration, so blank stored endpoints, payload hashes, raw payload refs, request scopes, schema versions, observed statuses, or Gingr provider ids/statuses cannot bypass the source boundary.
 
 ### Purpose: labor-cost or safety problem
 
@@ -281,6 +281,8 @@ Gingr reservation endpoint / provider response
   -> data-quality issues for missing fields, unknown status, ambiguity, or assumptions
   -> booking/checkout/manager/data-quality workflow packet
 ```
+
+The same promotion rule applies to other Gingr mapping candidates: provider evidence may become a mapped candidate only after required provider fields are present and domain constructors accept them. Missing retail category or active status remains a mapping error/review item instead of defaulting into a product category or offering status.
 
 The snapshot is adjacent to provider records, domain reservations, analytics stay facts, data-quality issues, booking/checkout packets, and audit outcomes. It must not be confused with a confirmed booking, checkout authorization, payment state, or staff-reviewed identity match.
 

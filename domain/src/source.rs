@@ -32,6 +32,20 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+macro_rules! deserialize_via_try_new {
+    ($type:ty) => {
+        impl<'de> Deserialize<'de> for $type {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                let value = <String as Deserialize>::deserialize(deserializer)?;
+                <$type>::try_new(value).map_err(serde::de::Error::custom)
+            }
+        }
+    };
+}
+
 #[derive(
     Debug,
     Clone,
@@ -65,7 +79,7 @@ pub enum System {
     ManualImport,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 /// UTC instant reported by an upstream system for source-data lineage.
 pub struct Timestamp(DateTime<Utc>);
 
@@ -88,7 +102,7 @@ impl Timestamp {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 /// Provider API endpoint or import route that produced source data.
 pub struct Endpoint(String);
 
@@ -104,7 +118,7 @@ impl Endpoint {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 /// Identifier that groups records from the same provider extraction run.
 pub struct ExtractionBatchId(String);
 
@@ -120,7 +134,7 @@ impl ExtractionBatchId {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 /// Import or API scope requested from the provider during extraction.
 pub struct RequestScope(String);
 
@@ -136,7 +150,7 @@ impl RequestScope {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 /// Version tag for the source payload schema used during mapping.
 pub struct SchemaVersion(String);
 
@@ -152,7 +166,7 @@ impl SchemaVersion {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 /// Hash of the provider payload used for idempotency and drift checks.
 pub struct PayloadHash(String);
 
@@ -168,7 +182,7 @@ impl PayloadHash {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 /// Storage reference for the unnormalized provider payload.
 pub struct RawPayloadRef(String);
 
@@ -184,7 +198,7 @@ impl RawPayloadRef {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 /// Status text observed directly from the provider before normalization.
 pub struct ObservedStatus(String);
 
@@ -733,7 +747,7 @@ pub mod gingr {
 
     use crate::source;
 
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
     /// Provider API endpoint or import route that produced source data.
     pub struct Endpoint(String);
 
@@ -755,7 +769,7 @@ pub mod gingr {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
     /// Provider-native identifier for a source record.
     pub struct ProviderRecordId(String);
 
@@ -834,7 +848,7 @@ pub mod gingr {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
     /// Identifier that groups records from the same provider extraction run.
     pub struct ExtractionBatchId(String);
 
@@ -857,7 +871,7 @@ pub mod gingr {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
     /// Import or API scope requested from the provider during extraction.
     pub struct RequestScope(String);
 
@@ -880,7 +894,7 @@ pub mod gingr {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
     /// Provider schema version observed for an imported payload.
     pub struct ProviderSchemaVersion(String);
 
@@ -903,7 +917,7 @@ pub mod gingr {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
     /// Provider-native status before mapping to a reservation workflow state.
     pub struct ProviderStatus(String);
 
@@ -1217,6 +1231,21 @@ pub mod gingr {
         }
     }
 }
+
+deserialize_via_try_new!(Timestamp);
+deserialize_via_try_new!(Endpoint);
+deserialize_via_try_new!(ExtractionBatchId);
+deserialize_via_try_new!(RequestScope);
+deserialize_via_try_new!(SchemaVersion);
+deserialize_via_try_new!(PayloadHash);
+deserialize_via_try_new!(RawPayloadRef);
+deserialize_via_try_new!(ObservedStatus);
+deserialize_via_try_new!(gingr::Endpoint);
+deserialize_via_try_new!(gingr::ProviderRecordId);
+deserialize_via_try_new!(gingr::ExtractionBatchId);
+deserialize_via_try_new!(gingr::RequestScope);
+deserialize_via_try_new!(gingr::ProviderSchemaVersion);
+deserialize_via_try_new!(gingr::ProviderStatus);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 /// Validation failures returned by source domain constructors.

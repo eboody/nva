@@ -15,3 +15,16 @@ pub enum Requirement {
     /// Departure team must verify belongings, notes, and checkout handoff before release.
     DepartureBelongingsReview,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Draft-only checkout handoff task that agents may prepare for staff review without marking live work complete.
+pub enum DepartureTaskDraft {
+    /// Ask front desk to verify and record belongings return.
+    VerifyBelongingsReturn,
+    /// Ask care/front-desk staff to review care summary and departure notes.
+    ReviewCareAndDepartureNotes,
+    /// Ask billing/front desk to reconcile a retained payment exception.
+    ResolvePaymentException,
+    /// Ask a lead to reconcile source/PMS checkout status before closeout.
+    ReconcileSourceStatus,
+}

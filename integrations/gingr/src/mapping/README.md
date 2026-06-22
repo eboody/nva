@@ -8,21 +8,21 @@ This module is not Gingr-as-domain. A mapping candidate such as [`gingr::mapping
 
 Start at [`mod.rs`](./mod.rs). It declares mapping families, defines [`gingr::mapping::Result<T>`](./mod.rs), and owns the shared error vocabulary:
 
-- [`gingr::mapping::ProviderField`](./mod.rs) names the provider fields that mappings currently require or validate: owner name, animal name, retail item name, retail item SKU, and retail item category.
+- [`gingr::mapping::ProviderField`](./mod.rs) names the provider fields that mappings currently require or validate: owner name, animal name, retail item name, retail item SKU, retail item category, and retail item active flag.
 - [`gingr::mapping::Error`](./mod.rs) distinguishes missing required provider fields from invalid domain values promoted from provider fields.
 
 Mapping family files:
 
 - [`customer.rs`](./customer.rs) maps [`gingr::response::OwnerRecord`](../response.rs) into [`gingr::mapping::customer::ContactCandidate`](./customer.rs). It combines first/last name with `OwnerRecord::display_name`, validates `domain::customer::Name`, optionally validates `domain::customer::Email` and `domain::customer::Phone`, and derives `domain::entities::ContactChannel` as Email, Sms, or Portal based on available contact facts.
 - [`pet.rs`](./pet.rs) maps [`gingr::response::AnimalRecord`](../response.rs) into [`gingr::mapping::pet::NameCandidate`](./pet.rs) by requiring and validating `domain::pet::Name` while preserving the Gingr `endpoint::AnimalId`.
-- [`retail.rs`](./retail.rs) maps [`gingr::dto::retail::Item`](../dto/retail.rs) into [`gingr::mapping::retail::ProductCandidate`](./retail.rs). It requires item name and SKU, validates `domain::retail::product::Name` and `domain::retail::Sku`, promotes supported category strings into `domain::retail::product::Category`, defaults missing category to `PersonalizedUpsell`, and maps the provider `active` flag into `domain::retail::OfferingStatus::Active` or `Inactive`.
+- [`retail.rs`](./retail.rs) maps [`gingr::dto::retail::Item`](../dto/retail.rs) into [`gingr::mapping::retail::ProductCandidate`](./retail.rs). It requires item name, SKU, category, and active flag, validates `domain::retail::product::Name` and `domain::retail::Sku`, promotes supported category strings into `domain::retail::product::Category`, and maps the provider `active` flag into `domain::retail::OfferingStatus::Active` or `Inactive` without silently defaulting missing provider evidence.
 
 ## Semantic promotion boundary
 
 Mappings should be read as semantic promotion, not field copying:
 
 1. Provider DTOs and response records preserve source facts. [`../dto/retail.rs`](../dto/retail.rs) and [`../response.rs`](../response.rs) are still provider-shaped.
-2. Mapping functions decide which provider facts are required and which can stay optional. Missing owner name, animal name, retail item name, or retail SKU becomes `Error::MissingRequiredProviderField`.
+2. Mapping functions decide which provider facts are required and which can stay optional. Missing owner name, animal name, retail item name, retail SKU, retail category, or retail active flag becomes `Error::MissingRequiredProviderField`.
 3. Domain constructors enforce semantic constraints. Invalid customer names, emails, phones, pet names, retail product names, SKUs, or retail categories become `Error::InvalidDomainValue` with a `ProviderField` label.
 4. Candidate structs keep provider ids (`endpoint::OwnerId`, `endpoint::AnimalId`, `dto::retail::ItemId`) alongside validated domain values. Those ids are source references, not canonical domain ids.
 5. Mappings do not write storage records, send messages, mutate Gingr, capture payments, or book reservations. They prepare validated candidate values for app/storage/review code to decide what can be persisted or acted on.

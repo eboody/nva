@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use domain::{entities, message, policy, source};
+use domain::{entities, grooming, message, policy, source};
 use nutype::nutype;
 use serde::{Deserialize, Serialize};
 
@@ -35,6 +35,26 @@ pub enum SourceGroundedReasonCode {
     CustomerAskedAboutFutureStay,
     /// Uses pet eligible for recurring care as source-grounded evidence for the deterministic decision.
     PetEligibleForRecurringCare,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Source-backed business reason that explains why a retention opportunity exists before any draft, outreach, or booking action is allowed.
+pub enum OpportunityReason {
+    /// Staff-verified boarding checkout can justify a next-stay follow-up review packet.
+    BoardingStayCompleted,
+    /// Staff-verified daycare visit can justify recurring-care follow-up review.
+    DaycareVisitCompleted,
+    /// Grooming history/cadence evidence says the pet is due or overdue for rebooking.
+    GroomingCadenceDue {
+        /// Cadence status from the grooming domain recommendation.
+        status: grooming::rebooking::Status,
+        /// Source-backed rationale explaining the cadence decision.
+        rationale: grooming::rebooking::Rationale,
+    },
+    /// Customer source evidence asked about future resort services.
+    CustomerRequestedFutureService,
+    /// Staff-reviewed pet/customer state supports recurring-care review.
+    RecurringCareEligible,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -83,6 +103,8 @@ pub enum IneligibilityReason {
     ContactOptedOut,
     /// Explains that the workflow is preferred channel not allowed when deciding whether an agent draft is allowed.
     PreferredChannelNotAllowed,
+    /// Explains that suppression, complaint, source-quality, or review flags prevent customer draft authority.
+    SuppressionFlagRequiresReview,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -124,6 +146,39 @@ pub enum BlockedAction {
     MoveRefundDiscountOrPayment,
     /// Blocks agents from auto apply discount until staff or the system of record performs the action.
     AutoApplyDiscount,
+    /// Blocks agents from creating, changing, holding, or assigning a booking/groomer/calendar slot.
+    CreateOrChangeBooking,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Source or policy conditions that suppress retention drafts until staff review resolves the reason.
+pub enum SuppressionFlag {
+    /// Customer is on a DNC, opt-out, or suppression list that the workflow must respect.
+    DoNotContactOrSuppressionList,
+    /// Complaint, service recovery, incident, or reputation context needs manager review before outreach.
+    ComplaintOrServiceRecoveryReview,
+    /// Care, handling, medical, or groomer-sensitive context needs specialist review before outreach.
+    CareOrHandlingReview,
+    /// Source facts appear stale, conflicting, wrong-subject, or otherwise unsafe for customer copy.
+    SourceQualityReview,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Concrete conversion type recorded after human/system-of-record action proves follow-up impact.
+pub enum ConversionKind {
+    /// Staff or the booking system confirmed a grooming rebook after review.
+    GroomingRebooked,
+    /// Staff or the booking system confirmed a boarding/daycare/training conversion after review.
+    ResortServiceBooked,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Reason staff deferred the opportunity without marking it converted or wrong-source.
+pub enum DeferralReason {
+    /// Staff/customer follow-up remains pending or waiting for a human review gate.
+    WaitingOnCustomerOrStaffReview,
+    /// Follow-up should be retried in a later cadence window.
+    FutureCadenceWindow,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -139,6 +194,23 @@ pub enum FollowUpOutcome {
     NoResponse,
     /// Records a suppressed by staff result so follow-up impact is auditable.
     SuppressedByStaff,
+    /// Records a human/system-of-record conversion without granting the agent booking authority.
+    Converted {
+        /// Kind of conversion staff/system evidence confirmed.
+        conversion: ConversionKind,
+    },
+    /// Records a human-reviewed deferral for later staff/customer action.
+    Deferred {
+        /// Reason staff deferred the opportunity.
+        reason: DeferralReason,
+    },
+    /// Records a suppression outcome with the flag that blocked outreach.
+    Suppressed {
+        /// Suppression or review reason that blocked customer copy or outreach.
+        reason: SuppressionFlag,
+    },
+    /// Records that source facts pointed at the wrong customer/pet/service and must not drive outreach.
+    WrongSource,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
@@ -170,6 +242,8 @@ impl OpportunityEvidence {
 /// Retention opportunity used by the retention follow-up workflow; it turns source-grounded visit evidence into safe follow-up drafts without sending customer messages automatically.
 pub struct RetentionOpportunity {
     kind: OpportunityKind,
+    #[builder(default = OpportunityReason::BoardingStayCompleted)]
+    reason: OpportunityReason,
     evidence: OpportunityEvidence,
 }
 
@@ -177,6 +251,11 @@ impl RetentionOpportunity {
     /// Returns the kind evidence available to retention follow-up review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn kind(&self) -> OpportunityKind {
         self.kind
+    }
+
+    /// Returns the source-backed business reason staff review before any follow-up, booking, or outreach authority exists.
+    pub const fn reason(&self) -> OpportunityReason {
+        self.reason
     }
 
     /// Returns the evidence evidence available to retention follow-up review while leaving provider, customer, payment, and schedule systems unchanged.
@@ -258,6 +337,8 @@ pub struct Request {
     contact_permission: ContactPermission,
     #[builder(default)]
     opportunities: Vec<RetentionOpportunity>,
+    #[builder(default)]
+    suppression_flags: Vec<SuppressionFlag>,
 }
 
 impl Request {
@@ -285,6 +366,36 @@ impl Request {
     pub fn opportunities(&self) -> &[RetentionOpportunity] {
         &self.opportunities
     }
+
+    /// Returns source/policy suppression flags that force retention work into staff review instead of customer drafts.
+    pub fn suppression_flags(&self) -> &[SuppressionFlag] {
+        &self.suppression_flags
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Reviewable customer follow-up draft metadata; the body remains a draft reference and never authorizes delivery.
+pub struct DraftFollowUp {
+    channel: message::Channel,
+    review_state: message::ReviewState,
+    suppression_flags: Vec<SuppressionFlag>,
+}
+
+impl DraftFollowUp {
+    /// Returns the customer channel selected from source-grounded contact permission for staff review.
+    pub const fn channel(&self) -> message::Channel {
+        self.channel
+    }
+
+    /// Returns whether the draft is pending approval or suppressed before any send can happen.
+    pub const fn review_state(&self) -> message::ReviewState {
+        self.review_state
+    }
+
+    /// Returns suppression flags carried into the draft review packet.
+    pub fn suppression_flags(&self) -> &[SuppressionFlag] {
+        &self.suppression_flags
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -294,7 +405,9 @@ pub struct StaffReviewPacket {
     customer_id: entities::CustomerId,
     eligibility: FollowUpEligibility,
     draft_channel: Option<message::Channel>,
+    opportunities: Vec<RetentionOpportunity>,
     staff_evidence: Vec<OpportunityEvidence>,
+    draft_follow_up: DraftFollowUp,
     required_review_gates: Vec<policy::ReviewGate>,
 }
 
@@ -322,6 +435,16 @@ impl StaffReviewPacket {
     /// Returns the staff evidence evidence available to retention follow-up review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn staff_evidence(&self) -> &[OpportunityEvidence] {
         &self.staff_evidence
+    }
+
+    /// Returns the source-grounded opportunity records staff review before a draft or disposition is allowed.
+    pub fn opportunities(&self) -> &[RetentionOpportunity] {
+        &self.opportunities
+    }
+
+    /// Returns the review-only follow-up draft metadata; callers must still honor review gates and blocked actions.
+    pub const fn draft_follow_up(&self) -> &DraftFollowUp {
+        &self.draft_follow_up
     }
 
     /// Returns the required review gates evidence available to retention follow-up review while leaving provider, customer, payment, and schedule systems unchanged.
@@ -411,12 +534,23 @@ impl Workflow {
             .iter()
             .map(|opportunity| opportunity.evidence.clone())
             .collect::<Vec<_>>();
+        let draft_follow_up = DraftFollowUp {
+            channel: draft_channel.unwrap_or(request.contact_permission.preferred_channel()),
+            review_state: if matches!(eligibility, FollowUpEligibility::Eligible { .. }) {
+                message::ReviewState::ApprovalRequested
+            } else {
+                message::ReviewState::Suppressed
+            },
+            suppression_flags: request.suppression_flags.clone(),
+        };
         let review_packet = StaffReviewPacket {
             reservation_id: request.reservation_id,
             customer_id: request.customer_id,
             eligibility,
             draft_channel,
+            opportunities: request.opportunities.clone(),
             staff_evidence,
+            draft_follow_up,
             required_review_gates: required_review_gates.clone(),
         };
         let safe_agent_actions = safe_agent_actions_for(eligibility);
@@ -431,6 +565,9 @@ impl Workflow {
                 .iter()
                 .cloned(),
         );
+        source_record_refs.extend(request.opportunities.iter().map(|opportunity| {
+            source::RecordRef::from_provenance(opportunity.evidence().provenance())
+        }));
 
         Packet {
             reservation_id: request.reservation_id,
@@ -462,6 +599,12 @@ fn eligibility_for(
     if request.opportunities.is_empty() {
         return FollowUpEligibility::Ineligible {
             reason: IneligibilityReason::NoSourceGroundedOpportunity,
+        };
+    }
+
+    if !request.suppression_flags.is_empty() {
+        return FollowUpEligibility::Ineligible {
+            reason: IneligibilityReason::SuppressionFlagRequiresReview,
         };
     }
 
@@ -504,6 +647,7 @@ fn safe_agent_actions_for(eligibility: FollowUpEligibility) -> Vec<SafeAgentActi
 fn blocked_actions_for() -> Vec<BlockedAction> {
     vec![
         BlockedAction::AutoApplyDiscount,
+        BlockedAction::CreateOrChangeBooking,
         BlockedAction::MoveRefundDiscountOrPayment,
         BlockedAction::MutateProviderOrPmsRecord,
         BlockedAction::SendCustomerMessage,

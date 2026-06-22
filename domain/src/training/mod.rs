@@ -433,6 +433,9 @@ pub enum Error {
     #[error("training package policy does not define a reusable session balance")]
     /// Staff can see the package has no reusable balance training state during training enrollment, curriculum, progress, package, trainer-capacity, or follow-up review.
     PackageHasNoReusableBalance,
+    #[error("training opportunity requires at least one source record")]
+    /// Staff can see missing source evidence before a training package/session opportunity enters review.
+    OpportunitySourceEvidenceRequired,
 }
 
 /// Result type returned by fallible training operations.
@@ -1265,6 +1268,222 @@ pub mod package {
                     remaining_after_reservation: balance.reserve_one(),
                 }
             }
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+    /// Estimated staff minutes saved when package/session reconciliation is source-grounded before review.
+    pub struct EstimatedLaborMinutes(u16);
+
+    impl EstimatedLaborMinutes {
+        /// Accepts a positive labor-minute estimate for training opportunity ranking and outcome comparison.
+        pub const fn try_new(value: u16) -> std::result::Result<Self, LaborMinutesError> {
+            if value == 0 {
+                return Err(LaborMinutesError::Zero);
+            }
+            Ok(Self(value))
+        }
+
+        /// Returns the minute count used for labor-savings outcome records.
+        pub const fn get(self) -> u16 {
+            self.0
+        }
+    }
+
+    impl<'de> Deserialize<'de> for EstimatedLaborMinutes {
+        fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            Self::try_new(u16::deserialize(deserializer)?).map_err(serde::de::Error::custom)
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+    /// Actual staff minutes spent after the reviewer resolved a training package/session opportunity.
+    pub struct ActualLaborMinutes(u16);
+
+    impl ActualLaborMinutes {
+        /// Accepts a positive actual-minute count for training opportunity outcome measurement.
+        pub const fn try_new(value: u16) -> std::result::Result<Self, LaborMinutesError> {
+            if value == 0 {
+                return Err(LaborMinutesError::Zero);
+            }
+            Ok(Self(value))
+        }
+
+        /// Returns the minute count used for labor-savings outcome records.
+        pub const fn get(self) -> u16 {
+            self.0
+        }
+    }
+
+    impl<'de> Deserialize<'de> for ActualLaborMinutes {
+        fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            Self::try_new(u16::deserialize(deserializer)?).map_err(serde::de::Error::custom)
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+    /// Labor-minute validation failures for training package/session opportunity outcomes.
+    pub enum LaborMinutesError {
+        #[error("training opportunity labor minutes must be positive")]
+        /// Rejects zero-minute estimates so labor-reduction reports stay measurable.
+        Zero,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    /// Live side effects that a training package/session opportunity must not perform autonomously.
+    pub enum BlockedAction {
+        /// Do not change package, session-balance, payment, refund, deposit, discount, or credit records.
+        MutatePackageOrPaymentBalance,
+        /// Do not assign a trainer, reserve a live session, or write to provider schedules.
+        AssignTrainerOrSession,
+        /// Do not send parent-facing progress, homework, re-enrollment, or balance messages.
+        SendCustomerMessage,
+        /// Do not write normalized conclusions back to Gingr/PMS/provider records.
+        MutateProviderRecord,
+    }
+
+    const PACKAGE_OPPORTUNITY_BLOCKED_ACTIONS: &[BlockedAction] = &[
+        BlockedAction::MutatePackageOrPaymentBalance,
+        BlockedAction::AssignTrainerOrSession,
+        BlockedAction::SendCustomerMessage,
+        BlockedAction::MutateProviderRecord,
+    ];
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    /// Source-backed training package/session opportunity for staff reconciliation or re-enrollment review.
+    pub struct Opportunity {
+        package_id: Id,
+        source_record_refs: Vec<crate::source::RecordRef>,
+        usage_decision: UsageDecision,
+        estimated_minutes: EstimatedLaborMinutes,
+    }
+
+    impl Opportunity {
+        /// Builds a reviewable opportunity from package ledger evidence and the usage decision without mutating package balances.
+        pub fn from_usage_decision(
+            package_id: Id,
+            source_record_refs: Vec<crate::source::RecordRef>,
+            usage_decision: UsageDecision,
+            estimated_minutes: EstimatedLaborMinutes,
+        ) -> Result<Self> {
+            if source_record_refs.is_empty() {
+                return Err(Error::OpportunitySourceEvidenceRequired);
+            }
+            Ok(Self {
+                package_id,
+                source_record_refs,
+                usage_decision,
+                estimated_minutes,
+            })
+        }
+
+        /// Returns the package whose ledger evidence created this opportunity.
+        pub fn package_id(&self) -> &Id {
+            &self.package_id
+        }
+
+        /// Returns source records staff can inspect before reconciling a package/session opportunity.
+        pub fn source_record_refs(&self) -> &[crate::source::RecordRef] {
+            &self.source_record_refs
+        }
+
+        /// Reports whether the opportunity carries source evidence instead of model-only rationale.
+        pub fn has_source_evidence(&self) -> bool {
+            !self.source_record_refs.is_empty()
+        }
+
+        /// Returns the human/system-of-record gate required before live package or session action.
+        pub fn review_gate(&self) -> Option<policy::ReviewGate> {
+            match &self.usage_decision {
+                UsageDecision::ReserveNextSession { .. } => {
+                    Some(policy::ReviewGate::CustomerMessageApproval)
+                }
+                UsageDecision::NoRemainingSessions { gate, .. }
+                | UsageDecision::ReconciliationRequired { gate, .. } => Some(gate.clone()),
+            }
+        }
+
+        /// Returns the live side effects intentionally blocked by this draft/review opportunity.
+        pub const fn blocked_actions(&self) -> &'static [BlockedAction] {
+            PACKAGE_OPPORTUNITY_BLOCKED_ACTIONS
+        }
+
+        /// Captures reviewer disposition and actual minutes without authorizing provider or package mutation.
+        pub fn record_outcome(
+            &self,
+            disposition: Disposition,
+            actual_minutes: ActualLaborMinutes,
+        ) -> OutcomeRecord {
+            OutcomeRecord {
+                package_id: self.package_id.clone(),
+                source_record_refs: self.source_record_refs.clone(),
+                disposition,
+                before_minutes: self.estimated_minutes,
+                actual_minutes,
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    /// Staff disposition for a training package/session opportunity after review.
+    pub enum Disposition {
+        /// Staff queued a balance/payment reconciliation task in the system of record.
+        ReconciliationQueued,
+        /// Staff confirmed no sessions remain and suppressed rebooking/customer copy.
+        NoRemainingSessionsConfirmed,
+        /// Source evidence was wrong or stale and needs correction before action.
+        WrongSourceOrNeedsCorrection,
+        /// Staff reviewed the opportunity and deferred follow-up.
+        DeferredByStaff,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    /// Outcome measurement proving whether a training opportunity reduced package/session lookup labor.
+    pub struct OutcomeRecord {
+        package_id: Id,
+        source_record_refs: Vec<crate::source::RecordRef>,
+        disposition: Disposition,
+        before_minutes: EstimatedLaborMinutes,
+        actual_minutes: ActualLaborMinutes,
+    }
+
+    impl OutcomeRecord {
+        /// Returns the package whose review outcome was measured.
+        pub fn package_id(&self) -> &Id {
+            &self.package_id
+        }
+
+        /// Returns source records used by the reviewer when measuring labor impact.
+        pub fn source_record_refs(&self) -> &[crate::source::RecordRef] {
+            &self.source_record_refs
+        }
+
+        /// Returns reviewer disposition for reporting and quality loops.
+        pub const fn disposition(&self) -> Disposition {
+            self.disposition
+        }
+
+        /// Returns the estimated manual lookup minutes before the opportunity packet.
+        pub const fn before_minutes(&self) -> EstimatedLaborMinutes {
+            self.before_minutes
+        }
+
+        /// Returns the actual staff minutes spent after the opportunity packet.
+        pub const fn actual_minutes(&self) -> ActualLaborMinutes {
+            self.actual_minutes
+        }
+
+        /// Computes saved staff minutes without allowing negative labor-savings claims.
+        pub const fn minutes_saved(&self) -> u16 {
+            self.before_minutes
+                .get()
+                .saturating_sub(self.actual_minutes.get())
         }
     }
 }

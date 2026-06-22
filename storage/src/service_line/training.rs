@@ -17,6 +17,17 @@ use crate::operations::{self, StorageField};
 #[serde(transparent)]
 pub struct ContractRecord(pub domain::training::Contract);
 
+/// Storage shape for a reviewed training package/session opportunity outcome.
+///
+/// The wrapped domain record already carries source refs, review disposition,
+/// blocked live actions by model contract, and before/actual labor minutes. Keeping
+/// the storage boundary transparent avoids inventing package-balance authority here.
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, derive_more::From, derive_more::Into,
+)]
+#[serde(transparent)]
+pub struct PackageOpportunityOutcomeRecord(pub domain::training::package::OutcomeRecord);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 /// Storage-facing training program code, including duration for stay-and-study programs.

@@ -76,6 +76,46 @@ pub enum Decision {
     },
 }
 
+impl Decision {
+    /// Returns the human review gate that must clear before purchase, POS, or inventory action.
+    pub fn review_gate(&self) -> Option<policy::ReviewGate> {
+        match self {
+            Self::NoAction => None,
+            Self::CreateStaffTask { gate, .. } | Self::ManagerReviewRequired { gate, .. } => {
+                Some(gate.clone())
+            }
+            Self::VendorManagedNotice { .. } => Some(policy::ReviewGate::ManagerApproval),
+        }
+    }
+
+    /// Returns live side effects blocked by a reorder decision until staff/system-of-record action.
+    pub const fn blocked_actions(&self) -> &'static [BlockedAction] {
+        match self {
+            Self::NoAction => &[],
+            Self::CreateStaffTask { .. }
+            | Self::ManagerReviewRequired { .. }
+            | Self::VendorManagedNotice { .. } => REORDER_BLOCKED_ACTIONS,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Live retail/POS/vendor side effects blocked by reorder review decisions.
+pub enum BlockedAction {
+    /// Do not place a vendor purchase order from threshold evidence alone.
+    PlaceVendorPurchaseOrder,
+    /// Do not change POS stock, inventory counts, reservations, or item saleability autonomously.
+    MutateInventoryOrPos,
+    /// Do not charge, discount, refund, or invoice from reorder evidence.
+    MutatePaymentOrInvoice,
+}
+
+const REORDER_BLOCKED_ACTIONS: &[BlockedAction] = &[
+    BlockedAction::PlaceVendorPurchaseOrder,
+    BlockedAction::MutateInventoryOrPos,
+    BlockedAction::MutatePaymentOrInvoice,
+];
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Business reason explaining why reorder action or vendor notice is needed.
 pub enum Reason {

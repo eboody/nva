@@ -389,6 +389,37 @@ fn retail_item_dto_promotes_documented_provider_surface_into_retail_product_cand
 }
 
 #[test]
+fn retail_item_mapping_rejects_missing_category_or_status_instead_of_silent_defaults() {
+    let missing_category: dto::retail::Item = serde_json::from_value(serde_json::json!({
+        "id": 43,
+        "name": " Calming Chew ",
+        "sku": " CALM-CHEW ",
+        "active": true
+    }))
+    .unwrap();
+    let missing_active: dto::retail::Item = serde_json::from_value(serde_json::json!({
+        "id": 44,
+        "name": " Calming Chew ",
+        "sku": " CALM-CHEW ",
+        "category": "supplement"
+    }))
+    .unwrap();
+
+    assert_eq!(
+        mapping::retail::product_candidate(&missing_category),
+        Err(mapping::Error::MissingRequiredProviderField {
+            field: mapping::ProviderField::RetailItemCategory,
+        })
+    );
+    assert_eq!(
+        mapping::retail::product_candidate(&missing_active),
+        Err(mapping::Error::MissingRequiredProviderField {
+            field: mapping::ProviderField::RetailItemActive,
+        })
+    );
+}
+
+#[test]
 fn grooming_and_training_surfaces_remain_explicit_provider_gaps_without_fake_dtos() {
     assert_eq!(
         dto::grooming::provider_surface(),

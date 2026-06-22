@@ -124,6 +124,24 @@ impl<'de> Deserialize<'de> for AddOnLabel {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Source exception retained when checkout handoff evidence cannot be trusted until provider/PMS reconciliation.
+pub enum CheckoutSourceException {
+    /// Provider/PMS record conflicts with the staff handoff or checkout packet.
+    ProviderRecordConflict,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Human/system-of-record disposition for checkout completion before labor savings can be claimed.
+pub enum CheckoutCompletionDisposition {
+    /// Handoff and source evidence support staff-verified checkout, with outbound communication still approval-gated.
+    StaffVerified,
+    /// Manager or lead review is required before final closeout.
+    ManagerReviewRequired,
+    /// Provider/PMS source reconciliation is required before checkout can be trusted.
+    SourceReconciliationRequired,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Business reasons for moving or rejecting a reservation workflow transition.
 pub enum TransitionReason {

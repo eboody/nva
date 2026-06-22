@@ -200,6 +200,24 @@ async fn data_quality_hygiene_outcome_capture_records_labor_evidence_without_pro
     assert_eq!(payload["outcome_record"]["outcome"], "completed");
     assert_eq!(payload["outcome_record"]["actual_minutes"], 9);
     assert_eq!(
+        payload["outcome_record"]["actor"]["persona"],
+        "front_desk_lead"
+    );
+    let persisted_source_ref = &payload["outcome_record"]["source_refs"][0];
+    let action_source_ref = &action["source_refs"][0];
+    assert_eq!(persisted_source_ref["system"], action_source_ref["system"]);
+    assert_eq!(
+        persisted_source_ref["record_id"],
+        action_source_ref["record_id"]
+    );
+    assert_eq!(persisted_source_ref["record_type"], "source_record");
+    assert!(persisted_source_ref["observed_at"].is_string());
+    assert!(persisted_source_ref["adapter_version"].is_string());
+    assert_eq!(
+        payload["outcome_record"]["issue_refs"],
+        action["issue_refs"]
+    );
+    assert_eq!(
         payload["outcome_record"]["resolution_status_after_review"],
         "acknowledged"
     );
@@ -216,4 +234,57 @@ async fn data_quality_hygiene_outcome_capture_records_labor_evidence_without_pro
             .unwrap()
             > 0
     );
+}
+
+#[tokio::test]
+async fn data_quality_hygiene_outcome_capture_rejects_missing_source_or_issue_refs() {
+    let context = data_quality_context().await;
+    let action = &context["hygiene_actions"][0];
+    let action_id = action["id"].as_str().unwrap();
+    let base_body = json!({
+        "outcome": "completed",
+        "actual_minutes": 9,
+        "actor": {
+            "id": "front-desk-lead-17",
+            "persona": "front_desk_lead"
+        },
+        "feedback": "Prepared source-grounded cleanup task for manager review without touching Gingr.",
+        "source_refs": action["source_refs"],
+        "issue_refs": action["issue_refs"],
+        "resolution_status_after_review": "acknowledged",
+        "timestamp": "2026-06-17T13:15:00Z",
+        "audit": {
+            "correlation_id": context["audit"]["correlation_id"]
+        },
+        "requested_side_effects": []
+    });
+
+    let mut without_source_refs = base_body.clone();
+    without_source_refs["source_refs"] = json!([]);
+    let (status, payload) = post_json(
+        &format!("/data-quality-hygiene/actions/{action_id}/outcome"),
+        without_source_refs,
+    )
+    .await;
+    assert_eq!(status, axum_http::StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(payload["accepted"], false);
+    assert_eq!(payload["outcome_persisted"], false);
+    assert_eq!(payload["reasons"], json!(["missing_source_refs"]));
+    assert_eq!(payload["live_side_effects_allowed"], false);
+
+    let mut without_issue_refs = base_body;
+    without_issue_refs["issue_refs"] = json!([]);
+    let (status, payload) = post_json(
+        &format!("/data-quality-hygiene/actions/{action_id}/outcome"),
+        without_issue_refs,
+    )
+    .await;
+    assert_eq!(status, axum_http::StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(payload["accepted"], false);
+    assert_eq!(payload["outcome_persisted"], false);
+    assert_eq!(
+        payload["reasons"],
+        json!(["missing_data_quality_issue_refs"])
+    );
+    assert_eq!(payload["live_side_effects_allowed"], false);
 }

@@ -48,6 +48,15 @@ fn complete_source_snapshot() -> source::reservation::Snapshot {
 }
 
 #[test]
+fn source_value_objects_reject_blank_values_when_rehydrated_from_storage() {
+    assert!(serde_json::from_str::<source::Endpoint>("\"   \"").is_err());
+    assert!(serde_json::from_str::<source::PayloadHash>("\"   \"").is_err());
+    assert!(serde_json::from_str::<source::RawPayloadRef>("\"   \"").is_err());
+    assert!(serde_json::from_str::<source::ObservedStatus>("\"   \"").is_err());
+    assert!(serde_json::from_str::<source::gingr::ProviderStatus>("\"   \"").is_err());
+}
+
+#[test]
 fn source_snapshot_builder_returns_typed_errors_for_missing_provenance_or_relationship() {
     let missing_provenance = source::reservation::Snapshot::builder()
         .relationship(source::reservation::OwnerPetRelationship::Resolved)

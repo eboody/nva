@@ -78,6 +78,13 @@ pub enum DepositStatus {
     WaivedByManager,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Checkout payment exception retained for human ledger/PMS review; it never authorizes an agent to move money.
+pub enum CheckoutException {
+    /// Balance, refund, discount, waiver, or payment evidence must be reconciled by staff or the system of record.
+    BalanceOrRefundReviewRequired,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Deposit amount, status, refund window, and payment reference for a reservation.
 pub struct Deposit {

@@ -515,6 +515,19 @@ async fn capture_manager_daily_brief_action_outcome(
         );
     }
 
+    if request.source_refs.is_empty() {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({
+                "accepted": false,
+                "outcome_persisted": false,
+                "reasons": ["missing_source_refs"],
+                "live_side_effects_allowed": false,
+                "blocked_actions": manager_daily_brief_blocked_action_codes()
+            })),
+        );
+    }
+
     let Ok(actual_minutes) =
         storage::operations::StoredManagerDailyBriefLaborMinutes::try_new(request.actual_minutes)
     else {
@@ -789,6 +802,32 @@ async fn capture_data_quality_hygiene_action_outcome(
                 "accepted": false,
                 "outcome_persisted": false,
                 "reasons": reasons,
+                "live_side_effects_allowed": false,
+                "blocked_actions": data_quality_hygiene_blocked_action_codes()
+            })),
+        );
+    }
+
+    if request.source_refs.is_empty() {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({
+                "accepted": false,
+                "outcome_persisted": false,
+                "reasons": ["missing_source_refs"],
+                "live_side_effects_allowed": false,
+                "blocked_actions": data_quality_hygiene_blocked_action_codes()
+            })),
+        );
+    }
+
+    if request.issue_refs.is_empty() {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({
+                "accepted": false,
+                "outcome_persisted": false,
+                "reasons": ["missing_data_quality_issue_refs"],
                 "live_side_effects_allowed": false,
                 "blocked_actions": data_quality_hygiene_blocked_action_codes()
             })),

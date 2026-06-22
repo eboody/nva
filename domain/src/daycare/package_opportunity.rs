@@ -70,7 +70,7 @@ pub enum PaymentState {
     NeedsBillingReview,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Builder)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 /// Source evidence used to classify daycare package or membership opportunities.
 pub struct Evidence {
     /// Customer account that would receive the package recommendation.
@@ -85,6 +85,21 @@ pub struct Evidence {
     pub package_state: PackageState,
     /// Billing readiness used to suppress recommendations needing collection review.
     pub payment_state: PaymentState,
+    #[builder(default)]
+    /// Source records behind attendance, package, eligibility, and billing evidence.
+    pub source_record_refs: Vec<crate::source::RecordRef>,
+}
+
+impl Evidence {
+    /// Returns source records staff can inspect before reviewing a package or membership opportunity.
+    pub fn source_record_refs(&self) -> &[crate::source::RecordRef] {
+        &self.source_record_refs
+    }
+
+    /// Reports whether this opportunity input is source-backed rather than model-only rationale.
+    pub fn has_source_evidence(&self) -> bool {
+        !self.source_record_refs.is_empty()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -110,6 +125,48 @@ pub enum Decision {
         reason: NoOpportunityReason,
     },
 }
+
+impl Decision {
+    /// Returns the human review gate required before customer messaging, billing, or package action.
+    pub fn review_gate(&self) -> Option<policy::ReviewGate> {
+        match self {
+            Self::RecommendStaffReview { gate, .. } | Self::Suppressed { gate, .. } => {
+                Some(gate.clone())
+            }
+            Self::NoOpportunity { .. } => None,
+        }
+    }
+
+    /// Returns package, payment, provider, and send actions blocked by this decision.
+    pub const fn blocked_actions(&self) -> &'static [BlockedAction] {
+        match self {
+            Self::RecommendStaffReview { .. } | Self::Suppressed { .. } => {
+                PACKAGE_OPPORTUNITY_BLOCKED_ACTIONS
+            }
+            Self::NoOpportunity { .. } => &[],
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Live side effects blocked by daycare package opportunities until staff/system-of-record approval.
+pub enum BlockedAction {
+    /// Do not enroll, modify, renew, or cancel a package or membership autonomously.
+    EnrollPackageOrMembership,
+    /// Do not collect, refund, discount, credit, or invoice from attendance evidence alone.
+    MutatePaymentOrInvoice,
+    /// Do not write package decisions to Gingr/PMS/provider records.
+    MutateProviderRecord,
+    /// Do not send customer package or membership copy without approval.
+    SendCustomerMessage,
+}
+
+const PACKAGE_OPPORTUNITY_BLOCKED_ACTIONS: &[BlockedAction] = &[
+    BlockedAction::EnrollPackageOrMembership,
+    BlockedAction::MutatePaymentOrInvoice,
+    BlockedAction::MutateProviderRecord,
+    BlockedAction::SendCustomerMessage,
+];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Strength of a daycare package opportunity from recent attendance evidence.
@@ -172,5 +229,138 @@ impl Policy {
                 reason: NoOpportunityReason::NotEnoughAttendanceHistory,
             }
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+/// Estimated staff minutes saved by a source-backed daycare package opportunity packet.
+pub struct EstimatedLaborMinutes(u16);
+
+impl EstimatedLaborMinutes {
+    /// Accepts a positive labor-minute estimate for package review outcome comparison.
+    pub const fn try_new(value: u16) -> std::result::Result<Self, LaborMinutesError> {
+        if value == 0 {
+            return Err(LaborMinutesError::Zero);
+        }
+        Ok(Self(value))
+    }
+
+    /// Returns the minute count used for labor-savings outcome records.
+    pub const fn get(self) -> u16 {
+        self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for EstimatedLaborMinutes {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Self::try_new(u16::deserialize(deserializer)?).map_err(serde::de::Error::custom)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+/// Actual staff minutes spent after daycare package opportunity review.
+pub struct ActualLaborMinutes(u16);
+
+impl ActualLaborMinutes {
+    /// Accepts a positive actual-minute count for package review outcome measurement.
+    pub const fn try_new(value: u16) -> std::result::Result<Self, LaborMinutesError> {
+        if value == 0 {
+            return Err(LaborMinutesError::Zero);
+        }
+        Ok(Self(value))
+    }
+
+    /// Returns the minute count used for labor-savings outcome records.
+    pub const fn get(self) -> u16 {
+        self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for ActualLaborMinutes {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Self::try_new(u16::deserialize(deserializer)?).map_err(serde::de::Error::custom)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+/// Labor-minute validation failures for daycare package opportunity outcomes.
+pub enum LaborMinutesError {
+    #[error("daycare package opportunity labor minutes must be positive")]
+    /// Rejects zero-minute estimates so labor-reduction reports stay measurable.
+    Zero,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Staff disposition for a daycare package opportunity after human review.
+pub enum Disposition {
+    /// Staff reviewed a package or membership offer draft.
+    StaffReviewedOffer,
+    /// Staff deferred the recommendation because timing, billing, or customer context was wrong.
+    DeferredByStaff,
+    /// Staff suppressed the recommendation because source or care evidence was wrong.
+    SuppressedOrWrongSource,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Outcome record proving whether daycare package opportunity review reduced lookup/recommendation labor.
+pub struct OutcomeRecord {
+    disposition: Disposition,
+    before_minutes: EstimatedLaborMinutes,
+    actual_minutes: ActualLaborMinutes,
+    source_record_refs: Vec<crate::source::RecordRef>,
+}
+
+impl OutcomeRecord {
+    /// Creates a labor outcome without authorizing package enrollment, billing, provider writes, or customer sends.
+    pub fn new(
+        disposition: Disposition,
+        before_minutes: EstimatedLaborMinutes,
+        actual_minutes: ActualLaborMinutes,
+        source_record_refs: Vec<crate::source::RecordRef>,
+    ) -> Self {
+        Self {
+            disposition,
+            before_minutes,
+            actual_minutes,
+            source_record_refs,
+        }
+    }
+
+    /// Returns reviewer disposition for reporting and quality loops.
+    pub const fn disposition(&self) -> Disposition {
+        self.disposition
+    }
+
+    /// Returns the estimated manual lookup minutes before the opportunity packet.
+    pub const fn before_minutes(&self) -> EstimatedLaborMinutes {
+        self.before_minutes
+    }
+
+    /// Returns the actual staff minutes spent after the opportunity packet.
+    pub const fn actual_minutes(&self) -> ActualLaborMinutes {
+        self.actual_minutes
+    }
+
+    /// Returns source records used by the reviewer when measuring labor impact.
+    pub fn source_record_refs(&self) -> &[crate::source::RecordRef] {
+        &self.source_record_refs
+    }
+
+    /// Reports whether outcome measurement remains tied to source evidence.
+    pub fn has_source_evidence(&self) -> bool {
+        !self.source_record_refs.is_empty()
+    }
+
+    /// Computes saved staff minutes without allowing negative labor-savings claims.
+    pub const fn minutes_saved(&self) -> u16 {
+        self.before_minutes
+            .get()
+            .saturating_sub(self.actual_minutes.get())
     }
 }

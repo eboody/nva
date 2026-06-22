@@ -32,6 +32,19 @@ The crosswalk package now covers the main proof paths needed by the Entity Atlas
 
 The strongest current evidence is local/demo and contract-test proof for source-grounded context, deterministic draft validation, fail-closed blocked side effects, and reviewed outcome capture. The package deliberately separates that from live operational authority.
 
+## Model-depth proof chain added by this board
+
+The final model-depth pass should be read as a labor proof chain, not as isolated structs. The currently inspected diff strengthens these end-to-end links:
+
+| Role/workflow labor reduced | Source/domain model depth | App packet or draft boundary | Review gate and blocked actions | Outcome / proof surface |
+| --- | --- | --- | --- | --- |
+| Front-desk booking triage: reduce repeated missing-info, vaccine, care, behavior, payment, and policy checks. | `app::booking_triage::{MissingInfoReason, BlockerKind, BlockerEvidence}` keeps source-backed blockers attached to deterministic readiness. | `StaffEvaluationPacket` may carry a `MissingInfoDraft`, but the draft is only customer-copy awaiting approval. | Confirmation, customer message, provider/PMS mutation, schedule/capacity movement, and payment movement remain blocked until staff/system-of-record action. | `app/tests/booking_triage_mvp.rs`, booking operator docs, and workflow-packets crosswalk prove deterministic routing and draft-only behavior. |
+| Checkout/retention/daily-update staff: reduce handoff, rebooking, and customer-copy drafting time after source-backed review. | Checkout packets, CRM retention opportunities, contact permission, message draft state, included/omitted facts, and safe send stubs carry source facts and suppression reasons. | Agents may summarize, rank, and draft only inside `app::checkout_completion`, `app::crm_retention`, or `app::daily_update` packet contracts. | Customer sends, booking/calendar writes, payment/discount movement, sensitive care/incident wording, and provider writes stay human-reviewed. | App workflow tests and operator pages prove draft/review surfaces; durable outcome storage remains strongest for manager daily brief/data-quality hygiene today. |
+| Grooming/training/retail/daycare opportunity review: reduce manual opportunity, package/session, reorder, and package-fit triage. | `domain::training`, `domain::retail::reorder`, and `domain::daycare::package_opportunity` name source evidence, blocked actions, review gates, and labor-minute outcomes. | Opportunities become internal tasks, manager review, vendor notice drafts, or customer-copy drafts only after source evidence exists. | Package enrollment, billing/session balance, POS/inventory, vendor purchase order, provider write, customer send, and outcome approval remain blocked. | Domain tests, storage service-line projections, Gingr retail mapping tests, and revenue-opportunity atlas rows prove the review-safe model depth. |
+| Manager/data-quality outcome capture: reduce repeated reconciliation and make labor claims auditable. | `domain::source::Provenance`/`RecordRef`, app outcome records, and storage outcome records keep source refs and issue refs visible. | API routes accept reviewed outcome payloads only when source/issue evidence is present for the relevant workflow. | API responses keep live side effects disallowed and record blocked actions instead of repairing source/provider records. | `apps/api/tests/*outcome*`, `storage/tests/*outcome_storage.rs`, and `storage::operations` prove source-backed reviewed labor outcome capture. |
+
+Use this table as the fan-in lens when updating public docs: every claim should travel source evidence -> domain/app contract -> agent-safe packet/draft -> human/system-of-record review -> outcome/labor evidence -> storage/runtime/Rustdoc proof.
+
 ## Known evidence gaps and caveats
 
 Keep these caveats visible when reusing crosswalk claims in public or non-coder docs:
@@ -39,7 +52,7 @@ Keep these caveats visible when reusing crosswalk claims in public or non-coder 
 1. Runtime DB wiring is not proven for API/worker routes. `migrations/0001_mvp_foundation.sql` and `storage/tests/mvp_migration_contract.rs` prove schema readiness, while current API route state is still process-local/in-memory unless a later adapter wires durable repositories.
 2. Gingr reservation normalization is source-contract based; this repo does not currently prove a direct `integrations/gingr::response::ReservationRecord` mapper into the domain snapshot.
 3. Grooming and training provider service DTOs remain explicit `ProviderSurface::NoDocumentedServiceDto` gaps. Domain grooming/training contracts exist, but provider-service payload mapping is not proven.
-4. Retail quantity-on-hand is preserved on the Gingr DTO but is not yet part of the retail product candidate contract; POS, vendor, reorder, and inventory movements remain future/review-gated evidence.
+4. Retail product mapping now rejects missing provider category or active status instead of silently defaulting, but retail quantity-on-hand is still preserved only on the Gingr DTO and is not yet part of the retail product candidate contract; POS, vendor, reorder, and inventory movements remain future/review-gated evidence.
 5. Webhook verification is modeled, but no live webhook receiver or webhook-payload-to-domain-workflow mapper is wired in this package.
 6. Worker runtime is a safe shell with fake/disabled agent runtime and stubbed side-effect posture; no durable queue/scheduler consumer is implemented yet.
 7. Staff web and API surfaces are local/demo contract surfaces. They may show review gates, drafts, outcome forms, and audit-visible concepts, but they are not live systems of record.

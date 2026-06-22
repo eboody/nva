@@ -23,9 +23,10 @@ source_paths:
   - "integrations/gingr/src/endpoint/commerce_retail.rs"
 rustdoc_contracts:
   - "domain::grooming::{Contract, Service, DurationEstimate, rebooking, reminder, history}"
-  - "domain::training::{Contract, Program, ProgressEvidence, SessionBalance, availability, package, follow_up}"
-  - "domain::retail::{Contract, Product, inventory, pos, recommendation, reorder, vendor}"
-  - "app::crm_retention::{Packet, RetentionOpportunity, OpportunityEvidence, ContactPermission, FollowUpEligibility, OutcomeRecord}"
+  - "domain::training::{Contract, Program, ProgressEvidence, SessionBalance, availability, package::{Opportunity, OutcomeRecord, BlockedAction}, follow_up}"
+  - "domain::retail::{Contract, Product, inventory, pos, recommendation, reorder::{Decision, BlockedAction}, vendor}"
+  - "domain::daycare::package_opportunity::{Evidence, Decision, OutcomeRecord, BlockedAction}"
+  - "app::crm_retention::{Packet, RetentionOpportunity, OpportunityReason, OpportunityEvidence, ContactPermission, SuppressionFlag, DraftFollowUp, FollowUpEligibility, OutcomeRecord}"
   - "gingr::endpoint::commerce_retail::{get, list, Transaction, ResponseSensitivity}"
 allowed_action_summary: "read source-backed evidence; validate eligibility, cadence, inventory, package, and consent gates; draft staff/customer copy for review; rank internal opportunities; record review dispositions and outcome evidence"
 blocked_action_summary: "no autonomous customer sends, provider/PMS writes, appointment moves, POS/payment/refund/discount/package balance movement, vendor purchase orders, review responses, consent changes, or safety/legal approvals"
@@ -45,12 +46,13 @@ Use this page with the [entity atlas template](entity-atlas-page-template.md), [
 | Grooming contract | A location's grooming rules for services, duration estimates, no-show handling, rebooking cadence, reminders, and service-history review. | Reduces groomer/front-desk time spent checking prior notes, estimating appointment length, and finding overdue rebooks. |
 | Grooming rebooking cadence | The repeat-service timing that turns completed groom history into due-later, due-now, overdue, or needs-review follow-up. | Finds safe rebooking candidates without staff manually scanning each pet's past grooms. |
 | Training contract | A location's training program, enrollment, trainer capacity, curriculum/progress, outcome, package/session, and follow-up rules. | Reduces manual trainer-capacity, package-balance, progress-evidence, and graduation/re-enrollment checks. |
-| Training package/session opportunity | A reviewable chance to reserve, consume, reconcile, or follow up on reusable training sessions. | Prevents lost training revenue and avoids promising sessions when balance, evidence, or trainer availability is unclear. |
+| Training package/session opportunity | A source-backed, review-gated chance to reserve, reconcile, or follow up on reusable training sessions with blocked package/payment/trainer/provider/customer actions and labor-minute outcome capture. | Prevents lost training revenue and avoids promising sessions when balance, evidence, or trainer availability is unclear, reducing trainer/front-desk package lookup and reconciliation labor. |
 | Retail contract | A location's retail product, inventory, POS, recommendation, reorder, and vendor policy bundle. | Helps staff see safe add-on and reorder work without hand-checking catalog, stock, preference, and care-sensitivity facts. |
 | Product | A sellable retail item with SKU/name/category/usage and per-location offering status. | Keeps product upsell candidates grounded in saleable inventory rather than raw provider text. |
 | Inventory / stock position | On-hand, reserved, available, threshold, and availability state for a product at a location. | Prevents staff from recommending or selling unavailable products and creates threshold-backed reorder work. |
 | Vendor / catalog relationship | The partner or catalog relationship tied to a product. | Routes stock exceptions to staff task, manager review, or vendor-managed notice instead of a silent purchase order. |
-| Reorder decision | A threshold-backed decision that says no action, staff task, manager review, or vendor notice. | Replaces manual inventory report scanning with reviewable reorder tasks. |
+| Reorder decision | A threshold-backed decision that says no action, staff task, manager review, or vendor notice while blocking purchase orders, POS/inventory mutation, and payment/invoice effects. | Replaces manual inventory report scanning with reviewable reorder tasks. |
+| Daycare package opportunity | A source-backed daycare attendance/package/eligibility review packet with customer-message, package-enrollment, provider-write, and billing actions blocked until staff/system-of-record approval. | Reduces front-desk membership/package fit checks without enrolling packages or touching billing. |
 | Recommendation | A staff-facing candidate for a product, grooming, training, boarding, or daycare follow-up. | Turns source-backed service history and product fit into drafts or tasks; it does not authorize live outreach. |
 | Package / opportunity | A source-grounded revenue or retention candidate such as grooming rebook, training consult, next boarding stay, recurring daycare, or retail upsell. | Gives staff a ranked, evidence-backed reason to review an offer rather than inventing one from model memory. |
 | POS / commerce | Checkout, retail transaction, package/subscription, invoice, and payment-sensitive provider evidence. | Supports safe reference and reconciliation while keeping money movement and POS mutations human/system-of-record controlled. |
@@ -74,7 +76,7 @@ The safe outcome is a ranked queue, draft, task, source-backed summary, or outco
 
 | Workflow | How the entities appear | Safe workflow result |
 | --- | --- | --- |
-| [Grooming Rebooking / Retention](../workflows/operator/grooming-rebooking-retention.md) | Completed checkout, grooming history/cadence, source-grounded opportunity, consent/contact permission, draft channel, suppression reason. | Staff review packet, follow-up draft, suppression/defer reason, outcome capture. |
+| [Grooming Rebooking / Retention](../workflows/operator/grooming-rebooking-retention.md) | Completed checkout, grooming history/cadence, source-grounded opportunity reason, consent/contact permission, draft channel, suppression flags, converted/deferred/suppressed/wrong-source disposition. | Staff review packet, reviewable follow-up draft or suppression, no booking/send authority, outcome capture. |
 | [CRM retention agent](../workflows/crm-retention-agent.md) | `RetentionOpportunity`, `OpportunityEvidence`, `ContactPermission`, `FollowUpEligibility`, safe/blocked actions, follow-up outcome. | Evidence summary, internal staff review task, customer follow-up draft for review, outcome evidence. |
 | [Manager Daily Brief](../workflows/operator/manager-daily-brief.md) | Revenue opportunities, retail/reorder work, lead/reputation exceptions, labor-minute estimate, source facts. | Prioritized manager action with source refs and actual outcome feedback. |
 | [Data Quality Hygiene](../workflows/operator/data-quality-hygiene.md) | Unknown provider product fields, ambiguous service catalog names, stale portal/contact facts, conflicting inventory/package evidence. | Cleanup candidate or draft submission, not hidden source-data changes. |
@@ -96,8 +98,9 @@ Gingr/provider evidence or internal source record
 Important adjacency rules:
 
 - Grooming history and cadence are service-history authority for rebooking timing, but they do not authorize appointment creation, groomer assignment, deposits, or customer sends.
-- Training package/session balances are reconciliation evidence, but they do not authorize payment movement, package adjustment, trainer assignment, or graduation/outcome claims.
-- Retail products and inventory support recommendation and reorder decisions, but a raw provider item, SKU, or stock count is not enough to send an upsell or place an order.
+- Training package/session balances are reconciliation evidence, but they do not authorize payment movement, package adjustment, trainer assignment, customer sends, provider writes, or graduation/outcome claims; training opportunity outcomes measure before/actual staff minutes after review.
+- Retail products and inventory support recommendation and reorder decisions, but a raw provider item, SKU, or stock count is not enough to send an upsell, mutate POS/inventory, change payment/invoice state, or place an order.
+- Daycare attendance/package eligibility can rank package or membership review work, but it does not enroll packages, mutate billing, write to Gingr/PMS/provider records, or send customer messages without approval.
 - Portal ids help join records; customer/contact truth still needs validated customer and permission evidence.
 - Reputation and lead signals are cross-service triage facts; they should route drafts/tasks/escalations, not bypass safety, legal, capacity, or booking review.
 
@@ -106,13 +109,14 @@ Important adjacency rules:
 | Contract type | Link or path | What the writer should verify |
 | --- | --- | --- |
 | Grooming domain source | [`domain/src/grooming/mod.rs`](../../domain/src/grooming/mod.rs) and [`domain/src/grooming/README.md`](../../domain/src/grooming/README.md) | Services, history, duration estimates, no-show rules, rebooking cadence, reminders, and customer-message gates. |
-| Training domain source | [`domain/src/training/mod.rs`](../../domain/src/training/mod.rs) and [`domain/src/training/README.md`](../../domain/src/training/README.md) | Programs, enrollment readiness, trainer availability, progress/outcome evidence, package ledger, follow-up states. |
-| Retail domain source | [`domain/src/retail/mod.rs`](../../domain/src/retail/mod.rs), [`product.rs`](../../domain/src/retail/product.rs), [`inventory.rs`](../../domain/src/retail/inventory.rs), [`pos.rs`](../../domain/src/retail/pos.rs), [`recommendation.rs`](../../domain/src/retail/recommendation.rs), [`reorder.rs`](../../domain/src/retail/reorder.rs), [`vendor.rs`](../../domain/src/retail/vendor.rs) | Product identity, inventory math, POS decisions, recommendation gates, reorder thresholds, vendor relationships. |
-| CRM retention app surface | [`app/src/crm_retention.rs`](../../app/src/crm_retention.rs) | Opportunity evidence, contact permission, eligibility, draft channel, safe agent actions, blocked actions, outcome record. |
+| Training domain source | [`domain/src/training/mod.rs`](../../domain/src/training/mod.rs) and [`domain/src/training/README.md`](../../domain/src/training/README.md) | Programs, enrollment readiness, trainer availability, progress/outcome evidence, package ledger, source-backed package/session opportunity, blocked package/payment/trainer/provider/customer actions, follow-up states, and labor-minute outcome records. |
+| Retail domain source | [`domain/src/retail/mod.rs`](../../domain/src/retail/mod.rs), [`product.rs`](../../domain/src/retail/product.rs), [`inventory.rs`](../../domain/src/retail/inventory.rs), [`pos.rs`](../../domain/src/retail/pos.rs), [`recommendation.rs`](../../domain/src/retail/recommendation.rs), [`reorder.rs`](../../domain/src/retail/reorder.rs), [`vendor.rs`](../../domain/src/retail/vendor.rs) | Product identity, inventory math, POS decisions, recommendation gates, reorder thresholds, vendor relationships, review gates, and blocked vendor/POS/payment actions. |
+| Daycare package opportunity source | [`domain/src/daycare/package_opportunity.rs`](../../domain/src/daycare/package_opportunity.rs) | Attendance/package/payment/eligibility evidence with source refs, review-gated package recommendations, blocked enrollment/billing/provider/send actions, and labor-minute outcome records. |
+| CRM retention app surface | [`app/src/crm_retention.rs`](../../app/src/crm_retention.rs) | Opportunity reason/evidence, contact permission, suppression flags, draft follow-up review state, eligibility, safe agent actions, blocked booking/send/payment/provider actions, outcome record. |
 | Portal domain source | [`domain/src/portal.rs`](../../domain/src/portal.rs) | External portal ids as source facts for joins, not internal authority. |
 | Reputation domain source | [`domain/src/reputation.rs`](../../domain/src/reputation.rs) | Review signal sentiment/theme/escalation state and response gates. |
 | Lead domain source | [`domain/src/lead.rs`](../../domain/src/lead.rs) | Sales lead source, intent, conversion stage, requested service, and next safe action. |
-| Storage service-line projections | [`storage/src/service_line/grooming.rs`](../../storage/src/service_line/grooming.rs), [`training.rs`](../../storage/src/service_line/training.rs), [`retail.rs`](../../storage/src/service_line/retail.rs) | Stable codes and domain/storage conversions for cadence, training program duration, retail partner/category. |
+| Storage service-line projections | [`storage/src/service_line/grooming.rs`](../../storage/src/service_line/grooming.rs), [`training.rs`](../../storage/src/service_line/training.rs), [`retail.rs`](../../storage/src/service_line/retail.rs), [`daycare.rs`](../../storage/src/service_line/daycare.rs) | Stable codes and domain/storage conversions for cadence, training program duration, retail partner/category, review-gated reorder decisions, and training/daycare opportunity outcome records. |
 | Storage operations projection | [`storage/src/operations.rs`](../../storage/src/operations.rs) | Service offering records, core service contract records, source refs, and shape checks across service lines. |
 | Gingr commerce/reference source | [`integrations/gingr/src/endpoint/commerce_retail.rs`](../../integrations/gingr/src/endpoint/commerce_retail.rs), [`dto/retail.rs`](../../integrations/gingr/src/dto/retail.rs), [`mapping/retail.rs`](../../integrations/gingr/src/mapping/retail.rs), [`endpoint/reference_data.rs`](../../integrations/gingr/src/endpoint/reference_data.rs) | Provider request shapes, retail item DTOs, product candidates, reference data, and sensitivity boundaries. |
 | Gingr DTO gap markers | [`integrations/gingr/src/dto/grooming.rs`](../../integrations/gingr/src/dto/grooming.rs), [`dto/training.rs`](../../integrations/gingr/src/dto/training.rs), [`endpoint/catalog.rs`](../../integrations/gingr/src/endpoint/catalog.rs) | Grooming/training service DTOs are not documented enough here; do not invent provider service DTO truth. |
@@ -169,13 +173,13 @@ A recommendation is safe to place in a staff queue only when evidence travels wi
 | Evidence field | Why it matters |
 | --- | --- |
 | Source refs / provenance / raw payload ref | Lets staff trace the provider/source record behind the opportunity. |
-| Entity kind and source-grounded reason | Explains why this is a grooming rebook, training consult, retail upsell, reorder, lead, or reputation task. |
+| Entity kind and source-grounded reason | Explains why this is a grooming rebook, training consult, retail upsell, reorder, lead, or reputation task; for grooming rebooks this includes cadence status/rationale. |
 | Review gate and blocked action | Proves the suggestion stayed draft/internal until a human or approved system acted. |
 | Draft channel / customer-copy status | Separates staff-visible draft text from a live customer send. |
 | Inventory or package/session position | Prevents recommending unavailable products or overpromising training capacity/balance. |
-| Contact permission / consent evidence | Prevents retention/lead outreach when the channel or consent is missing/opted out. |
+| Contact permission / consent / suppression evidence | Prevents retention/lead outreach when the channel, consent, DNC/suppression, complaint/service-recovery, care/handling, or source-quality evidence blocks customer copy. |
 | Staff disposition | Records approved, rejected, deferred, suppressed, wrong source, or needs correction. |
-| Outcome | Captures booked/rebooked, converted, no response, not interested, vendor notice, reorder task, or suppressed-by-staff result. |
+| Outcome | Captures booked/rebooked, converted, deferred, no response, not interested, vendor notice, reorder task, suppressed-with-reason, wrong-source, or suppressed-by-staff result. |
 | Actual minutes saved or wasted | Separates measurable labor savings from product intent. |
 
 Do not claim revenue or labor savings from a model suggestion alone. Claim only a reviewable opportunity, or point to a durable outcome record after staff disposition exists.

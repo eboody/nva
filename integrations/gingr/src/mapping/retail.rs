@@ -43,10 +43,13 @@ pub fn product_candidate(item: &dto::retail::Item) -> Result<ProductCandidate> {
     let category = item
         .category
         .as_deref()
-        .map(promote_category)
-        .transpose()?
-        .unwrap_or(retail::product::Category::PersonalizedUpsell);
-    let status = if item.active.unwrap_or(true) {
+        .ok_or(Error::MissingRequiredProviderField {
+            field: ProviderField::RetailItemCategory,
+        })
+        .and_then(promote_category)?;
+    let status = if item.active.ok_or(Error::MissingRequiredProviderField {
+        field: ProviderField::RetailItemActive,
+    })? {
         retail::OfferingStatus::Active
     } else {
         retail::OfferingStatus::Inactive

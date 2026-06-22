@@ -362,6 +362,51 @@ pub enum FailureCode {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Source-backed missing-information reason staff can resolve before promising a booking.
+pub enum MissingInfoReason {
+    /// The requested arrival, departure, or service window is absent or ambiguous.
+    RequestedDateWindow,
+    /// Pet identity, species, size, age, sex, or ownership facts are absent or ambiguous.
+    PetProfile,
+    /// Customer contact or preferred reply channel is absent or ambiguous.
+    CustomerContact,
+    /// Local service, add-on, package, or policy selection is absent or ambiguous.
+    ServiceSelection,
+    /// Required source or policy evidence is stale, conflicting, unmapped, or unavailable.
+    SourceEvidence,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Operational blocker family used to summarize why a booking packet cannot advance autonomously.
+pub enum BlockerKind {
+    /// Missing intake or profile information must be collected or reviewed by staff.
+    MissingInfo,
+    /// Vaccine or document proof requires medical/document review.
+    Vaccine,
+    /// Care, medication, medical, allergy, mobility, or handling facts require care-team review.
+    Care,
+    /// Behavior, incident, group-play, anxiety, aggression, or temperament facts require review.
+    Behavior,
+    /// Deposit, payment, waiver, refund, or pricing facts require payment/manager review.
+    Payment,
+    /// Local policy, holiday, minimum-stay, staffing, capacity, or provider-state rules block progress.
+    Policy,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Evidence summary for one blocker shown in the staff evaluation packet.
+pub struct BlockerEvidence {
+    /// Blocker family staff should route to the correct review queue.
+    pub kind: BlockerKind,
+    /// Deterministic failure code that produced the blocker.
+    pub failure_code: FailureCode,
+    /// Human/system-of-record gate that must clear before related actions can proceed.
+    pub approval_gate: ApprovalGate,
+    /// Source references proving the blocker came from observed facts, not model inference.
+    pub evidence_refs: Vec<EvidenceRef>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 /// Review-safe agent tasks allowed to save staff time without crossing mutation or send gates.
 pub enum SafeAgentAction {
     /// Allows agents to evidence summary for staff review without mutating records or contacting customers.
@@ -416,7 +461,10 @@ pub mod rule {
     use bon::Builder;
     use serde::{Deserialize, Serialize};
 
-    use super::{ApprovalGate, EvidenceRef, FailureCode, ReadinessBucket, SafeAgentAction};
+    use super::{
+        ApprovalGate, BlockerKind, EvidenceRef, FailureCode, MissingInfoReason, ReadinessBucket,
+        SafeAgentAction,
+    };
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
     /// Classifies id values that drive the booking-readiness workflow.
@@ -480,6 +528,25 @@ pub mod rule {
         #[builder(default)]
         /// Evidence refs preserved as evidence for audit, review, or agent context.
         pub evidence_refs: Vec<EvidenceRef>,
+        /// Missing-info reason, when this finding represents information staff must collect.
+        pub missing_info_reason: Option<MissingInfoReason>,
+        /// Operational blocker family for routing staff review without granting action authority.
+        pub blocker_kind: Option<BlockerKind>,
+    }
+
+    impl ReviewFinding {
+        /// Attaches a source-backed missing-info reason to the review finding.
+        pub const fn with_missing_info_reason(mut self, reason: MissingInfoReason) -> Self {
+            self.missing_info_reason = Some(reason);
+            self.blocker_kind = Some(BlockerKind::MissingInfo);
+            self
+        }
+
+        /// Attaches a blocker family so staff packets can route care/vaccine/payment/policy work.
+        pub const fn with_blocker_kind(mut self, kind: BlockerKind) -> Self {
+            self.blocker_kind = Some(kind);
+            self
+        }
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -499,6 +566,10 @@ pub mod rule {
         pub human_approval_required: ApprovalGate,
         /// Safe agent actions preserved as evidence for audit, review, or agent context.
         pub safe_agent_actions: Vec<SafeAgentAction>,
+        /// Missing-info reason preserved for staff collection and customer-message draft review.
+        pub missing_info_reason: Option<MissingInfoReason>,
+        /// Blocker kind preserved for care, vaccine, payment, policy, or behavior routing.
+        pub blocker_kind: Option<BlockerKind>,
     }
 
     impl Evaluation {
@@ -512,6 +583,8 @@ pub mod rule {
                 failure_code: None,
                 human_approval_required: ApprovalGate::None,
                 safe_agent_actions: vec![SafeAgentAction::EvidenceSummary],
+                missing_info_reason: None,
+                blocker_kind: None,
             }
         }
 
@@ -543,6 +616,8 @@ pub mod rule {
                     SafeAgentAction::InternalTaskDraft,
                     SafeAgentAction::ManagerPacketDraft,
                 ],
+                missing_info_reason: finding.missing_info_reason,
+                blocker_kind: finding.blocker_kind,
             }
         }
     }
@@ -555,6 +630,8 @@ pub struct DeterministicResult {
     recommended_status: ReadinessBucket,
     approval_gates: Vec<ApprovalGate>,
     blocked_actions: Vec<BlockedAction>,
+    missing_info_reasons: Vec<MissingInfoReason>,
+    blocker_evidence: Vec<BlockerEvidence>,
 }
 
 impl DeterministicResult {
@@ -579,6 +656,7 @@ impl DeterministicResult {
             BlockedAction::RejectRequest,
             BlockedAction::MutateProviderRecord,
             BlockedAction::SendCustomerMessage,
+            BlockedAction::MovePayment,
         ];
         if approval_gates.contains(&ApprovalGate::BehaviorReview) {
             blocked_actions.push(BlockedAction::ApproveBehaviorException);
@@ -592,11 +670,32 @@ impl DeterministicResult {
         blocked_actions.sort_unstable();
         blocked_actions.dedup();
 
+        let mut missing_info_reasons: Vec<MissingInfoReason> = rule_evaluations
+            .iter()
+            .filter_map(|rule| rule.missing_info_reason)
+            .collect();
+        missing_info_reasons.sort_unstable();
+        missing_info_reasons.dedup();
+
+        let blocker_evidence = rule_evaluations
+            .iter()
+            .filter_map(|rule| {
+                Some(BlockerEvidence {
+                    kind: rule.blocker_kind?,
+                    failure_code: rule.failure_code?,
+                    approval_gate: rule.human_approval_required,
+                    evidence_refs: rule.evidence_refs.clone(),
+                })
+            })
+            .collect();
+
         Self {
             rule_evaluations,
             recommended_status,
             approval_gates,
             blocked_actions,
+            missing_info_reasons,
+            blocker_evidence,
         }
     }
 
@@ -618,6 +717,16 @@ impl DeterministicResult {
     /// Returns the rule evaluations value kept on this booking-readiness workflow object for staff review and agent context.
     pub fn rule_evaluations(&self) -> &[rule::Evaluation] {
         &self.rule_evaluations
+    }
+
+    /// Returns source-backed reasons staff must resolve before booking readiness can advance.
+    pub fn missing_info_reasons(&self) -> &[MissingInfoReason] {
+        &self.missing_info_reasons
+    }
+
+    /// Returns care, vaccine, payment, behavior, policy, and missing-info blocker evidence.
+    pub fn blocker_evidence(&self) -> &[BlockerEvidence] {
+        &self.blocker_evidence
     }
 
     /// Returns the staff may confirm without human gate value kept on this booking-readiness workflow object for staff review and agent context.
@@ -715,6 +824,33 @@ impl ConfirmationDraft {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Missing-information request draft that always requires staff/customer-message approval.
+pub struct MissingInfoDraft {
+    body: CustomerMessageDraft,
+    approval_gate: ApprovalGate,
+}
+
+impl MissingInfoDraft {
+    /// Builds reviewable missing-information copy without permission to send it.
+    pub const fn new(body: CustomerMessageDraft) -> Self {
+        Self {
+            body,
+            approval_gate: ApprovalGate::CustomerMessageApproval,
+        }
+    }
+
+    /// Returns the customer-facing draft body awaiting staff approval.
+    pub const fn body(&self) -> &CustomerMessageDraft {
+        &self.body
+    }
+
+    /// Returns the approval gate that must clear before this draft can be sent.
+    pub const fn approval_gate(&self) -> ApprovalGate {
+        self.approval_gate
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 /// Classifies audit event draft values that drive the booking-readiness workflow.
 pub enum AuditEventDraft {
@@ -724,6 +860,8 @@ pub enum AuditEventDraft {
     ReservationStatusSuggested,
     /// Routes booking triage work flagged as confirmation draft generated to the right queue, review gate, or agent packet.
     ConfirmationDraftGenerated,
+    /// Routes booking triage work flagged as missing information draft generated to the right queue, review gate, or agent packet.
+    MissingInfoDraftGenerated,
     /// Routes booking triage work flagged as message approval requested to the right queue, review gate, or agent packet.
     MessageApprovalRequested,
 }
@@ -735,6 +873,7 @@ pub struct StaffEvaluationPacket {
     deterministic_result: DeterministicResult,
     ai_recommendation: Option<AiRecommendation>,
     confirmation_draft: Option<ConfirmationDraft>,
+    missing_info_draft: Option<MissingInfoDraft>,
     audit_event_drafts: Vec<AuditEventDraft>,
 }
 
@@ -746,6 +885,7 @@ impl StaffEvaluationPacket {
             deterministic_result,
             ai_recommendation: None,
             confirmation_draft: None,
+            missing_info_draft: None,
             audit_event_drafts: vec![AuditEventDraft::PolicyDecisionRecorded],
         }
     }
@@ -786,6 +926,23 @@ impl StaffEvaluationPacket {
         Ok(self)
     }
 
+    /// Attempts to attach reviewable missing-information copy without sending it to a customer.
+    pub fn try_with_missing_info_draft(
+        mut self,
+        missing_info_draft: MissingInfoDraft,
+    ) -> core::result::Result<Self, ConfirmationDraftError> {
+        if self.deterministic_result.recommended_status() != ReadinessBucket::MissingInfo {
+            return Err(ConfirmationDraftError::DeterministicGateNotReadyForDraft);
+        }
+        self.missing_info_draft = Some(missing_info_draft);
+        self.audit_event_drafts
+            .push(AuditEventDraft::MissingInfoDraftGenerated);
+        self.audit_event_drafts
+            .push(AuditEventDraft::MessageApprovalRequested);
+        self.dedup_audit_event_drafts();
+        Ok(self)
+    }
+
     /// Returns the reservation value kept on this booking-readiness workflow object for staff review and agent context.
     pub const fn reservation(&self) -> &Reservation {
         &self.reservation
@@ -808,6 +965,13 @@ impl StaffEvaluationPacket {
         self.confirmation_draft
             .as_ref()
             .expect("staff evaluation packet should include a confirmation draft")
+    }
+
+    /// Returns the missing-information request draft waiting for staff/customer-message approval.
+    pub fn missing_info_draft(&self) -> &MissingInfoDraft {
+        self.missing_info_draft
+            .as_ref()
+            .expect("staff evaluation packet should include a missing-info draft")
     }
 
     /// Returns the audit event drafts value kept on this booking-readiness workflow object for staff review and agent context.
@@ -994,7 +1158,7 @@ fn review_finding(
     human_approval_required: ApprovalGate,
     evidence_ref: &'static str,
 ) -> rule::ReviewFinding {
-    rule::ReviewFinding::builder()
+    let mut finding = rule::ReviewFinding::builder()
         .rule_id(rule_id)
         .failure_code(failure_code)
         .readiness_bucket(readiness_bucket)
@@ -1003,4 +1167,25 @@ fn review_finding(
             EvidenceRef::try_new(evidence_ref).expect("static evidence ref is valid"),
         ])
         .build()
+        .with_blocker_kind(blocker_kind_for_failure(failure_code));
+    if failure_code == FailureCode::MissingRequiredInput {
+        finding = finding.with_missing_info_reason(MissingInfoReason::SourceEvidence);
+    }
+    finding
+}
+
+const fn blocker_kind_for_failure(failure_code: FailureCode) -> BlockerKind {
+    match failure_code {
+        FailureCode::MissingRequiredInput
+        | FailureCode::StaleSnapshot
+        | FailureCode::ConflictingSource
+        | FailureCode::UnmappedProviderValue => BlockerKind::MissingInfo,
+        FailureCode::MissingOrUnverifiedVaccine => BlockerKind::Vaccine,
+        FailureCode::DepositNotSatisfied => BlockerKind::Payment,
+        FailureCode::BehaviorExceptionRequiresReview => BlockerKind::Behavior,
+        FailureCode::SpecialCareRequiresReview => BlockerKind::Care,
+        FailureCode::MissingPolicy
+        | FailureCode::CapacityUnavailable
+        | FailureCode::PolicyHardStop => BlockerKind::Policy,
+    }
 }

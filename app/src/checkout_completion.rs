@@ -27,6 +27,84 @@ use domain::{entities, policy, source};
 use nutype::nutype;
 use serde::{Deserialize, Serialize};
 
+pub use domain::boarding::handoff::DepartureTaskDraft as StaffTaskDraft;
+pub use domain::payment::CheckoutException as PaymentException;
+pub use domain::reservation::CheckoutCompletionDisposition as ReviewedDisposition;
+pub use domain::reservation::CheckoutSourceException as SourceException;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Staff minutes used to compare manual checkout audit effort with packet-review effort.
+pub struct LaborMinutes(u16);
+
+impl LaborMinutes {
+    /// Validates non-zero minutes before a checkout labor estimate can appear in a packet.
+    pub const fn try_new(value: u16) -> Result<Self, &'static str> {
+        if value == 0 {
+            return Err("checkout labor minutes must be greater than zero");
+        }
+        Ok(Self(value))
+    }
+
+    /// Returns the numeric labor-minute value for review and tests.
+    pub const fn get(self) -> u16 {
+        self.0
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Named unresolved checkout work that staff can clear before final closeout.
+pub enum UnresolvedException {
+    /// Belongings have not been verified as returned to the customer.
+    Belongings,
+    /// Care summary or departure notes still need staff/manager review.
+    Care,
+    /// Payment, refund, discount, waiver, or balance issue retained for ledger/PMS review.
+    Payment(PaymentException),
+    /// Source/PMS checkout state or provider record conflict retained for reconciliation.
+    Source(SourceException),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Reviewable labor estimate for the open-stay audit workflow.
+pub struct LaborImpact {
+    manual_audit_minutes: LaborMinutes,
+    packet_review_minutes: LaborMinutes,
+}
+
+impl LaborImpact {
+    /// Captures the expected manual audit effort and packet-review effort without claiming realized savings.
+    pub const fn new(
+        manual_audit_minutes: LaborMinutes,
+        packet_review_minutes: LaborMinutes,
+    ) -> Self {
+        Self {
+            manual_audit_minutes,
+            packet_review_minutes,
+        }
+    }
+
+    /// Returns the manual checkout audit effort estimated for front-desk staff.
+    pub const fn manual_audit_minutes(&self) -> LaborMinutes {
+        self.manual_audit_minutes
+    }
+
+    /// Returns the packet review effort estimated for front-desk staff.
+    pub const fn packet_review_minutes(&self) -> LaborMinutes {
+        self.packet_review_minutes
+    }
+
+    /// Returns estimated minutes saved only when packet review is lower than manual audit effort.
+    pub const fn estimated_minutes_saved(&self) -> Option<u16> {
+        let manual = self.manual_audit_minutes.get();
+        let review = self.packet_review_minutes.get();
+        if manual > review {
+            Some(manual - review)
+        } else {
+            None
+        }
+    }
+}
+
 #[nutype(
     sanitize(trim),
     validate(not_empty, len_char_max = 1200),
@@ -165,6 +243,12 @@ pub struct Request {
     source_provenance: source::Provenance,
     observed_source_status: source::reservation::Status,
     staff_handoff: StaffHandoff,
+    payment_exception: Option<PaymentException>,
+    source_exception: Option<SourceException>,
+    #[builder(default = LaborMinutes::try_new(15).expect("default checkout audit minutes are non-zero"))]
+    estimated_manual_audit_minutes: LaborMinutes,
+    #[builder(default = LaborMinutes::try_new(5).expect("default checkout packet minutes are non-zero"))]
+    estimated_packet_review_minutes: LaborMinutes,
 }
 
 impl Request {
@@ -187,6 +271,16 @@ impl Request {
     pub const fn staff_handoff(&self) -> &StaffHandoff {
         &self.staff_handoff
     }
+
+    /// Returns retained payment exception evidence; agents may route it, not move money.
+    pub const fn payment_exception(&self) -> Option<PaymentException> {
+        self.payment_exception
+    }
+
+    /// Returns retained source exception evidence; agents may route it, not mutate providers.
+    pub const fn source_exception(&self) -> Option<SourceException> {
+        self.source_exception
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -201,6 +295,10 @@ pub struct Packet {
     safe_agent_actions: Vec<SafeAgentAction>,
     blocked_actions: Vec<BlockedAction>,
     audit_event_drafts: Vec<AuditEventDraft>,
+    unresolved_exceptions: Vec<UnresolvedException>,
+    staff_task_drafts: Vec<StaffTaskDraft>,
+    reviewed_disposition: ReviewedDisposition,
+    labor_impact: LaborImpact,
 }
 
 impl Packet {
@@ -248,6 +346,26 @@ impl Packet {
     pub fn audit_event_drafts(&self) -> &[AuditEventDraft] {
         &self.audit_event_drafts
     }
+
+    /// Returns unresolved checkout exceptions that need staff, manager, billing, or source-system review before final closeout.
+    pub fn unresolved_exceptions(&self) -> &[UnresolvedException] {
+        &self.unresolved_exceptions
+    }
+
+    /// Returns draft-only staff task recommendations; agents may prepare these but not complete live checkout work.
+    pub fn staff_task_drafts(&self) -> &[StaffTaskDraft] {
+        &self.staff_task_drafts
+    }
+
+    /// Returns the review disposition used to keep outcome/labor reporting tied to human or system-of-record review.
+    pub const fn reviewed_disposition(&self) -> ReviewedDisposition {
+        self.reviewed_disposition
+    }
+
+    /// Returns estimated labor impact for open-stay audit packet review; this is not a realized savings claim.
+    pub const fn labor_impact(&self) -> &LaborImpact {
+        &self.labor_impact
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -270,6 +388,13 @@ impl Workflow {
         let safe_agent_actions = safe_agent_actions_for(completion_status);
         let blocked_actions = blocked_actions_for(completion_status);
         let audit_event_drafts = audit_event_drafts_for(completion_status);
+        let unresolved_exceptions = unresolved_exceptions_for(&request, completion_status);
+        let staff_task_drafts = staff_task_drafts_for(&unresolved_exceptions);
+        let reviewed_disposition = reviewed_disposition_for(completion_status);
+        let labor_impact = LaborImpact::new(
+            request.estimated_manual_audit_minutes,
+            request.estimated_packet_review_minutes,
+        );
 
         Packet {
             reservation_id: request.reservation_id,
@@ -281,6 +406,10 @@ impl Workflow {
             safe_agent_actions,
             blocked_actions,
             audit_event_drafts,
+            unresolved_exceptions,
+            staff_task_drafts,
+            reviewed_disposition,
+            labor_impact,
         }
     }
 }
@@ -355,4 +484,76 @@ fn audit_event_drafts_for(completion_status: CompletionStatus) -> Vec<AuditEvent
     drafts.sort_unstable();
     drafts.dedup();
     drafts
+}
+
+fn unresolved_exceptions_for(
+    request: &Request,
+    completion_status: CompletionStatus,
+) -> Vec<UnresolvedException> {
+    let mut exceptions = Vec::new();
+
+    if matches!(
+        request.staff_handoff.belongings_status(),
+        BelongingsStatus::NeedsStaffFollowUp
+    ) {
+        exceptions.push(UnresolvedException::Belongings);
+    }
+
+    if matches!(
+        request.staff_handoff.departure_notes_review(),
+        DepartureNotesReview::ManagerReviewRequired
+    ) {
+        exceptions.push(UnresolvedException::Care);
+    }
+
+    if let Some(payment_exception) = request.payment_exception() {
+        exceptions.push(UnresolvedException::Payment(payment_exception));
+    }
+
+    if let Some(source_exception) = request.source_exception() {
+        exceptions.push(UnresolvedException::Source(source_exception));
+    }
+
+    if matches!(completion_status, CompletionStatus::SourceNotCheckedOut)
+        && !exceptions
+            .iter()
+            .any(|exception| matches!(exception, UnresolvedException::Source(_)))
+    {
+        exceptions.push(UnresolvedException::Source(
+            SourceException::ProviderRecordConflict,
+        ));
+    }
+
+    exceptions
+}
+
+fn staff_task_drafts_for(exceptions: &[UnresolvedException]) -> Vec<StaffTaskDraft> {
+    let mut drafts = Vec::new();
+    for exception in exceptions {
+        match exception {
+            UnresolvedException::Belongings => {
+                drafts.push(StaffTaskDraft::VerifyBelongingsReturn);
+            }
+            UnresolvedException::Care => {
+                drafts.push(StaffTaskDraft::ReviewCareAndDepartureNotes);
+            }
+            UnresolvedException::Payment(_) => {
+                drafts.push(StaffTaskDraft::ResolvePaymentException);
+            }
+            UnresolvedException::Source(_) => {
+                drafts.push(StaffTaskDraft::ReconcileSourceStatus);
+            }
+        }
+    }
+    drafts.sort_unstable();
+    drafts.dedup();
+    drafts
+}
+
+const fn reviewed_disposition_for(completion_status: CompletionStatus) -> ReviewedDisposition {
+    match completion_status {
+        CompletionStatus::StaffVerifiedCheckout => ReviewedDisposition::StaffVerified,
+        CompletionStatus::NeedsStaffHandoffReview => ReviewedDisposition::ManagerReviewRequired,
+        CompletionStatus::SourceNotCheckedOut => ReviewedDisposition::SourceReconciliationRequired,
+    }
 }

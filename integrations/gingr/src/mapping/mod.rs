@@ -62,6 +62,9 @@ pub enum ProviderField {
     #[strum(to_string = "retail item category")]
     /// Required Gingr retail category for merchandising mapping.
     RetailItemCategory,
+    #[strum(to_string = "retail item active flag")]
+    /// Required Gingr retail active flag for product availability mapping.
+    RetailItemActive,
 }
 
 #[derive(Debug, thiserror::Error, Clone, PartialEq, Eq)]

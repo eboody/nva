@@ -42,6 +42,9 @@ pub struct MvpPreviewRequest {
     pub policy_snapshot_id: policy::Id,
     /// Notes copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub notes: Vec<entities::CareNote>,
+    #[builder(default)]
+    /// Media/document refs proposed for the update; only approved refs may reach customer-facing draft output.
+    pub media_document_refs: Vec<MediaDocumentRef>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -66,8 +69,9 @@ pub mod daily_care_update {
     use serde::{Deserialize, Serialize};
 
     use super::{
-        CustomerMessageDraft, IncludedFact, InternalFlag, OmittedFact, ReviewDisposition, customer,
-        entities, pet, policy,
+        CustomerMessageDraft, IncludedFact, InternalFlag, MediaDocumentRef, OmittedFact,
+        ReviewDisposition, SuppressedMediaDocumentRef, SuppressionRecord, customer, entities, pet,
+        policy,
     };
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -81,6 +85,8 @@ pub mod daily_care_update {
         pub policy_snapshot_id: policy::Id,
         /// Notes copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
         pub notes: Vec<entities::CareNote>,
+        /// Media/document refs copied from the request so agents can see held media without publishing it.
+        pub media_document_refs: Vec<MediaDocumentRef>,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -97,6 +103,10 @@ pub mod daily_care_update {
         pub included_facts: Vec<IncludedFact>,
         /// Omitted facts copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
         pub omitted_facts: Vec<OmittedFact>,
+        /// Suppression records explaining why sensitive facts or source-ambiguous material stayed out of customer copy.
+        pub suppression_records: Vec<SuppressionRecord>,
+        /// Media/document refs held from the customer draft because they still require review.
+        pub suppressed_media_document_refs: Vec<SuppressedMediaDocumentRef>,
     }
 
     #[derive(Debug, Clone, Copy)]
@@ -191,6 +201,39 @@ pub struct CustomerMessageDraft {
     pub audience: Audience,
     /// Redaction profile copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub redaction_profile: RedactionProfile,
+    /// Approved media/document refs allowed to accompany the customer draft after review.
+    pub media_document_refs: Vec<MediaDocumentRef>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Media or document evidence reference considered for a Pawgress draft but never published until reviewed.
+pub struct MediaDocumentRef {
+    /// Document id that points reviewers to the photo/video/document evidence without embedding raw content.
+    pub document_id: entities::DocumentId,
+    /// Care note that proposed or justified the media/document use.
+    pub source_note_id: entities::care_note::Id,
+    /// Review state controlling whether this reference can appear in customer-facing draft output.
+    pub review_state: message::ReviewState,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Review-held media/document evidence with the policy reason it cannot be customer-visible yet.
+pub struct SuppressedMediaDocumentRef {
+    /// Proposed media/document reference kept out of the customer-facing draft.
+    pub media_document_ref: MediaDocumentRef,
+    /// Review reason that blocks publication or attachment.
+    pub reason: message::SuppressionReason,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Suppression record that makes omitted daily-update facts auditable for staff review.
+pub struct SuppressionRecord {
+    /// Care note whose source fact was withheld from customer-facing copy.
+    pub source_note_id: entities::care_note::Id,
+    /// Shared message-safety reason for the suppression.
+    pub reason: message::SuppressionReason,
+    /// Human review gate that must clear before wording or send decisions proceed.
+    pub required_gate: policy::ReviewGate,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -213,6 +256,12 @@ pub enum InternalFlagCode {
     MedicalOrMedicationReviewRequired,
     /// Uses policy gap requires review as source-grounded evidence for the deterministic decision.
     PolicyGapRequiresReview,
+    /// Uses payment or billing review required as source-grounded evidence for the deterministic decision.
+    PaymentOrBillingReviewRequired,
+    /// Uses incident or safety review required as source-grounded evidence for the deterministic decision.
+    IncidentOrSafetyReviewRequired,
+    /// Uses source ambiguity requires review as source-grounded evidence for the deterministic decision.
+    SourceAmbiguityRequiresReview,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -279,6 +328,14 @@ pub enum OmissionReason {
     InternalOnly,
     /// Uses sensitive requires review as source-grounded evidence for the deterministic decision.
     SensitiveRequiresReview,
+    /// Uses medical or medication review as source-grounded evidence for the deterministic decision.
+    MedicalOrMedicationReview,
+    /// Uses payment or billing review as source-grounded evidence for the deterministic decision.
+    PaymentOrBillingReview,
+    /// Uses incident or safety review as source-grounded evidence for the deterministic decision.
+    IncidentOrSafetyReview,
+    /// Uses source ambiguous review as source-grounded evidence for the deterministic decision.
+    SourceAmbiguousReview,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -417,6 +474,7 @@ pub fn build_mvp_preview(request: MvpPreviewRequest) -> Result<MvpPreview> {
         owner_display_name: request.owner_display_name,
         policy_snapshot_id: request.policy_snapshot_id,
         notes: request.notes,
+        media_document_refs: request.media_document_refs,
     };
 
     let agent = daily_care_update::Agent;
@@ -546,6 +604,7 @@ fn validate_request(request: &MvpPreviewRequest) -> Result<()> {
 fn generate_output(input: &daily_care_update::Input) -> Result<daily_care_update::Output> {
     let mut included_facts = Vec::new();
     let mut omitted_facts = Vec::new();
+    let mut suppression_records = Vec::new();
     let mut internal_flags = vec![InternalFlag {
         code: InternalFlagCode::CustomerMessageApprovalNotConfigured,
         severity: InternalFlagSeverity::NeedsStaffReview,
@@ -557,33 +616,41 @@ fn generate_output(input: &daily_care_update::Input) -> Result<daily_care_update
     }];
 
     let mut safe_note_bodies = Vec::new();
-    let mut sensitive_note_ids = Vec::new();
+    let mut review_codes = Vec::new();
 
     for note in &input.notes {
-        if matches!(
-            note.visibility,
-            entities::care_note::Visibility::InternalOnly
-        ) {
+        if let Some((omission_reason, suppression_reason, required_gate, flag_code)) =
+            suppression_for_note(note)
+        {
             omitted_facts.push(OmittedFact {
                 source_note_id: note.id,
-                reason: OmissionReason::InternalOnly,
+                reason: omission_reason,
             });
+            suppression_records.push(SuppressionRecord {
+                source_note_id: note.id,
+                reason: suppression_reason,
+                required_gate,
+            });
+            review_codes.push(flag_code);
+            let (severity, action) =
+                if matches!(flag_code, InternalFlagCode::RawInternalNoteNotCustomerSafe) {
+                    (
+                        InternalFlagSeverity::DoNotSend,
+                        RecommendedFlagAction::SuppressUpdate,
+                    )
+                } else {
+                    (
+                        InternalFlagSeverity::NeedsManagerReview,
+                        RecommendedFlagAction::ManagerReview,
+                    )
+                };
             internal_flags.push(InternalFlag {
-                code: InternalFlagCode::RawInternalNoteNotCustomerSafe,
-                severity: InternalFlagSeverity::DoNotSend,
-                message: flag_message("Raw internal staff notes are omitted from customer copy.")?,
+                code: flag_code,
+                severity,
+                message: flag_message(flag_message_for(flag_code))?,
                 source_note_ids: vec![note.id],
-                recommended_action: RecommendedFlagAction::SuppressUpdate,
+                recommended_action: action,
             });
-            continue;
-        }
-
-        if sensitive_kind(note.kind) {
-            omitted_facts.push(OmittedFact {
-                source_note_id: note.id,
-                reason: OmissionReason::SensitiveRequiresReview,
-            });
-            sensitive_note_ids.push(note.id);
             continue;
         }
 
@@ -595,32 +662,50 @@ fn generate_output(input: &daily_care_update::Input) -> Result<daily_care_update
         safe_note_bodies.push(summary);
     }
 
-    let sensitive_review = if !sensitive_note_ids.is_empty() {
-        let code = if input
-            .notes
-            .iter()
-            .any(|note| matches!(note.kind, entities::care_note::Kind::Behavior))
-        {
-            InternalFlagCode::BehaviorReviewRequired
-        } else {
-            InternalFlagCode::MedicalOrMedicationReviewRequired
-        };
-        internal_flags.push(InternalFlag {
-            code,
-            severity: InternalFlagSeverity::NeedsManagerReview,
-            message: flag_message("Sensitive care-note content was suppressed until manager review approves customer wording.")?,
-            source_note_ids: sensitive_note_ids,
-            recommended_action: RecommendedFlagAction::ManagerReview,
-        });
-        Some(code)
-    } else {
-        None
-    };
+    let suppressed_media_document_refs = input
+        .media_document_refs
+        .iter()
+        .filter(|media_ref| media_ref.review_state != message::ReviewState::Approved)
+        .cloned()
+        .map(|media_document_ref| SuppressedMediaDocumentRef {
+            media_document_ref,
+            reason: message::SuppressionReason::MediaReviewRequired,
+        })
+        .collect::<Vec<_>>();
+    let media_document_refs = input
+        .media_document_refs
+        .iter()
+        .filter(|media_ref| media_ref.review_state == message::ReviewState::Approved)
+        .cloned()
+        .collect::<Vec<_>>();
 
-    let review_reason = match sensitive_review {
-        Some(InternalFlagCode::BehaviorReviewRequired) => "behavior_review_required",
-        Some(_) => "medical_or_medication_review_required",
-        None => "customer_message_approval_not_configured",
+    let review_reason = if review_codes
+        .iter()
+        .any(|code| matches!(code, InternalFlagCode::BehaviorReviewRequired))
+    {
+        "behavior_review_required"
+    } else if review_codes
+        .iter()
+        .any(|code| matches!(code, InternalFlagCode::MedicalOrMedicationReviewRequired))
+    {
+        "medical_or_medication_review_required"
+    } else if review_codes
+        .iter()
+        .any(|code| matches!(code, InternalFlagCode::PaymentOrBillingReviewRequired))
+    {
+        "payment_or_billing_review_required"
+    } else if review_codes
+        .iter()
+        .any(|code| matches!(code, InternalFlagCode::IncidentOrSafetyReviewRequired))
+    {
+        "incident_or_safety_review_required"
+    } else if review_codes
+        .iter()
+        .any(|code| matches!(code, InternalFlagCode::SourceAmbiguityRequiresReview))
+    {
+        "source_ambiguity_requires_review"
+    } else {
+        "customer_message_approval_not_configured"
     };
 
     let body = if safe_note_bodies.is_empty() {
@@ -647,6 +732,7 @@ fn generate_output(input: &daily_care_update::Input) -> Result<daily_care_update
             audience: Audience::Customer,
             redaction_profile: RedactionProfile::try_new("customer_safe_daily_update_v1")
                 .map_err(invalid_domain_value)?,
+            media_document_refs,
         },
         internal_flags,
         disposition: ReviewDisposition::DraftOnlyRequiresReview {
@@ -654,7 +740,134 @@ fn generate_output(input: &daily_care_update::Input) -> Result<daily_care_update
         },
         included_facts,
         omitted_facts,
+        suppression_records,
+        suppressed_media_document_refs,
     })
+}
+
+fn suppression_for_note(
+    note: &entities::CareNote,
+) -> Option<(
+    OmissionReason,
+    message::SuppressionReason,
+    policy::ReviewGate,
+    InternalFlagCode,
+)> {
+    if matches!(
+        note.visibility,
+        entities::care_note::Visibility::InternalOnly
+    ) {
+        return Some((
+            OmissionReason::InternalOnly,
+            message::SuppressionReason::InternalOnly,
+            policy::ReviewGate::CustomerMessageApproval,
+            InternalFlagCode::RawInternalNoteNotCustomerSafe,
+        ));
+    }
+
+    let normalized_body = note.body.clone().into_inner().to_ascii_lowercase();
+    if sensitive_kind(note.kind) {
+        let (omission, suppression, gate, code) = match note.kind {
+            entities::care_note::Kind::Behavior => (
+                OmissionReason::SensitiveRequiresReview,
+                message::SuppressionReason::BehaviorReviewRequired,
+                policy::ReviewGate::BehaviorReview,
+                InternalFlagCode::BehaviorReviewRequired,
+            ),
+            _ => (
+                OmissionReason::MedicalOrMedicationReview,
+                message::SuppressionReason::SensitiveCareFact,
+                policy::ReviewGate::MedicalDocumentReview,
+                InternalFlagCode::MedicalOrMedicationReviewRequired,
+            ),
+        };
+        return Some((omission, suppression, gate, code));
+    }
+    if contains_any(
+        &normalized_body,
+        &[
+            "payment", "refund", "deposit", "billing", "discount", "waiver", "forfeit",
+        ],
+    ) {
+        return Some((
+            OmissionReason::PaymentOrBillingReview,
+            message::SuppressionReason::PaymentOrBillingReview,
+            policy::ReviewGate::RefundOrDepositException,
+            InternalFlagCode::PaymentOrBillingReviewRequired,
+        ));
+    }
+    if contains_any(
+        &normalized_body,
+        &[
+            "incident",
+            "injury",
+            "escape",
+            "complaint",
+            "bite",
+            "legal",
+            "liability",
+        ],
+    ) {
+        return Some((
+            OmissionReason::IncidentOrSafetyReview,
+            message::SuppressionReason::IncidentOrSafetyReview,
+            policy::ReviewGate::ManagerApproval,
+            InternalFlagCode::IncidentOrSafetyReviewRequired,
+        ));
+    }
+    if contains_any(
+        &normalized_body,
+        &[
+            "source ambiguous",
+            "ambiguous",
+            "wrong-pet",
+            "wrong pet",
+            "conflict",
+            "unverified",
+            "stale",
+        ],
+    ) {
+        return Some((
+            OmissionReason::SourceAmbiguousReview,
+            message::SuppressionReason::SourceAmbiguity,
+            policy::ReviewGate::ManagerApproval,
+            InternalFlagCode::SourceAmbiguityRequiresReview,
+        ));
+    }
+    None
+}
+
+fn contains_any(haystack: &str, needles: &[&str]) -> bool {
+    needles.iter().any(|needle| haystack.contains(needle))
+}
+
+fn flag_message_for(code: InternalFlagCode) -> &'static str {
+    match code {
+        InternalFlagCode::CustomerMessageApprovalNotConfigured => {
+            "Daily care updates are draft-only until a location/channel/template send policy is approved."
+        }
+        InternalFlagCode::RawInternalNoteNotCustomerSafe => {
+            "Raw internal staff notes are omitted from customer copy."
+        }
+        InternalFlagCode::BehaviorReviewRequired => {
+            "Behavior-sensitive care-note content was suppressed until behavior or manager review approves customer wording."
+        }
+        InternalFlagCode::MedicalOrMedicationReviewRequired => {
+            "Medical or medication care-note content was suppressed until specialist review approves customer wording."
+        }
+        InternalFlagCode::PolicyGapRequiresReview => {
+            "Policy-sensitive daily-update content was suppressed until staff review approves customer wording."
+        }
+        InternalFlagCode::PaymentOrBillingReviewRequired => {
+            "Payment or billing content was suppressed from Pawgress copy until billing review."
+        }
+        InternalFlagCode::IncidentOrSafetyReviewRequired => {
+            "Incident or safety content was suppressed from Pawgress copy until manager review."
+        }
+        InternalFlagCode::SourceAmbiguityRequiresReview => {
+            "Source-ambiguous content was suppressed from Pawgress copy until staff verify the evidence."
+        }
+    }
 }
 
 fn review_gate_for(output: &daily_care_update::Output) -> policy::ReviewGate {
@@ -663,6 +876,9 @@ fn review_gate_for(output: &daily_care_update::Output) -> policy::ReviewGate {
             flag.code,
             InternalFlagCode::BehaviorReviewRequired
                 | InternalFlagCode::MedicalOrMedicationReviewRequired
+                | InternalFlagCode::PaymentOrBillingReviewRequired
+                | InternalFlagCode::IncidentOrSafetyReviewRequired
+                | InternalFlagCode::SourceAmbiguityRequiresReview
         )
     }) {
         policy::ReviewGate::ManagerApproval

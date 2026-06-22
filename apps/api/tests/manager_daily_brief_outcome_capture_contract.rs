@@ -116,6 +116,10 @@ async fn manager_daily_brief_outcome_capture_persists_staff_feedback_as_labor_sa
     assert_eq!(payload["outcome_record"]["before_minutes"], 20);
     assert_eq!(payload["outcome_record"]["actual_minutes"], 12);
     assert_eq!(
+        payload["outcome_record"]["source_refs"],
+        json!([source_ref()])
+    );
+    assert_eq!(
         payload["outcome_record"]["actor"]["persona"],
         "front_desk_lead"
     );
@@ -158,6 +162,21 @@ async fn manager_daily_brief_outcome_capture_persists_staff_feedback_as_labor_sa
             .unwrap()
             .contains(&json!("send_customer_message"))
     );
+}
+
+#[tokio::test]
+async fn manager_daily_brief_outcome_capture_rejects_missing_source_refs() {
+    let action = manager_daily_brief_action_by_kind("resolve_checkout_exception").await;
+    let action_id = action["id"].as_str().expect("action id");
+    let mut body = outcome_body();
+    body["source_refs"] = json!([]);
+
+    let (status, payload) = post_outcome(action_id, body).await;
+
+    assert_eq!(status, axum_http::StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(payload["accepted"], false);
+    assert_eq!(payload["outcome_persisted"], false);
+    assert_eq!(payload["reasons"], json!(["missing_source_refs"]));
 }
 
 #[tokio::test]

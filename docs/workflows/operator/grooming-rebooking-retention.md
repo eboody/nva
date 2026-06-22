@@ -30,8 +30,8 @@ The retention packet needs source-backed facts, not model memory or raw provider
 | Pet and grooming service history | Cadence and service-history context explain why grooming follow-up is due, normal, risky, or not supported. | `domain::grooming::history`, `domain::grooming::rebooking`, and promoted source/provider records. | `domain/src/grooming/mod.rs`; `domain/src/grooming/README.md#grooming-workflow-surface`. |
 | Grooming cadence and timing | Determines whether a completed service is due later, due now, overdue, or needs recommendation review. | `domain::grooming::rebooking::Policy` and `Cadence` after source facts are promoted into domain values. | `domain/src/grooming/mod.rs`; generated Rustdoc `target/doc/domain/grooming/index.html` after docs build. |
 | Groomer/slot constraints and duration evidence | A rebook recommendation must not imply that a specific groomer or calendar slot is available. | `domain::grooming::calendar::Policy`, `DurationEstimate`, `ReviewRequirement`, and human/provider-calendar authority. | `domain/src/grooming/mod.rs`; `domain/src/grooming/README.md#operator-summary`. |
-| Contact permission, consent, allowed channels, suppression flags | Decides whether a customer-message draft may exist or whether the item is suppressed/manager-reviewed. | `crm_retention::ContactPermission` with `source::RecordRef`; DNC/consent decisions remain human/source-system governed. | `app/src/crm_retention.rs` `ContactPermission`, `FollowUpEligibility`; `app/tests/crm_retention_workflow_contracts.rs`. |
-| Source-grounded reason codes and provenance | Explains why the opportunity exists and lets staff audit wrong-source findings. | `crm_retention::OpportunityEvidence` using `source::Provenance`; provider state remains evidence until promoted. | `app/src/crm_retention.rs` `OpportunityEvidence`, `SourceGroundedReasonCode`; `domain/src/source.rs`. |
+| Contact permission, consent, allowed channels, suppression flags | Decides whether a customer-message draft may exist or whether the item is suppressed/manager-reviewed. Complaint/service-recovery, care/handling, DNC, and source-quality flags suppress the draft even when channel permission exists. | `crm_retention::ContactPermission` and `crm_retention::SuppressionFlag` with `source::RecordRef`; DNC/consent/suppression decisions remain human/source-system governed. | `app/src/crm_retention.rs` `ContactPermission`, `SuppressionFlag`, `DraftFollowUp`, `FollowUpEligibility`; `app/tests/crm_retention_workflow_contracts.rs`. |
+| Source-grounded opportunity reason and provenance | Explains why the opportunity exists and lets staff audit wrong-source findings. Grooming cadence uses `OpportunityReason::GroomingCadenceDue` with `domain::grooming::rebooking` status/rationale. | `crm_retention::RetentionOpportunity`, `OpportunityReason`, and `OpportunityEvidence` using `source::Provenance`; provider state remains evidence until promoted. | `app/src/crm_retention.rs` `RetentionOpportunity`, `OpportunityReason`, `OpportunityEvidence`, `SourceGroundedReasonCode`; `domain/src/source.rs`; `domain/src/grooming/mod.rs`. |
 
 Grooming provider or calendar state remains source evidence unless it is promoted into domain/app packets with a [source ref](../../glossary-architecture-terms.md#source-ref-domainsourcerecordref) and [provenance](../../glossary-architecture-terms.md#provenance-domainsourceprovenance). Raw provider catalog names, calendar notes, or model summaries do not become booking authority by themselves.
 
@@ -60,9 +60,9 @@ For broader navigation, open the [workflow-to-entity navigation map](../../desig
 
 | Layer | Contract | What it authorizes | What it does not authorize |
 | --- | --- | --- | --- |
-| `app` | `crm_retention::Request`, `Packet`, `RetentionOpportunity`, `OpportunityKind`, `OpportunityEvidence`, `SourceGroundedReasonCode` | Building a source-grounded retention review packet and classifying opportunities. | Live customer outreach, booking creation, provider/PMS mutation, payment/discount action. |
-| `app` | `crm_retention::ContactPermission`, `FollowUpEligibility`, `StaffReviewPacket` | Deciding whether a draft can be prepared for human review or must be suppressed/manager-reviewed. | Treating missing/opted-out/unavailable-channel evidence as permission to contact. |
-| `app` | `crm_retention::SafeAgentAction`, `BlockedAction`, `OutcomeRecord` | Summarizing evidence, creating internal review tasks, drafting follow-up for review when eligible, recording staff evidence/outcomes. | Sending messages, changing records, moving money, auto-applying discounts. |
+| `app` | `crm_retention::Request`, `Packet`, `RetentionOpportunity`, `OpportunityKind`, `OpportunityReason`, `OpportunityEvidence`, `SourceGroundedReasonCode` | Building a source-grounded retention review packet and classifying opportunities. | Live customer outreach, booking creation, provider/PMS mutation, payment/discount action. |
+| `app` | `crm_retention::ContactPermission`, `SuppressionFlag`, `FollowUpEligibility`, `DraftFollowUp`, `StaffReviewPacket` | Deciding whether a draft can be prepared for human review or must be suppressed/manager-reviewed. | Treating missing/opted-out/unavailable-channel/suppressed evidence as permission to contact. |
+| `app` | `crm_retention::SafeAgentAction`, `BlockedAction`, `OutcomeRecord`, `FollowUpOutcome` | Summarizing evidence, creating internal review tasks, drafting follow-up for review when eligible, recording staff evidence/outcomes. | Sending messages, creating/changing bookings, changing records, moving money, auto-applying discounts. |
 | `domain` | `grooming::Contract`, `DurationEstimate`, `ReviewRequirement`, `calendar`, `history`, `rebooking`, `reminder` | Grooming cadence, service-history, duration, calendar-review, and reminder-boundary vocabulary. | Assigning a live groomer/slot, sending reminders, charging/waiving deposits, or overriding care/medical review. |
 | `domain` | `message`, `source`, `policy`, `lead`, `reputation` | Message-state vocabulary, source refs/provenance, review gates, and optional signal context. | Replacing source-system consent, booking, payment, or complaint authority. |
 | `storage` | Current cited page has no dedicated grooming-retention storage projection. | App `OutcomeRecord` provides local outcome-capture vocabulary for staff disposition. | Durable production persistence claims unless a storage record/operation is added and cited. |
@@ -110,6 +110,7 @@ Blocked by default:
 - `crm_retention::BlockedAction::MutateProviderOrPmsRecord`.
 - `crm_retention::BlockedAction::MoveRefundDiscountOrPayment`.
 - `crm_retention::BlockedAction::AutoApplyDiscount`.
+- `crm_retention::BlockedAction::CreateOrChangeBooking`.
 - Any live grooming appointment creation, calendar movement, groomer assignment, or reminder send.
 - Any customer outreach where consent/contact permission lacks source evidence, consent is missing, the customer opted out, or the preferred channel is not allowed.
 
@@ -125,7 +126,7 @@ Measured labor value should be tied to staff disposition and [outcome capture](.
 
 - Estimated labor value: minutes avoided finding candidates, checking service/cadence/contact evidence, and writing first-pass follow-up copy.
 - Current app outcome record: `crm_retention::OutcomeRecord` records reservation id, customer id, staff actor, timestamp, `FollowUpOutcome`, source provenance, and opportunity evidence.
-- Supported dispositions/outcomes: booked next stay, interested/needs staff call, not interested, no response, or suppressed by staff.
+- Supported dispositions/outcomes: booked next stay, interested/needs staff call, not interested, no response, suppressed by staff, converted, deferred, suppressed with reason, or wrong-source.
 - Additional operator metrics: sent-by-human count, deferred count, suppressed count, wrong-source count, converted count, and optional revenue/fill-rate tracked separately.
 - Evidence gap: this page can cite the app outcome contract and tests. It should not claim production-verified NVA labor savings or a dedicated durable grooming-retention storage table until those exist.
 
@@ -141,8 +142,8 @@ Operator evidence and design:
 
 Source and test evidence:
 
-- [app/src/crm_retention.rs](../../../app/src/crm_retention.rs) for `Request`, `Packet`, `RetentionOpportunity`, `OpportunityKind::GroomingRebook`, `OpportunityEvidence`, `SourceGroundedReasonCode`, `ContactPermission`, `FollowUpEligibility`, `StaffReviewPacket`, `SafeAgentAction`, `BlockedAction`, `OutcomeRecord`, and `Workflow::evaluate`.
-- [app/tests/crm_retention_workflow_contracts.rs](../../../app/tests/crm_retention_workflow_contracts.rs) for executable coverage that eligible packets still require customer-message approval, missing/opted-out/unavailable contact evidence suppresses drafts, blocked actions include send/provider/payment mutations, and outcome capture records staff evidence only.
+- [app/src/crm_retention.rs](../../../app/src/crm_retention.rs) for `Request`, `Packet`, `RetentionOpportunity`, `OpportunityKind::GroomingRebook`, `OpportunityReason::GroomingCadenceDue`, `OpportunityEvidence`, `SourceGroundedReasonCode`, `ContactPermission`, `SuppressionFlag`, `DraftFollowUp`, `FollowUpEligibility`, `StaffReviewPacket`, `SafeAgentAction`, `BlockedAction`, `OutcomeRecord`, and `Workflow::evaluate`.
+- [app/tests/crm_retention_workflow_contracts.rs](../../../app/tests/crm_retention_workflow_contracts.rs) for executable coverage that eligible packets still require customer-message approval, suppression flags suppress drafts, missing/opted-out/unavailable contact evidence suppresses drafts, blocked actions include send/provider/payment/booking mutations, and outcome capture records converted/deferred/suppressed/wrong-source disposition without live provider mutation.
 - [domain/src/grooming/mod.rs](../../../domain/src/grooming/mod.rs) and [domain/src/grooming/README.md](../../../domain/src/grooming/README.md) for grooming services, cadence/rebooking, duration estimates, calendar policy, no-show/deposit review, reminder send boundaries, service history, and review requirements.
 - [domain/src/message.rs](../../../domain/src/message.rs) for message channel/state vocabulary.
 - [domain/src/source.rs](../../../domain/src/source.rs) for `RecordRef` and `Provenance` source evidence.

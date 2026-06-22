@@ -13,6 +13,17 @@ use serde::{Deserialize, Serialize};
 #[serde(transparent)]
 pub struct ContractRecord(pub domain::daycare::Contract);
 
+/// Storage shape for a reviewed daycare package/membership opportunity outcome.
+///
+/// The wrapped domain record preserves source refs, reviewer disposition, and
+/// before/actual labor minutes while the domain decision keeps package enrollment,
+/// billing, provider writes, and customer sends blocked until approved elsewhere.
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, derive_more::From, derive_more::Into,
+)]
+#[serde(transparent)]
+pub struct PackageOpportunityOutcomeRecord(pub domain::daycare::package_opportunity::OutcomeRecord);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 /// Storage-facing daycare format code used by service-offering records.
