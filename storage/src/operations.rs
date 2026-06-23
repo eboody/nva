@@ -62,6 +62,7 @@
 
 use bon::Builder;
 use serde::{Deserialize, Deserializer, Serialize};
+use std::collections::BTreeSet;
 
 use crate::service_line::{boarding, daycare, grooming, retail, training};
 use domain::operations::{pet_resort, service_core};
@@ -620,6 +621,107 @@ impl DataQualityHygieneOutcomeRecord {
             action_kind: self.action_kind,
             owner_persona: self.owner_persona,
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Reviewed data-quality hygiene outcome rollup for location/day/correlation reporting.
+///
+/// The summary keeps source refs and issue refs visible while aggregating reviewed
+/// labor evidence and dispositions. It is a reporting readout only; it does not
+/// authorize provider writes, customer sends, schedule changes, or payment movement.
+pub struct DataQualityHygieneOutcomeSummary {
+    /// Location whose reviewed hygiene outcomes are summarized.
+    pub location_id: String,
+    /// Business date whose reviewed hygiene outcomes are summarized.
+    pub operating_day: String,
+    /// Optional workflow correlation filter used to compare one run or request.
+    pub correlation_id: Option<String>,
+    /// Count of stored reviewed outcome records in scope.
+    pub reviewed_outcome_count: usize,
+    /// Completed outcomes that may support actual labor-savings evidence.
+    pub completed_count: usize,
+    /// Deferred outcomes kept visible but excluded from completed-savings proof.
+    pub deferred_count: usize,
+    /// Outcomes where source evidence was wrong and must not be hidden.
+    pub wrong_source_count: usize,
+    /// Outcomes reviewed as not actionable.
+    pub not_actionable_count: usize,
+    /// Outcomes suppressed by a manager or reviewer.
+    pub suppressed_by_manager_count: usize,
+    /// Sum of action-level estimated saved minutes in scope.
+    pub total_estimated_minutes_saved: u16,
+    /// Sum of actual reviewed minutes spent in scope.
+    pub total_actual_minutes_spent: u16,
+    /// Sum of actual saved minutes for completed outcomes only.
+    pub completed_actual_minutes_saved: u16,
+    /// Source-record evidence retained for audit and reconciliation.
+    pub source_refs: Vec<StoredSourceRecordRef>,
+    /// Data-quality issue identifiers retained for audit and reconciliation.
+    pub issue_refs: Vec<String>,
+}
+
+impl DataQualityHygieneOutcomeSummary {
+    /// Aggregates reviewed outcome records by location, operating day, and optional correlation.
+    pub fn from_records(
+        records: &[DataQualityHygieneOutcomeRecord],
+        location_id: &str,
+        operating_day: &str,
+        correlation_id: Option<&str>,
+    ) -> Self {
+        let mut summary = Self {
+            location_id: location_id.to_owned(),
+            operating_day: operating_day.to_owned(),
+            correlation_id: correlation_id.map(str::to_owned),
+            reviewed_outcome_count: 0,
+            completed_count: 0,
+            deferred_count: 0,
+            wrong_source_count: 0,
+            not_actionable_count: 0,
+            suppressed_by_manager_count: 0,
+            total_estimated_minutes_saved: 0,
+            total_actual_minutes_spent: 0,
+            completed_actual_minutes_saved: 0,
+            source_refs: Vec::new(),
+            issue_refs: Vec::new(),
+        };
+        let mut issue_refs = BTreeSet::new();
+
+        for record in records.iter().filter(|record| {
+            record.location_id == location_id
+                && record.operating_day == operating_day
+                && correlation_id
+                    .is_none_or(|correlation_id| record.correlation_id == correlation_id)
+        }) {
+            summary.reviewed_outcome_count += 1;
+            match record.outcome {
+                DataQualityHygieneOutcomeCode::Completed => {
+                    summary.completed_count += 1;
+                    summary.completed_actual_minutes_saved = summary
+                        .completed_actual_minutes_saved
+                        .saturating_add(record.actual_minutes_saved());
+                }
+                DataQualityHygieneOutcomeCode::Deferred => summary.deferred_count += 1,
+                DataQualityHygieneOutcomeCode::SuppressedByManager => {
+                    summary.suppressed_by_manager_count += 1;
+                }
+                DataQualityHygieneOutcomeCode::SourceFactWasWrong => {
+                    summary.wrong_source_count += 1;
+                }
+                DataQualityHygieneOutcomeCode::NotActionable => summary.not_actionable_count += 1,
+            }
+            summary.total_estimated_minutes_saved = summary
+                .total_estimated_minutes_saved
+                .saturating_add(record.estimated_minutes_saved);
+            summary.total_actual_minutes_spent = summary
+                .total_actual_minutes_spent
+                .saturating_add(record.actual_minutes.get());
+            summary.source_refs.extend(record.source_refs.clone());
+            issue_refs.extend(record.issue_refs.iter().cloned());
+        }
+
+        summary.issue_refs = issue_refs.into_iter().collect();
+        summary
     }
 }
 

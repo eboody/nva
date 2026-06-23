@@ -4,6 +4,62 @@ use pet_resort_api::http;
 use serde_json::json;
 use tower::ServiceExt;
 
+async fn get_json_with_state(
+    state: http::VaccineDocumentState,
+    uri: &str,
+) -> (axum_http::StatusCode, serde_json::Value) {
+    let response = http::router_with_state(state)
+        .oneshot(
+            axum_http::request::Builder::new()
+                .method(axum_http::Method::GET)
+                .uri(uri)
+                .body(Body::empty())
+                .expect("request builds"),
+        )
+        .await
+        .expect("stateful data-quality hygiene summary request succeeds");
+
+    let status = response.status();
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("body collects")
+        .to_bytes();
+    let payload = serde_json::from_slice(&body).expect("json summary payload");
+
+    (status, payload)
+}
+
+async fn post_json_with_state(
+    state: http::VaccineDocumentState,
+    uri: &str,
+    body: serde_json::Value,
+) -> (axum_http::StatusCode, serde_json::Value) {
+    let response = http::router_with_state(state)
+        .oneshot(
+            axum_http::request::Builder::new()
+                .method(axum_http::Method::POST)
+                .uri(uri)
+                .header(axum_http::header::CONTENT_TYPE, "application/json")
+                .body(Body::from(body.to_string()))
+                .expect("request builds"),
+        )
+        .await
+        .expect("stateful data-quality hygiene post request succeeds");
+
+    let status = response.status();
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("body collects")
+        .to_bytes();
+    let payload = serde_json::from_slice(&body).expect("json response payload");
+
+    (status, payload)
+}
+
 async fn get_json(uri: &str) -> (axum_http::StatusCode, serde_json::Value) {
     let response = http::router()
         .oneshot(
@@ -287,4 +343,95 @@ async fn data_quality_hygiene_outcome_capture_rejects_missing_source_or_issue_re
         json!(["missing_data_quality_issue_refs"])
     );
     assert_eq!(payload["live_side_effects_allowed"], false);
+}
+
+#[tokio::test]
+async fn data_quality_hygiene_outcome_summary_reports_reviewed_minutes_and_provenance() {
+    let state = http::VaccineDocumentState::default();
+    let context = data_quality_context().await;
+    let action = &context["hygiene_actions"][0];
+    let action_id = action["id"].as_str().unwrap();
+    let body = json!({
+        "outcome": "completed",
+        "actual_minutes": 9,
+        "actor": {
+            "id": "front-desk-lead-17",
+            "persona": "front_desk_lead"
+        },
+        "feedback": "Prepared source-grounded cleanup task for manager review without touching Gingr.",
+        "source_refs": action["source_refs"],
+        "issue_refs": action["issue_refs"],
+        "resolution_status_after_review": "acknowledged",
+        "timestamp": "2026-06-17T13:15:00Z",
+        "audit": {
+            "correlation_id": context["audit"]["correlation_id"]
+        },
+        "requested_side_effects": []
+    });
+
+    let (status, capture_payload) = post_json_with_state(
+        state.clone(),
+        &format!("/data-quality-hygiene/actions/{action_id}/outcome"),
+        body,
+    )
+    .await;
+    assert_eq!(status, axum_http::StatusCode::CREATED);
+    let grouping = &capture_payload["labor_savings_evidence"]["grouping"];
+    let correlation_id = capture_payload["outcome_record"]["audit"]["correlation_id"]
+        .as_str()
+        .unwrap();
+    let summary_uri = format!(
+        "/data-quality-hygiene/outcomes/summary?location_id={}&operating_day={}&correlation_id={}",
+        grouping["location_id"].as_str().unwrap(),
+        grouping["operating_day"].as_str().unwrap(),
+        correlation_id
+    );
+
+    let (status, payload) = get_json_with_state(state, &summary_uri).await;
+
+    assert_eq!(status, axum_http::StatusCode::OK);
+    assert_eq!(payload["summary"]["reviewed_outcome_count"], 1);
+    assert_eq!(payload["summary"]["completed_count"], 1);
+    assert_eq!(payload["summary"]["deferred_count"], 0);
+    assert_eq!(payload["summary"]["wrong_source_count"], 0);
+    assert_eq!(payload["summary"]["not_actionable_count"], 0);
+    assert_eq!(
+        payload["summary"]["total_estimated_minutes_saved"],
+        action["labor_impact"]["estimated_minutes_saved"]
+    );
+    assert_eq!(payload["summary"]["total_actual_minutes_spent"], 9);
+    assert!(
+        payload["summary"]["completed_actual_minutes_saved"]
+            .as_u64()
+            .unwrap()
+            > 0
+    );
+    assert_eq!(
+        payload["summary"]["source_refs"][0]["system"],
+        action["source_refs"][0]["system"]
+    );
+    assert_eq!(
+        payload["summary"]["source_refs"][0]["record_id"],
+        action["source_refs"][0]["record_id"]
+    );
+    assert_eq!(payload["summary"]["issue_refs"], action["issue_refs"]);
+    assert_eq!(payload["live_side_effects_allowed"], false);
+    assert!(
+        payload["blocked_actions"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("mutate_provider_or_pms_record"))
+    );
+    assert!(
+        payload["blocked_actions"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("move_refund_discount_or_payment"))
+    );
+    assert!(
+        payload["blocked_actions"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("change_staff_schedule"))
+    );
 }

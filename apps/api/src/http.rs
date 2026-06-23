@@ -325,6 +325,10 @@ pub fn router_with_state(state: VaccineDocumentState) -> Router {
             "/data-quality-hygiene/actions/{action_id}/outcome",
             post(capture_data_quality_hygiene_action_outcome),
         )
+        .route(
+            "/data-quality-hygiene/outcomes/summary",
+            get(data_quality_hygiene_outcome_summary),
+        )
         .route("/vaccine-documents/uploads", post(upload_vaccine_document))
         .route(
             "/vaccine-documents/review-packets/{review_packet_id}/approve",
@@ -489,6 +493,13 @@ struct DataQualityHygieneOutcomeActorRequest {
 #[derive(Debug, Deserialize)]
 struct DataQualityHygieneOutcomeAuditRequest {
     correlation_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct DataQualityHygieneOutcomeSummaryQuery {
+    location_id: Uuid,
+    operating_day: NaiveDate,
+    correlation_id: Option<String>,
 }
 
 async fn capture_manager_daily_brief_action_outcome(
@@ -949,6 +960,34 @@ async fn capture_data_quality_hygiene_action_outcome(
             }
         })),
     )
+}
+
+async fn data_quality_hygiene_outcome_summary(
+    State(state): State<VaccineDocumentState>,
+    Query(query): Query<DataQualityHygieneOutcomeSummaryQuery>,
+) -> Json<Value> {
+    let location_id = query.location_id.to_string();
+    let operating_day = query.operating_day.to_string();
+    let records = {
+        let store = state.store.lock().await;
+        store.data_quality_hygiene_outcomes.clone()
+    };
+    let summary = storage::operations::DataQualityHygieneOutcomeSummary::from_records(
+        &records,
+        &location_id,
+        &operating_day,
+        query.correlation_id.as_deref(),
+    );
+
+    Json(json!({
+        "summary": summary,
+        "live_side_effects_allowed": false,
+        "blocked_actions": data_quality_hygiene_blocked_action_codes(),
+        "audit": {
+            "event": "data_quality_hygiene_outcome_summary_reported",
+            "policy_owner": "deterministic_app"
+        }
+    }))
 }
 
 fn validate_manager_daily_brief_submitted_action(
