@@ -108,6 +108,25 @@ pub struct ProcessingContract {
     outbox_status: OutboxProcessingStatus,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+/// Auditable worker proof for one reviewed Data-Quality Hygiene storage projection.
+///
+/// This proof is deliberately local/fake. It lets the demo narrate a worker seeing
+/// a reviewed outcome and internal outbox candidate, while the worker posture still
+/// blocks customer messages, provider/PMS writes, and payment movement.
+pub struct DataQualityHygieneWorkerProof {
+    workflow_event_ref: String,
+    workflow_name: String,
+    required_review_gate: ReviewGate,
+    agent_runtime_mode: AgentRuntimeMode,
+    side_effect_mode: SideEffectMode,
+    outbox_status: OutboxProcessingStatus,
+    outbox_candidate_id: Option<String>,
+    outbox_topic: Option<String>,
+    has_reviewed_outcome: bool,
+    audit_event_count: usize,
+}
+
 impl ProcessingContract {
     fn review_gated_stub(config: Config, claim: &ClaimedWorkflowRecord) -> Self {
         Self {
@@ -151,6 +170,140 @@ impl ProcessingContract {
     }
 
     /// True when the plan cannot cross an external boundary without human review.
+    pub fn requires_human_review_before_external_delivery(&self) -> bool {
+        self.outbox_status == OutboxProcessingStatus::ReviewGatedStub
+    }
+
+    /// True when customer-facing sends remain unavailable to this worker runtime.
+    pub fn blocks_live_customer_messages(&self) -> bool {
+        self.side_effect_mode == SideEffectMode::Stubbed
+    }
+
+    /// True when provider/PMS writes remain unavailable to this worker runtime.
+    pub fn blocks_live_provider_writes(&self) -> bool {
+        self.side_effect_mode == SideEffectMode::Stubbed
+    }
+
+    /// True when payment/deposit/refund movement remains unavailable to this worker runtime.
+    pub fn blocks_live_payment_actions(&self) -> bool {
+        self.side_effect_mode == SideEffectMode::Stubbed
+    }
+}
+
+impl DataQualityHygieneWorkerProof {
+    fn from_projection(
+        config: Config,
+        records: &storage::operations::DataQualityHygieneLocalPersistenceRecords,
+    ) -> Self {
+        Self {
+            workflow_event_ref: records.workflow_event.id.clone(),
+            workflow_name: records.workflow_event.workflow_name.clone(),
+            required_review_gate: ReviewGate::ManagerApproval,
+            agent_runtime_mode: config.agent_runtime_mode,
+            side_effect_mode: config.side_effect_mode,
+            outbox_status: OutboxProcessingStatus::ReviewGatedStub,
+            outbox_candidate_id: records
+                .outbox_candidate
+                .as_ref()
+                .map(|candidate| candidate.id.clone()),
+            outbox_topic: records
+                .outbox_candidate
+                .as_ref()
+                .map(|candidate| candidate.topic.clone()),
+            has_reviewed_outcome: Self::has_reviewed_internal_handoff(records),
+            audit_event_count: records.audit_events.len(),
+        }
+    }
+
+    fn has_reviewed_internal_handoff(
+        records: &storage::operations::DataQualityHygieneLocalPersistenceRecords,
+    ) -> bool {
+        use storage::operations::{
+            OutboxStatusCode, ReviewGateCode, ReviewPacketStatusCode, WorkflowResultStatusCode,
+        };
+
+        let Some(candidate) = records.outbox_candidate.as_ref() else {
+            return false;
+        };
+
+        records.workflow_result.status == WorkflowResultStatusCode::Succeeded
+            && records.review_packet.status == ReviewPacketStatusCode::Approved
+            && records.review_packet.gate == ReviewGateCode::ManagerApproval
+            && records.approval_record.status == "approved"
+            && records.approval_record.gate == ReviewGateCode::ManagerApproval
+            && candidate.review_gate == ReviewGateCode::ManagerApproval
+            && candidate.status == OutboxStatusCode::Pending
+            && candidate.topic == "internal.data_quality_hygiene.reviewed_handoff"
+            && candidate
+                .payload
+                .get("internal_handoff_only")
+                .and_then(serde_json::Value::as_bool)
+                == Some(true)
+            && candidate
+                .payload
+                .get("live_delivery_allowed")
+                .and_then(serde_json::Value::as_bool)
+                == Some(false)
+    }
+
+    /// Returns the durable workflow event reference processed by the fake worker proof.
+    pub fn workflow_event_ref(&self) -> &str {
+        &self.workflow_event_ref
+    }
+
+    /// Returns the semantic workflow name processed by the fake worker proof.
+    pub fn workflow_name(&self) -> &str {
+        &self.workflow_name
+    }
+
+    /// Returns the review gate that still blocks external delivery.
+    pub fn required_review_gate(&self) -> ReviewGate {
+        self.required_review_gate
+    }
+
+    /// Returns the configured agent runtime posture for the fake/disabled worker.
+    pub fn agent_runtime_mode(&self) -> AgentRuntimeMode {
+        self.agent_runtime_mode
+    }
+
+    /// Returns the configured side-effect posture for the fake/disabled worker.
+    pub fn side_effect_mode(&self) -> SideEffectMode {
+        self.side_effect_mode
+    }
+
+    /// Returns the worker-visible outbox status for the reviewed handoff candidate.
+    pub fn outbox_status(&self) -> OutboxProcessingStatus {
+        self.outbox_status
+    }
+
+    /// Returns the local outbox candidate id, if the reviewed outcome produced one.
+    pub fn outbox_candidate_id(&self) -> Option<&str> {
+        self.outbox_candidate_id.as_deref()
+    }
+
+    /// Returns the local internal handoff topic, if the reviewed outcome produced one.
+    pub fn outbox_topic(&self) -> Option<&str> {
+        self.outbox_topic.as_deref()
+    }
+
+    /// True when storage evidence says the local outcome reached reviewed/approved posture.
+    pub fn has_reviewed_outcome(&self) -> bool {
+        self.has_reviewed_outcome
+    }
+
+    /// Returns the count of audit events available to narrate the fake worker handoff.
+    pub fn audit_event_count(&self) -> usize {
+        self.audit_event_count
+    }
+
+    /// True when the proof is intentionally local/fake and cannot publish externally.
+    pub fn is_fake_local_only(&self) -> bool {
+        self.agent_runtime_mode == AgentRuntimeMode::Disabled
+            && self.side_effect_mode == SideEffectMode::Stubbed
+            && self.outbox_status == OutboxProcessingStatus::ReviewGatedStub
+    }
+
+    /// True when the proof cannot cross an external boundary without human review.
     pub fn requires_human_review_before_external_delivery(&self) -> bool {
         self.outbox_status == OutboxProcessingStatus::ReviewGatedStub
     }
@@ -226,5 +379,17 @@ impl Config {
     /// makes the record observable and review-routable, not externally executable.
     pub fn processing_contract_for(&self, claim: &ClaimedWorkflowRecord) -> ProcessingContract {
         ProcessingContract::review_gated_stub(*self, claim)
+    }
+
+    /// Processes a reviewed Data-Quality Hygiene storage projection into fake local worker proof.
+    ///
+    /// The worker only reflects the reviewed outcome and approved internal handoff candidate;
+    /// it does not publish the outbox row or cross customer, provider, payment, or schedule
+    /// boundaries. Retry/dead-letter leasing is not implemented in this local proof yet.
+    pub fn process_data_quality_hygiene_projection(
+        &self,
+        records: &storage::operations::DataQualityHygieneLocalPersistenceRecords,
+    ) -> DataQualityHygieneWorkerProof {
+        DataQualityHygieneWorkerProof::from_projection(*self, records)
     }
 }

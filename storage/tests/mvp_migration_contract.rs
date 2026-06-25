@@ -141,6 +141,26 @@ fn mvp_migration_persists_owned_outcome_and_labor_projections() {
 }
 
 #[test]
+fn mvp_migration_supports_data_quality_hygiene_reviewed_internal_handoff_slice() {
+    for invariant in [
+        "workflow_name text NOT NULL CHECK (length(trim(workflow_name)) > 0)",
+        "event_kind text NOT NULL CHECK (length(trim(event_kind)) > 0)",
+        "idempotency_key text NOT NULL UNIQUE",
+        "workflow_event_id uuid REFERENCES workflow_events(id)",
+        "issue_refs jsonb NOT NULL DEFAULT '[]'::jsonb",
+        "resolution_status_after_review text NOT NULL CHECK (resolution_status_after_review IN",
+        "correlation_id text NOT NULL CHECK (length(trim(correlation_id)) > 0)",
+        "status text NOT NULL CHECK (status IN ('pending', 'claimed', 'published', 'failed', 'dead_letter'))",
+        "outbox_records require a matching approved approval_record",
+    ] {
+        assert!(
+            MVP_MIGRATION.contains(invariant),
+            "migration must support reviewed data-quality handoff invariant: {invariant}"
+        );
+    }
+}
+
+#[test]
 fn mvp_migration_declares_deferred_database_surfaces_without_pretending_live_access() {
     for deferred_surface in [
         "auth/session/role/location authorization",

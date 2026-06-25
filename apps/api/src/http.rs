@@ -58,6 +58,8 @@ struct VaccineDocumentStore {
     eligibility: BTreeMap<Uuid, PetEligibility>,
     manager_daily_brief_outcomes: Vec<storage::operations::ManagerDailyBriefOutcomeRecord>,
     data_quality_hygiene_outcomes: Vec<storage::operations::DataQualityHygieneOutcomeRecord>,
+    data_quality_hygiene_persistence_records:
+        Vec<storage::operations::DataQualityHygieneLocalPersistenceRecords>,
     inquiry_intake_records: Vec<InquiryIntakeRecord>,
     audit_events: Vec<AuditEvent>,
 }
@@ -90,6 +92,10 @@ trait WorkflowRepository {
     fn data_quality_hygiene_outcome_records(
         &self,
     ) -> Vec<storage::operations::DataQualityHygieneOutcomeRecord>;
+    fn record_data_quality_hygiene_persistence_records(
+        &mut self,
+        records: storage::operations::DataQualityHygieneLocalPersistenceRecords,
+    ) -> usize;
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -98,6 +104,8 @@ struct WorkflowRepositoryCounters {
     review_packet_count: usize,
     audit_event_count: usize,
     outcome_count: usize,
+    data_quality_hygiene_outbox_candidate_count: usize,
+    data_quality_hygiene_review_gated_outbox_count: usize,
 }
 
 impl WorkflowRepository for VaccineDocumentStore {
@@ -108,6 +116,25 @@ impl WorkflowRepository for VaccineDocumentStore {
             audit_event_count: self.audit_events.len(),
             outcome_count: self.manager_daily_brief_outcomes.len()
                 + self.data_quality_hygiene_outcomes.len(),
+            data_quality_hygiene_outbox_candidate_count: self
+                .data_quality_hygiene_persistence_records
+                .iter()
+                .filter(|records| records.outbox_candidate.is_some())
+                .count(),
+            data_quality_hygiene_review_gated_outbox_count: self
+                .data_quality_hygiene_persistence_records
+                .iter()
+                .filter(|records| {
+                    records.outbox_candidate.as_ref().is_some_and(|candidate| {
+                        candidate.status == storage::operations::OutboxStatusCode::Pending
+                            && candidate
+                                .payload
+                                .get("live_delivery_allowed")
+                                .and_then(Value::as_bool)
+                                == Some(false)
+                    })
+                })
+                .count(),
         }
     }
 
@@ -152,6 +179,14 @@ impl WorkflowRepository for VaccineDocumentStore {
     ) -> Vec<storage::operations::DataQualityHygieneOutcomeRecord> {
         self.data_quality_hygiene_outcomes.clone()
     }
+
+    fn record_data_quality_hygiene_persistence_records(
+        &mut self,
+        records: storage::operations::DataQualityHygieneLocalPersistenceRecords,
+    ) -> usize {
+        self.data_quality_hygiene_persistence_records.push(records);
+        self.data_quality_hygiene_persistence_records.len()
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -170,8 +205,17 @@ struct ReadinessPayload {
     object_storage: &'static str,
     agent_runtime: &'static str,
     workflow_repository: WorkflowRepositoryReadinessPayload,
+    observability: ObservabilityReadinessPayload,
     live_customer_messaging: &'static str,
     live_provider_writes: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+struct ObservabilityReadinessPayload {
+    request_correlation: &'static str,
+    workflow_correlation: &'static str,
+    metrics_scope: &'static str,
+    production_gap: &'static str,
 }
 
 #[derive(Debug, Serialize)]
@@ -225,6 +269,9 @@ struct LocalRuntimeCountersPayload {
     review_packet_count: usize,
     audit_event_count: usize,
     outcome_count: usize,
+    data_quality_hygiene_outbox_candidate_count: usize,
+    data_quality_hygiene_review_gated_outbox_count: usize,
+    production_queue_adapter: &'static str,
 }
 
 #[derive(Debug, Serialize)]
@@ -649,6 +696,12 @@ async fn readyz() -> Json<ReadinessPayload> {
         object_storage: "not_configured",
         agent_runtime: "fake_deterministic",
         workflow_repository: workflow_repository_readiness_payload(),
+        observability: ObservabilityReadinessPayload {
+            request_correlation: "x_request_id_response_header_and_workflow_payload_field",
+            workflow_correlation: "local_workflow_correlation_ids_only",
+            metrics_scope: "aggregate_local_counters_and_labor_rollups",
+            production_gap: "no_durable_traces_queue_dashboard_or_alerting",
+        },
         live_customer_messaging: "disabled",
         live_provider_writes: "disabled",
     })
@@ -675,6 +728,11 @@ async fn ops_metrics_summary(
             review_packet_count: counters.review_packet_count,
             audit_event_count: counters.audit_event_count,
             outcome_count: counters.outcome_count,
+            data_quality_hygiene_outbox_candidate_count: counters
+                .data_quality_hygiene_outbox_candidate_count,
+            data_quality_hygiene_review_gated_outbox_count: counters
+                .data_quality_hygiene_review_gated_outbox_count,
+            production_queue_adapter: "not_configured",
         },
         safety: MetricsSafetyPayload {
             granularity: "aggregate_only",
@@ -1302,9 +1360,23 @@ async fn capture_data_quality_hygiene_action_outcome(
         .estimated_minutes_saved(action.labor_impact().minutes_saved())
         .build();
     let reporting_group = record.reporting_group();
-    let persisted_outcome_count = {
+    let local_persistence_records =
+        storage::operations::DataQualityHygieneLocalPersistenceRecords::from_reviewed_outcome(
+            data_quality_hygiene_lineage_ids(&record),
+            record.clone(),
+        );
+    let storage_projection_proof =
+        data_quality_hygiene_storage_projection_proof(&local_persistence_records);
+    let observability = data_quality_hygiene_outcome_observability_payload(
+        &record.correlation_id,
+        &local_persistence_records,
+    );
+    let (persisted_outcome_count, persisted_projection_count) = {
         let mut store = state.store.lock().await;
-        store.record_data_quality_hygiene_outcome(record.clone())
+        let persisted_outcome_count = store.record_data_quality_hygiene_outcome(record.clone());
+        let persisted_projection_count =
+            store.record_data_quality_hygiene_persistence_records(local_persistence_records);
+        (persisted_outcome_count, persisted_projection_count)
     };
 
     (
@@ -1340,8 +1412,12 @@ async fn capture_data_quality_hygiene_action_outcome(
                     "action_kind": reporting_group.action_kind,
                     "owner_persona": reporting_group.owner_persona
                 },
-                "persisted_outcome_count": persisted_outcome_count
+                "persisted_outcome_count": persisted_outcome_count,
+                "persisted_projection_count": persisted_projection_count
             },
+            "local_demo_readiness": data_quality_hygiene_local_demo_readiness_payload(),
+            "storage_projection_proof": storage_projection_proof,
+            "observability": observability,
             "live_side_effects_allowed": false,
             "blocked_actions": data_quality_hygiene_blocked_action_codes(),
             "audit": {
@@ -1379,6 +1455,90 @@ async fn data_quality_hygiene_outcome_summary(
             "policy_owner": "deterministic_app"
         }
     }))
+}
+
+fn data_quality_hygiene_lineage_ids(
+    record: &storage::operations::DataQualityHygieneOutcomeRecord,
+) -> storage::operations::DataQualityHygieneLineageIds {
+    let lineage_key = data_quality_hygiene_lineage_key(record);
+    storage::operations::DataQualityHygieneLineageIds::builder()
+        .workflow_event_id(format!("dqh-workflow-event:{lineage_key}"))
+        .review_packet_id(format!("dqh-review-packet:{lineage_key}"))
+        .approval_record_id(format!("dqh-approval:{lineage_key}"))
+        .outbox_record_id(format!("dqh-outbox:{lineage_key}"))
+        .subject_id(record.location_id.clone())
+        .idempotency_key(format!("dqh:{lineage_key}"))
+        .recorded_at(record.recorded_at.clone())
+        .build()
+}
+
+fn data_quality_hygiene_lineage_key(
+    record: &storage::operations::DataQualityHygieneOutcomeRecord,
+) -> String {
+    format!(
+        "{}:{}:{}",
+        record.location_id, record.operating_day, record.action_id
+    )
+    .chars()
+    .map(|character| match character {
+        'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' => character,
+        _ => '-',
+    })
+    .collect()
+}
+
+fn data_quality_hygiene_local_demo_readiness_payload() -> Value {
+    json!({
+        "mode": "local_demo_only",
+        "workflow_repository": "in_memory_typed_storage_projection",
+        "database": "not_configured",
+        "provider_access": "fixture_source_refs_only",
+        "live_provider_writes": "disabled",
+        "live_customer_sends": "disabled",
+        "payments": "disabled"
+    })
+}
+
+fn data_quality_hygiene_outcome_observability_payload(
+    correlation_id: &str,
+    records: &storage::operations::DataQualityHygieneLocalPersistenceRecords,
+) -> Value {
+    json!({
+        "correlation_id": correlation_id,
+        "workflow_event_id": records.workflow_event.id,
+        "review_packet_id": records.review_packet.id,
+        "outbox_candidate_id": records.outbox_candidate.as_ref().map(|candidate| candidate.id.as_str()),
+        "what_happened": "reviewed_outcome_recorded_and_internal_outbox_candidate_created",
+        "what_was_blocked": ["provider_writes", "customer_sends", "payments", "schedule_changes"],
+        "production_next_step": "durable_worker_leasing_retry_dead_letter_metrics_and_approved_adapter_execution",
+        "observability_scope": "single_local_workflow_response_only"
+    })
+}
+
+fn data_quality_hygiene_storage_projection_proof(
+    records: &storage::operations::DataQualityHygieneLocalPersistenceRecords,
+) -> Value {
+    let outbox_candidate = records.outbox_candidate.as_ref().map(|candidate| {
+        json!({
+            "id": candidate.id,
+            "topic": candidate.topic,
+            "status": candidate.status,
+            "review_gate": candidate.review_gate,
+            "internal_handoff_only": candidate.payload["internal_handoff_only"].as_bool().unwrap_or(false),
+            "live_delivery_allowed": candidate.payload["live_delivery_allowed"].as_bool().unwrap_or(false)
+        })
+    });
+
+    json!({
+        "workflow_event_id": records.workflow_event.id,
+        "workflow_result_status": records.workflow_result.status,
+        "review_packet_id": records.review_packet.id,
+        "review_gate": records.review_packet.gate,
+        "approval_record_id": records.approval_record.id,
+        "audit_event_count": records.audit_events.len(),
+        "outbox_candidate": outbox_candidate,
+        "live_side_effects_allowed": false
+    })
 }
 
 fn validate_manager_daily_brief_submitted_action(

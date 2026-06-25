@@ -62,6 +62,7 @@
 
 use bon::Builder;
 use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::json;
 use std::collections::BTreeSet;
 
 use crate::service_line::{boarding, daycare, grooming, retail, training};
@@ -722,6 +723,439 @@ impl DataQualityHygieneOutcomeSummary {
 
         summary.issue_refs = issue_refs.into_iter().collect();
         summary
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+/// Caller-supplied identifiers used to project one reviewed Data-Quality Hygiene outcome into durable local-demo rows.
+pub struct DataQualityHygieneLineageIds {
+    /// Durable workflow event id supplied by the repository adapter before insert.
+    pub workflow_event_id: String,
+    /// Durable review packet id supplied by the repository adapter before insert.
+    pub review_packet_id: String,
+    /// Durable approval record id supplied by the repository adapter before insert.
+    pub approval_record_id: String,
+    /// Durable outbox record id supplied by the repository adapter before insert.
+    pub outbox_record_id: String,
+    /// Location or other subject id used by the local-demo workflow event row.
+    pub subject_id: String,
+    /// Idempotency key used by the workflow event row and derived outbox candidate.
+    pub idempotency_key: String,
+    /// Stable timestamp copied into row projections for deterministic tests and replay.
+    pub recorded_at: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, strum::Display)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
+/// Actor kinds accepted by MVP workflow, approval, audit, and outbox tables.
+pub enum ActorKindCode {
+    /// Customer actor persisted at the storage boundary.
+    Customer,
+    /// Staff actor persisted at the storage boundary.
+    Staff,
+    /// Manager actor persisted at the storage boundary.
+    Manager,
+    /// System actor persisted at the storage boundary.
+    System,
+    /// Agent actor persisted at the storage boundary.
+    Agent,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, strum::Display)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
+/// Review gates accepted by the MVP review/approval/outbox migration.
+pub enum ReviewGateCode {
+    /// Manager approval gate for internal handoff and data-quality review.
+    ManagerApproval,
+    /// Medical document review gate.
+    MedicalDocumentReview,
+    /// Behavior review gate.
+    BehaviorReview,
+    /// Customer message approval gate.
+    CustomerMessageApproval,
+    /// Refund or deposit exception gate.
+    RefundOrDepositException,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, strum::Display)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
+/// Review packet statuses accepted by the MVP review packet table.
+pub enum ReviewPacketStatusCode {
+    /// Draft packet not yet ready for review.
+    Draft,
+    /// Packet prepared for review.
+    ReadyForReview,
+    /// Packet under review.
+    InReview,
+    /// Packet approved by the appropriate review gate.
+    Approved,
+    /// Packet rejected by review.
+    Rejected,
+    /// Packet cancelled before completion.
+    Cancelled,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, strum::Display)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
+/// Workflow result statuses accepted by the MVP workflow results table.
+pub enum WorkflowResultStatusCode {
+    /// Workflow completed locally without enabling live side effects.
+    Succeeded,
+    /// Workflow failed before reviewable output.
+    Failed,
+    /// Workflow produced reviewable output that still needs review.
+    NeedsReview,
+    /// Workflow was deferred.
+    Deferred,
+    /// Workflow was cancelled.
+    Cancelled,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, strum::Display)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
+/// Outbox statuses accepted by the MVP outbox table.
+pub enum OutboxStatusCode {
+    /// Candidate is available for local/internal review processing only.
+    Pending,
+    /// Candidate was claimed by a worker.
+    Claimed,
+    /// Candidate was published by a future approved adapter.
+    Published,
+    /// Candidate failed but may retry.
+    Failed,
+    /// Candidate failed permanently.
+    DeadLetter,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Storage-shaped workflow event row for the local Data-Quality Hygiene demo slice.
+pub struct WorkflowEventRecord {
+    /// Workflow event primary key.
+    pub id: String,
+    /// Semantic workflow name persisted in `workflow_events.workflow_name`.
+    pub workflow_name: String,
+    /// Event kind persisted in `workflow_events.event_kind`.
+    pub event_kind: String,
+    /// Subject family persisted in `workflow_events.subject_kind`.
+    pub subject_kind: String,
+    /// Subject id persisted in `workflow_events.subject_id`.
+    pub subject_id: String,
+    /// Idempotency key persisted in `workflow_events.idempotency_key`.
+    pub idempotency_key: String,
+    /// JSON payload for source refs, issue refs, correlation evidence, and safety posture.
+    pub payload: serde_json::Value,
+    /// Event occurrence timestamp.
+    pub occurred_at: String,
+    /// Storage record timestamp.
+    pub recorded_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Storage-shaped workflow result row for reviewable fake/deterministic output.
+pub struct WorkflowResultRecord {
+    /// Workflow result primary key or derived local identifier.
+    pub id: String,
+    /// Parent workflow event id.
+    pub workflow_event_id: String,
+    /// Result status accepted by `workflow_results.status`.
+    pub status: WorkflowResultStatusCode,
+    /// Reviewable result payload; never execution proof for live side effects.
+    pub result: serde_json::Value,
+    /// Optional local error code for failed results.
+    pub error_code: Option<String>,
+    /// Result creation timestamp.
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Storage-shaped review packet row for the manager/front-desk review gate.
+pub struct ReviewPacketRecord {
+    /// Review packet primary key.
+    pub id: String,
+    /// Subject family persisted for review.
+    pub subject_kind: String,
+    /// Subject id persisted for review.
+    pub subject_id: String,
+    /// Review gate required before handoff.
+    pub gate: ReviewGateCode,
+    /// Review packet status.
+    pub status: ReviewPacketStatusCode,
+    /// Linked workflow event id.
+    pub workflow_event_id: String,
+    /// Actor kind that prepared the packet.
+    pub created_by_actor_kind: ActorKindCode,
+    /// Actor id that prepared the packet.
+    pub created_by_actor_id: String,
+    /// Creation timestamp.
+    pub created_at: String,
+    /// Update timestamp.
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Storage-shaped approval row for a reviewed local handoff candidate.
+pub struct ApprovalRecordRow {
+    /// Approval primary key.
+    pub id: String,
+    /// Target aggregate kind matching the outbox candidate.
+    pub target_kind: String,
+    /// Target aggregate id matching the outbox candidate.
+    pub target_id: String,
+    /// Review gate used for the decision.
+    pub gate: ReviewGateCode,
+    /// Approval status string accepted by the migration.
+    pub status: String,
+    /// Actor kind that requested approval.
+    pub requested_by_actor_kind: ActorKindCode,
+    /// Actor id that requested approval.
+    pub requested_by_actor_id: String,
+    /// Request timestamp.
+    pub requested_at: String,
+    /// Actor kind that decided approval, present only for approved/rejected rows.
+    pub decided_by_actor_kind: Option<ActorKindCode>,
+    /// Actor id that decided approval, present only for approved/rejected rows.
+    pub decided_by_actor_id: Option<String>,
+    /// Decision timestamp, present only for approved/rejected rows.
+    pub decided_at: Option<String>,
+    /// Linked review packet id.
+    pub review_packet_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Storage-shaped Data-Quality Hygiene outcome row with workflow and approval foreign keys.
+pub struct DataQualityHygieneOutcomeRow {
+    /// Parent workflow event id.
+    pub workflow_event_id: String,
+    /// Parent approval record id.
+    pub approval_record_id: String,
+    /// Typed storage outcome payload.
+    pub record: DataQualityHygieneOutcomeRecord,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Storage-shaped audit event row for append-only local proof.
+pub struct AuditEventRecord {
+    /// Actor kind that produced the audit event.
+    pub actor_kind: ActorKindCode,
+    /// Actor id that produced the audit event.
+    pub actor_id: String,
+    /// Audited subject family.
+    pub subject_kind: String,
+    /// Audited subject id.
+    pub subject_id: String,
+    /// Audit action.
+    pub action: String,
+    /// Linked workflow event id.
+    pub workflow_event_id: String,
+    /// Metadata proving source refs, issue refs, and side-effect posture.
+    pub metadata: serde_json::Value,
+    /// Event occurrence timestamp.
+    pub occurred_at: String,
+    /// Storage record timestamp.
+    pub recorded_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Storage-shaped outbox candidate row; it is an approved local/internal handoff candidate, not a send.
+pub struct OutboxRecord {
+    /// Outbox primary key.
+    pub id: String,
+    /// Idempotency key for the candidate.
+    pub idempotency_key: String,
+    /// Matching approved approval record id.
+    pub approval_record_id: String,
+    /// Internal topic only; no customer/provider/payment/schedule topics are produced here.
+    pub topic: String,
+    /// Review gate matching the approval row.
+    pub review_gate: ReviewGateCode,
+    /// Aggregate kind matching the approval row.
+    pub aggregate_kind: String,
+    /// Aggregate id matching the approval row.
+    pub aggregate_id: String,
+    /// Candidate payload for local/internal handoff.
+    pub payload: serde_json::Value,
+    /// Candidate status.
+    pub status: OutboxStatusCode,
+    /// Availability timestamp.
+    pub available_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Complete storage projection for one reviewed local Data-Quality Hygiene workflow outcome.
+pub struct DataQualityHygieneLocalPersistenceRecords {
+    /// Workflow event row.
+    pub workflow_event: WorkflowEventRecord,
+    /// Workflow result row.
+    pub workflow_result: WorkflowResultRecord,
+    /// Review packet row.
+    pub review_packet: ReviewPacketRecord,
+    /// Approval record row.
+    pub approval_record: ApprovalRecordRow,
+    /// Outcome row linked to workflow and approval rows.
+    pub outcome: DataQualityHygieneOutcomeRow,
+    /// Append-only audit rows for context creation and reviewed outcome capture.
+    pub audit_events: Vec<AuditEventRecord>,
+    /// Optional approved internal handoff candidate.
+    pub outbox_candidate: Option<OutboxRecord>,
+}
+
+impl DataQualityHygieneLocalPersistenceRecords {
+    /// Projects a reviewed Data-Quality Hygiene outcome into storage-shaped MVP rows without enabling live side effects.
+    pub fn from_reviewed_outcome(
+        ids: DataQualityHygieneLineageIds,
+        outcome: DataQualityHygieneOutcomeRecord,
+    ) -> Self {
+        let completed = outcome.outcome == DataQualityHygieneOutcomeCode::Completed;
+        let workflow_payload = json!({
+            "correlation_id": outcome.correlation_id,
+            "location_id": outcome.location_id,
+            "operating_day": outcome.operating_day,
+            "action_id": outcome.action_id,
+            "source_refs": outcome.source_refs,
+            "issue_refs": outcome.issue_refs,
+            "live_side_effects_allowed": false,
+            "provider_writes_allowed": false,
+            "customer_messages_allowed": false,
+        });
+
+        let workflow_event = WorkflowEventRecord {
+            id: ids.workflow_event_id.clone(),
+            workflow_name: "data-quality-hygiene".to_owned(),
+            event_kind: "context_created".to_owned(),
+            subject_kind: "location".to_owned(),
+            subject_id: ids.subject_id.clone(),
+            idempotency_key: ids.idempotency_key.clone(),
+            payload: workflow_payload.clone(),
+            occurred_at: ids.recorded_at.clone(),
+            recorded_at: ids.recorded_at.clone(),
+        };
+
+        let workflow_result = WorkflowResultRecord {
+            id: format!("{}:result", ids.workflow_event_id),
+            workflow_event_id: ids.workflow_event_id.clone(),
+            status: if completed {
+                WorkflowResultStatusCode::Succeeded
+            } else {
+                WorkflowResultStatusCode::NeedsReview
+            },
+            result: json!({
+                "mode": "fake_deterministic_or_disabled",
+                "reviewable_output_only": true,
+                "action_id": outcome.action_id,
+                "outcome": outcome.outcome,
+                "live_side_effects_allowed": false,
+            }),
+            error_code: None,
+            created_at: ids.recorded_at.clone(),
+        };
+
+        let review_packet = ReviewPacketRecord {
+            id: ids.review_packet_id.clone(),
+            subject_kind: "location".to_owned(),
+            subject_id: ids.subject_id.clone(),
+            gate: ReviewGateCode::ManagerApproval,
+            status: if completed {
+                ReviewPacketStatusCode::Approved
+            } else {
+                ReviewPacketStatusCode::ReadyForReview
+            },
+            workflow_event_id: ids.workflow_event_id.clone(),
+            created_by_actor_kind: ActorKindCode::Agent,
+            created_by_actor_id: "data-quality-hygiene-agent".to_owned(),
+            created_at: ids.recorded_at.clone(),
+            updated_at: ids.recorded_at.clone(),
+        };
+
+        let approval_record = ApprovalRecordRow {
+            id: ids.approval_record_id.clone(),
+            target_kind: "message".to_owned(),
+            target_id: ids.subject_id.clone(),
+            gate: ReviewGateCode::ManagerApproval,
+            status: if completed {
+                "approved"
+            } else {
+                "approval_requested"
+            }
+            .to_owned(),
+            requested_by_actor_kind: ActorKindCode::Agent,
+            requested_by_actor_id: "data-quality-hygiene-agent".to_owned(),
+            requested_at: ids.recorded_at.clone(),
+            decided_by_actor_kind: completed.then_some(ActorKindCode::Staff),
+            decided_by_actor_id: completed.then(|| outcome.actor_id.clone()),
+            decided_at: completed.then(|| ids.recorded_at.clone()),
+            review_packet_id: ids.review_packet_id.clone(),
+        };
+
+        let audit_events = vec![
+            AuditEventRecord {
+                actor_kind: ActorKindCode::Agent,
+                actor_id: "data-quality-hygiene-agent".to_owned(),
+                subject_kind: "workflow_event".to_owned(),
+                subject_id: ids.workflow_event_id.clone(),
+                action: "data_quality_hygiene.context_created".to_owned(),
+                workflow_event_id: ids.workflow_event_id.clone(),
+                metadata: workflow_payload,
+                occurred_at: ids.recorded_at.clone(),
+                recorded_at: ids.recorded_at.clone(),
+            },
+            AuditEventRecord {
+                actor_kind: ActorKindCode::Staff,
+                actor_id: outcome.actor_id.clone(),
+                subject_kind: "approval".to_owned(),
+                subject_id: ids.approval_record_id.clone(),
+                action: "data_quality_hygiene.reviewed_outcome_recorded".to_owned(),
+                workflow_event_id: ids.workflow_event_id.clone(),
+                metadata: json!({
+                    "action_id": outcome.action_id,
+                    "outcome": outcome.outcome,
+                    "resolution_status_after_review": outcome.resolution_status_after_review,
+                    "estimated_minutes_saved": outcome.estimated_minutes_saved,
+                    "actual_minutes_saved": outcome.actual_minutes_saved(),
+                    "live_side_effects_allowed": false,
+                }),
+                occurred_at: ids.recorded_at.clone(),
+                recorded_at: ids.recorded_at.clone(),
+            },
+        ];
+
+        let outbox_candidate = completed.then(|| OutboxRecord {
+            id: ids.outbox_record_id.clone(),
+            idempotency_key: format!("{}:internal-reviewed-handoff", ids.idempotency_key),
+            approval_record_id: ids.approval_record_id.clone(),
+            topic: "internal.data_quality_hygiene.reviewed_handoff".to_owned(),
+            review_gate: ReviewGateCode::ManagerApproval,
+            aggregate_kind: "message".to_owned(),
+            aggregate_id: ids.subject_id.clone(),
+            payload: json!({
+                "action_id": outcome.action_id,
+                "correlation_id": outcome.correlation_id,
+                "issue_refs": outcome.issue_refs,
+                "source_refs": outcome.source_refs,
+                "internal_handoff_only": true,
+                "live_delivery_allowed": false,
+            }),
+            status: OutboxStatusCode::Pending,
+            available_at: ids.recorded_at.clone(),
+        });
+
+        Self {
+            workflow_event,
+            workflow_result,
+            review_packet,
+            approval_record,
+            outcome: DataQualityHygieneOutcomeRow {
+                workflow_event_id: ids.workflow_event_id,
+                approval_record_id: ids.approval_record_id,
+                record: outcome,
+            },
+            audit_events,
+            outbox_candidate,
+        }
     }
 }
 

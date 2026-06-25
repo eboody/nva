@@ -278,6 +278,35 @@ async fn data_quality_hygiene_outcome_capture_records_labor_evidence_without_pro
         "acknowledged"
     );
     assert_eq!(payload["live_side_effects_allowed"], false);
+    assert_eq!(
+        payload["observability"]["correlation_id"],
+        context["audit"]["correlation_id"]
+    );
+    assert_eq!(
+        payload["observability"]["workflow_event_id"],
+        payload["storage_projection_proof"]["workflow_event_id"]
+    );
+    assert_eq!(
+        payload["observability"]["outbox_candidate_id"],
+        payload["storage_projection_proof"]["outbox_candidate"]["id"]
+    );
+    assert_eq!(
+        payload["observability"]["what_happened"],
+        "reviewed_outcome_recorded_and_internal_outbox_candidate_created"
+    );
+    assert_eq!(
+        payload["observability"]["what_was_blocked"],
+        json!([
+            "provider_writes",
+            "customer_sends",
+            "payments",
+            "schedule_changes"
+        ])
+    );
+    assert_eq!(
+        payload["observability"]["production_next_step"],
+        "durable_worker_leasing_retry_dead_letter_metrics_and_approved_adapter_execution"
+    );
     assert!(
         payload["blocked_actions"]
             .as_array()
@@ -289,6 +318,63 @@ async fn data_quality_hygiene_outcome_capture_records_labor_evidence_without_pro
             .as_u64()
             .unwrap()
             > 0
+    );
+    assert_eq!(payload["local_demo_readiness"]["mode"], "local_demo_only");
+    assert_eq!(
+        payload["local_demo_readiness"]["workflow_repository"],
+        "in_memory_typed_storage_projection"
+    );
+    assert_eq!(
+        payload["local_demo_readiness"]["live_provider_writes"],
+        "disabled"
+    );
+    assert_eq!(
+        payload["local_demo_readiness"]["live_customer_sends"],
+        "disabled"
+    );
+    assert_eq!(payload["local_demo_readiness"]["payments"], "disabled");
+    assert!(
+        payload["storage_projection_proof"]["workflow_event_id"]
+            .as_str()
+            .unwrap()
+            .starts_with("dqh-workflow-event:")
+    );
+    assert!(
+        payload["storage_projection_proof"]["review_packet_id"]
+            .as_str()
+            .unwrap()
+            .starts_with("dqh-review-packet:")
+    );
+    assert!(
+        payload["storage_projection_proof"]["approval_record_id"]
+            .as_str()
+            .unwrap()
+            .starts_with("dqh-approval:")
+    );
+    assert_eq!(
+        payload["storage_projection_proof"]["workflow_result_status"],
+        "succeeded"
+    );
+    assert_eq!(
+        payload["storage_projection_proof"]["review_gate"],
+        "manager_approval"
+    );
+    assert_eq!(payload["storage_projection_proof"]["audit_event_count"], 2);
+    assert_eq!(
+        payload["storage_projection_proof"]["outbox_candidate"]["topic"],
+        "internal.data_quality_hygiene.reviewed_handoff"
+    );
+    assert_eq!(
+        payload["storage_projection_proof"]["outbox_candidate"]["internal_handoff_only"],
+        true
+    );
+    assert_eq!(
+        payload["storage_projection_proof"]["outbox_candidate"]["live_delivery_allowed"],
+        false
+    );
+    assert_eq!(
+        payload["storage_projection_proof"]["outbox_candidate"]["status"],
+        "pending"
     );
 }
 
@@ -387,7 +473,7 @@ async fn data_quality_hygiene_outcome_summary_reports_reviewed_minutes_and_prove
         correlation_id
     );
 
-    let (status, payload) = get_json_with_state(state, &summary_uri).await;
+    let (status, payload) = get_json_with_state(state.clone(), &summary_uri).await;
 
     assert_eq!(status, axum_http::StatusCode::OK);
     assert_eq!(payload["summary"]["reviewed_outcome_count"], 1);
@@ -433,5 +519,20 @@ async fn data_quality_hygiene_outcome_summary_reports_reviewed_minutes_and_prove
             .as_array()
             .unwrap()
             .contains(&json!("change_staff_schedule"))
+    );
+
+    let (status, metrics_payload) = get_json_with_state(state, "/ops/metrics/summary").await;
+    assert_eq!(status, axum_http::StatusCode::OK);
+    assert_eq!(
+        metrics_payload["local_runtime_counters"]["data_quality_hygiene_outbox_candidate_count"],
+        1
+    );
+    assert_eq!(
+        metrics_payload["local_runtime_counters"]["data_quality_hygiene_review_gated_outbox_count"],
+        1
+    );
+    assert_eq!(
+        metrics_payload["local_runtime_counters"]["production_queue_adapter"],
+        "not_configured"
     );
 }

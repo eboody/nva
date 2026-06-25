@@ -29,6 +29,8 @@ That map matters because the rest of the repository already distinguishes determ
 
 Future background workflows should use this shell to run app-owned work asynchronously while preserving the workspace architecture from the root [`README`](../../README.md): `domain` defines what is true, `app` defines what the system needs to do, adapters satisfy those contracts, and runtime crates boot/wire the process.
 
+The current demo worker proof is intentionally narrower than a queue consumer. `pet_resort_worker::runtime::Config::process_data_quality_hygiene_projection` accepts the typed local Data-Quality Hygiene storage projection, reflects the reviewed outcome and approved internal outbox candidate, and returns an auditable `DataQualityHygieneWorkerProof`. That proof is fake/local-only: `AgentRuntimeMode::Disabled`, `SideEffectMode::Stubbed`, and `OutboxProcessingStatus::ReviewGatedStub` remain true, so the outbox row is a review-gated internal handoff candidate rather than a publisher.
+
 Examples of work that belongs behind this shell once implemented:
 
 - scheduled manager daily brief generation using typed `app::manager_daily_brief` packets and source-grounded facts;
@@ -95,3 +97,7 @@ That safety posture is part of the labor story: background workers should reduce
 - Preserve semantic paths in docs and code: prefer `pet_resort_worker::runtime::SideEffectMode`, `app::tools::AgentRuntime`, `app::tools::hermes::AutomationHooks`, and `domain::policy::ReviewGate` over flattened names when the boundary matters.
 - Do not add a live side-effect mode as a convenience flag. Add it only with app-owned validation, review gates, audit/replay, idempotency, and failing tests for unknown or blocked side effects.
 - Treat OpenViking and Hermes memory as agent context, not as source truth. Accepted operational drafts still need current app-owned source refs and policy validation.
+
+## Failure, retry, and dead-letter scope
+
+The disabled Data-Quality Hygiene proof does not lease, retry, publish, or dead-letter records. Storage already names `pending`, `claimed`, `published`, `failed`, and `dead_letter` outbox statuses for the future durable adapter, but this worker runtime only returns a local `ReviewGatedStub` proof over a typed projection. A future real consumer must add idempotent leasing, retry budgets, dead-letter audit rows, replay controls, and tests proving failed candidates still cannot send customer messages, mutate provider/PMS records, change schedules, or move payments/refunds/discounts.

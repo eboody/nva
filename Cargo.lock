@@ -975,6 +975,8 @@ dependencies = [
  "anyhow",
  "app",
  "domain",
+ "serde_json",
+ "storage",
  "tokio",
  "tracing",
  "tracing-subscriber",

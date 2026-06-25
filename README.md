@@ -18,6 +18,17 @@ A reader should be able to pick any important entity and answer:
 
 Use the published/non-coder landing source at [docs/public/index.html](docs/public/index.html) when the audience needs the public entrypoint. It mirrors this README's operating model: entity atlas first, workflows and crate/Rustdoc pages as evidence after the business meaning is clear.
 
+## Five-minute local demo slice
+
+For a job or networking conversation, start with the [Job presentation walkthrough](docs/presentation/job-presentation-walkthrough.md), then run the Data-Quality Hygiene local demo slice from the repo root:
+
+```sh
+./scripts/smoke_data_quality_hygiene_local_loop.sh
+./scripts/smoke_data_quality_hygiene_disabled_worker_outbox.sh
+```
+
+The expected markers are `context_ok`, `draft_validation_ok`, `blocked_draft_validation_ok`, `outcome_ok`, `live_side_effects_allowed=false`, positive estimated/actual minutes saved, and a disabled worker/outbox proof. This is architecture/demo-ready proof only: it uses fixture/local state and fake/disabled side-effect posture, not live NVA/Gingr credentials, production data, provider writes, customer sends, payment/refund/discount actions, schedule changes, or production deployment. Toasty is only a possible future storage-adapter spike after this slice; it is not part of the current proof or domain/app/API contract shape.
+
 ## Canonical docs path
 
 If you are new, trust this sequence first. It is the canonical reader path for understanding the labor-saving operating model without starting from crate names:

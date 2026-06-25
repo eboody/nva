@@ -4,6 +4,46 @@ Status: five-minute presenter packet for a person introducing this work in a job
 
 Use this when the audience asks: "What did you actually build if you did not have live NVA access?" The answer is: a source-grounded, review-gated workflow platform boundary for pet-resort labor reduction, with typed DTO/API contracts, a durable DB/audit/outbox model, and explicit observability/readiness gaps.
 
+## Local demo slice: Data-Quality Hygiene in five minutes
+
+Use this slice when the audience wants something concrete to run before or during the conversation. It is fixture-only/local proof of the Data-Quality Hygiene loop: source-quality evidence enters an app-owned workflow packet, draft recommendations are validated, unsafe side effects are rejected, a reviewed outcome records labor evidence, and the worker/outbox posture remains disabled/fake rather than live.
+
+From the repo root:
+
+```sh
+./scripts/smoke_data_quality_hygiene_local_loop.sh
+./scripts/smoke_data_quality_hygiene_disabled_worker_outbox.sh
+```
+
+Expected output shape:
+
+- The first smoke prints `[data-quality-hygiene-smoke]` progress lines and markers such as `context_ok`, `draft_validation_ok`, `blocked_draft_validation_ok`, `outcome_ok`, `live_side_effects_allowed=false`, and `smoke_assertions_ok estimated_minutes_saved=... actual_minutes_saved=...`.
+- The second smoke runs the worker runtime contract test and ends with `[data-quality-hygiene-worker-outbox-smoke] disabled worker/outbox proof passed as local internal handoff only`.
+- Both commands should complete without attempting customer sends, Gingr/PMS/provider writes, schedule changes, payment/refund/discount movement, or production deployment.
+
+Talk track for the demo:
+
+1. "This starts from a source-data hygiene problem: repeated staff time lost to stale, missing, duplicate, contradictory, or sensitive facts."
+2. "The app packet ranks internal cleanup work with source refs, issue refs, review gates, blocked actions, and estimated labor impact."
+3. "The draft-validation path accepts reviewable internal cleanup recommendations and rejects provider repair, customer messages, schedule/payment movement, ambiguity hiding, and missing evidence."
+4. "Outcome capture records reviewed cleanup disposition, actual minutes spent/saved, request/workflow/review/outbox correlation, and a pending internal outbox candidate with live delivery disabled."
+5. "The worker/outbox proof shows the runtime is fake deterministic or disabled and treats outbox as a future approved handoff, not a live sender."
+
+What is real in this slice:
+
+- App/domain contracts for data-quality candidates, actions, draft validation, blocked actions, outcomes, source refs, issue refs, and labor-minute evidence.
+- API route contracts in `apps/api/src/http.rs` for context, draft submission, outcome capture, outcome summary, readiness, request-id propagation, and local metrics summary.
+- Storage-shaped outcome records and migration/test proof for durable review/audit/outbox/outcome concepts.
+- Local observability proof: request/workflow/review/outbox correlation fields, readiness language, and aggregate local counters for reviewed/pending Data-Quality Hygiene outbox candidates.
+
+What remains access-gated or not production-ready:
+
+- No live NVA/Gingr credentials, production data, provider/PMS writes, customer/member sends, payment/refund/discount actions, schedule changes, medical/safety decisions, or production deployment.
+- API state is still local/in-memory for this demo; the Postgres migration/storage model is present, but a production Postgres repository adapter is future work.
+- Worker leasing, retries/dead-letter handling, queue dashboards, durable traces, alerting, role/location authorization, OpenAPI export, object storage, and rollback/playbooks are still implementation gaps.
+
+Toasty note: Toasty is only a future storage-adapter candidate to evaluate after this demo slice is stable and only if storage boilerplate becomes painful. It is not part of the current proof, and no Toasty types should enter the domain, app, or API contracts for this presentation.
+
 ## Five-minute walkthrough script
 
 ### 0:00-0:30 — Open with the product thesis
@@ -65,11 +105,11 @@ Point to:
 
 ### 2:55-3:40 — Explain observability without overclaiming
 
-"The current runtime has JSON tracing startup and safe readiness probes. It also models reviewed business/labor outcomes for manager daily brief and data-quality hygiene. What is not done yet is cross-cutting request/job correlation, durable worker leasing, dead-letter/replay views, OpenAPI schema export, and infrastructure metrics. I would present that as the next implementation slice, not as something already shipped."
+"The current runtime has JSON tracing startup, an `x-request-id` response/header correlation convention, safe readiness probes that describe the observability scope, and local aggregate metrics for labor outcomes plus Data-Quality Hygiene outbox posture. The Data-Quality Hygiene outcome response now carries correlation id, workflow event id, reviewed outbox candidate id, what happened, what stayed blocked, and the production next step. What is not done yet is durable trace storage, durable worker leasing, dead-letter/replay views, OpenAPI schema export, alerting, and infrastructure metrics. I would present that as local proof, not completed production observability."
 
 Key sentence to memorize:
 
-"Business/labor metrics are modeled; platform observability is started but not end-to-end yet."
+"Business/labor metrics and local correlation proof are modeled; production observability still needs durable traces, queue/dead-letter views, and alerting."
 
 Point to:
 
@@ -80,11 +120,11 @@ Point to:
 
 ### 3:40-4:30 — Name the strongest demo story
 
-"The strongest current story is not 'we operate live NVA systems.' It is 'we built the safe contract shape for a vertical slice.' For example: a manager daily brief or data-quality hygiene workflow can carry source evidence, safe/blocked actions, agent draft context, review disposition, outcome status, and labor-minute proof. That is exactly the shape a pilot would need before connecting real systems."
+"The strongest current story is not 'we operate live NVA systems.' It is 'we built the safe contract shape for a vertical slice.' The best five-minute demo is Data-Quality Hygiene: it carries source evidence, safe/blocked actions, agent draft context, review disposition, outcome status, local request/workflow/review/outbox correlation, and labor-minute proof while keeping live delivery disabled. That is exactly the shape a pilot would need before connecting real systems."
 
 Suggested live explanation:
 
-"If I had one next engineering card, I would wire one safe workflow from API to Postgres workflow/review/audit rows to a fake/disabled worker result to correlated logs and metrics, with live customer/provider/payment side effects still disabled."
+"Run `./scripts/smoke_data_quality_hygiene_local_loop.sh` and `./scripts/smoke_data_quality_hygiene_disabled_worker_outbox.sh`. The markers should show context, draft validation, blocked draft validation, outcome capture, positive minutes saved, and disabled live side effects. If I had the next implementation card after this demo, I would wire this same Data-Quality Hygiene contract from API to Postgres workflow/review/audit/outcome rows and durable queue metrics, with live customer/provider/payment side effects still disabled."
 
 Point to:
 
@@ -136,8 +176,8 @@ DB projections + append-only audit + approved outbox handoff
         |
         v
 Logs, metrics, and proof
-  - JSON tracing baseline, readiness posture, labor/outcome records
-  - next gap: request/job correlation, durable worker leasing, infra metrics
+  - JSON tracing baseline, readiness posture, request/workflow correlation fields, labor/outcome records, aggregate local counters
+  - production gap: durable traces, worker leasing, queue/outbox/dead-letter metrics, alerting
 ```
 
 ## What is real now vs what requires access or implementation
@@ -150,7 +190,7 @@ Logs, metrics, and proof
 | API DTOs | Safe local/demo routes for health/readiness, inquiries, vaccine documents, manager daily brief, and data-quality hygiene. | Published OpenAPI/client schema, auth/session/role/location authorization, durable repository adapter for one workflow. |
 | DB/storage | Postgres migration spine for workflow events/results, review packets, approval records, outcomes, object metadata, outbox, append-only audit; storage records/codecs. | Running production DB, migration deployment process, SQLx/Postgres API wiring, object storage adapter, backup/retention policy. |
 | Worker/outbox | Runtime modes are fake deterministic or disabled; side effects are stubbed; outbox table models approved handoff. | Durable job leasing, retries/dead-letter handling, approved adapter execution, operational dashboards. |
-| Observability | JSON tracing startup; health/readiness; business/labor outcome fields and summary route. | Request/job correlation end to end, safe error classes, metrics/traces, queue/outbox/dead-letter dashboards, alerting. |
+| Observability | JSON tracing startup; `x-request-id` response/header convention; health/readiness with observability scope; business/labor outcome fields, summary route, and local Data-Quality Hygiene outbox counters. | Durable trace store/export, safe error classes, queue/outbox/dead-letter dashboards, worker lease/retry metrics, alerting. |
 | Live operations | Safety boundaries are explicit: no customer sends, provider/PMS writes, payments/refunds/discounts, schedule changes, medical/safety decisions, or production deployment. | Real credentials, legal/ops approval, review UI, audit retention, rollback/playbook, least-privilege scopes, and approved system-of-record paths. |
 
 ## Suggested answers to likely interview questions
@@ -188,7 +228,7 @@ Proof paths:
 
 ### "What is the logging and metrics story?"
 
-"There is a baseline, not a finished platform. API and worker startup use JSON tracing, readiness endpoints describe disabled live side effects, and business/labor outcome fields exist for manager daily brief and data-quality hygiene. Missing work is cross-cutting request/job correlation, safe error classes, queue/outbox metrics, dead-letter/replay views, and dashboards. I would not claim production observability yet."
+"There is a local proof, not a finished platform. API and worker startup use JSON tracing; the API echoes/creates `x-request-id`; readiness states the local observability scope; Data-Quality Hygiene context/outcome responses carry request/correlation/workflow/outbox ids; and `/ops/metrics/summary` reports aggregate labor plus local outbox posture. Missing work is durable trace export/storage, safe error classes, queue/outbox/dead-letter dashboards, worker lease/retry metrics, and alerting. I would not claim production observability yet."
 
 Proof paths:
 
@@ -203,7 +243,7 @@ Proof paths:
 
 ### "What would you build next?"
 
-"I would pick one safe workflow, likely inquiry intake or vaccine document review, and wire it end to end: API request -> Postgres workflow event/review/audit rows -> fake or disabled worker result -> reviewed outcome/outbox candidate -> correlated logs and metrics. I would keep all customer sends, provider writes, payments, and medical decisions disabled until the approval path is real."
+"I would take the current Data-Quality Hygiene demo slice from local/in-memory proof to durable proof: API request -> Postgres workflow event/review/audit/outcome rows -> fake or disabled worker result -> reviewed internal outbox candidate -> correlated logs, local metrics, and eventually durable queue/dead-letter views. I would keep all customer sends, provider writes, schedule changes, payments, and medical decisions disabled until the approval path and system-of-record authority are real. If storage boilerplate becomes the bottleneck after this slice, Toasty is worth a storage-adapter spike only; it is not part of the current proof and should not reshape domain/app/API contracts."
 
 ## Source, Rustdoc, and test proof paths
 
@@ -247,5 +287,5 @@ Generated Rustdoc proof after `./scripts/check_docs.sh` or `cargo doc --workspac
 - Do not say "integrated with NVA/Gingr production." Say "provider boundary is modeled; live credentials and production access are not present."
 - Do not say "agents can contact customers." Say "agents can draft/recommend inside app-owned packets; sends remain review-gated and disabled locally."
 - Do not say "the DB is live behind the API." Say "the migration and storage contracts are present; current API handlers are deterministic in-memory demo state pending a Postgres repository adapter."
-- Do not say "observability is complete." Say "JSON tracing and outcome records are present; request/job correlation and platform metrics are next."
+- Do not say "observability is complete." Say "local JSON tracing, request/workflow correlation fields, readiness posture, outcome records, and aggregate counters are present; durable traces, queue/dead-letter views, and alerting are next."
 - Do not say "production-ready." Say "presentation-ready architecture and local/demo contract proof; production requires access, approval, durable wiring, identity, monitoring, and rollback."

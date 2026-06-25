@@ -1,8 +1,10 @@
 use storage::operations::{
-    DataQualityHygieneActionKindCode, DataQualityHygieneOutcomeCode,
+    ActorKindCode, DataQualityHygieneActionKindCode, DataQualityHygieneLineageIds,
+    DataQualityHygieneLocalPersistenceRecords, DataQualityHygieneOutcomeCode,
     DataQualityHygieneOutcomeRecord, DataQualityHygieneOutcomeSummary,
-    DataQualityHygienePersonaCode, DataQualityResolutionStatusCode,
-    StoredDataQualityHygieneLaborMinutes, StoredSourceRecordRef,
+    DataQualityHygienePersonaCode, DataQualityResolutionStatusCode, OutboxStatusCode,
+    ReviewGateCode, ReviewPacketStatusCode, StoredDataQualityHygieneLaborMinutes,
+    StoredSourceRecordRef, WorkflowResultStatusCode,
 };
 use strum::VariantArray;
 
@@ -111,6 +113,101 @@ fn data_quality_hygiene_outcome_summary_aggregates_reviewed_labor_loop_proof() {
         summary.issue_refs,
         ["dq-duplicate-customer-17", "dq-missing-vaccine-42"]
     );
+}
+
+#[test]
+fn data_quality_hygiene_lineage_records_project_reviewed_outcome_to_safe_storage_rows() {
+    let records = DataQualityHygieneLocalPersistenceRecords::from_reviewed_outcome(
+        DataQualityHygieneLineageIds::builder()
+            .workflow_event_id("00000000-0000-0000-0000-000000000101".to_owned())
+            .review_packet_id("00000000-0000-0000-0000-000000000102".to_owned())
+            .approval_record_id("00000000-0000-0000-0000-000000000103".to_owned())
+            .outbox_record_id("00000000-0000-0000-0000-000000000104".to_owned())
+            .subject_id("00000000-0000-0000-0000-000000000001".to_owned())
+            .idempotency_key("dqh:location-1:2026-06-17:context".to_owned())
+            .recorded_at("2026-06-17T14:30:00Z".to_owned())
+            .build(),
+        outcome_record(
+            "dq-action-dq-missing-vaccine-42",
+            DataQualityHygieneOutcomeCode::Completed,
+            25,
+            9,
+            "dq-missing-vaccine-42",
+            "pet-vaccine-42",
+        ),
+    );
+
+    assert_eq!(records.workflow_event.workflow_name, "data-quality-hygiene");
+    assert_eq!(records.workflow_event.event_kind, "context_created");
+    assert_eq!(records.workflow_event.subject_kind, "location");
+    assert_eq!(
+        records.workflow_event.payload["live_side_effects_allowed"],
+        false
+    );
+    assert_eq!(
+        records.workflow_result.status,
+        WorkflowResultStatusCode::Succeeded
+    );
+    assert_eq!(records.review_packet.gate, ReviewGateCode::ManagerApproval);
+    assert_eq!(
+        records.review_packet.status,
+        ReviewPacketStatusCode::Approved
+    );
+    assert_eq!(records.approval_record.status, "approved");
+    assert_eq!(
+        records.approval_record.decided_by_actor_kind,
+        Some(ActorKindCode::Staff)
+    );
+    assert_eq!(records.outcome.workflow_event_id, records.workflow_event.id);
+    assert_eq!(
+        records.outcome.approval_record_id,
+        records.approval_record.id
+    );
+    assert_eq!(records.audit_events.len(), 2);
+
+    let outbox = records
+        .outbox_candidate
+        .as_ref()
+        .expect("completed reviewed hygiene outcomes should create an internal handoff candidate");
+    assert_eq!(
+        outbox.topic,
+        "internal.data_quality_hygiene.reviewed_handoff"
+    );
+    assert_eq!(outbox.status, OutboxStatusCode::Pending);
+    assert_eq!(outbox.approval_record_id, records.approval_record.id);
+    assert_eq!(outbox.review_gate, ReviewGateCode::ManagerApproval);
+    assert!(outbox.payload["live_delivery_allowed"].as_bool() == Some(false));
+    assert!(!outbox.topic.contains("customer"));
+    assert!(!outbox.topic.contains("provider"));
+}
+
+#[test]
+fn data_quality_hygiene_lineage_does_not_create_outbox_for_deferred_outcomes() {
+    let records = DataQualityHygieneLocalPersistenceRecords::from_reviewed_outcome(
+        DataQualityHygieneLineageIds::builder()
+            .workflow_event_id("00000000-0000-0000-0000-000000000201".to_owned())
+            .review_packet_id("00000000-0000-0000-0000-000000000202".to_owned())
+            .approval_record_id("00000000-0000-0000-0000-000000000203".to_owned())
+            .outbox_record_id("00000000-0000-0000-0000-000000000204".to_owned())
+            .subject_id("00000000-0000-0000-0000-000000000001".to_owned())
+            .idempotency_key("dqh:location-1:2026-06-17:deferred".to_owned())
+            .recorded_at("2026-06-17T14:30:00Z".to_owned())
+            .build(),
+        outcome_record(
+            "dq-action-dq-missing-vaccine-43",
+            DataQualityHygieneOutcomeCode::Deferred,
+            25,
+            9,
+            "dq-missing-vaccine-43",
+            "pet-vaccine-43",
+        ),
+    );
+
+    assert_eq!(
+        records.workflow_result.status,
+        WorkflowResultStatusCode::NeedsReview
+    );
+    assert!(records.outbox_candidate.is_none());
 }
 
 fn source_ref() -> StoredSourceRecordRef {

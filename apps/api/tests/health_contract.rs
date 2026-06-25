@@ -54,6 +54,22 @@ async fn readiness_endpoint_keeps_mvp_dependencies_explicitly_stubbed() {
     assert_eq!(payload["database"], "not_configured");
     assert_eq!(payload["object_storage"], "not_configured");
     assert_eq!(payload["agent_runtime"], "fake_deterministic");
+    assert_eq!(
+        payload["observability"]["request_correlation"],
+        "x_request_id_response_header_and_workflow_payload_field"
+    );
+    assert_eq!(
+        payload["observability"]["workflow_correlation"],
+        "local_workflow_correlation_ids_only"
+    );
+    assert_eq!(
+        payload["observability"]["metrics_scope"],
+        "aggregate_local_counters_and_labor_rollups"
+    );
+    assert_eq!(
+        payload["observability"]["production_gap"],
+        "no_durable_traces_queue_dashboard_or_alerting"
+    );
 }
 
 #[tokio::test]
