@@ -17,7 +17,7 @@ require() {
 require cargo
 
 log "running disabled/fake worker outbox proof"
-log "no live customer sends, provider/PMS writes, schedule changes, or payment/refund/discount movement are attempted"
+log "no live customer sends, provider/PMS writes, schedule changes, payment/refund/discount movement, or medical/safety decisions are attempted"
 
 cargo test -p pet-resort-worker \
   --test runtime_mode_contract \

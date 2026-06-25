@@ -21,7 +21,7 @@ SMOKE_TMP_DIR="${SMOKE_TMP_DIR:-$(mktemp -d)}"
 OUTPUT_FILE="${SMOKE_TMP_DIR}/data-quality-hygiene-local-smoke.txt"
 
 log "running fixture-only app-owned data-quality hygiene loop"
-log "no live customer sends, provider/PMS writes, schedule changes, or payment/refund/discount movement are attempted"
+log "no live customer sends, provider/PMS writes, schedule changes, payment/refund/discount movement, or medical/safety decisions are attempted"
 
 cargo run -p app --example data_quality_hygiene_local_smoke --quiet | tee "$OUTPUT_FILE"
 

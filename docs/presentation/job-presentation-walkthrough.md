@@ -1,27 +1,40 @@
 # Job presentation walkthrough: access-constrained Pet Resorts platform story
 
-Status: five-minute presenter packet for a person introducing this work in a job/networking conversation. This page is intentionally honest: it does not claim live NVA/Gingr credentials, production data, permission to mutate provider systems, customer-message authority, payment authority, or production deployment.
+Status: five-minute presenter packet for a person introducing this work in a job/networking conversation. This page is intentionally honest: it does not claim live NVA/Gingr credentials, production data, permission to mutate provider systems, customer-message authority, payment authority, schedule authority, medical/safety authority, or production deployment.
 
-Use this when the audience asks: "What did you actually build if you did not have live NVA access?" The answer is: a source-grounded, review-gated workflow platform boundary for pet-resort labor reduction, with typed DTO/API contracts, a durable DB/audit/outbox model, and explicit observability/readiness gaps.
+Use this when the audience asks: "What did you actually build if you did not have live NVA access?" The short answer is in the [executive brief](nva-demo-executive-brief.md): a safe local proof of the operations API NVA would want above Gingr, with source-backed cleanup work, review gates, labor-outcome records, audit/outbox posture, and BI-ready read models.
 
-If the audience asks why the work matters beyond a safe local demo, route to the [owned operations API replacement talk track](owned-operations-api-replacement-talk-track.md): the story is not "clone Gingr" or "production replacement today." It is "Gingr is source evidence; BI's separate database shows the need for an owned operations API/read-model layer; Data-Quality Hygiene is the first runnable slice proving source refs, review gates, labor outcomes, metrics, and disabled side effects."
+Before running commands, open the [owned operations API visual guide](owned-operations-api-visual-guide.md) or the [standalone HTML/SVG diagram](assets/owned-operations-api-replacement.html). It gives the audience one frame for the strategic shift: Gingr-centered extraction today -> NVA-owned operations API and BI/read-model layer tomorrow.
+
+For a pre-flight outsider objection scan, read the [skeptical review](nva-demo-skeptical-review.md) and keep its Yellow caveats visible: local contract proof, no live access, read-only validation next, and no production/replacement claim.
+
+If the audience asks why the work matters beyond a safe local demo, route to the [owned operations API replacement talk track](owned-operations-api-replacement-talk-track.md). The story is not "clone Gingr" or "production replacement today." It is: Gingr is source evidence; BI's separate database shows raw provider shape is not enough; Data-Quality Hygiene is the first runnable slice proving source refs, review gates, labor outcomes, metrics, and disabled side effects.
 
 ## Local demo slice: Data-Quality Hygiene in five minutes
 
 Use this slice when the audience wants something concrete to run before or during the conversation. It is fixture-only/local proof of the Data-Quality Hygiene loop: source-quality evidence enters an app-owned workflow packet, draft recommendations are validated, unsafe side effects are rejected, a reviewed outcome records labor evidence, and the worker/outbox posture remains disabled/fake rather than live.
 
-From the repo root:
+From the repo root, use the one-command wrapper for the cleanest live path:
+
+```sh
+./scripts/demo_owned_operations_api.sh
+```
+
+Expected output anchors:
+
+- Contract lane: `openapi_title=NVA Pet Resorts Owned Operations API`, `openapi_version=0.1.0`, `openapi_paths=8`, `owned_route=/v0/agent/context/data-quality-hygiene`, `owned_route=/v0/read-models/source-quality-backlog`, and `contract_lane_ok live_side_effects_allowed=false`.
+- Workflow lane: `[data-quality-hygiene-smoke]` progress lines plus `context_ok workflow=data-quality-hygiene actions=1 estimated_minutes_saved=15 live_side_effects_allowed=false`, `draft_validation_ok accepted_actions=1 requested_side_effects=0`, `blocked_draft_validation_ok blocked_side_effect=send_customer_message`, `outcome_ok estimated_minutes_saved=15 actual_minutes_saved=17 live_side_effects_allowed=false`, and `smoke_assertions_ok estimated_minutes_saved=15 actual_minutes_saved=17`.
+- Operations lane: the worker runtime contract test reports `test result: ok. 5 passed; 0 failed` and ends with `[data-quality-hygiene-worker-outbox-smoke] disabled worker/outbox proof passed as local internal handoff only`.
+- Wrapper close: `demo_owned_operations_api_ok local_fixture_only=true live_side_effects_allowed=false`.
+
+If you want to narrate each lane as a separate command instead of using the wrapper, run:
 
 ```sh
 ./scripts/smoke_data_quality_hygiene_local_loop.sh
 ./scripts/smoke_data_quality_hygiene_disabled_worker_outbox.sh
 ```
 
-Expected output shape:
-
-- The first smoke prints `[data-quality-hygiene-smoke]` progress lines and markers such as `context_ok`, `draft_validation_ok`, `blocked_draft_validation_ok`, `outcome_ok`, `live_side_effects_allowed=false`, and `smoke_assertions_ok estimated_minutes_saved=... actual_minutes_saved=...`.
-- The second smoke runs the worker runtime contract test and ends with `[data-quality-hygiene-worker-outbox-smoke] disabled worker/outbox proof passed as local internal handoff only`.
-- Both commands should complete without attempting customer sends, Gingr/PMS/provider writes, schedule changes, payment/refund/discount movement, or production deployment.
+Both paths should complete without attempting customer sends, Gingr/PMS/provider writes, schedule changes, payment/refund/discount movement, medical/safety decisions, or production deployment.
 
 Talk track for the demo:
 
@@ -42,7 +55,7 @@ What remains access-gated or not production-ready:
 
 - No live NVA/Gingr credentials, production data, provider/PMS writes, customer/member sends, payment/refund/discount actions, schedule changes, medical/safety decisions, or production deployment.
 - API state is still local/in-memory for this demo; the Postgres migration/storage model is present, but a production Postgres repository adapter is future work.
-- Worker leasing, retries/dead-letter handling, queue dashboards, durable traces, alerting, role/location authorization, OpenAPI export, object storage, and rollback/playbooks are still implementation gaps.
+- Worker leasing, retries/dead-letter handling, queue dashboards, durable traces, alerting, role/location authorization, client/schema hardening beyond the checked OpenAPI artifact, object storage, and rollback/playbooks are still implementation gaps.
 
 Toasty note: Toasty is only a future storage-adapter candidate to evaluate after this demo slice is stable and only if storage boilerplate becomes painful. It is not part of the current proof, and no Toasty types should enter the domain, app, or API contracts for this presentation.
 
@@ -50,7 +63,7 @@ Toasty note: Toasty is only a future storage-adapter candidate to evaluate after
 
 ### 0:00-0:30 — Open with the product thesis
 
-"This repo is not a chatbot demo and it is not a wrapper around Gingr. It is an entity-first operating model for Pet Resorts labor reduction. The product starts from recognizable resort work: booking triage, vaccine/document review, manager daily brief, data-quality cleanup, checkout exceptions, retention, and daily-update drafts. The design goal is to let automation summarize, rank, draft, validate, and route work while humans and approved systems of record keep live authority."
+"This repo is not a chatbot demo and it is not a wrapper around Gingr. I did not have live NVA/Gingr access, so I built the safest useful proof: local contracts for the work NVA would need to own before connecting anything live. The product starts from recognizable resort work: booking triage, vaccine/document review, manager daily brief, data-quality cleanup, checkout exceptions, retention, and daily-update drafts. Automation can summarize, rank, draft, validate, and route work; humans and approved systems of record keep live authority."
 
 Point to:
 
@@ -107,7 +120,7 @@ Point to:
 
 ### 2:55-3:40 — Explain observability without overclaiming
 
-"The current runtime has JSON tracing startup, an `x-request-id` response/header correlation convention, safe readiness probes that describe the observability scope, and local aggregate metrics for labor outcomes plus Data-Quality Hygiene outbox posture. The Data-Quality Hygiene outcome response now carries correlation id, workflow event id, reviewed outbox candidate id, what happened, what stayed blocked, and the production next step. What is not done yet is durable trace storage, durable worker leasing, dead-letter/replay views, OpenAPI schema export, alerting, and infrastructure metrics. I would present that as local proof, not completed production observability."
+"The current runtime has JSON tracing startup, an `x-request-id` response/header correlation convention, safe readiness probes that describe the observability scope, a checked OpenAPI artifact for the presentation slice, and local aggregate metrics for labor outcomes plus Data-Quality Hygiene outbox posture. The Data-Quality Hygiene outcome response now carries correlation id, workflow event id, reviewed outbox candidate id, what happened, what stayed blocked, and the production next step. What is not done yet is durable trace storage, durable worker leasing, dead-letter/replay views, generated client/schema hardening, alerting, and infrastructure metrics. I would present that as local proof, not completed production observability."
 
 Key sentence to memorize:
 
@@ -126,7 +139,7 @@ Point to:
 
 Suggested live explanation:
 
-"Run `./scripts/smoke_data_quality_hygiene_local_loop.sh` and `./scripts/smoke_data_quality_hygiene_disabled_worker_outbox.sh`. The markers should show context, draft validation, blocked draft validation, outcome capture, positive minutes saved, and disabled live side effects. If I had the next implementation card after this demo, I would wire this same Data-Quality Hygiene contract from API to Postgres workflow/review/audit/outcome rows and durable queue metrics, with live customer/provider/payment side effects still disabled."
+"Run `./scripts/demo_owned_operations_api.sh` for the one-command version, or run `./scripts/smoke_data_quality_hygiene_local_loop.sh` and `./scripts/smoke_data_quality_hygiene_disabled_worker_outbox.sh` separately if you want to narrate each lane. The markers should show the checked OpenAPI contract boundary, context, draft validation, blocked draft validation, outcome capture, positive minutes saved, and disabled live side effects. If I had the next implementation card after this demo, I would wire this same Data-Quality Hygiene contract from API to Postgres workflow/review/audit/outcome rows and durable queue metrics, with live customer/provider/payment side effects still disabled."
 
 Point to:
 
@@ -209,7 +222,7 @@ Proof paths:
 
 ### "What is the API story?"
 
-"The API is a thin Rust runtime shell over app/domain workflow contracts. It exposes safe local/demo routes and readiness payloads that explicitly say live side effects, customer messaging, and provider writes are disabled. Current caveat: DTOs are private Rust structs and not yet exported as OpenAPI, so the next presentation slice should publish a checked schema."
+"The API is a thin Rust runtime shell over app/domain workflow contracts. It exposes safe local/demo routes and readiness payloads that explicitly say live side effects, customer messaging, and provider writes are disabled. Current caveat: a checked OpenAPI artifact exists for the presentation slice, but client/schema hardening, auth/location scope, and production repository wiring are still future work."
 
 Proof paths:
 

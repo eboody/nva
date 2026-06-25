@@ -6,6 +6,10 @@ Use this when a job contact, operator, or BI stakeholder asks: "If Gingr is the 
 
 Short answer: Gingr is source evidence. BI's workaround proves NVA needs cleaner operational contracts. The owned API should own source refs, review queues, workflow events, outcomes, audit, outbox posture, metrics, and BI-ready read models so operations and analytics stop reverse-engineering product meaning from raw provider tables.
 
+If you only have 30 seconds, use the [executive brief](nva-demo-executive-brief.md). The positive access boundary is: no live access was available, so the proof stays local and safe while showing exactly what read-only validation should unlock next.
+
+For the live presenter run sheet, use the [final presentation checklist](nva-presentation-checklist.md): it names the opening order, exact demo command, fallback path, read-only access ask, and claims to avoid.
+
 ## One-minute thesis
 
 "I would not replace Gingr by cloning Gingr. Gingr is useful source evidence during migration, but provider tables are not the operating model NVA actually needs. The repo is building an owned Pet Resorts operations API: source-backed workflow packets, review gates, outcome/labor records, append-only audit, disabled outbox posture, request/workflow correlation, and BI-friendly read models."
@@ -32,24 +36,40 @@ Keep Data-Quality Hygiene as the first live-at-keyboard demo because it connects
 - Reviewed outcomes record estimated/actual labor minutes and source-fact correctness.
 - Metrics/readiness expose aggregate local proof while live delivery remains disabled.
 
-From the repo root:
+From the repo root, use the wrapper for the shortest three-lane demo:
+
+```sh
+./scripts/demo_owned_operations_api.sh
+```
+
+Expected output anchors:
+
+```text
+== Contract lane: checked OpenAPI boundary ==
+openapi_title=NVA Pet Resorts Owned Operations API
+openapi_version=0.1.0
+openapi_paths=8
+owned_route=/v0/agent/context/data-quality-hygiene
+owned_route=/v0/ops/metrics/summary
+owned_route=/v0/read-models/source-quality-backlog
+contract_lane_ok live_side_effects_allowed=false
+== Workflow lane: Data-Quality Hygiene local loop ==
+context_ok workflow=data-quality-hygiene actions=1 estimated_minutes_saved=15 live_side_effects_allowed=false
+draft_validation_ok accepted_actions=1 requested_side_effects=0
+blocked_draft_validation_ok blocked_side_effect=send_customer_message
+outcome_ok estimated_minutes_saved=15 actual_minutes_saved=17 live_side_effects_allowed=false
+smoke_assertions_ok estimated_minutes_saved=15 actual_minutes_saved=17
+== Operations lane: disabled worker/outbox proof ==
+test result: ok. 5 passed; 0 failed
+[data-quality-hygiene-worker-outbox-smoke] disabled worker/outbox proof passed as local internal handoff only
+demo_owned_operations_api_ok local_fixture_only=true live_side_effects_allowed=false
+```
+
+If you want to run workflow and operations separately, use:
 
 ```sh
 ./scripts/smoke_data_quality_hygiene_local_loop.sh
 ./scripts/smoke_data_quality_hygiene_disabled_worker_outbox.sh
-```
-
-Expected output shape:
-
-```text
-[data-quality-hygiene-smoke] ...
-context_ok
-draft_validation_ok
-blocked_draft_validation_ok
-outcome_ok
-live_side_effects_allowed=false
-smoke_assertions_ok estimated_minutes_saved=... actual_minutes_saved=...
-[data-quality-hygiene-worker-outbox-smoke] disabled worker/outbox proof passed as local internal handoff only
 ```
 
 What those markers mean in plain English:
@@ -58,7 +78,7 @@ What those markers mean in plain English:
 2. `draft_validation_ok`: an internal cleanup recommendation can pass review-safe validation.
 3. `blocked_draft_validation_ok`: unsafe requests such as source repair, customer sends, or ambiguity hiding are rejected.
 4. `outcome_ok`: reviewed staff disposition and labor evidence can be recorded.
-5. `live_side_effects_allowed=false`: the demo did not send messages, mutate Gingr/PMS, move money, change schedules, or deploy production code.
+5. `live_side_effects_allowed=false`: the demo did not send messages, mutate Gingr/PMS, move money, change schedules, make medical/safety decisions, or deploy production code.
 6. Worker/outbox smoke: any outbox-shaped work is a disabled/review-gated handoff, not a live sender.
 
 ## Suggested five-minute flow
@@ -92,6 +112,12 @@ Point to:
 Run:
 
 ```sh
+./scripts/demo_owned_operations_api.sh
+```
+
+Optional separate-lane form:
+
+```sh
 ./scripts/smoke_data_quality_hygiene_local_loop.sh
 ./scripts/smoke_data_quality_hygiene_disabled_worker_outbox.sh
 ```
@@ -120,6 +146,22 @@ Point to:
 - [Gingr migration phases](../integrations/gingr/owned-api-migration-map.md#migration-phases)
 
 ## Likely questions and answers
+
+### "Is this real without live data?"
+
+"It is real as a local contract proof, not as a production integration. The point is that the safety, review, outcome, audit, outbox, and BI-read-model shape can be inspected before anyone grants live access. Real data would validate mappings and coverage; it should not be needed to prove that risky actions stay blocked and that source evidence stays separate from product authority."
+
+### "Why not just use Gingr?"
+
+"NVA may still use Gingr as a source or system of record during migration. The issue is that raw provider shape should not own NVA's review queues, labor metrics, audit posture, BI projections, or automation boundaries. The owned API gives those concepts a supported product contract while Gingr remains source evidence."
+
+### "What would you need next?"
+
+"Read-only validation first: endpoint docs, exports, sample source snapshots, and BI query inventory. That would show which source fields, IDs, statuses, and service-line meanings matter. Only after that would I propose a scoped dual-run pilot, still without live writes or sends."
+
+### "Is this safe?"
+
+"Yes for the current scope because it is local and fixture-backed. It does not use live credentials or production data, and it does not send customer messages, write to Gingr/PMS, move money, change schedules, make medical/safety decisions, or deploy production code. Future live actions would need a separate approval-controlled adapter path."
 
 ### "Are you replacing Gingr today?"
 
@@ -154,6 +196,7 @@ Point to:
 Use these when updating the presentation docs:
 
 ```sh
+./scripts/demo_owned_operations_api.sh
 ./scripts/check_docs.sh
 python scripts/check_markdown_links.py --repo-root .
 ./scripts/smoke_data_quality_hygiene_local_loop.sh
