@@ -4,6 +4,8 @@ Status: five-minute presenter packet for a person introducing this work in a job
 
 Use this when the audience asks: "What did you actually build if you did not have live NVA access?" The answer is: a source-grounded, review-gated workflow platform boundary for pet-resort labor reduction, with typed DTO/API contracts, a durable DB/audit/outbox model, and explicit observability/readiness gaps.
 
+If the audience asks why the work matters beyond a safe local demo, route to the [owned operations API replacement talk track](owned-operations-api-replacement-talk-track.md): the story is not "clone Gingr" or "production replacement today." It is "Gingr is source evidence; BI's separate database shows the need for an owned operations API/read-model layer; Data-Quality Hygiene is the first runnable slice proving source refs, review gates, labor outcomes, metrics, and disabled side effects."
+
 ## Local demo slice: Data-Quality Hygiene in five minutes
 
 Use this slice when the audience wants something concrete to run before or during the conversation. It is fixture-only/local proof of the Data-Quality Hygiene loop: source-quality evidence enters an app-owned workflow packet, draft recommendations are validated, unsafe side effects are rejected, a reviewed outcome records labor evidence, and the worker/outbox posture remains disabled/fake rather than live.

@@ -87,6 +87,7 @@ Canonical local docs:
 - `docs/integrations/gingr/sdk-customer-portal-js.md`
 - `docs/integrations/gingr/service-domain-provider-surfaces.md`
 - `docs/integrations/gingr/adapter-boundary-and-labor-source-expansion.md`
+- `docs/integrations/gingr/owned-api-migration-map.md`
 - `docs/integrations/gingr/fixtures/webhooks/`
 - `docs/integrations/gingr/articles/`
 - `docs/integrations/gingr/manifest.json`

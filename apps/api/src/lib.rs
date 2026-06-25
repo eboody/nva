@@ -13,3 +13,6 @@
 
 /// Axum routes that expose review-gated workflows and audit-friendly DTOs.
 pub mod http;
+
+/// Product-owned public DTO/schema contracts for the operations API v0 surface.
+pub mod public_contract;

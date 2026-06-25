@@ -7,6 +7,7 @@
 //! audit/correlation evidence, labor/outcome fields, and disabled live-side-effect
 //! status until a future approved adapter crosses the customer/provider boundary.
 
+use crate::public_contract;
 use app::{checkout_completion, crm_retention, data_quality_hygiene, manager_daily_brief};
 use axum::{
     Json, Router,
@@ -21,10 +22,10 @@ use domain::{analytics, data_quality, entities, message, operations, policy, sou
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
-use tower_http::trace::{DefaultOnResponse, TraceLayer};
-use tracing::Level;
+use tower_http::trace::TraceLayer;
+use tracing::{Level, Span};
 use uuid::Uuid;
 
 static VACCINE_DOCUMENT_STATE: std::sync::OnceLock<VaccineDocumentState> =
@@ -214,6 +215,7 @@ struct ReadinessPayload {
 struct ObservabilityReadinessPayload {
     request_correlation: &'static str,
     workflow_correlation: &'static str,
+    local_request_metrics: &'static str,
     metrics_scope: &'static str,
     production_gap: &'static str,
 }
@@ -242,10 +244,21 @@ fn workflow_repository_readiness_payload() -> WorkflowRepositoryReadinessPayload
 #[derive(Debug, Serialize)]
 struct OpsMetricsSummaryPayload {
     api_contract: ApiDtoContract,
+    api_request_metrics: ApiRequestMetricsPayload,
     product_labor_metrics: ProductLaborMetricsPayload,
     local_runtime_counters: LocalRuntimeCountersPayload,
     safety: MetricsSafetyPayload,
+    observability_gap: ObservabilityGapPayload,
     production_metrics_plan: Vec<&'static str>,
+}
+
+#[derive(Debug, Serialize)]
+struct ApiRequestMetricsPayload {
+    scope: &'static str,
+    request_id_source: &'static str,
+    correlation_id_source: &'static str,
+    payload_logging: &'static str,
+    safe_error_classes: Vec<&'static str>,
 }
 
 #[derive(Debug, Serialize)]
@@ -280,6 +293,13 @@ struct MetricsSafetyPayload {
     contains_customer_pii: bool,
     contains_provider_payloads: bool,
     live_side_effects: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+struct ObservabilityGapPayload {
+    production_traces: &'static str,
+    durable_request_metrics: &'static str,
+    dashboard_or_alerting: &'static str,
 }
 
 /// Product-owned API/runtime DTO contract marker serialized with workflow payloads.
@@ -525,33 +545,45 @@ struct AuditEvent {
 #[derive(Clone, Debug)]
 struct RequestTraceEvidence {
     request_id: String,
+    request_correlation_id: String,
 }
 
 impl RequestTraceEvidence {
-    fn generated() -> Self {
-        Self {
-            request_id: Uuid::new_v4().to_string(),
-        }
-    }
-
     fn from_request_headers(headers: &axum::http::HeaderMap) -> Self {
-        headers
+        let request_id = headers
             .get(request_id_header())
             .and_then(|value| value.to_str().ok())
             .filter(|value| safe_request_id(value))
-            .map(|request_id| Self {
-                request_id: request_id.to_owned(),
-            })
-            .unwrap_or_else(Self::generated)
+            .map(str::to_owned)
+            .unwrap_or_else(|| Uuid::new_v4().to_string());
+        let request_correlation_id = headers
+            .get(correlation_id_header())
+            .and_then(|value| value.to_str().ok())
+            .filter(|value| safe_request_id(value))
+            .map(str::to_owned)
+            .unwrap_or_else(|| Uuid::new_v4().to_string());
+
+        Self {
+            request_id,
+            request_correlation_id,
+        }
     }
 
     fn request_id(&self) -> &str {
         &self.request_id
     }
+
+    fn request_correlation_id(&self) -> &str {
+        &self.request_correlation_id
+    }
 }
 
 fn request_id_header() -> HeaderName {
     HeaderName::from_static("x-request-id")
+}
+
+fn correlation_id_header() -> HeaderName {
+    HeaderName::from_static("x-correlation-id")
 }
 
 fn safe_request_id(value: &str) -> bool {
@@ -569,7 +601,10 @@ fn workflow_observability_payload(
     json!({
         "correlation_id": correlation_id,
         "request_id": request_trace.request_id(),
+        "request_correlation_id": request_trace.request_correlation_id(),
         "route_status_trace": "enabled",
+        "safe_error_class": "not_applicable",
+        "payload_logging": "disabled",
         "sensitive_payload_logging": null
     })
 }
@@ -584,6 +619,11 @@ async fn attach_request_trace(mut request: Request<Body>, next: Next) -> Respons
     response
         .headers_mut()
         .insert(request_id_header(), request_id);
+    let correlation_id = HeaderValue::from_str(request_trace.request_correlation_id())
+        .expect("generated or validated correlation id is a header value");
+    response
+        .headers_mut()
+        .insert(correlation_id_header(), correlation_id);
     response
 }
 
@@ -610,8 +650,11 @@ pub fn router() -> Router {
 pub fn router_with_state(state: VaccineDocumentState) -> Router {
     Router::new()
         .route("/healthz", get(healthz))
+        .route("/v0/healthz", get(healthz))
         .route("/readyz", get(readyz))
+        .route("/v0/readyz", get(readyz))
         .route("/ops/metrics/summary", get(ops_metrics_summary))
+        .route("/v0/ops/metrics/summary", get(ops_metrics_summary))
         .route("/inquiries", post(submit_inquiry))
         .route("/staff/inquiries", get(staff_inquiries))
         .route(
@@ -631,7 +674,15 @@ pub fn router_with_state(state: VaccineDocumentState) -> Router {
             get(data_quality_hygiene_agent_context),
         )
         .route(
+            "/v0/agent/context/data-quality-hygiene",
+            get(data_quality_hygiene_agent_context),
+        )
+        .route(
             "/agent/drafts/data-quality-hygiene",
+            post(submit_data_quality_hygiene_agent_draft),
+        )
+        .route(
+            "/v0/agent/drafts/data-quality-hygiene",
             post(submit_data_quality_hygiene_agent_draft),
         )
         .route(
@@ -639,8 +690,20 @@ pub fn router_with_state(state: VaccineDocumentState) -> Router {
             post(capture_data_quality_hygiene_action_outcome),
         )
         .route(
+            "/v0/data-quality-hygiene/actions/{action_id}/outcome",
+            post(capture_data_quality_hygiene_action_outcome),
+        )
+        .route(
             "/data-quality-hygiene/outcomes/summary",
             get(data_quality_hygiene_outcome_summary),
+        )
+        .route(
+            "/v0/data-quality-hygiene/outcomes/summary",
+            get(data_quality_hygiene_outcome_summary),
+        )
+        .route(
+            "/v0/read-models/source-quality-backlog",
+            get(planned_source_quality_backlog),
         )
         .route("/vaccine-documents/uploads", post(upload_vaccine_document))
         .route(
@@ -651,6 +714,7 @@ pub fn router_with_state(state: VaccineDocumentState) -> Router {
             "/vaccine-documents/review-packets/{review_packet_id}/reject",
             post(reject_vaccine_document),
         )
+        .fallback(owned_operations_not_found)
         .with_state(state)
         .layer(
             TraceLayer::new_for_http()
@@ -659,11 +723,13 @@ pub fn router_with_state(state: VaccineDocumentState) -> Router {
                         .extensions()
                         .get::<MatchedPath>()
                         .map(MatchedPath::as_str)
-                        .unwrap_or_else(|| request.uri().path());
-                    let request_id = request
-                        .extensions()
-                        .get::<RequestTraceEvidence>()
+                        .unwrap_or("unknown");
+                    let request_trace = request.extensions().get::<RequestTraceEvidence>();
+                    let request_id = request_trace
                         .map(RequestTraceEvidence::request_id)
+                        .unwrap_or("missing");
+                    let correlation_id = request_trace
+                        .map(RequestTraceEvidence::request_correlation_id)
                         .unwrap_or("missing");
 
                     tracing::info_span!(
@@ -671,12 +737,87 @@ pub fn router_with_state(state: VaccineDocumentState) -> Router {
                         http.method = %request.method(),
                         http.route = %route,
                         http.request_id = %request_id,
+                        http.correlation_id = %correlation_id,
+                        status_code = tracing::field::Empty,
+                        duration_ms = tracing::field::Empty,
+                        safe_error_class = tracing::field::Empty,
+                        actor_source = "payload_or_unset",
+                        location_id = tracing::field::Empty,
+                        tenant_id = tracing::field::Empty,
                         payload_logging = "disabled"
                     )
                 })
-                .on_response(DefaultOnResponse::new().level(Level::INFO)),
+                .on_response(record_api_response_metrics),
         )
         .layer(middleware::from_fn(attach_request_trace))
+}
+
+fn record_api_response_metrics(response: &Response<Body>, latency: Duration, span: &Span) {
+    let status_code = response.status().as_u16();
+    let duration_ms = latency.as_millis() as u64;
+    let safe_error_class = safe_error_class_for_status(response.status());
+
+    span.record("status_code", status_code);
+    span.record("duration_ms", duration_ms);
+    span.record("safe_error_class", safe_error_class);
+
+    tracing::event!(
+        parent: span,
+        Level::INFO,
+        status_code,
+        duration_ms,
+        safe_error_class,
+        payload_logging = "disabled",
+        "api_request completed"
+    );
+}
+
+fn safe_error_class_for_status(status: StatusCode) -> &'static str {
+    match status {
+        StatusCode::NOT_FOUND => "not_found",
+        status if status.is_client_error() => "validation_failed",
+        status if status.is_server_error() => "internal_error",
+        _ => "not_applicable",
+    }
+}
+
+async fn owned_operations_not_found(request: Request<Body>) -> (StatusCode, Json<Value>) {
+    let request_id = request
+        .extensions()
+        .get::<RequestTraceEvidence>()
+        .map(RequestTraceEvidence::request_id)
+        .unwrap_or("missing_request_id")
+        .to_owned();
+    let path = request.uri().path().to_owned();
+
+    (
+        StatusCode::NOT_FOUND,
+        Json(json!(public_contract::ErrorEnvelope::not_found(
+            request_id, path
+        ))),
+    )
+}
+
+async fn planned_source_quality_backlog(
+    Extension(request_trace): Extension<RequestTraceEvidence>,
+) -> (StatusCode, Json<Value>) {
+    (
+        StatusCode::NOT_IMPLEMENTED,
+        Json(json!({
+            "error": {
+                "code": "planned_not_wired",
+                "message": "The source quality backlog read model route is reserved for the owned operations API, but the local runtime has not wired the durable BI projection yet.",
+                "safe_error_class": "planned_not_wired",
+                "details": [{
+                    "field": "route",
+                    "reason": "/v0/read-models/source-quality-backlog"
+                }]
+            },
+            "request_id": request_trace.request_id(),
+            "correlation_id": request_trace.request_correlation_id(),
+            "live_side_effects_allowed": false
+        })),
+    )
 }
 
 async fn healthz() -> Json<HealthPayload> {
@@ -697,8 +838,9 @@ async fn readyz() -> Json<ReadinessPayload> {
         agent_runtime: "fake_deterministic",
         workflow_repository: workflow_repository_readiness_payload(),
         observability: ObservabilityReadinessPayload {
-            request_correlation: "x_request_id_response_header_and_workflow_payload_field",
+            request_correlation: "x_request_id_and_x_correlation_id_response_headers_with_workflow_payload_fields",
             workflow_correlation: "local_workflow_correlation_ids_only",
+            local_request_metrics: "api_request_span_fields_and_aggregate_summary_only",
             metrics_scope: "aggregate_local_counters_and_labor_rollups",
             production_gap: "no_durable_traces_queue_dashboard_or_alerting",
         },
@@ -719,6 +861,13 @@ async fn ops_metrics_summary(
 
     Json(OpsMetricsSummaryPayload {
         api_contract: api_dto_contract("ops_metrics_summary"),
+        api_request_metrics: ApiRequestMetricsPayload {
+            scope: "local_runtime_only",
+            request_id_source: "x_request_id_or_generated_uuid",
+            correlation_id_source: "x_correlation_id_or_generated_uuid",
+            payload_logging: "disabled",
+            safe_error_classes: vec!["validation_failed", "not_found", "not_applicable"],
+        },
         product_labor_metrics: ProductLaborMetricsPayload {
             manager_daily_brief,
             data_quality_hygiene,
@@ -739,6 +888,11 @@ async fn ops_metrics_summary(
             contains_customer_pii: false,
             contains_provider_payloads: false,
             live_side_effects: "disabled",
+        },
+        observability_gap: ObservabilityGapPayload {
+            production_traces: "not_configured",
+            durable_request_metrics: "not_configured",
+            dashboard_or_alerting: "not_configured",
         },
         production_metrics_plan: vec![
             "request_latency",
@@ -1228,7 +1382,8 @@ async fn submit_data_quality_hygiene_agent_draft(
             "api_contract": api_dto_contract_payload("data_quality_hygiene_agent_draft"),
             "validation": {
                 "status": validation_status,
-                "validator": "pet_resort_api.data_quality_hygiene.agent_draft_validator.v1"
+                "validator": "pet_resort_api.data_quality_hygiene.agent_draft_validator.v1",
+                "safe_error_class": if rejected_actions.is_empty() { "accepted" } else { "validation_failed" }
             },
             "context_packet_id": request.context_packet_id,
             "correlation_id": request.correlation_id,

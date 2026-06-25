@@ -147,6 +147,12 @@ pub enum RecordKind {
     ManagerDailyBriefOutcome,
     /// Labor-evidence record for a data-quality hygiene workflow outcome.
     DataQualityHygieneOutcome,
+    /// Source-quality backlog issue backing Data-Quality Hygiene BI read models.
+    DataQualityIssue,
+    /// Read-only source import/freshness run for data-quality caveats.
+    DataQualitySourceImportRun,
+    /// Source synchronization gap row for import/read-model freshness caveats.
+    DataQualitySyncGap,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -502,6 +508,595 @@ pub enum DataQualityResolutionStatusCode {
     Repaired,
     /// Issue was replaced by fresher evidence or another issue record.
     Superseded,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    strum::Display,
+    strum::EnumString,
+    strum::VariantArray,
+)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
+/// Durable issue categories backing the Data-Quality Hygiene source-quality backlog.
+pub enum DataQualityIssueKindCode {
+    /// Expected source evidence is absent or not linked to an operational entity.
+    MissingSourceEvidence,
+    /// Source records appear to describe the same customer or pet more than once.
+    DuplicateEntityCandidate,
+    /// Source record lacks a field needed for safe operations or review.
+    MissingRequiredField,
+    /// Source record is older than the workflow's freshness posture allows.
+    StaleSourceFreshness,
+    /// Source vocabulary does not map cleanly to an owned operations concept.
+    AmbiguousServiceLineNaming,
+    /// Checkout/reservation source facts are incomplete or not closed out.
+    UnclosedReservationEvidence,
+    /// Payload requires quarantine or narrower review before ordinary operations use.
+    SensitivePayloadQuarantine,
+    /// Payment state conflict is tracked for review without authorizing money movement.
+    PaymentStateConflict,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    strum::Display,
+    strum::EnumString,
+    strum::VariantArray,
+)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
+/// Severity code for operator/BI prioritization of source-quality issues and sync gaps.
+pub enum DataQualitySeverityCode {
+    /// Low-priority issue that can be batched.
+    Low,
+    /// Medium-priority issue that needs normal operational review.
+    Medium,
+    /// High-priority issue that blocks or materially degrades workflow confidence.
+    High,
+    /// Critical issue requiring immediate review before relying on derived output.
+    Critical,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    strum::Display,
+    strum::EnumString,
+    strum::VariantArray,
+)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
+/// Freshness posture for source evidence represented in read models.
+pub enum DataQualityFreshnessCode {
+    /// Source evidence is current enough for ordinary review.
+    Current,
+    /// Source evidence is stale and should be caveated before BI/operator use.
+    Stale,
+    /// Freshness could not be determined from the available import evidence.
+    Unknown,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    strum::Display,
+    strum::EnumString,
+    strum::VariantArray,
+)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
+/// Sensitivity posture for data-quality issue evidence and read-model caveats.
+pub enum DataQualitySensitivityCode {
+    /// Operational metadata with no customer/provider payload exposure.
+    OperationalMetadata,
+    /// Ordinary customer or pet profile details may be implicated.
+    CustomerOrPetProfile,
+    /// Medical/vaccination evidence needs narrower review and redaction.
+    MedicalOrVaccination,
+    /// Payment evidence may be implicated; no money movement is authorized here.
+    PaymentState,
+    /// Payload is sensitive or quarantined and ordinary BI rows must stay redacted.
+    Quarantined,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    strum::Display,
+    strum::EnumString,
+    strum::VariantArray,
+)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
+/// Owned entity kind affected by a source-quality issue.
+pub enum AffectedEntityKindCode {
+    /// Customer profile or identity evidence.
+    Customer,
+    /// Pet profile, vaccination, eligibility, or care evidence.
+    Pet,
+    /// Reservation/checkout/stay evidence.
+    Reservation,
+    /// Location-level operating/source coverage evidence.
+    Location,
+    /// Source-only record that has not mapped safely to an owned entity yet.
+    SourceRecord,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    strum::Display,
+    strum::EnumString,
+    strum::VariantArray,
+)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
+/// Whether a source-quality issue blocks an owned workflow or remains advisory.
+pub enum DataQualityWorkflowBlockingCode {
+    /// Issue blocks or gates a workflow decision until reviewed.
+    Blocking,
+    /// Issue is visible for repair/BI but does not stop the workflow.
+    NonBlocking,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+/// Durable source-quality issue row that backs the Data-Quality Hygiene backlog read model.
+pub struct DataQualityIssueRecord {
+    /// Stable issue identifier used in workflow outcomes and BI lineage.
+    pub issue_ref: String,
+    /// Location whose source evidence is affected.
+    pub location_id: String,
+    /// Optional tenant namespace when multi-tenant persistence is enabled.
+    pub tenant_id: Option<String>,
+    /// Owned entity family affected by the source issue.
+    pub affected_entity_kind: AffectedEntityKindCode,
+    /// Owned entity identifier or source-only identifier affected by the issue.
+    pub affected_entity_id: String,
+    /// Domain/source field path needing review.
+    pub field_path: String,
+    /// Semantic issue category.
+    pub issue_kind: DataQualityIssueKindCode,
+    /// Operator/BI prioritization severity.
+    pub severity: DataQualitySeverityCode,
+    /// Source freshness posture.
+    pub freshness: DataQualityFreshnessCode,
+    /// Sensitivity/redaction posture.
+    pub sensitivity: DataQualitySensitivityCode,
+    /// Whether the issue blocks the workflow until review.
+    pub workflow_blocking: DataQualityWorkflowBlockingCode,
+    /// Staff/operating persona accountable for review or repair.
+    pub owner_persona: String,
+    /// Review gate required before operational handoff.
+    pub review_gate: ReviewGateCode,
+    /// Current reviewed lifecycle state.
+    pub resolution_status: DataQualityResolutionStatusCode,
+    #[builder(default)]
+    /// Source records supporting this issue; no raw provider payload is embedded.
+    pub source_refs: Vec<StoredSourceRecordRef>,
+    /// Linked workflow event when the issue is being processed or reviewed.
+    pub workflow_event_id: Option<String>,
+    /// Issue creation timestamp.
+    pub created_at: String,
+    /// Last update timestamp.
+    pub updated_at: String,
+    /// Resolution timestamp when the issue is no longer open.
+    pub resolved_at: Option<String>,
+}
+
+impl DataQualityIssueRecord {
+    /// Decodes a JSON storage payload into its typed source-quality issue shape.
+    pub fn decode_json(raw: &str) -> Result<Self> {
+        serde_json::from_str(raw)
+            .map_err(|source| CodecError::decode(RecordKind::DataQualityIssue, source).into())
+    }
+
+    /// Encodes the source-quality issue as JSON for persistence or fixture comparison.
+    pub fn encode_json(&self) -> Result<String> {
+        serde_json::to_string(self)
+            .map_err(|source| CodecError::encode(RecordKind::DataQualityIssue, source).into())
+    }
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    strum::Display,
+    strum::EnumString,
+    strum::VariantArray,
+)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
+/// Read-only import mode used by source freshness rows.
+pub enum DataQualitySourceImportModeCode {
+    /// Adapter collected a safe snapshot without writing to the provider.
+    ReadOnlySnapshot,
+    /// Adapter executed a dry-run mapping pass without live provider mutation.
+    DryRunMapping,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    strum::Display,
+    strum::EnumString,
+    strum::VariantArray,
+)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
+/// Import run status used to caveat source-quality read models.
+pub enum DataQualitySourceImportStatusCode {
+    /// Import run is still pending.
+    Pending,
+    /// Import completed without known row rejections.
+    Completed,
+    /// Import completed but rejected some source rows.
+    CompletedWithRejections,
+    /// Import failed before producing trustworthy coverage.
+    Failed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+/// Read-only source import run used to prove freshness and coverage caveats.
+pub struct DataQualitySourceImportRunRecord {
+    /// Import run primary key.
+    pub id: String,
+    /// Source system observed by the adapter.
+    pub source_system: String,
+    /// Adapter version that interpreted the source payloads.
+    pub adapter_version: String,
+    /// Location whose records were imported or checked.
+    pub location_id: String,
+    /// Optional tenant namespace when multi-tenant persistence is enabled.
+    pub tenant_id: Option<String>,
+    /// Read-only import mode.
+    pub mode: DataQualitySourceImportModeCode,
+    /// Import completion status.
+    pub status: DataQualitySourceImportStatusCode,
+    /// Run start timestamp.
+    pub started_at: String,
+    /// Run completion timestamp when available.
+    pub completed_at: Option<String>,
+    /// Number of source records observed.
+    pub record_count: u32,
+    /// Number of records rejected after safe validation/mapping.
+    pub rejected_count: u32,
+    /// Redacted failure class; never raw provider payload or credentials.
+    pub safe_error_class: Option<String>,
+    /// Redaction posture for payload storage/references.
+    pub redaction_posture: String,
+    /// Record creation timestamp.
+    pub created_at: String,
+}
+
+impl DataQualitySourceImportRunRecord {
+    /// Decodes a JSON storage payload into its typed import-run shape.
+    pub fn decode_json(raw: &str) -> Result<Self> {
+        serde_json::from_str(raw).map_err(|source| {
+            CodecError::decode(RecordKind::DataQualitySourceImportRun, source).into()
+        })
+    }
+
+    /// Encodes the import-run record as JSON for persistence or fixture comparison.
+    pub fn encode_json(&self) -> Result<String> {
+        serde_json::to_string(self).map_err(|source| {
+            CodecError::encode(RecordKind::DataQualitySourceImportRun, source).into()
+        })
+    }
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    strum::Display,
+    strum::EnumString,
+    strum::VariantArray,
+)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
+/// Sync/import gap kind used to caveat source-quality backlog and freshness rows.
+pub enum DataQualitySyncGapKindCode {
+    /// A source record expected by coverage checks was missing.
+    MissingExpectedRecord,
+    /// A source record was stale relative to the operating date.
+    StaleExpectedRecord,
+    /// A source record could not map safely to an owned entity.
+    MappingUncertain,
+    /// Adapter/source failure prevented freshness proof.
+    AdapterFailure,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    strum::Display,
+    strum::EnumString,
+    strum::VariantArray,
+)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
+/// Lifecycle status for sync/import gaps.
+pub enum DataQualitySyncGapStatusCode {
+    /// Gap is open and must caveat read models.
+    Open,
+    /// Gap is acknowledged but not repaired.
+    Acknowledged,
+    /// Gap was resolved by fresher import or repair.
+    Resolved,
+    /// Gap was superseded by another issue or import run.
+    Superseded,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+/// Durable sync/import gap row used by import freshness and backlog caveats.
+pub struct DataQualitySyncGapRecord {
+    /// Sync gap primary key.
+    pub id: String,
+    /// Source system whose coverage/freshness is affected.
+    pub source_system: String,
+    /// Optional source ref associated with the gap; raw payload is not embedded.
+    pub source_ref: Option<StoredSourceRecordRef>,
+    /// Location whose import/read model is affected.
+    pub location_id: String,
+    /// Optional tenant namespace when multi-tenant persistence is enabled.
+    pub tenant_id: Option<String>,
+    /// Gap category.
+    pub gap_kind: DataQualitySyncGapKindCode,
+    /// Gap severity.
+    pub severity: DataQualitySeverityCode,
+    /// Timestamp when the gap was detected.
+    pub detected_at: String,
+    /// Age of the gap at projection time.
+    pub age_seconds: u64,
+    /// Gap lifecycle status.
+    pub status: DataQualitySyncGapStatusCode,
+    /// Linked workflow event when review/repair is underway.
+    pub workflow_event_id: Option<String>,
+    /// Redacted failure class; never raw provider payload or credentials.
+    pub safe_error_class: Option<String>,
+    /// Record creation timestamp.
+    pub created_at: String,
+    /// Last update timestamp.
+    pub updated_at: String,
+}
+
+impl DataQualitySyncGapRecord {
+    /// Decodes a JSON storage payload into its typed sync-gap shape.
+    pub fn decode_json(raw: &str) -> Result<Self> {
+        serde_json::from_str(raw)
+            .map_err(|source| CodecError::decode(RecordKind::DataQualitySyncGap, source).into())
+    }
+
+    /// Encodes the sync-gap record as JSON for persistence or fixture comparison.
+    pub fn encode_json(&self) -> Result<String> {
+        serde_json::to_string(self)
+            .map_err(|source| CodecError::encode(RecordKind::DataQualitySyncGap, source).into())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// BI-safe source-quality backlog projection; it exposes dimensions and lineage, not raw provider payloads.
+pub struct SourceQualityBacklogRow {
+    /// Stable issue identifier used for drill-through.
+    pub issue_ref: String,
+    /// Location dimension.
+    pub location_id: String,
+    /// Optional tenant dimension.
+    pub tenant_id: Option<String>,
+    /// Affected owned entity kind.
+    pub affected_entity_kind: AffectedEntityKindCode,
+    /// Affected owned entity id or safe source-only id.
+    pub affected_entity_id: String,
+    /// Field path needing review.
+    pub field_path: String,
+    /// Issue category dimension.
+    pub issue_kind: DataQualityIssueKindCode,
+    /// Severity dimension.
+    pub severity: DataQualitySeverityCode,
+    /// Freshness dimension.
+    pub freshness: DataQualityFreshnessCode,
+    /// Sensitivity/redaction dimension.
+    pub sensitivity: DataQualitySensitivityCode,
+    /// Workflow blocking dimension.
+    pub workflow_blocking: DataQualityWorkflowBlockingCode,
+    /// Staff/operating owner persona.
+    pub owner_persona: String,
+    /// Review gate dimension.
+    pub review_gate: ReviewGateCode,
+    /// Current resolution state.
+    pub resolution_status: DataQualityResolutionStatusCode,
+    /// Source lineage references used by BI or operators to audit the row.
+    pub source_refs: Vec<StoredSourceRecordRef>,
+    /// Workflow event currently linked to the issue, if any.
+    pub workflow_event_id: Option<String>,
+    /// Latest reviewed hygiene outcome linked to the issue, if known.
+    pub latest_outcome_id: Option<String>,
+    /// Stable projection contract version.
+    pub projection_version: String,
+    /// Caveats such as `raw_payload_redacted` or `live_side_effects_disabled`.
+    pub caveats: Vec<String>,
+}
+
+impl SourceQualityBacklogRow {
+    /// Builds a BI-safe backlog row from a durable issue record and optional latest outcome lineage.
+    pub fn from_issue(
+        issue: DataQualityIssueRecord,
+        latest_outcome_id: Option<String>,
+        projection_version: String,
+        caveats: Vec<String>,
+    ) -> Self {
+        Self {
+            issue_ref: issue.issue_ref,
+            location_id: issue.location_id,
+            tenant_id: issue.tenant_id,
+            affected_entity_kind: issue.affected_entity_kind,
+            affected_entity_id: issue.affected_entity_id,
+            field_path: issue.field_path,
+            issue_kind: issue.issue_kind,
+            severity: issue.severity,
+            freshness: issue.freshness,
+            sensitivity: issue.sensitivity,
+            workflow_blocking: issue.workflow_blocking,
+            owner_persona: issue.owner_persona,
+            review_gate: issue.review_gate,
+            resolution_status: issue.resolution_status,
+            source_refs: issue.source_refs,
+            workflow_event_id: issue.workflow_event_id,
+            latest_outcome_id,
+            projection_version,
+            caveats,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// BI-safe import freshness projection for caveating backlog rows.
+pub struct ImportFreshnessRow {
+    /// Source system dimension.
+    pub source_system: String,
+    /// Location dimension.
+    pub location_id: String,
+    /// Timestamp of the latest completed or completed-with-rejections import.
+    pub last_completed_at: Option<String>,
+    /// Most recent adapter version observed for this source/location.
+    pub adapter_version: Option<String>,
+    /// Total records observed in matching import runs.
+    pub record_count: u32,
+    /// Total rejected rows in matching import runs.
+    pub rejected_count: u32,
+    /// Count of failed import runs.
+    pub failed_import_count: usize,
+    /// Count of open sync gaps.
+    pub open_gap_count: usize,
+    /// Stable projection contract version.
+    pub projection_version: String,
+    /// BI caveats derived from rejected imports, failed imports, or open gaps.
+    pub caveats: Vec<String>,
+}
+
+impl ImportFreshnessRow {
+    /// Builds a BI-safe import freshness projection from import runs and sync gaps.
+    pub fn from_import_runs_and_sync_gaps(
+        source_system: &str,
+        location_id: &str,
+        import_runs: &[DataQualitySourceImportRunRecord],
+        sync_gaps: &[DataQualitySyncGapRecord],
+        projection_version: String,
+    ) -> Self {
+        let matching_runs: Vec<_> = import_runs
+            .iter()
+            .filter(|run| run.source_system == source_system && run.location_id == location_id)
+            .collect();
+        let record_count = matching_runs
+            .iter()
+            .fold(0_u32, |total, run| total.saturating_add(run.record_count));
+        let rejected_count = matching_runs
+            .iter()
+            .fold(0_u32, |total, run| total.saturating_add(run.rejected_count));
+        let failed_import_count = matching_runs
+            .iter()
+            .filter(|run| run.status == DataQualitySourceImportStatusCode::Failed)
+            .count();
+        let latest_completed = matching_runs
+            .iter()
+            .filter(|run| {
+                matches!(
+                    run.status,
+                    DataQualitySourceImportStatusCode::Completed
+                        | DataQualitySourceImportStatusCode::CompletedWithRejections
+                )
+            })
+            .filter_map(|run| {
+                run.completed_at
+                    .as_ref()
+                    .map(|completed_at| (completed_at, run))
+            })
+            .max_by(|(left, _), (right, _)| left.cmp(right));
+        let open_gap_count = sync_gaps
+            .iter()
+            .filter(|gap| {
+                gap.source_system == source_system
+                    && gap.location_id == location_id
+                    && gap.status == DataQualitySyncGapStatusCode::Open
+            })
+            .count();
+
+        let mut caveats = Vec::new();
+        if rejected_count > 0 {
+            caveats.push("source_import_had_rejections".to_owned());
+        }
+        if failed_import_count > 0 {
+            caveats.push("source_import_failed".to_owned());
+        }
+        if open_gap_count > 0 {
+            caveats.push("open_sync_gaps".to_owned());
+        }
+
+        Self {
+            source_system: source_system.to_owned(),
+            location_id: location_id.to_owned(),
+            last_completed_at: latest_completed.map(|(completed_at, _)| (*completed_at).clone()),
+            adapter_version: latest_completed.map(|(_, run)| run.adapter_version.clone()),
+            record_count,
+            rejected_count,
+            failed_import_count,
+            open_gap_count,
+            projection_version,
+            caveats,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

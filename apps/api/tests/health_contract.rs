@@ -56,11 +56,15 @@ async fn readiness_endpoint_keeps_mvp_dependencies_explicitly_stubbed() {
     assert_eq!(payload["agent_runtime"], "fake_deterministic");
     assert_eq!(
         payload["observability"]["request_correlation"],
-        "x_request_id_response_header_and_workflow_payload_field"
+        "x_request_id_and_x_correlation_id_response_headers_with_workflow_payload_fields"
     );
     assert_eq!(
         payload["observability"]["workflow_correlation"],
         "local_workflow_correlation_ids_only"
+    );
+    assert_eq!(
+        payload["observability"]["local_request_metrics"],
+        "api_request_span_fields_and_aggregate_summary_only"
     );
     assert_eq!(
         payload["observability"]["metrics_scope"],
@@ -196,4 +200,95 @@ async fn inquiry_intake_records_are_visible_to_staff_review_queue() {
         false
     );
     assert_eq!(payload["records"][0]["task"]["kind"], "missing_info_review");
+}
+
+#[tokio::test]
+async fn request_trace_echoes_safe_request_and_correlation_ids_without_payload_logging() {
+    let response = http::router()
+        .oneshot(
+            axum_http::request::Builder::new()
+                .uri("/agent/context/data-quality-hygiene?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17")
+                .header("x-request-id", "ops-readiness-req-001")
+                .header("x-correlation-id", "ops-readiness-corr-001")
+                .body(Body::empty())
+                .expect("request builds"),
+        )
+        .await
+        .expect("context request succeeds");
+
+    assert_eq!(response.status(), axum_http::StatusCode::OK);
+    assert_eq!(
+        response.headers().get("x-request-id").unwrap(),
+        "ops-readiness-req-001"
+    );
+    assert_eq!(
+        response.headers().get("x-correlation-id").unwrap(),
+        "ops-readiness-corr-001"
+    );
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("body collects")
+        .to_bytes();
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("json context payload");
+
+    assert_eq!(
+        payload["observability"]["request_id"],
+        "ops-readiness-req-001"
+    );
+    assert_eq!(
+        payload["observability"]["request_correlation_id"],
+        "ops-readiness-corr-001"
+    );
+    assert_eq!(payload["observability"]["payload_logging"], "disabled");
+    assert_eq!(
+        payload["observability"]["safe_error_class"],
+        "not_applicable"
+    );
+    assert!(payload.to_string().contains("ops-readiness-corr-001"));
+    assert!(!payload.to_string().contains("Miso needs boarding"));
+}
+
+#[tokio::test]
+async fn metrics_summary_separates_local_proof_from_production_observability_gaps() {
+    let response = http::router()
+        .oneshot(
+            axum_http::request::Builder::new()
+                .uri("/ops/metrics/summary")
+                .body(Body::empty())
+                .expect("request builds"),
+        )
+        .await
+        .expect("metrics request succeeds");
+
+    assert_eq!(response.status(), axum_http::StatusCode::OK);
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("body collects")
+        .to_bytes();
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("json metrics payload");
+
+    assert_eq!(
+        payload["api_request_metrics"]["scope"],
+        "local_runtime_only"
+    );
+    assert_eq!(
+        payload["api_request_metrics"]["payload_logging"],
+        "disabled"
+    );
+    assert_eq!(
+        payload["api_request_metrics"]["safe_error_classes"],
+        json!(["validation_failed", "not_found", "not_applicable"])
+    );
+    assert_eq!(
+        payload["observability_gap"],
+        json!({
+            "production_traces": "not_configured",
+            "durable_request_metrics": "not_configured",
+            "dashboard_or_alerting": "not_configured"
+        })
+    );
 }

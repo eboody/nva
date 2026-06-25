@@ -1,0 +1,1210 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "NVA Pet Resorts Owned Operations API",
+    "version": "0.1.0",
+    "description": "Product-owned operations API v0 scaffold. Provider DTOs are evidence only; live side effects are disabled."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "StaffSessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "nva_staff_session"
+      }
+    },
+    "schemas": {
+      "ApiContractMetadata": {
+        "type": "object",
+        "required": [
+          "owner",
+          "boundary",
+          "version",
+          "workflow",
+          "provider_payload_passthrough",
+          "live_side_effects_allowed"
+        ],
+        "properties": {
+          "owner": {
+            "type": "string",
+            "const": "nva_pet_resorts_operations"
+          },
+          "boundary": {
+            "type": "string",
+            "const": "owned_operations_api_v0"
+          },
+          "version": {
+            "type": "string",
+            "const": "0.1.0"
+          },
+          "workflow": {
+            "type": "string"
+          },
+          "provider_payload_passthrough": {
+            "type": "boolean",
+            "const": false
+          },
+          "provider_dto_boundary": {
+            "type": "string",
+            "const": "provider_evidence_refs_only"
+          },
+          "live_side_effects_allowed": {
+            "type": "boolean",
+            "const": false
+          }
+        }
+      },
+      "RequestMetadata": {
+        "type": "object",
+        "required": [
+          "request_id",
+          "payload_logging"
+        ],
+        "properties": {
+          "request_id": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payload_logging": {
+            "enum": [
+              "disabled",
+              "redacted_summary_only"
+            ]
+          },
+          "actor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ActorRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "location_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tenant_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ActorRef": {
+        "type": "object",
+        "required": [
+          "actor_kind"
+        ],
+        "properties": {
+          "actor_kind": {
+            "type": "string"
+          },
+          "actor_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "actor_role": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "SourceRef": {
+        "type": "object",
+        "required": [
+          "source_system",
+          "external_record_ref"
+        ],
+        "properties": {
+          "source_system": {
+            "type": "string"
+          },
+          "external_record_ref": {
+            "type": "string"
+          },
+          "observed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "adapter_version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_visibility": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ReviewGateRef": {
+        "type": "object",
+        "required": [
+          "gate",
+          "required"
+        ],
+        "properties": {
+          "gate": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "reviewer_role": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "BlockedAction": {
+        "type": "object",
+        "required": [
+          "action",
+          "blocked_reason"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "customer_send",
+              "provider_pms_mutation",
+              "payment_move",
+              "schedule_capacity_mutation",
+              "medical_safety_decision",
+              "raw_payload_export",
+              "hide_or_auto_resolve_source_ambiguity"
+            ]
+          },
+          "blocked_reason": {
+            "type": "string"
+          },
+          "review_gate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewGateRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "AuditRef": {
+        "type": "object",
+        "required": [
+          "audit_event_id",
+          "event_name"
+        ],
+        "properties": {
+          "audit_event_id": {
+            "type": "string"
+          },
+          "event_name": {
+            "type": "string"
+          },
+          "workflow_event_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "review_packet_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "approval_record_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "outbox_record_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "Pagination": {
+        "type": "object",
+        "required": [
+          "limit",
+          "has_more"
+        ],
+        "properties": {
+          "limit": {
+            "type": "integer"
+          },
+          "cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "has_more": {
+            "type": "boolean"
+          }
+        }
+      },
+      "FilterMetadata": {
+        "type": "object",
+        "required": [
+          "applied_filters",
+          "projection_version",
+          "generated_at"
+        ],
+        "properties": {
+          "applied_filters": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "projection_version": {
+            "type": "string"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "freshness": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "caveats": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ErrorDetail": {
+        "type": "object",
+        "required": [
+          "field",
+          "reason"
+        ],
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "required": [
+          "error",
+          "request_id",
+          "live_side_effects_allowed"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message",
+              "safe_error_class"
+            ],
+            "properties": {
+              "code": {
+                "enum": [
+                  "invalid_request",
+                  "authentication_required",
+                  "forbidden",
+                  "not_found",
+                  "idempotency_conflict",
+                  "workflow_validation_failed",
+                  "dependency_unavailable",
+                  "planned_not_wired"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "safe_error_class": {
+                "enum": [
+                  "validation_failed",
+                  "auth_required",
+                  "authorization_failed",
+                  "not_found",
+                  "idempotency_conflict",
+                  "dependency_unavailable",
+                  "planned_not_wired"
+                ]
+              },
+              "details": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "live_side_effects_allowed": {
+            "type": "boolean",
+            "const": false
+          }
+        }
+      },
+      "DataQualityCandidate": {
+        "type": "object",
+        "required": [
+          "candidate_id",
+          "source_refs",
+          "issue_refs",
+          "review_gates"
+        ],
+        "properties": {
+          "candidate_id": {
+            "type": "string"
+          },
+          "affected_entity_ref": {
+            "type": "string"
+          },
+          "issue_category": {
+            "type": "string"
+          },
+          "issue_kind": {
+            "type": "string"
+          },
+          "field_path": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "freshness": {
+            "type": "string"
+          },
+          "sensitivity": {
+            "type": "string"
+          },
+          "workflow_blocking": {
+            "type": "boolean"
+          },
+          "source_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SourceRef"
+            }
+          },
+          "issue_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "review_gates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewGateRef"
+            }
+          },
+          "redaction_policy": {
+            "type": "string"
+          }
+        }
+      },
+      "DataQualityHygieneAction": {
+        "type": "object",
+        "required": [
+          "action_id",
+          "kind",
+          "priority",
+          "source_refs",
+          "issue_refs",
+          "review_gates",
+          "blocked_actions"
+        ],
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string"
+          },
+          "owner_persona": {
+            "type": "string"
+          },
+          "reviewer_role": {
+            "type": "string"
+          },
+          "source_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SourceRef"
+            }
+          },
+          "issue_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "review_gates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewGateRef"
+            }
+          },
+          "cleanup_action": {
+            "type": "string"
+          },
+          "estimated_minutes": {
+            "type": "integer"
+          },
+          "safe_agent_actions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "blocked_actions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BlockedAction"
+            }
+          }
+        }
+      },
+      "DataQualityHygieneContextResponse": {
+        "type": "object",
+        "required": [
+          "metadata",
+          "api_contract",
+          "workflow",
+          "location_id",
+          "operating_day",
+          "candidates",
+          "hygiene_actions",
+          "blocked_actions",
+          "live_side_effects_allowed"
+        ],
+        "properties": {
+          "metadata": {
+            "$ref": "#/components/schemas/RequestMetadata"
+          },
+          "api_contract": {
+            "$ref": "#/components/schemas/ApiContractMetadata"
+          },
+          "workflow": {
+            "type": "object"
+          },
+          "location_id": {
+            "type": "string"
+          },
+          "operating_day": {
+            "type": "string",
+            "format": "date"
+          },
+          "prepared_for": {
+            "type": "string"
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataQualityCandidate"
+            }
+          },
+          "hygiene_actions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataQualityHygieneAction"
+            }
+          },
+          "labor_savings_estimate": {
+            "type": "object"
+          },
+          "allowed_agent_actions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "blocked_actions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "audit": {
+            "type": "object"
+          },
+          "live_side_effects_allowed": {
+            "type": "boolean",
+            "const": false
+          }
+        }
+      },
+      "DataQualityHygieneDraftSubmissionRequest": {
+        "type": "object",
+        "required": [
+          "context_packet_id",
+          "correlation_id",
+          "actions"
+        ],
+        "properties": {
+          "context_packet_id": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataQualityHygieneSubmittedAction"
+            }
+          },
+          "idempotency_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "DataQualityHygieneSubmittedAction": {
+        "type": "object",
+        "required": [
+          "action_id",
+          "kind",
+          "source_refs",
+          "issue_refs",
+          "review_gates",
+          "requested_side_effects",
+          "attempted_ambiguity_resolution"
+        ],
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "source_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SourceRef"
+            }
+          },
+          "issue_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "review_gates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewGateRef"
+            }
+          },
+          "requested_side_effects": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "attempted_ambiguity_resolution": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DraftValidationResult": {
+        "type": "object",
+        "required": [
+          "status",
+          "validator",
+          "safe_error_class"
+        ],
+        "properties": {
+          "status": {
+            "enum": [
+              "accepted",
+              "partially_accepted",
+              "rejected"
+            ]
+          },
+          "validator": {
+            "type": "string"
+          },
+          "safe_error_class": {
+            "type": "string"
+          }
+        }
+      },
+      "DataQualityHygieneDraftSubmissionResponse": {
+        "type": "object",
+        "required": [
+          "api_contract",
+          "validation",
+          "context_packet_id",
+          "correlation_id",
+          "accepted_actions",
+          "rejected_actions",
+          "live_side_effects_allowed",
+          "audit"
+        ],
+        "properties": {
+          "api_contract": {
+            "$ref": "#/components/schemas/ApiContractMetadata"
+          },
+          "validation": {
+            "$ref": "#/components/schemas/DraftValidationResult"
+          },
+          "context_packet_id": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          },
+          "accepted_actions": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "rejected_actions": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "live_side_effects_allowed": {
+            "type": "boolean",
+            "const": false
+          },
+          "audit": {
+            "type": "object"
+          }
+        }
+      },
+      "DataQualityHygieneOutcomeCaptureRequest": {
+        "type": "object",
+        "required": [
+          "outcome",
+          "actual_minutes",
+          "actor",
+          "feedback",
+          "source_refs",
+          "issue_refs",
+          "resolution_status_after_review",
+          "timestamp",
+          "audit",
+          "requested_side_effects"
+        ],
+        "properties": {
+          "outcome": {
+            "type": "string"
+          },
+          "actual_minutes": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "actor": {
+            "$ref": "#/components/schemas/ActorRef"
+          },
+          "feedback": {
+            "type": "string"
+          },
+          "source_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SourceRef"
+            }
+          },
+          "issue_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "resolution_status_after_review": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "audit": {
+            "type": "object"
+          },
+          "requested_side_effects": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "idempotency_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "DataQualityHygieneOutcomeCaptureResponse": {
+        "type": "object",
+        "required": [
+          "api_contract",
+          "accepted",
+          "outcome_persisted",
+          "outcome_record",
+          "labor_savings_evidence",
+          "local_demo_readiness",
+          "storage_projection_proof",
+          "observability",
+          "live_side_effects_allowed",
+          "blocked_actions",
+          "audit"
+        ],
+        "properties": {
+          "api_contract": {
+            "$ref": "#/components/schemas/ApiContractMetadata"
+          },
+          "accepted": {
+            "type": "boolean",
+            "const": true
+          },
+          "outcome_persisted": {
+            "type": "boolean"
+          },
+          "outcome_record": {
+            "$ref": "#/components/schemas/DataQualityHygieneOutcomeRecord"
+          },
+          "labor_savings_evidence": {
+            "type": "object"
+          },
+          "local_demo_readiness": {
+            "type": "object"
+          },
+          "storage_projection_proof": {
+            "type": "object"
+          },
+          "observability": {
+            "type": "object"
+          },
+          "live_side_effects_allowed": {
+            "type": "boolean",
+            "const": false
+          },
+          "blocked_actions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "audit": {
+            "type": "object"
+          }
+        }
+      },
+      "DataQualityHygieneOutcomeRecord": {
+        "type": "object",
+        "properties": {
+          "outcome_record_id": {
+            "type": "string"
+          },
+          "action_id": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "actual_minutes": {
+            "type": "integer"
+          },
+          "estimated_minutes_saved": {
+            "type": "integer"
+          },
+          "actual_minutes_saved": {
+            "type": "integer"
+          },
+          "actor": {
+            "$ref": "#/components/schemas/ActorRef"
+          },
+          "feedback_summary": {
+            "type": "string"
+          },
+          "source_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SourceRef"
+            }
+          },
+          "issue_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "resolution_status_after_review": {
+            "type": "string"
+          },
+          "location_id": {
+            "type": "string"
+          },
+          "operating_day": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          },
+          "recorded_at": {
+            "type": "string"
+          }
+        }
+      },
+      "DataQualityHygieneOutcomeSummaryResponse": {
+        "type": "object",
+        "required": [
+          "api_contract",
+          "summary",
+          "live_side_effects_allowed",
+          "blocked_actions",
+          "audit"
+        ],
+        "properties": {
+          "api_contract": {
+            "$ref": "#/components/schemas/ApiContractMetadata"
+          },
+          "summary": {
+            "type": "object"
+          },
+          "live_side_effects_allowed": {
+            "type": "boolean",
+            "const": false
+          },
+          "blocked_actions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "audit": {
+            "type": "object"
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "description": "HealthResponse owned operations v0 schema; local runtime scaffold only, no live side effects."
+      },
+      "ReadinessResponse": {
+        "type": "object",
+        "description": "ReadinessResponse owned operations v0 schema; local runtime scaffold only, no live side effects."
+      },
+      "WorkflowRepositoryReadiness": {
+        "type": "object",
+        "description": "WorkflowRepositoryReadiness owned operations v0 schema; local runtime scaffold only, no live side effects."
+      },
+      "ObservabilityReadiness": {
+        "type": "object",
+        "description": "ObservabilityReadiness owned operations v0 schema; local runtime scaffold only, no live side effects."
+      },
+      "OpsMetricsSummaryResponse": {
+        "type": "object",
+        "description": "OpsMetricsSummaryResponse owned operations v0 schema; local runtime scaffold only, no live side effects."
+      },
+      "ProductLaborMetrics": {
+        "type": "object",
+        "description": "ProductLaborMetrics owned operations v0 schema; local runtime scaffold only, no live side effects."
+      },
+      "LocalRuntimeCounters": {
+        "type": "object",
+        "description": "LocalRuntimeCounters owned operations v0 schema; local runtime scaffold only, no live side effects."
+      },
+      "MetricsSafety": {
+        "type": "object",
+        "description": "MetricsSafety owned operations v0 schema; local runtime scaffold only, no live side effects."
+      },
+      "SourceQualityBacklogListResponse": {
+        "type": "object",
+        "description": "SourceQualityBacklogListResponse owned operations v0 schema; local runtime scaffold only, no live side effects."
+      },
+      "DataQualityHygieneOutcomeValidationResponse": {
+        "type": "object",
+        "required": [
+          "accepted",
+          "outcome_persisted",
+          "reasons",
+          "live_side_effects_allowed",
+          "blocked_actions"
+        ],
+        "properties": {
+          "accepted": {
+            "type": "boolean",
+            "const": false
+          },
+          "outcome_persisted": {
+            "type": "boolean",
+            "const": false
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "live_side_effects_allowed": {
+            "type": "boolean",
+            "const": false
+          },
+          "blocked_actions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/v0/healthz": {
+      "get": {
+        "operationId": "getHealth",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/readyz": {
+      "get": {
+        "operationId": "getReadiness",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/ops/metrics/summary": {
+      "get": {
+        "operationId": "getOpsMetricsSummary",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsMetricsSummaryResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/agent/context/data-quality-hygiene": {
+      "get": {
+        "operationId": "getDataQualityHygieneContext",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataQualityHygieneContextResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/agent/drafts/data-quality-hygiene": {
+      "post": {
+        "operationId": "submitDataQualityHygieneDraft",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DataQualityHygieneDraftSubmissionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataQualityHygieneDraftSubmissionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataQualityHygieneDraftSubmissionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/data-quality-hygiene/actions/{action_id}/outcome": {
+      "post": {
+        "operationId": "captureDataQualityHygieneOutcome",
+        "parameters": [
+          {
+            "name": "action_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DataQualityHygieneOutcomeCaptureRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataQualityHygieneOutcomeCaptureResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataQualityHygieneOutcomeValidationResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/data-quality-hygiene/outcomes/summary": {
+      "get": {
+        "operationId": "getDataQualityHygieneOutcomeSummary",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataQualityHygieneOutcomeSummaryResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/read-models/source-quality-backlog": {
+      "get": {
+        "operationId": "listSourceQualityBacklog",
+        "description": "Planned BI read-model route name; not wired in local runtime scaffold yet.",
+        "responses": {
+          "501": {
+            "description": "Planned not wired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

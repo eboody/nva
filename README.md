@@ -20,14 +20,16 @@ Use the published/non-coder landing source at [docs/public/index.html](docs/publ
 
 ## Five-minute local demo slice
 
-For a job or networking conversation, start with the [Job presentation walkthrough](docs/presentation/job-presentation-walkthrough.md), then run the Data-Quality Hygiene local demo slice from the repo root:
+For a job or networking conversation, start with the [Job presentation walkthrough](docs/presentation/job-presentation-walkthrough.md). If the audience asks why this matters beyond a safe local demo, use the [owned operations API replacement talk track](docs/presentation/owned-operations-api-replacement-talk-track.md): Gingr is source evidence, BI's separate database is a signal that raw provider shape is not enough, and the product opportunity is an owned operations API/read-model layer with review gates, outcome/labor proof, audit, metrics, and explicit caveats.
+
+Keep Data-Quality Hygiene as the first runnable slice, then run it from the repo root:
 
 ```sh
 ./scripts/smoke_data_quality_hygiene_local_loop.sh
 ./scripts/smoke_data_quality_hygiene_disabled_worker_outbox.sh
 ```
 
-The expected markers are `context_ok`, `draft_validation_ok`, `blocked_draft_validation_ok`, `outcome_ok`, `live_side_effects_allowed=false`, positive estimated/actual minutes saved, and a disabled worker/outbox proof. This is architecture/demo-ready proof only: it uses fixture/local state and fake/disabled side-effect posture, not live NVA/Gingr credentials, production data, provider writes, customer sends, payment/refund/discount actions, schedule changes, or production deployment. Toasty is only a possible future storage-adapter spike after this slice; it is not part of the current proof or domain/app/API contract shape.
+The expected markers are `context_ok`, `draft_validation_ok`, `blocked_draft_validation_ok`, `outcome_ok`, `live_side_effects_allowed=false`, positive estimated/actual minutes saved, and a disabled worker/outbox proof. This is architecture/demo-ready proof only: it uses fixture/local state and fake/disabled side-effect posture, not live NVA/Gingr credentials, production data, provider writes, customer sends, payment/refund/discount actions, schedule changes, or production deployment. The owned API replacement path still needs durable Postgres wiring, published schemas, auth/location scope, worker leasing/dead-letter views, real access validation, and owner-approved BI/KPI definitions before any production or replacement claim. Toasty is only a possible future storage-adapter spike after this slice; it is not part of the current proof or domain/app/API contract shape.
 
 ## Canonical docs path
 

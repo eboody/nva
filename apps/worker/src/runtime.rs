@@ -117,6 +117,7 @@ pub struct ProcessingContract {
 pub struct DataQualityHygieneWorkerProof {
     workflow_event_ref: String,
     workflow_name: String,
+    correlation_id: String,
     required_review_gate: ReviewGate,
     agent_runtime_mode: AgentRuntimeMode,
     side_effect_mode: SideEffectMode,
@@ -125,6 +126,22 @@ pub struct DataQualityHygieneWorkerProof {
     outbox_topic: Option<String>,
     has_reviewed_outcome: bool,
     audit_event_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+/// Safe low-cardinality telemetry fields emitted by the local worker proof.
+///
+/// These fields are intentionally IDs/status classes only. They never include raw
+/// customer text, provider payloads, message bodies, payment data, or secrets.
+pub struct WorkerTelemetryFields {
+    event: &'static str,
+    workflow_event_id: String,
+    correlation_id: String,
+    worker_id: &'static str,
+    attempt_count: u16,
+    safe_error_class: &'static str,
+    payload_logging: &'static str,
+    live_delivery_allowed: bool,
 }
 
 impl ProcessingContract {
@@ -198,6 +215,7 @@ impl DataQualityHygieneWorkerProof {
         Self {
             workflow_event_ref: records.workflow_event.id.clone(),
             workflow_name: records.workflow_event.workflow_name.clone(),
+            correlation_id: records.outcome.record.correlation_id.clone(),
             required_review_gate: ReviewGate::ManagerApproval,
             agent_runtime_mode: config.agent_runtime_mode,
             side_effect_mode: config.side_effect_mode,
@@ -256,6 +274,11 @@ impl DataQualityHygieneWorkerProof {
         &self.workflow_name
     }
 
+    /// Returns the business correlation id carried from reviewed outcome storage.
+    pub fn correlation_id(&self) -> &str {
+        &self.correlation_id
+    }
+
     /// Returns the review gate that still blocks external delivery.
     pub fn required_review_gate(&self) -> ReviewGate {
         self.required_review_gate
@@ -296,6 +319,20 @@ impl DataQualityHygieneWorkerProof {
         self.audit_event_count
     }
 
+    /// Returns safe telemetry fields for logs/metrics/readiness narration.
+    pub fn telemetry_fields(&self) -> WorkerTelemetryFields {
+        WorkerTelemetryFields {
+            event: "outbox_blocked",
+            workflow_event_id: self.workflow_event_ref.clone(),
+            correlation_id: self.correlation_id.clone(),
+            worker_id: "local-disabled-worker",
+            attempt_count: 1,
+            safe_error_class: "review_gated_stub",
+            payload_logging: "disabled",
+            live_delivery_allowed: false,
+        }
+    }
+
     /// True when the proof is intentionally local/fake and cannot publish externally.
     pub fn is_fake_local_only(&self) -> bool {
         self.agent_runtime_mode == AgentRuntimeMode::Disabled
@@ -321,6 +358,48 @@ impl DataQualityHygieneWorkerProof {
     /// True when payment/deposit/refund movement remains unavailable to this worker runtime.
     pub fn blocks_live_payment_actions(&self) -> bool {
         self.side_effect_mode == SideEffectMode::Stubbed
+    }
+}
+
+impl WorkerTelemetryFields {
+    /// Stable telemetry event name emitted by the worker proof.
+    pub fn event(&self) -> &'static str {
+        self.event
+    }
+
+    /// Workflow event identifier that links telemetry to durable review/audit evidence.
+    pub fn workflow_event_id(&self) -> &str {
+        &self.workflow_event_id
+    }
+
+    /// Correlation identifier shared across safe local worker telemetry and API traces.
+    pub fn correlation_id(&self) -> &str {
+        &self.correlation_id
+    }
+
+    /// Stable worker identifier for BI/ops grouping.
+    pub fn worker_id(&self) -> &'static str {
+        self.worker_id
+    }
+
+    /// Number of local deterministic attempts represented by this telemetry proof.
+    pub fn attempt_count(&self) -> u16 {
+        self.attempt_count
+    }
+
+    /// Redacted error class safe for logs, metrics, and read models.
+    pub fn safe_error_class(&self) -> &'static str {
+        self.safe_error_class
+    }
+
+    /// Payload logging posture; remains disabled for safe local proofs.
+    pub fn payload_logging(&self) -> &'static str {
+        self.payload_logging
+    }
+
+    /// Whether this worker proof may deliver externally; false for local/stubbed runtimes.
+    pub fn live_delivery_allowed(&self) -> bool {
+        self.live_delivery_allowed
     }
 }
 

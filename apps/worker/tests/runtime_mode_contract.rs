@@ -75,6 +75,19 @@ fn completed_data_quality_hygiene_projection_becomes_disabled_internal_handoff_p
 
     let proof = config.process_data_quality_hygiene_projection(&records);
 
+    let telemetry = proof.telemetry_fields();
+    assert_eq!(telemetry.event(), "outbox_blocked");
+    assert_eq!(telemetry.workflow_event_id(), "dqh-workflow-event:demo-1");
+    assert_eq!(
+        telemetry.correlation_id(),
+        "data-quality-hygiene:demo-correlation"
+    );
+    assert_eq!(telemetry.worker_id(), "local-disabled-worker");
+    assert_eq!(telemetry.attempt_count(), 1);
+    assert_eq!(telemetry.safe_error_class(), "review_gated_stub");
+    assert_eq!(telemetry.payload_logging(), "disabled");
+    assert!(!telemetry.live_delivery_allowed());
+
     assert_eq!(proof.workflow_name(), "data-quality-hygiene");
     assert_eq!(proof.workflow_event_ref(), "dqh-workflow-event:demo-1");
     assert_eq!(
