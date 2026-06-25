@@ -107,3 +107,24 @@ test("manager daily brief UI exposes review outcomes and labor-savings loop", ()
     assert.match(page, new RegExp(expected, "i"), `missing manager daily brief UI evidence: ${expected}`);
   }
 });
+
+test("staff dashboard exposes api readiness metrics and repository contract posture", () => {
+  for (const expected of [
+    "API readiness and observability contract",
+    "/readyz",
+    "/ops/metrics/summary",
+    "runtime_readiness",
+    "ops_metrics_summary",
+    "api_runtime_dto",
+    "active adapter: in_memory",
+    "planned adapter: postgres same-contract",
+    "live_side_effects: disabled",
+    "audit_event_count",
+    "review_packet_count",
+    "outcome_count",
+    "inquiry_count",
+    "Prometheus/OpenTelemetry plan"
+  ]) {
+    assert.match(page, new RegExp(expected, "i"), `missing API readiness/metrics story evidence: ${expected}`);
+  }
+});

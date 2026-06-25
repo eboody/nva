@@ -473,6 +473,25 @@ const auditTrail = [
   "audit.append-only.event.visible — staff actions preserve policy refs"
 ];
 
+const apiReadinessPosture = {
+  routes: [
+    {
+      path: "/readyz",
+      workflow: "runtime_readiness",
+      boundary: "api_runtime_dto",
+      summary: "Readiness DTO reports database/object storage as not_configured for local demo, agent runtime as fake_deterministic, active adapter: in_memory, and planned adapter: postgres same-contract."
+    },
+    {
+      path: "/ops/metrics/summary",
+      workflow: "ops_metrics_summary",
+      boundary: "api_runtime_dto",
+      summary: "Aggregate-only metrics DTO exposes product labor rollups plus inquiry_count, review_packet_count, audit_event_count, and outcome_count without raw customer/provider payloads."
+    }
+  ],
+  safety: "live_side_effects: disabled; live customer messaging, provider/PMS writes, payment/refund movement, and hidden source cleanup are unavailable in this demo surface.",
+  productionPlan: "Prometheus/OpenTelemetry plan: request_latency, error_rate, queue_depth, dead_letter_count, review_sla, outbox_failures, and worker_lease_age."
+};
+
 function StatusBadge({ status }: { status: Readiness | IncidentStatus }) {
   return <span className="badge">{status.replaceAll("_", " ")}</span>;
 }
@@ -523,6 +542,7 @@ export default function Home() {
         {[
           "Session guard",
           "Today operations",
+          "API readiness and observability contract",
           "Pet profile",
           "Reservation view",
           "Inquiry intake queue",
@@ -571,6 +591,33 @@ export default function Home() {
           <div><strong>2</strong><span>documents awaiting review</span></div>
           <div><strong>{incidents.length}</strong><span>incidents visible for review</span></div>
         </div>
+      </Panel>
+
+      <Panel title="API readiness and observability contract" eyebrow="DTO/API/metrics posture">
+        <p className="muted">
+          Non-technical demo proof that the staff surface maps to product-owned API contracts: local readiness is honest,
+          metrics are aggregate-only, review/audit counts are visible, and live side effects remain disabled.
+        </p>
+        <div className="card-grid">
+          {apiReadinessPosture.routes.map((route) => (
+            <article className="record-card" key={route.path}>
+              <div className="record-header">
+                <h3>{route.path}</h3>
+                <span className="badge">{route.workflow}</span>
+              </div>
+              <p><strong>DTO boundary:</strong> {route.boundary}</p>
+              <p>{route.summary}</p>
+            </article>
+          ))}
+        </div>
+        <div className="metric-grid">
+          <div><strong>{inquiryIntakeQueue.length}</strong><span>inquiry_count local demo</span></div>
+          <div><strong>{documentReviews.length + incidents.length}</strong><span>review_packet_count local demo</span></div>
+          <div><strong>{auditTrail.length}</strong><span>audit_event_count baseline</span></div>
+          <div><strong>1</strong><span>outcome_count demo record</span></div>
+        </div>
+        <p><strong>Safety:</strong> {apiReadinessPosture.safety}</p>
+        <p><strong>Production metrics:</strong> {apiReadinessPosture.productionPlan}</p>
       </Panel>
 
       <Panel title="Pet profile" eyebrow="role-scoped pet facts">

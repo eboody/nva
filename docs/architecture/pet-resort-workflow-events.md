@@ -322,6 +322,19 @@ verified source/staff/scheduler input
   -> deterministic adapters execute only approved outbox actions
 ```
 
+Current MVP storage/runtime mapping:
+
+| Surface | Role in durable processing | Safety invariant |
+| --- | --- | --- |
+| `workflow_events` | Durable semantic inbox: accepted event kind, subject, source/idempotency key, payload, and timestamps are stored before any worker processing. | Event presence is not execution authority; it only starts a bounded analysis/review path. |
+| `workflow_results` | Worker output envelope linked back to one `workflow_event_id`. | Results are reviewable evidence/recommendations, not proof that a customer message, provider write, payment action, eligibility decision, or care completion happened. |
+| `approval_records` | Human/staff/manager decision record for a specific gate and target. | Only approved records with matching target/gate can support publishable outbox records. |
+| `outbox_records` | Immutable, idempotent side-effect candidate after approval. | The migration requires a matching approved approval record; pending/claimed rows keep the approval immutable while execution is unresolved. |
+| `audit_events` | Append-only trace of workflow, review, outbox, and operator decisions. | Audit rows preserve correlation/lineage and cannot be updated or deleted by retry/replay. |
+| `apps/worker` runtime | Local worker shell/contract for claimed workflow/outbox work. | Defaults to `FakeDeterministic` agents and `Stubbed` side effects; there is no live adapter for customer sends, provider/PMS writes, or payment movement. |
+
+The practical processing contract today is deliberately conservative: a claimed workflow/outbox record may be inspected, mapped to deterministic/fake workflow output, and routed to review/audit evidence. It remains `ReviewGatedStub` until a separate approved path exists. This gives reviewers a durable story without implying that the worker can publish to Gingr, email/SMS, payment providers, or customer-visible channels.
+
 Queue row essentials:
 
 - `queue_id`, `event_id`, `location_id`, `subject_kind`, `subject_id`, `event_type`, `workflow_kind`.

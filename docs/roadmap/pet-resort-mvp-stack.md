@@ -270,9 +270,17 @@ Required MVP instrumentation:
 
 - Structured JSON logs with request ID, correlation ID, workflow event ID, job ID, actor kind/id, location ID, subject ref, and safe error class.
 - Health/readiness endpoints for API, worker, database, and object storage dependency checks.
+- Safe local metrics/readiness surface: `GET /ops/metrics/summary` returns aggregate-only runtime counters (`inquiry_count`, `review_packet_count`, `audit_event_count`, `outcome_count`), disabled live-side-effect status, and product labor rollups from manager daily-brief plus data-quality hygiene outcome records. It is a DTO/readiness proof, not a Prometheus replacement and not a raw-customer/provider payload surface.
 - Queue/dead-letter dashboard or admin view showing safe summaries, retry counts, and blocked reason.
 - Audit-event append for every state transition, approval, denied action, failed validation, dead-letter, replay, prompt packet build, AI result validation, and side-effect candidate.
 - Redaction rules for logs and UI: no raw documents, OCR, message bodies, incident narratives, raw provider JSON, payment payloads, secrets, or hidden prompts in ordinary logs.
+
+Metrics cutline:
+
+- First-class product/labor metrics already modeled locally: manager daily-brief outcomes and data-quality hygiene outcomes capture reviewed disposition, before/after labor minutes, actual minutes saved for completed work, source refs, actor persona, location, operating day, and correlation ID.
+- Safe MVP infra counters/status: aggregate demo-state counts and `live_side_effects=disabled` from `/ops/metrics/summary`, plus `/healthz` and `/readyz` for liveness/dependency posture.
+- Planned production metrics once durable services exist: request latency, error rate, queue depth, dead-letter count, review SLA/queue age, outbox failures, worker lease age, and audit write failures.
+- Defer Prometheus/OpenTelemetry dashboards until the Postgres-backed runtime, worker leases, and outbox generate real operational signals worth scraping; do not overbuild cardinality-heavy metrics before those surfaces exist.
 
 Optional after MVP foundation:
 

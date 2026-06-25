@@ -1,6 +1,15 @@
 -- Core MVP data model for the pet resort agent foundation.
 -- Encodes launch-critical owners, pets, reservations, evidence, review, workflow,
 -- outbox, object metadata, and append-only audit surfaces.
+-- Deferred DB surfaces intentionally not claimed by this foundation migration:
+-- auth/session/role/location authorization; infra metrics snapshots and dashboard read models;
+-- durable job leasing and worker ownership; real provider source snapshots.
+-- Durable processing lineage and safety model:
+-- workflow_events are accepted before worker processing and carry the source/idempotency fact.
+-- workflow_results are reviewable worker output, not execution proof or external delivery authority.
+-- outbox_records require a matching approved approval_record before any publishable work can exist.
+-- audit_events preserve workflow/outbox lineage append-only for review and replay evidence.
+-- worker MVP remains fake deterministic and side-effect stubbed; no customer/provider/payment adapter is live.
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
@@ -292,6 +301,7 @@ CREATE TABLE IF NOT EXISTS approval_records (
         (
             status IN ('approved', 'rejected')
             AND decided_by_actor_kind IS NOT NULL
+            AND decided_by_actor_id IS NOT NULL
             AND decided_at IS NOT NULL
         )
         OR
@@ -306,10 +316,59 @@ CREATE TABLE IF NOT EXISTS approval_records (
     updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS manager_daily_brief_outcomes (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    workflow_event_id uuid NOT NULL REFERENCES workflow_events(id),
+    approval_record_id uuid NOT NULL REFERENCES approval_records(id),
+    action_id text NOT NULL CHECK (length(trim(action_id)) > 0),
+    outcome text NOT NULL CHECK (outcome IN ('completed', 'deferred', 'suppressed_by_manager', 'source_fact_was_wrong')),
+    actor_id text NOT NULL CHECK (length(trim(actor_id)) > 0),
+    actor_persona text NOT NULL CHECK (actor_persona IN ('general_manager', 'assistant_general_manager', 'front_desk_lead', 'front_desk_agent')),
+    feedback text NOT NULL DEFAULT '',
+    owner_persona text NOT NULL CHECK (owner_persona IN ('general_manager', 'assistant_general_manager', 'front_desk_lead', 'front_desk_agent')),
+    action_kind text NOT NULL CHECK (action_kind IN ('review_demand_against_staffing_plan', 'resolve_checkout_exception', 'approve_retention_follow_up_draft', 'investigate_source_data_quality_issue')),
+    before_minutes integer NOT NULL CHECK (before_minutes > 0),
+    actual_minutes integer NOT NULL CHECK (actual_minutes > 0),
+    estimated_minutes_saved integer NOT NULL CHECK (estimated_minutes_saved >= 0),
+    location_id uuid REFERENCES locations(id),
+    operating_day date NOT NULL,
+    source_refs jsonb NOT NULL DEFAULT '[]'::jsonb,
+    correlation_id text NOT NULL CHECK (length(trim(correlation_id)) > 0),
+    recorded_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT manager_daily_brief_outcomes_action_id_key UNIQUE (action_id)
+);
+
+CREATE TABLE IF NOT EXISTS data_quality_hygiene_outcomes (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    workflow_event_id uuid NOT NULL REFERENCES workflow_events(id),
+    approval_record_id uuid NOT NULL REFERENCES approval_records(id),
+    action_id text NOT NULL CHECK (length(trim(action_id)) > 0),
+    outcome text NOT NULL CHECK (outcome IN ('completed', 'deferred', 'suppressed_by_manager', 'source_fact_was_wrong', 'not_actionable')),
+    actor_id text NOT NULL CHECK (length(trim(actor_id)) > 0),
+    actor_persona text NOT NULL CHECK (actor_persona IN ('general_manager', 'assistant_general_manager', 'front_desk_lead', 'front_desk_agent', 'regional_operator', 'operations_analyst')),
+    feedback text NOT NULL DEFAULT '',
+    issue_refs jsonb NOT NULL DEFAULT '[]'::jsonb,
+    resolution_status_after_review text NOT NULL CHECK (resolution_status_after_review IN ('open', 'acknowledged', 'ignored', 'repaired', 'superseded')),
+    owner_persona text NOT NULL CHECK (owner_persona IN ('general_manager', 'assistant_general_manager', 'front_desk_lead', 'front_desk_agent', 'regional_operator', 'operations_analyst')),
+    action_kind text NOT NULL CHECK (action_kind IN ('investigate_missing_source_evidence', 'reconcile_duplicate_customer_or_pet_candidate', 'complete_missing_pet_or_customer_profile_fields', 'review_stale_vaccination_source_freshness', 'normalize_ambiguous_service_line_naming', 'review_checkout_or_unclosed_reservation_evidence', 'escalate_sensitive_or_quarantined_payload', 'review_payment_state_conflict')),
+    before_minutes integer NOT NULL CHECK (before_minutes > 0),
+    actual_minutes integer NOT NULL CHECK (actual_minutes > 0),
+    estimated_minutes_saved integer NOT NULL CHECK (estimated_minutes_saved >= 0),
+    location_id uuid REFERENCES locations(id),
+    operating_day date NOT NULL,
+    source_refs jsonb NOT NULL DEFAULT '[]'::jsonb,
+    correlation_id text NOT NULL CHECK (length(trim(correlation_id)) > 0),
+    recorded_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT data_quality_hygiene_outcomes_action_id_key UNIQUE (action_id)
+);
+
 CREATE TABLE IF NOT EXISTS outbox_records (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    idempotency_key text NOT NULL,
+    approval_record_id uuid NOT NULL REFERENCES approval_records(id),
     topic text NOT NULL CHECK (length(trim(topic)) > 0),
-    aggregate_kind text NOT NULL CHECK (length(trim(aggregate_kind)) > 0),
+    review_gate text NOT NULL CHECK (review_gate_is_valid(review_gate)),
+    aggregate_kind text NOT NULL CHECK (aggregate_kind IN ('reservation', 'document', 'vaccine_record', 'incident', 'message')),
     aggregate_id uuid NOT NULL,
     payload jsonb NOT NULL DEFAULT '{}'::jsonb,
     status text NOT NULL CHECK (status IN ('pending', 'claimed', 'published', 'failed', 'dead_letter')),
@@ -318,8 +377,77 @@ CREATE TABLE IF NOT EXISTS outbox_records (
     published_at timestamptz,
     failure_count integer NOT NULL DEFAULT 0 CHECK (failure_count >= 0),
     last_error text,
-    created_at timestamptz NOT NULL DEFAULT now()
+    created_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT outbox_records_idempotency_key_key UNIQUE (idempotency_key),
+    CONSTRAINT outbox_records_status_timestamp_integrity CHECK (
+        (status = 'pending' AND claimed_at IS NULL AND published_at IS NULL)
+        OR (status = 'claimed' AND claimed_at IS NOT NULL AND published_at IS NULL)
+        OR (status = 'published' AND claimed_at IS NOT NULL AND published_at IS NOT NULL)
+        OR (status = 'failed' AND failure_count > 0 AND last_error IS NOT NULL AND published_at IS NULL)
+        OR (status = 'dead_letter' AND failure_count > 0 AND last_error IS NOT NULL AND published_at IS NULL)
+    )
 );
+
+CREATE OR REPLACE FUNCTION enforce_outbox_approval_record_is_approved()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    approval_record approval_records%ROWTYPE;
+BEGIN
+    SELECT * INTO approval_record
+    FROM approval_records
+    WHERE id = NEW.approval_record_id;
+
+    IF approval_record.id IS NULL
+        OR approval_record.status <> 'approved'
+        OR approval_record.target_kind <> NEW.aggregate_kind
+        OR approval_record.target_id <> NEW.aggregate_id
+        OR approval_record.gate <> NEW.review_gate
+    THEN
+        RAISE EXCEPTION 'outbox_records require a matching approved approval_record';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS outbox_records_approved_approval_record ON outbox_records;
+CREATE TRIGGER outbox_records_approved_approval_record
+    BEFORE INSERT OR UPDATE OF approval_record_id, aggregate_kind, aggregate_id, review_gate ON outbox_records
+    FOR EACH ROW EXECUTE FUNCTION enforce_outbox_approval_record_is_approved();
+
+CREATE OR REPLACE FUNCTION prevent_approval_change_with_open_outbox_records()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF (
+        OLD.status = 'approved'
+        AND (
+            NEW.status <> 'approved'
+            OR NEW.target_kind <> OLD.target_kind
+            OR NEW.target_id <> OLD.target_id
+            OR NEW.gate <> OLD.gate
+        )
+        AND EXISTS (
+            SELECT 1
+            FROM outbox_records
+            WHERE approval_record_id = OLD.id
+              AND status IN ('pending', 'claimed')
+        )
+    ) THEN
+        RAISE EXCEPTION 'cannot change approval while pending or claimed outbox_records reference it';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS approval_records_open_outbox_guard ON approval_records;
+CREATE TRIGGER approval_records_open_outbox_guard
+    BEFORE UPDATE OF status, target_kind, target_id, gate ON approval_records
+    FOR EACH ROW EXECUTE FUNCTION prevent_approval_change_with_open_outbox_records();
 
 CREATE TABLE IF NOT EXISTS audit_events (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

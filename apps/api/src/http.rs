@@ -1,8 +1,19 @@
+//! Staff-facing API/runtime DTO contracts.
+//!
+//! Types in this module are product-owned HTTP payloads for the local runtime shell.
+//! They intentionally sit on our side of the boundary: provider DTOs may contribute
+//! source evidence and record references, but provider response shapes are not passed
+//! through as API contracts. Every exposed workflow DTO should preserve review gates,
+//! audit/correlation evidence, labor/outcome fields, and disabled live-side-effect
+//! status until a future approved adapter crosses the customer/provider boundary.
+
 use app::{checkout_completion, crm_retention, data_quality_hygiene, manager_daily_brief};
 use axum::{
     Json, Router,
-    extract::{Path, Query, State},
-    http::StatusCode,
+    body::Body,
+    extract::{Extension, MatchedPath, Path, Query, State},
+    http::{HeaderName, HeaderValue, Request, Response, StatusCode},
+    middleware::{self, Next},
     routing::{get, post},
 };
 use chrono::{DateTime, NaiveDate, Utc};
@@ -12,6 +23,8 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, sync::Arc};
 use tokio::sync::Mutex;
+use tower_http::trace::{DefaultOnResponse, TraceLayer};
+use tracing::Level;
 use uuid::Uuid;
 
 static VACCINE_DOCUMENT_STATE: std::sync::OnceLock<VaccineDocumentState> =
@@ -49,8 +62,101 @@ struct VaccineDocumentStore {
     audit_events: Vec<AuditEvent>,
 }
 
+/// Repository seam between the local API shell and future durable workflow storage.
+///
+/// The active implementation is the deterministic in-memory store below. A future
+/// SQLx/Postgres adapter should implement this same boundary for workflow events,
+/// review packets, audit events, outcome records, and document projections rather
+/// than rewriting HTTP handlers or relaxing review gates. This trait deliberately
+/// does not establish a live database connection or claim production data exists.
+trait WorkflowRepository {
+    fn runtime_counters(&self) -> WorkflowRepositoryCounters;
+    fn manager_daily_brief_outcomes(
+        &self,
+    ) -> &[storage::operations::ManagerDailyBriefOutcomeRecord];
+    fn data_quality_hygiene_outcomes(
+        &self,
+    ) -> &[storage::operations::DataQualityHygieneOutcomeRecord];
+    fn record_inquiry_intake(&mut self, record: InquiryIntakeRecord);
+    fn inquiry_staff_queue(&self) -> Vec<InquiryIntakeRecord>;
+    fn record_manager_daily_brief_outcome(
+        &mut self,
+        record: storage::operations::ManagerDailyBriefOutcomeRecord,
+    ) -> usize;
+    fn record_data_quality_hygiene_outcome(
+        &mut self,
+        record: storage::operations::DataQualityHygieneOutcomeRecord,
+    ) -> usize;
+    fn data_quality_hygiene_outcome_records(
+        &self,
+    ) -> Vec<storage::operations::DataQualityHygieneOutcomeRecord>;
+}
+
+#[derive(Debug, Clone, Copy)]
+struct WorkflowRepositoryCounters {
+    inquiry_count: usize,
+    review_packet_count: usize,
+    audit_event_count: usize,
+    outcome_count: usize,
+}
+
+impl WorkflowRepository for VaccineDocumentStore {
+    fn runtime_counters(&self) -> WorkflowRepositoryCounters {
+        WorkflowRepositoryCounters {
+            inquiry_count: self.inquiry_intake_records.len(),
+            review_packet_count: self.review_packets.len(),
+            audit_event_count: self.audit_events.len(),
+            outcome_count: self.manager_daily_brief_outcomes.len()
+                + self.data_quality_hygiene_outcomes.len(),
+        }
+    }
+
+    fn manager_daily_brief_outcomes(
+        &self,
+    ) -> &[storage::operations::ManagerDailyBriefOutcomeRecord] {
+        &self.manager_daily_brief_outcomes
+    }
+
+    fn data_quality_hygiene_outcomes(
+        &self,
+    ) -> &[storage::operations::DataQualityHygieneOutcomeRecord] {
+        &self.data_quality_hygiene_outcomes
+    }
+
+    fn record_inquiry_intake(&mut self, record: InquiryIntakeRecord) {
+        self.inquiry_intake_records.push(record);
+    }
+
+    fn inquiry_staff_queue(&self) -> Vec<InquiryIntakeRecord> {
+        self.inquiry_intake_records.clone()
+    }
+
+    fn record_manager_daily_brief_outcome(
+        &mut self,
+        record: storage::operations::ManagerDailyBriefOutcomeRecord,
+    ) -> usize {
+        self.manager_daily_brief_outcomes.push(record);
+        self.manager_daily_brief_outcomes.len()
+    }
+
+    fn record_data_quality_hygiene_outcome(
+        &mut self,
+        record: storage::operations::DataQualityHygieneOutcomeRecord,
+    ) -> usize {
+        self.data_quality_hygiene_outcomes.push(record);
+        self.data_quality_hygiene_outcomes.len()
+    }
+
+    fn data_quality_hygiene_outcome_records(
+        &self,
+    ) -> Vec<storage::operations::DataQualityHygieneOutcomeRecord> {
+        self.data_quality_hygiene_outcomes.clone()
+    }
+}
+
 #[derive(Debug, Serialize)]
 struct HealthPayload {
+    api_contract: ApiDtoContract,
     service: &'static str,
     status: &'static str,
     live_side_effects: &'static str,
@@ -58,12 +164,103 @@ struct HealthPayload {
 
 #[derive(Debug, Serialize)]
 struct ReadinessPayload {
+    api_contract: ApiDtoContract,
     service: &'static str,
     database: &'static str,
     object_storage: &'static str,
     agent_runtime: &'static str,
+    workflow_repository: WorkflowRepositoryReadinessPayload,
     live_customer_messaging: &'static str,
     live_provider_writes: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+struct WorkflowRepositoryReadinessPayload {
+    active_adapter: &'static str,
+    postgres_adapter: &'static str,
+    contract: Vec<&'static str>,
+}
+
+fn workflow_repository_readiness_payload() -> WorkflowRepositoryReadinessPayload {
+    WorkflowRepositoryReadinessPayload {
+        active_adapter: "in_memory",
+        postgres_adapter: "planned_same_contract",
+        contract: vec![
+            "workflow_events",
+            "review_packets",
+            "audit_events",
+            "outcomes",
+            "documents",
+        ],
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct OpsMetricsSummaryPayload {
+    api_contract: ApiDtoContract,
+    product_labor_metrics: ProductLaborMetricsPayload,
+    local_runtime_counters: LocalRuntimeCountersPayload,
+    safety: MetricsSafetyPayload,
+    production_metrics_plan: Vec<&'static str>,
+}
+
+#[derive(Debug, Serialize)]
+struct ProductLaborMetricsPayload {
+    manager_daily_brief: LaborOutcomeRollupPayload,
+    data_quality_hygiene: LaborOutcomeRollupPayload,
+}
+
+#[derive(Debug, Serialize)]
+struct LaborOutcomeRollupPayload {
+    metric_source: &'static str,
+    outcome_count: usize,
+    completed_count: usize,
+    total_estimated_minutes_saved: u16,
+    completed_actual_minutes_saved: u16,
+}
+
+#[derive(Debug, Serialize)]
+struct LocalRuntimeCountersPayload {
+    inquiry_count: usize,
+    review_packet_count: usize,
+    audit_event_count: usize,
+    outcome_count: usize,
+}
+
+#[derive(Debug, Serialize)]
+struct MetricsSafetyPayload {
+    granularity: &'static str,
+    contains_customer_pii: bool,
+    contains_provider_payloads: bool,
+    live_side_effects: &'static str,
+}
+
+/// Product-owned API/runtime DTO contract marker serialized with workflow payloads.
+///
+/// This is deliberately not a provider DTO. It labels responses as NVA/Pet Resort
+/// API contracts that may include provider source references, while forbidding raw
+/// provider payload pass-through at the staff workflow boundary.
+#[derive(Debug, Clone, Serialize)]
+struct ApiDtoContract {
+    owner: &'static str,
+    boundary: &'static str,
+    workflow: &'static str,
+    provider_payload_passthrough: bool,
+    provider_dto_boundary: &'static str,
+}
+
+fn api_dto_contract(workflow: &'static str) -> ApiDtoContract {
+    ApiDtoContract {
+        owner: "pet_resort_api",
+        boundary: "api_runtime_dto",
+        workflow,
+        provider_payload_passthrough: false,
+        provider_dto_boundary: "provider_evidence_only",
+    }
+}
+
+fn api_dto_contract_payload(workflow: &'static str) -> Value {
+    json!(api_dto_contract(workflow))
 }
 
 #[derive(Debug, Deserialize)]
@@ -114,6 +311,7 @@ struct InquiryDateWindowRequest {
 
 #[derive(Debug, Clone, Serialize)]
 struct InquiryIntakeRecord {
+    api_contract: ApiDtoContract,
     event: InquiryEvent,
     lead: ParsedInquiryLead,
     draft_reply: InquiryDraftReply,
@@ -175,11 +373,13 @@ struct InquiryAuditEvent {
 
 #[derive(Debug, Serialize)]
 struct InquiryStaffQueuePayload {
+    api_contract: ApiDtoContract,
     records: Vec<InquiryIntakeRecord>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 struct VaccineDocumentWorkflowPayload {
+    api_contract: ApiDtoContract,
     document: DocumentRecord,
     extraction: VaccineExtractionRecord,
     vaccine_record: VaccineRecord,
@@ -275,6 +475,71 @@ struct AuditEvent {
     metadata: BTreeMap<&'static str, String>,
 }
 
+#[derive(Clone, Debug)]
+struct RequestTraceEvidence {
+    request_id: String,
+}
+
+impl RequestTraceEvidence {
+    fn generated() -> Self {
+        Self {
+            request_id: Uuid::new_v4().to_string(),
+        }
+    }
+
+    fn from_request_headers(headers: &axum::http::HeaderMap) -> Self {
+        headers
+            .get(request_id_header())
+            .and_then(|value| value.to_str().ok())
+            .filter(|value| safe_request_id(value))
+            .map(|request_id| Self {
+                request_id: request_id.to_owned(),
+            })
+            .unwrap_or_else(Self::generated)
+    }
+
+    fn request_id(&self) -> &str {
+        &self.request_id
+    }
+}
+
+fn request_id_header() -> HeaderName {
+    HeaderName::from_static("x-request-id")
+}
+
+fn safe_request_id(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 128
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b':'))
+}
+
+fn workflow_observability_payload(
+    correlation_id: &str,
+    request_trace: &RequestTraceEvidence,
+) -> Value {
+    json!({
+        "correlation_id": correlation_id,
+        "request_id": request_trace.request_id(),
+        "route_status_trace": "enabled",
+        "sensitive_payload_logging": null
+    })
+}
+
+async fn attach_request_trace(mut request: Request<Body>, next: Next) -> Response<Body> {
+    let request_trace = RequestTraceEvidence::from_request_headers(request.headers());
+    request.extensions_mut().insert(request_trace.clone());
+
+    let mut response = next.run(request).await;
+    let request_id = HeaderValue::from_str(request_trace.request_id())
+        .expect("generated or validated request id is a header value");
+    response
+        .headers_mut()
+        .insert(request_id_header(), request_id);
+    response
+}
+
 /// Builds the default staff-facing workflow router with deterministic in-memory state.
 ///
 /// Exposed routes are safe runtime surfaces: health/readiness probes, staff inquiry
@@ -299,6 +564,7 @@ pub fn router_with_state(state: VaccineDocumentState) -> Router {
     Router::new()
         .route("/healthz", get(healthz))
         .route("/readyz", get(readyz))
+        .route("/ops/metrics/summary", get(ops_metrics_summary))
         .route("/inquiries", post(submit_inquiry))
         .route("/staff/inquiries", get(staff_inquiries))
         .route(
@@ -339,10 +605,36 @@ pub fn router_with_state(state: VaccineDocumentState) -> Router {
             post(reject_vaccine_document),
         )
         .with_state(state)
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(|request: &Request<Body>| {
+                    let route = request
+                        .extensions()
+                        .get::<MatchedPath>()
+                        .map(MatchedPath::as_str)
+                        .unwrap_or_else(|| request.uri().path());
+                    let request_id = request
+                        .extensions()
+                        .get::<RequestTraceEvidence>()
+                        .map(RequestTraceEvidence::request_id)
+                        .unwrap_or("missing");
+
+                    tracing::info_span!(
+                        "api_request",
+                        http.method = %request.method(),
+                        http.route = %route,
+                        http.request_id = %request_id,
+                        payload_logging = "disabled"
+                    )
+                })
+                .on_response(DefaultOnResponse::new().level(Level::INFO)),
+        )
+        .layer(middleware::from_fn(attach_request_trace))
 }
 
 async fn healthz() -> Json<HealthPayload> {
     Json(HealthPayload {
+        api_contract: api_dto_contract("runtime_health"),
         service: "pet-resort-api",
         status: "ok",
         live_side_effects: "disabled",
@@ -351,13 +643,107 @@ async fn healthz() -> Json<HealthPayload> {
 
 async fn readyz() -> Json<ReadinessPayload> {
     Json(ReadinessPayload {
+        api_contract: api_dto_contract("runtime_readiness"),
         service: "pet-resort-api",
         database: "not_configured",
         object_storage: "not_configured",
         agent_runtime: "fake_deterministic",
+        workflow_repository: workflow_repository_readiness_payload(),
         live_customer_messaging: "disabled",
         live_provider_writes: "disabled",
     })
+}
+
+async fn ops_metrics_summary(
+    State(state): State<VaccineDocumentState>,
+) -> Json<OpsMetricsSummaryPayload> {
+    let store = state.store.lock().await;
+    let manager_daily_brief =
+        manager_daily_brief_labor_rollup(store.manager_daily_brief_outcomes());
+    let data_quality_hygiene =
+        data_quality_hygiene_labor_rollup(store.data_quality_hygiene_outcomes());
+    let counters = store.runtime_counters();
+
+    Json(OpsMetricsSummaryPayload {
+        api_contract: api_dto_contract("ops_metrics_summary"),
+        product_labor_metrics: ProductLaborMetricsPayload {
+            manager_daily_brief,
+            data_quality_hygiene,
+        },
+        local_runtime_counters: LocalRuntimeCountersPayload {
+            inquiry_count: counters.inquiry_count,
+            review_packet_count: counters.review_packet_count,
+            audit_event_count: counters.audit_event_count,
+            outcome_count: counters.outcome_count,
+        },
+        safety: MetricsSafetyPayload {
+            granularity: "aggregate_only",
+            contains_customer_pii: false,
+            contains_provider_payloads: false,
+            live_side_effects: "disabled",
+        },
+        production_metrics_plan: vec![
+            "request_latency",
+            "error_rate",
+            "queue_depth",
+            "dead_letter_count",
+            "review_sla",
+            "outbox_failures",
+            "worker_lease_age",
+        ],
+    })
+}
+
+fn manager_daily_brief_labor_rollup(
+    records: &[storage::operations::ManagerDailyBriefOutcomeRecord],
+) -> LaborOutcomeRollupPayload {
+    let mut completed_count = 0;
+    let mut total_estimated_minutes_saved = 0u16;
+    let mut completed_actual_minutes_saved = 0u16;
+
+    for record in records {
+        total_estimated_minutes_saved =
+            total_estimated_minutes_saved.saturating_add(record.estimated_minutes_saved);
+        if record.outcome == storage::operations::ManagerDailyBriefOutcomeCode::Completed {
+            completed_count += 1;
+            completed_actual_minutes_saved =
+                completed_actual_minutes_saved.saturating_add(record.actual_minutes_saved());
+        }
+    }
+
+    LaborOutcomeRollupPayload {
+        metric_source: "manager_daily_brief_outcome_records",
+        outcome_count: records.len(),
+        completed_count,
+        total_estimated_minutes_saved,
+        completed_actual_minutes_saved,
+    }
+}
+
+fn data_quality_hygiene_labor_rollup(
+    records: &[storage::operations::DataQualityHygieneOutcomeRecord],
+) -> LaborOutcomeRollupPayload {
+    let mut completed_count = 0;
+    let mut total_estimated_minutes_saved = 0u16;
+    let mut completed_actual_minutes_saved = 0u16;
+
+    for record in records {
+        total_estimated_minutes_saved =
+            total_estimated_minutes_saved.saturating_add(record.estimated_minutes_saved);
+        if record.outcome == storage::operations::DataQualityHygieneOutcomeCode::Completed {
+            completed_count += 1;
+            completed_actual_minutes_saved =
+                completed_actual_minutes_saved.saturating_add(record.actual_minutes_saved());
+        }
+    }
+
+    LaborOutcomeRollupPayload {
+        metric_source: "data_quality_hygiene_outcome_records",
+        outcome_count: records.len(),
+        completed_count,
+        total_estimated_minutes_saved,
+        completed_actual_minutes_saved,
+    }
 }
 
 async fn submit_inquiry(
@@ -366,7 +752,7 @@ async fn submit_inquiry(
 ) -> (StatusCode, Json<InquiryIntakeRecord>) {
     let mut store = state.store.lock().await;
     let record = build_inquiry_intake_record(request);
-    store.inquiry_intake_records.push(record.clone());
+    store.record_inquiry_intake(record.clone());
     (StatusCode::CREATED, Json(record))
 }
 
@@ -375,7 +761,8 @@ async fn staff_inquiries(
 ) -> Json<InquiryStaffQueuePayload> {
     let store = state.store.lock().await;
     Json(InquiryStaffQueuePayload {
-        records: store.inquiry_intake_records.clone(),
+        api_contract: api_dto_contract("inquiry_staff_queue"),
+        records: store.inquiry_staff_queue(),
     })
 }
 
@@ -612,13 +999,13 @@ async fn capture_manager_daily_brief_action_outcome(
     let reporting_group = record.reporting_group();
     let persisted_outcome_count = {
         let mut store = state.store.lock().await;
-        store.manager_daily_brief_outcomes.push(record.clone());
-        store.manager_daily_brief_outcomes.len()
+        store.record_manager_daily_brief_outcome(record.clone())
     };
 
     (
         StatusCode::CREATED,
         Json(json!({
+            "api_contract": api_dto_contract_payload("manager_daily_brief_outcome"),
             "accepted": true,
             "outcome_persisted": true,
             "outcome_record": {
@@ -702,6 +1089,7 @@ async fn submit_manager_daily_brief_agent_draft(
     (
         status_code,
         Json(json!({
+            "api_contract": api_dto_contract_payload("manager_daily_brief_agent_draft"),
             "validation": {
                 "status": validation_status,
                 "validator": "pet_resort_api.manager_daily_brief.agent_draft_validator.v1"
@@ -721,6 +1109,7 @@ async fn submit_manager_daily_brief_agent_draft(
 }
 
 async fn data_quality_hygiene_agent_context(
+    Extension(request_trace): Extension<RequestTraceEvidence>,
     Query(query): Query<DataQualityHygieneAgentContextQuery>,
 ) -> Json<Value> {
     let location_id = entities::LocationId(query.location_id);
@@ -728,7 +1117,7 @@ async fn data_quality_hygiene_agent_context(
         .expect("operating day date is always valid after query parsing");
     let packet = local_data_quality_hygiene_packet(location_id, operating_day);
 
-    Json(data_quality_hygiene_packet_payload(&packet))
+    Json(data_quality_hygiene_packet_payload(&packet, &request_trace))
 }
 
 async fn submit_data_quality_hygiene_agent_draft(
@@ -778,6 +1167,7 @@ async fn submit_data_quality_hygiene_agent_draft(
     (
         status_code,
         Json(json!({
+            "api_contract": api_dto_contract_payload("data_quality_hygiene_agent_draft"),
             "validation": {
                 "status": validation_status,
                 "validator": "pet_resort_api.data_quality_hygiene.agent_draft_validator.v1"
@@ -914,13 +1304,13 @@ async fn capture_data_quality_hygiene_action_outcome(
     let reporting_group = record.reporting_group();
     let persisted_outcome_count = {
         let mut store = state.store.lock().await;
-        store.data_quality_hygiene_outcomes.push(record.clone());
-        store.data_quality_hygiene_outcomes.len()
+        store.record_data_quality_hygiene_outcome(record.clone())
     };
 
     (
         StatusCode::CREATED,
         Json(json!({
+            "api_contract": api_dto_contract_payload("data_quality_hygiene_outcome"),
             "accepted": true,
             "outcome_persisted": true,
             "outcome_record": {
@@ -970,7 +1360,7 @@ async fn data_quality_hygiene_outcome_summary(
     let operating_day = query.operating_day.to_string();
     let records = {
         let store = state.store.lock().await;
-        store.data_quality_hygiene_outcomes.clone()
+        store.data_quality_hygiene_outcome_records()
     };
     let summary = storage::operations::DataQualityHygieneOutcomeSummary::from_records(
         &records,
@@ -980,6 +1370,7 @@ async fn data_quality_hygiene_outcome_summary(
     );
 
     Json(json!({
+        "api_contract": api_dto_contract_payload("data_quality_hygiene_outcome_summary"),
         "summary": summary,
         "live_side_effects_allowed": false,
         "blocked_actions": data_quality_hygiene_blocked_action_codes(),
@@ -1132,6 +1523,7 @@ fn stored_manager_daily_brief_persona(
 }
 
 async fn manager_daily_brief_agent_context(
+    Extension(request_trace): Extension<RequestTraceEvidence>,
     Query(query): Query<ManagerDailyBriefAgentContextQuery>,
 ) -> Json<Value> {
     let location_id = entities::LocationId(query.location_id);
@@ -1205,6 +1597,7 @@ async fn manager_daily_brief_agent_context(
     );
 
     Json(json!({
+        "api_contract": api_dto_contract_payload("manager_daily_brief"),
         "workflow": {
             "name": "manager_daily_brief",
             "version": "local-manager-daily-brief-context-v1"
@@ -1227,7 +1620,8 @@ async fn manager_daily_brief_agent_context(
         "audit": {
             "context_packet_id": format!("manager-daily-brief-context:{}:{}", query.location_id, query.operating_day),
             "correlation_id": correlation_id
-        }
+        },
+        "observability": workflow_observability_payload(&correlation_id, &request_trace)
     }))
 }
 
@@ -1453,6 +1847,7 @@ impl VaccineDocumentStore {
             .expect("eligibility")
             .clone();
         VaccineDocumentWorkflowPayload {
+            api_contract: api_dto_contract("vaccine_document_review"),
             document,
             extraction,
             vaccine_record,
@@ -1484,6 +1879,7 @@ fn build_inquiry_intake_record(request: InquirySubmissionRequest) -> InquiryInta
     let source_event_key = request.source_event_key.clone();
 
     InquiryIntakeRecord {
+        api_contract: api_dto_contract("inquiry_intake"),
         event: InquiryEvent {
             event_type: "inquiry.received",
             source_event_key: request.source_event_key,
@@ -1855,8 +2251,13 @@ fn local_data_quality_hygiene_candidates() -> Vec<data_quality_hygiene::Candidat
     ]
 }
 
-fn data_quality_hygiene_packet_payload(packet: &data_quality_hygiene::Packet) -> Value {
+fn data_quality_hygiene_packet_payload(
+    packet: &data_quality_hygiene::Packet,
+    request_trace: &RequestTraceEvidence,
+) -> Value {
+    let correlation_id = packet.correlation_id().as_str();
     json!({
+        "api_contract": api_dto_contract_payload("data_quality_hygiene"),
         "workflow": {
             "name": packet.workflow(),
             "version": packet.schema_version()
@@ -1876,9 +2277,10 @@ fn data_quality_hygiene_packet_payload(packet: &data_quality_hygiene::Packet) ->
         "live_side_effects_allowed": false,
         "audit": {
             "context_packet_id": packet.context_packet_id().as_str(),
-            "correlation_id": packet.correlation_id().as_str(),
+            "correlation_id": correlation_id,
             "runtime": "agent.data-quality-hygiene.fake_deterministic"
-        }
+        },
+        "observability": workflow_observability_payload(correlation_id, request_trace)
     })
 }
 
