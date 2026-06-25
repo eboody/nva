@@ -24,13 +24,17 @@ For a job or networking conversation, start with the [NVA demo executive brief](
 
 Use these presentation docs in order:
 
-1. [Final presentation checklist](docs/presentation/nva-presentation-checklist.md) for the live run sheet, pre-flight commands, fallback path, and claims to avoid.
-2. [Executive brief](docs/presentation/nva-demo-executive-brief.md) for the one-sentence pitch, email-ready summary, and 30-second/2-minute scripts.
-3. [Owned operations API visual guide](docs/presentation/owned-operations-api-visual-guide.md) and [standalone HTML/SVG diagram](docs/presentation/assets/owned-operations-api-replacement.html) for the memorable one-frame thesis: Gingr-centered extraction today -> NVA-owned operations API/read-model layer tomorrow.
-4. [Job presentation walkthrough](docs/presentation/job-presentation-walkthrough.md) for the five-minute talk and exact demo commands.
-5. [Owned operations API replacement talk track](docs/presentation/owned-operations-api-replacement-talk-track.md) when the audience asks why this is not "just use Gingr" or "just pull BI data."
-6. [Skeptical review](docs/presentation/nva-demo-skeptical-review.md) for likely objections, caveats, and claims to avoid.
-7. [Checked OpenAPI artifact](apps/api/openapi/owned-operations-v0.openapi.json) when the audience wants contract evidence beyond prose.
+1. [Sendable job-contact summary](docs/presentation/nva-sendable-job-contact-summary.md) for a concise forwardable link or email paste-in.
+2. [Job-contact Q&A](docs/presentation/nva-job-contact-qa.md) for recruiter, hiring-manager, and skeptical-stakeholder objection responses.
+3. [Three-minute presentation script](docs/presentation/nva-3-minute-presentation-script.md) for a human spoken opening, demo narration, caveats, access ask, and close.
+4. [Final presentation checklist](docs/presentation/nva-presentation-checklist.md) for the live run sheet, pre-flight commands, fallback path, and claims to avoid.
+5. [Static demo fallback packet](docs/presentation/nva-static-demo-fallback.md) for presenting confidently if the terminal is slow or unavailable without pretending stale output is fresh proof.
+6. [Executive brief](docs/presentation/nva-demo-executive-brief.md) for the one-sentence pitch, email-ready summary, and 30-second/2-minute scripts.
+7. [Owned operations API visual guide](docs/presentation/owned-operations-api-visual-guide.md) and [standalone HTML/SVG diagram](docs/presentation/assets/owned-operations-api-replacement.html) for the memorable one-frame thesis: Gingr-centered extraction today -> NVA-owned operations API/read-model layer tomorrow.
+8. [Job presentation walkthrough](docs/presentation/job-presentation-walkthrough.md) for the five-minute talk and exact demo commands.
+9. [Owned operations API replacement talk track](docs/presentation/owned-operations-api-replacement-talk-track.md) when the audience asks why this is not "just use Gingr" or "just pull BI data."
+10. [Skeptical review](docs/presentation/nva-demo-skeptical-review.md) for likely objections, caveats, and claims to avoid.
+11. [Checked OpenAPI artifact](apps/api/openapi/owned-operations-v0.openapi.json) when the audience wants contract evidence beyond prose.
 
 Keep Data-Quality Hygiene as the first runnable slice. For the shortest live demo from the repo root, run the safe local wrapper:
 

@@ -22,12 +22,16 @@ Optional if you want to rehearse the separate lanes:
 
 ## 2. Open these first, in order
 
-1. `docs/presentation/nva-demo-executive-brief.md` — start here for the pitch.
-2. `docs/presentation/owned-operations-api-visual-guide.md` or `docs/presentation/assets/owned-operations-api-replacement.html` — show the one-frame thesis.
-3. `docs/presentation/job-presentation-walkthrough.md` — use for the five-minute path and demo anchors.
-4. `docs/presentation/owned-operations-api-replacement-talk-track.md` — use when asked why this is not just Gingr or BI.
-5. `docs/presentation/nva-demo-skeptical-review.md` — keep nearby for objections and caveats.
-6. `apps/api/openapi/owned-operations-v0.openapi.json` — open only if the audience asks for contract evidence.
+1. `docs/presentation/nva-sendable-job-contact-summary.md` — send this as a standalone link or paste it into an email.
+2. `docs/presentation/nva-job-contact-qa.md` — keep this nearby for recruiter, hiring-manager, and skeptical-stakeholder objection responses.
+3. `docs/presentation/nva-3-minute-presentation-script.md` — rehearse this for a 3-minute live conversation, with optional 5-minute expansions.
+4. `docs/presentation/nva-static-demo-fallback.md` — keep this open if terminal commands are slow or unavailable.
+5. `docs/presentation/nva-demo-executive-brief.md` — start here for the pitch.
+6. `docs/presentation/owned-operations-api-visual-guide.md` or `docs/presentation/assets/owned-operations-api-replacement.html` — show the one-frame thesis.
+7. `docs/presentation/job-presentation-walkthrough.md` — use for the five-minute path and demo anchors.
+8. `docs/presentation/owned-operations-api-replacement-talk-track.md` — use when asked why this is not just Gingr or BI.
+9. `docs/presentation/nva-demo-skeptical-review.md` — keep nearby for objections and caveats.
+10. `apps/api/openapi/owned-operations-v0.openapi.json` — open only if the audience asks for contract evidence.
 
 ## 3. 30-second pitch
 
@@ -75,11 +79,12 @@ Narrate the three lanes:
 
 Do not troubleshoot live for more than a minute. Switch to this fallback:
 
-1. Say: "The command passed in pre-flight; if the local shell is slow, I can show the expected anchors and the files behind them."
-2. Open `docs/presentation/job-presentation-walkthrough.md#local-demo-slice-data-quality-hygiene-in-five-minutes`.
-3. Point to the checked contract at `apps/api/openapi/owned-operations-v0.openapi.json`.
-4. Point to the smoke scripts: `scripts/smoke_data_quality_hygiene_local_loop.sh` and `scripts/smoke_data_quality_hygiene_disabled_worker_outbox.sh`.
-5. Continue the story: local proof, disabled side effects, read-only validation next.
+1. Say: "Pre-flight was run before the conversation; if this shell is slow or unavailable, I won’t pretend stale output is fresh proof — I’ll show the static diagram, the checked OpenAPI artifact, and the expected local-demo anchors instead."
+2. Open `docs/presentation/nva-static-demo-fallback.md`.
+3. Open `docs/presentation/job-presentation-walkthrough.md#local-demo-slice-data-quality-hygiene-in-five-minutes`.
+4. Point to the checked contract at `apps/api/openapi/owned-operations-v0.openapi.json`.
+5. Point to the smoke scripts: `scripts/demo_owned_operations_api.sh`, `scripts/smoke_data_quality_hygiene_local_loop.sh`, and `scripts/smoke_data_quality_hygiene_disabled_worker_outbox.sh`.
+6. Continue the story: local proof, disabled side effects, read-only validation next.
 
 ## 7. What not to claim
 
@@ -111,6 +116,9 @@ Phrase it as: "I am not asking for production credentials or write access. I am 
 Use this closeout list when asked "what proves it?"
 
 - Presentation path: `README.md#presentation-path-safe-local-owned-api-proof`.
+- Sendable job-contact summary: `docs/presentation/nva-sendable-job-contact-summary.md`.
+- Job-contact Q&A: `docs/presentation/nva-job-contact-qa.md`.
+- Three-minute presentation script: `docs/presentation/nva-3-minute-presentation-script.md`.
 - Checklist: `docs/presentation/nva-presentation-checklist.md`.
 - Executive brief: `docs/presentation/nva-demo-executive-brief.md`.
 - Visual guide/diagram: `docs/presentation/owned-operations-api-visual-guide.md` and `docs/presentation/assets/owned-operations-api-replacement.html`.
