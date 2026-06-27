@@ -44,7 +44,9 @@ services:
       - pet_resort_minio:/data
 
   migrate-seed:
-    image: postgres:17-alpine
+    build:
+      context: .
+      dockerfile: apps/migrate-seed/Dockerfile
     depends_on:
       postgres:
         condition: service_healthy
@@ -54,22 +56,8 @@ services:
       PGDATABASE: pet_resort
       PGUSER: pet_resort
       PGPASSWORD: ${POSTGRES_PASSWORD:?set in Coolify}
-    volumes:
-      - ./migrations:/workspace/migrations:ro
-      - ./fixtures/seed:/workspace/fixtures/seed:ro
-    command:
-      - /bin/sh
-      - -ec
-      - |
-        for migration in /workspace/migrations/*.sql; do
-          echo "[migrate-seed] applying $${migration}"
-          psql -v ON_ERROR_STOP=1 -f "$${migration}"
-        done
-        echo "[migrate-seed] applying synthetic local demo seed"
-        psql -v ON_ERROR_STOP=1 -f /workspace/fixtures/seed/local-demo.sql
-        psql -v ON_ERROR_STOP=1 -f /workspace/fixtures/seed/local-demo-data-quality.sql
-        echo "[migrate-seed] local schema and seed are ready"
     restart: "no"
+
 
   pet-resort-api:
     build:
