@@ -1,0 +1,159 @@
+# Coolify deployment stack for the NVA owned-operations demo.
+#
+# This is intentionally separate from docker-compose.yml, which is local-dev oriented
+# and binds host ports to 127.0.0.1. In Coolify, only staff-web should be public by
+# default; API/Postgres/MinIO/worker stay on the private compose network unless a
+# deliberate API demo hostname is added later.
+#
+# Required Coolify env vars:
+# - POSTGRES_PASSWORD: generated demo DB password
+# - MINIO_ROOT_USER: generated demo MinIO access key/user
+# - MINIO_ROOT_PASSWORD: generated demo MinIO secret
+#
+# Optional public routing env vars:
+# - SERVICE_FQDN_STAFF_WEB: Coolify-managed public URL for staff-web
+# - SERVICE_FQDN_PET_RESORT_API: only set if you deliberately want the demo API public
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: pet_resort
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in Coolify}
+      POSTGRES_DB: pet_resort
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pet_resort -d pet_resort"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - pet_resort_postgres:/var/lib/postgresql/data
+
+  minio:
+    image: minio/minio:RELEASE.2025-01-20T14-49-07Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set in Coolify}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set in Coolify}
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - pet_resort_minio:/data
+
+  migrate-seed:
+    image: postgres:17-alpine
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGDATABASE: pet_resort
+      PGUSER: pet_resort
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set in Coolify}
+    volumes:
+      - ./migrations:/workspace/migrations:ro
+      - ./fixtures/seed:/workspace/fixtures/seed:ro
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        for migration in /workspace/migrations/*.sql; do
+          echo "[migrate-seed] applying $${migration}"
+          psql -v ON_ERROR_STOP=1 -f "$${migration}"
+        done
+        echo "[migrate-seed] applying synthetic local demo seed"
+        psql -v ON_ERROR_STOP=1 -f /workspace/fixtures/seed/local-demo.sql
+        psql -v ON_ERROR_STOP=1 -f /workspace/fixtures/seed/local-demo-data-quality.sql
+        echo "[migrate-seed] local schema and seed are ready"
+    restart: "no"
+
+  pet-resort-api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      PET_RESORT_API_ADDR: 0.0.0.0:3001
+      DATABASE_URL: postgres://pet_resort:${POSTGRES_PASSWORD:?set in Coolify}@postgres:5432/pet_resort
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?set in Coolify}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?set in Coolify}
+      MINIO_BUCKET: pet-resort-evidence-demo
+      PET_RESORT_AGENT_RUNTIME_MODE: fake
+      PET_RESORT_SIDE_EFFECT_MODE: stubbed
+      LIVE_CUSTOMER_MESSAGING: disabled
+      LIVE_PROVIDER_WRITES: disabled
+      LIVE_PAYMENT_ACTIONS: disabled
+      LIVE_SCHEDULE_CHANGES: disabled
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      migrate-seed:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3001/healthz >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  pet-resort-worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    environment:
+      DATABASE_URL: postgres://pet_resort:${POSTGRES_PASSWORD:?set in Coolify}@postgres:5432/pet_resort
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?set in Coolify}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?set in Coolify}
+      MINIO_BUCKET: pet-resort-evidence-demo
+      PET_RESORT_AGENT_RUNTIME_MODE: fake
+      PET_RESORT_SIDE_EFFECT_MODE: stubbed
+      PET_RESORT_API_URL: http://pet-resort-api:3001
+      LIVE_CUSTOMER_MESSAGING: disabled
+      LIVE_PROVIDER_WRITES: disabled
+      LIVE_PAYMENT_ACTIONS: disabled
+      LIVE_SCHEDULE_CHANGES: disabled
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      migrate-seed:
+        condition: service_completed_successfully
+      pet-resort-api:
+        condition: service_healthy
+
+  staff-web:
+    build:
+      context: .
+      dockerfile: apps/staff-web/Dockerfile
+    environment:
+      PET_RESORT_API_BASE_URL: http://pet-resort-api:3001
+      PET_RESORT_AGENT_RUNTIME_MODE: fake
+      PET_RESORT_SIDE_EFFECT_MODE: stubbed
+      LIVE_CUSTOMER_MESSAGING: disabled
+      LIVE_PROVIDER_WRITES: disabled
+      LIVE_PAYMENT_ACTIONS: disabled
+      LIVE_SCHEDULE_CHANGES: disabled
+      DEMO_DATA_LABEL: synthetic-fixture-only
+    depends_on:
+      pet-resort-api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - node -e "fetch('http://127.0.0.1:3000/').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+volumes:
+  pet_resort_postgres:
+  pet_resort_minio:
