@@ -1,4 +1,4 @@
-# Owned API OpenAPI and DTO scaffold plan
+# Owned API OpenAPI and DTO contract plan
 
 Status: concrete v0 schema plan for a publishable owned Pet Resorts operations API contract. This is a planning artifact for downstream code cards; it does not add schema-generation dependencies, expose provider DTOs as public API contracts, use live NVA/Gingr credentials, perform provider/PMS writes, send customer/member messages, move payments/refunds/discounts, change schedules/capacity, make medical/safety decisions, or deploy production paths.
 
@@ -6,7 +6,7 @@ Source context: [owned operations API contract families](owned-operations-api-co
 
 ## Recommendation
 
-Use a manually checked OpenAPI/JSON-schema artifact first, then adopt a Rust schema-generation crate after the v0 owned DTO module and route scaffold have stabilized.
+Use a manually checked OpenAPI/JSON-schema artifact first, then adopt a Rust schema-generation crate after the v0 owned DTO module and route contract have stabilized.
 
 Immediate recommendation for the first code card:
 
@@ -114,7 +114,7 @@ Initial status-code mapping:
 | Status | Error `code` | `safe_error_class` | Use |
 | --- | --- | --- | --- |
 | 400 | `invalid_request` | `validation_failed` | Malformed JSON, missing required fields, invalid query values. |
-| 401 | `authentication_required` | `auth_required` | Future auth placeholder only; do not implement broad auth in the schema card. |
+| 401 | `authentication_required` | `auth_required` | Reserved future auth error only; do not implement broad auth in the schema card. |
 | 403 | `forbidden` | `authorization_failed` | Future role/location/tenant scope failures. |
 | 404 | `not_found` | `not_found` | Unknown action, packet, issue, or read-model cursor. |
 | 409 | `idempotency_conflict` | `idempotency_conflict` | Duplicate idempotency key with different payload or stale workflow state. |
@@ -134,9 +134,9 @@ Use boring list conventions now so the staff UI and BI/export clients do not inv
 - Read-model responses include `projection_name`, `projection_version`, `generated_at`, `freshness` or `source_cutoff_at`, `caveats`, and lineage refs.
 - No list response should return raw provider payloads, raw document text, payment payloads, secrets, hidden prompts, signed URLs, or broad customer/member PII.
 
-## Auth placeholder
+## Auth reserved seam
 
-Do not block the schema scaffold on full auth/session implementation. Do include the placeholder so future widening does not break the contract:
+Do not block the schema contract on full auth/session implementation. Do include the reserved auth seam so future widening does not break the contract:
 
 - OpenAPI security scheme: `StaffSessionCookie` with `type: apiKey`, `in: cookie`, `name: nva_staff_session`.
 - Route descriptions should say current local runtime may run unauthenticated for deterministic tests, while production/staging must supply actor/location/role context.
@@ -155,7 +155,7 @@ The first published schema should include Data-Quality Hygiene as the runnable v
 | `POST /v0/agent/drafts/data-quality-hygiene` | `submitDataQualityHygieneDraft` | `DataQualityHygieneDraftSubmissionRequest` | `DataQualityHygieneDraftSubmissionResponse` or `ErrorEnvelope` | Yes | Validate context packet, correlation id, action ids, source refs, issue refs, review gates, requested side effects, and ambiguity-hiding flag. |
 | `POST /v0/data-quality-hygiene/actions/{action_id}/outcome` | `captureDataQualityHygieneOutcome` | `DataQualityHygieneOutcomeCaptureRequest` | `DataQualityHygieneOutcomeCaptureResponse` or `ErrorEnvelope` | Yes | Records reviewed outcome/labor evidence only. Does not prove provider repair. |
 | `GET /v0/data-quality-hygiene/outcomes/summary` | `getDataQualityHygieneOutcomeSummary` | Query: `location_id`, `operating_day`, optional `correlation_id` | `DataQualityHygieneOutcomeSummaryResponse` | Yes | Current unversioned route exists. Add filter/projection metadata and caveats. |
-| `GET /v0/read-models/source-quality-backlog` | `listSourceQualityBacklog` | Query: `location_id`, optional `operating_day`, `severity`, `workflow_blocking`, `owner_role`, `limit`, `cursor` | `SourceQualityBacklogListResponse` | Name now, implement after durable source-quality table/read model | BI-facing target for replacing raw Gingr/source scraping. Can initially be documented as planned/not wired. |
+| `GET /v0/read-models/source-quality-backlog` | `listSourceQualityBacklog` | Query: `location_id`, optional `operating_day`, `severity`, `workflow_blocking`, `owner_role`, `limit`, `cursor` | `SourceQualityBacklogListResponse` | Name now, implement after durable source-quality table/read model | BI-facing target for replacing raw Gingr/source scraping. Current local proof may document it as reserved until durable wiring exists. |
 
 Minimum Data-Quality Hygiene schemas:
 
@@ -221,7 +221,7 @@ Route names to reserve without overbuilding v0:
 
 ## Observability alignment
 
-The OpenAPI scaffold should encode the observability contract rather than leaving it as a logging-only concern:
+The OpenAPI contract should encode the observability contract rather than leaving it as a logging-only concern:
 
 - Every response schema includes `metadata.request_id` and, for workflow/read-model routes, `metadata.correlation_id`.
 - Every command response names generated or touched `workflow_event_id`, `review_packet_id`, `approval_record_id`, `outbox_record_id`, and `audit_event_id` when applicable.
@@ -231,7 +231,7 @@ The OpenAPI scaffold should encode the observability contract rather than leavin
 
 ## Downstream code-card acceptance checklist
 
-A downstream code worker should be able to implement the scaffold without broad API design questions if it follows this checklist.
+A downstream code worker should be able to implement the contract without broad API design questions if it follows this checklist.
 
 Files to create/change:
 
@@ -253,7 +253,7 @@ cargo test -p pet-resort-api --test data_quality_hygiene_agent_contract
 python scripts/check_markdown_links.py --repo-root .
 ```
 
-Do not add `utoipa`, `aide`, `paperclip`, `schemars`, or another schema crate in the first scaffold unless the code card also commits to public DTO extraction, generation tests, and maintenance of the generated artifact. If a crate is adopted later, prefer `utoipa` or `aide` after the manual artifact proves the owned contract names.
+Do not add `utoipa`, `aide`, `paperclip`, `schemars`, or another schema crate in the first contract pass unless the code card also commits to public DTO extraction, generation tests, and maintenance of the generated artifact. If a crate is adopted later, prefer `utoipa` or `aide` after the manual artifact proves the owned contract names.
 
 ## Non-goals and safety reminders
 
@@ -262,4 +262,4 @@ Do not add `utoipa`, `aide`, `paperclip`, `schemars`, or another schema crate in
 - No production data, credentials, signed URLs, or real customer/member examples.
 - No live sends, provider/PMS writes, payment/refund/discount movement, schedule/capacity mutation, medical/safety decisions, or production deployment paths.
 - No claim that the current in-memory API shell is durable production persistence.
-- No broad auth implementation in the schema card; include only the placeholder and actor/location fields so future auth can attach safely.
+- No broad auth implementation in the schema card; include only the reserved auth seam and actor/location fields so future auth can attach safely.

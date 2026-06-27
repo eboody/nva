@@ -1,6 +1,6 @@
 # Owned operations API contract families
 
-Status: architecture/API contract plan for the owned Pet Resorts operations API. This page defines product-owned contract families and recommended v0 schema surfaces for downstream OpenAPI/scaffold work; it does not implement routes, claim live NVA/Gingr access, claim production readiness, authorize provider/PMS writes, send customer/member messages, move payments/refunds/discounts, change schedules/capacity, approve medical/safety decisions, or deploy anything.
+Status: architecture/API contract plan for the owned Pet Resorts operations API. This page defines product-owned contract families and recommended v0 schema surfaces for downstream OpenAPI contract work; it does not implement routes, claim live NVA/Gingr access, claim production readiness, authorize provider/PMS writes, send customer/member messages, move payments/refunds/discounts, change schedules/capacity, approve medical/safety decisions, or deploy anything.
 
 ## Contract thesis
 
@@ -52,9 +52,9 @@ Design rule: if a field exists only because Gingr has it, keep it in source evid
 | BI and read-model queries | Analytics/BI owner with operations data owner. | Product-owned read models over source-quality, normalized operations, review status, outcomes/labor, audit, and queue posture; every projection should carry lineage and caveats. | Read-only by default; any reclassification, policy interpretation, or destructive cleanup feeds review rather than silently rewriting source truth. | BI warehouse, operations dashboards, regional leaders, manager daily brief, data-quality hygiene analysts. | BI pain is established as strategy signal; Data-Quality Hygiene summary is the first concrete read-model proof. Gap: exact BI stakeholder query inventory and persistent read-model tables/views are not finalized. |
 | Readiness and operational metrics | Platform/runtime owner. | Health/readiness probes, safe runtime counters, request/correlation fields, queue/outbox/dead-letter metrics, audit write health, adapter readiness. | No live side effects from readiness. Production readiness claims require dependency checks, monitoring, auth, deployment, and owner approval. | Engineers, operators, deployment reviewers, demo/presentation reviewers. | `/healthz`, `/readyz`, request-id middleware, JSON tracing startup, `/ops/metrics/summary` exist. Gap: durable traces, safe error classes, queue/dead-letter metrics, worker lease metrics, alerting, and dashboards are not complete. |
 
-## Recommended v0 schema surfaces for OpenAPI/scaffold
+## Recommended v0 schema surfaces for OpenAPI contract work
 
-Use these surfaces as the handoff table for the OpenAPI/scaffold card. Names are recommended contract families, not frozen Rust type names.
+Use these surfaces as the handoff table for the OpenAPI contract card. Names are recommended contract families, not frozen Rust type names.
 
 | Family | Commands | Queries / read models | Core v0 DTO/resource fields | Explicitly not included in v0 |
 | --- | --- | --- | --- | --- |
@@ -154,6 +154,6 @@ Those calls answer operational questions directly. They preserve lineage and rev
 - Most current API state is in-memory; durable Postgres repository wiring is still downstream work.
 - Auth/session/role/location authorization is deferred.
 - Worker durable leasing, dead-letter/replay, and outbox execution are not production-ready.
-- Object storage and document evidence handling are modeled but not wired as a durable adapter.
+- Object storage and document evidence handling are modeled but do not yet have a durable adapter connection.
 - Detailed BI stakeholder query inventory, production KPI definitions, retention/redaction rules, and live-adapter owner decisions require human validation.
 - No live NVA/Gingr credentials, production data, provider writes, member sends, payment/schedule/medical/safety actions, or production deployment are claimed by this contract.

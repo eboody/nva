@@ -138,7 +138,7 @@ Current proof already supports the thesis:
 
 Gaps to keep explicit:
 
-1. The API currently proves owned route shape locally, but much state is still in-memory and not wired to the Postgres migration spine.
+1. The API currently proves owned route shape locally, but much state is still in-memory and not connected to the Postgres migration spine.
 2. API DTOs are not yet published as OpenAPI/client schemas.
 3. Request/job/workflow correlation is present in pieces, not yet an end-to-end durable observability model.
 4. Worker leasing, dead-letter/replay, outbox execution, and dashboard metrics remain shells or plans.

@@ -70,6 +70,7 @@ class WorkspaceQualityGateTest(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("workspace_quality_ok", result.stdout)
+        self.assertIn("canonical_markdown_scanned=1", result.stdout)
         self.assertIn("openapi_v0_routes=2", result.stdout)
 
     def test_gate_fails_for_stale_wording_in_changed_markdown(self):
@@ -122,6 +123,26 @@ class WorkspaceQualityGateTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("stale/noisy wording", result.stderr.lower())
         self.assertIn("docs/handoff.md", result.stderr)
+
+    def test_gate_fails_for_unchanged_stale_canonical_markdown(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.init_repo(root)
+            self.write_minimal_workspace(root)
+            canonical_doc = root / "docs" / "architecture" / "owned-api-openapi-plan.md"
+            canonical_doc.parent.mkdir(parents=True, exist_ok=True)
+            canonical_doc.write_text(
+                "# API plan\nThis placeholder should not survive canonical closeout docs.\n",
+                encoding="utf-8",
+            )
+            self.commit_all(root)
+
+            result = self.run_check(root)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("stale/noisy wording", result.stderr.lower())
+        self.assertIn("docs/architecture/owned-api-openapi-plan.md", result.stderr)
+        self.assertIn("placeholder", result.stderr)
 
     def test_gate_fails_for_untracked_cache_artifacts(self):
         if not shutil.which("git"):

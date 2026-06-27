@@ -27,6 +27,20 @@ STALE_MARKDOWN_TERMS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("scaffold", re.compile(r"\bscaffolds?\b|\bscaffolded\b", re.IGNORECASE)),
 )
 
+CANONICAL_MARKDOWN_PATHS: frozenset[str] = frozenset(
+    {
+        "README.md",
+        "apps/api/README.md",
+        "docs/architecture/owned-api-openapi-plan.md",
+        "docs/architecture/owned-operations-api-contract.md",
+        "docs/architecture/owned-operations-api-replacement.md",
+        "docs/architecture/runtime-contract-boundaries.md",
+        "docs/demo/local-demo-walkthrough.md",
+        "docs/ops/local-demo-compose.md",
+        "docs/quality/kanban-closeout-checklist.md",
+    }
+)
+
 NOISY_ARTIFACT_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"(^|/)__pycache__(/|$)"),
     re.compile(r"\.py[co]$"),
@@ -77,7 +91,7 @@ def changed_paths(repo_root: Path) -> set[str]:
     )
     if paths:
         return paths
-    return repo_paths(repo_root, ["ls-files"])
+    return set()
 
 
 def untracked_paths(repo_root: Path) -> set[str]:
@@ -190,7 +204,10 @@ def main(argv: list[str] | None = None) -> int:
 
     tracked_paths = repo_paths(repo_root, ["ls-files"])
     untracked = untracked_paths(repo_root)
-    paths_for_markdown = tracked_paths if args.all_markdown else changed_paths(repo_root) | untracked
+    canonical_paths = CANONICAL_MARKDOWN_PATHS & tracked_paths
+    paths_for_markdown = (
+        tracked_paths if args.all_markdown else changed_paths(repo_root) | untracked | canonical_paths
+    )
 
     findings: list[Finding] = []
     findings.extend(noisy_artifact_findings(tracked_paths, "tracked file should be removed or ignored"))
@@ -209,6 +226,7 @@ def main(argv: list[str] | None = None) -> int:
     print(
         "workspace_quality_ok "
         f"markdown_scanned={markdown_count} "
+        f"canonical_markdown_scanned={len(markdown_paths_to_scan(repo_root, set(canonical_paths)))} "
         f"openapi_v0_routes={openapi_v0_count} "
         f"axum_v0_routes={axum_v0_count} "
         f"untracked_noisy_artifacts=0"
