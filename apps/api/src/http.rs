@@ -301,6 +301,22 @@ fn workflow_repository_readiness_payload() -> WorkflowRepositoryReadinessPayload
     }
 }
 
+fn database_readiness_status() -> &'static str {
+    if database_url_configured() {
+        "env_configured_not_verified"
+    } else {
+        "not_configured"
+    }
+}
+
+fn object_storage_readiness_status() -> &'static str {
+    if minio_env_configured() {
+        "env_configured_not_verified"
+    } else {
+        "not_configured"
+    }
+}
+
 #[derive(Debug, Serialize)]
 struct OpsMetricsSummaryPayload {
     api_contract: ApiDtoContract,
@@ -1036,16 +1052,8 @@ async fn readyz() -> Json<ReadinessPayload> {
     Json(ReadinessPayload {
         api_contract: api_dto_contract("runtime_readiness"),
         service: "pet-resort-api",
-        database: if database_url_configured() {
-            "configured_not_verified"
-        } else {
-            "not_configured"
-        },
-        object_storage: if minio_env_configured() {
-            "env_configured_not_verified"
-        } else {
-            "not_configured"
-        },
+        database: database_readiness_status(),
+        object_storage: object_storage_readiness_status(),
         agent_runtime: "fake_deterministic",
         workflow_repository: workflow_repository_readiness_payload(),
         observability: ObservabilityReadinessPayload {

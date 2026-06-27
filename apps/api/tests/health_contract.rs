@@ -2,7 +2,66 @@ use axum::{body::Body, http as axum_http};
 use http_body_util::BodyExt;
 use pet_resort_api::http;
 use serde_json::json;
+use std::ffi::OsString;
 use tower::ServiceExt;
+
+static READINESS_ENV_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+async fn readiness_payload() -> serde_json::Value {
+    let response = http::router()
+        .oneshot(
+            axum_http::request::Builder::new()
+                .uri("/readyz")
+                .body(Body::empty())
+                .expect("request builds"),
+        )
+        .await
+        .expect("readiness request succeeds");
+
+    assert_eq!(response.status(), axum_http::StatusCode::OK);
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("body collects")
+        .to_bytes();
+    serde_json::from_slice(&body).expect("json readiness payload")
+}
+
+struct EnvRestore {
+    key: &'static str,
+    previous: Option<OsString>,
+}
+
+impl EnvRestore {
+    fn unset(key: &'static str) -> Self {
+        let previous = std::env::var_os(key);
+        // SAFETY: this integration test owns the specific demo-only env keys while
+        // checking readiness labels, and restores them before returning.
+        unsafe { std::env::remove_var(key) };
+        Self { key, previous }
+    }
+
+    fn set(key: &'static str, value: &'static str) -> Self {
+        let previous = std::env::var_os(key);
+        // SAFETY: this integration test owns the specific demo-only env keys while
+        // checking readiness labels, and restores them before returning.
+        unsafe { std::env::set_var(key, value) };
+        Self { key, previous }
+    }
+}
+
+impl Drop for EnvRestore {
+    fn drop(&mut self) {
+        // SAFETY: restores only the same demo-only env key captured by this guard.
+        unsafe {
+            match &self.previous {
+                Some(value) => std::env::set_var(self.key, value),
+                None => std::env::remove_var(self.key),
+            }
+        }
+    }
+}
 
 #[tokio::test]
 async fn health_endpoint_reports_safe_local_service_identity() {
@@ -32,32 +91,22 @@ async fn health_endpoint_reports_safe_local_service_identity() {
 
 #[tokio::test]
 async fn readiness_endpoint_keeps_mvp_dependencies_explicitly_stubbed() {
-    unsafe {
-        std::env::remove_var("DATABASE_URL");
-        std::env::remove_var("MINIO_ENDPOINT");
-    }
+    let payload = readiness_payload().await;
 
-    let response = http::router()
-        .oneshot(
-            axum_http::request::Builder::new()
-                .uri("/readyz")
-                .body(Body::empty())
-                .expect("request builds"),
-        )
-        .await
-        .expect("readiness request succeeds");
-
-    assert_eq!(response.status(), axum_http::StatusCode::OK);
-    let body = response
-        .into_body()
-        .collect()
-        .await
-        .expect("body collects")
-        .to_bytes();
-    let payload: serde_json::Value = serde_json::from_slice(&body).expect("json readiness payload");
-
-    assert_eq!(payload["database"], "not_configured");
-    assert_eq!(payload["object_storage"], "not_configured");
+    assert!(
+        matches!(
+            payload["database"].as_str(),
+            Some("not_configured" | "env_configured_not_verified")
+        ),
+        "database readiness should be truthful about absent or configured-but-unverified runtime env"
+    );
+    assert!(
+        matches!(
+            payload["object_storage"].as_str(),
+            Some("not_configured" | "env_configured_not_verified")
+        ),
+        "object storage readiness should be truthful about absent or configured-but-unverified runtime env"
+    );
     assert_eq!(payload["agent_runtime"], "fake_deterministic");
     assert_eq!(
         payload["observability"]["request_correlation"],
@@ -79,6 +128,32 @@ async fn readiness_endpoint_keeps_mvp_dependencies_explicitly_stubbed() {
         payload["observability"]["production_gap"],
         "no_durable_traces_queue_dashboard_or_alerting"
     );
+}
+
+#[tokio::test]
+async fn readiness_endpoint_reports_unset_runtime_env_as_not_configured() {
+    let _guard = READINESS_ENV_LOCK.lock().await;
+    let _database_url = EnvRestore::unset("DATABASE_URL");
+    let _minio_endpoint = EnvRestore::unset("MINIO_ENDPOINT");
+
+    let payload = readiness_payload().await;
+
+    assert_eq!(payload["database"], "not_configured");
+    assert_eq!(payload["object_storage"], "not_configured");
+    assert_eq!(payload["agent_runtime"], "fake_deterministic");
+}
+
+#[tokio::test]
+async fn readiness_endpoint_reports_present_runtime_env_as_configured_but_unverified() {
+    let _guard = READINESS_ENV_LOCK.lock().await;
+    let _database_url = EnvRestore::set("DATABASE_URL", "postgres://demo-local.invalid/nva");
+    let _minio_endpoint = EnvRestore::set("MINIO_ENDPOINT", "http://minio-local.invalid:9000");
+
+    let payload = readiness_payload().await;
+
+    assert_eq!(payload["database"], "env_configured_not_verified");
+    assert_eq!(payload["object_storage"], "env_configured_not_verified");
+    assert_eq!(payload["agent_runtime"], "fake_deterministic");
 }
 
 #[tokio::test]

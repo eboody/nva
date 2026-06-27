@@ -479,7 +479,7 @@ const apiReadinessPosture = {
       path: "/v0/readyz",
       workflow: "runtime_readiness",
       boundary: "api_runtime_dto",
-      summary: "Readiness DTO reports database/object storage as not_configured for local demo, agent runtime as fake_deterministic, active adapter: in_memory, and planned adapter: postgres same-contract."
+      summary: "Readiness DTO reports database/object storage as not_configured when unset or env_configured_not_verified when local Docker env is present; agent runtime remains fake_deterministic, active adapter: in_memory, and planned adapter: postgres same-contract."
     },
     {
       path: "/v0/ops/metrics/summary",
