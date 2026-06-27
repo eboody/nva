@@ -32,6 +32,11 @@ async fn health_endpoint_reports_safe_local_service_identity() {
 
 #[tokio::test]
 async fn readiness_endpoint_keeps_mvp_dependencies_explicitly_stubbed() {
+    unsafe {
+        std::env::remove_var("DATABASE_URL");
+        std::env::remove_var("MINIO_ENDPOINT");
+    }
+
     let response = http::router()
         .oneshot(
             axum_http::request::Builder::new()

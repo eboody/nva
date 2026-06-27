@@ -22,8 +22,9 @@ use domain::{analytics, data_quality, entities, message, operations, policy, sou
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeMap, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, env, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
+use tokio_postgres::{NoTls, Row};
 use tower_http::trace::TraceLayer;
 use tracing::{Level, Span};
 use uuid::Uuid;
@@ -227,10 +228,69 @@ struct WorkflowRepositoryReadinessPayload {
     contract: Vec<&'static str>,
 }
 
+#[derive(Debug, Serialize)]
+struct ReadModelDescriptorPayload {
+    name: &'static str,
+    source: &'static str,
+    projection_version: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+struct ReadModelDataPosturePayload {
+    safe_synthetic_data: bool,
+    live_side_effects_allowed: bool,
+    provider_payload_passthrough: bool,
+    provider_writes_allowed: bool,
+    customer_messages_allowed: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct ReadModelDatabasePayload {
+    status: &'static str,
+    adapter: &'static str,
+    error: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct SourceQualityBacklogPayload {
+    api_contract: ApiDtoContract,
+    read_model: ReadModelDescriptorPayload,
+    data_posture: ReadModelDataPosturePayload,
+    database: ReadModelDatabasePayload,
+    records: Vec<SourceQualityBacklogRecordPayload>,
+}
+
+#[derive(Debug, Serialize)]
+struct SourceQualityBacklogRecordPayload {
+    issue_ref: String,
+    location_id: Option<String>,
+    tenant_id: Option<String>,
+    affected_entity_kind: String,
+    affected_entity_id: String,
+    field_path: String,
+    issue_kind: String,
+    severity: String,
+    freshness: String,
+    sensitivity: String,
+    workflow_blocking: String,
+    owner_persona: String,
+    review_gate: String,
+    resolution_status: String,
+    source_refs: Value,
+    workflow_event_id: Option<String>,
+    latest_outcome_id: Option<String>,
+    projection_version: String,
+    caveats: Vec<String>,
+}
+
 fn workflow_repository_readiness_payload() -> WorkflowRepositoryReadinessPayload {
     WorkflowRepositoryReadinessPayload {
         active_adapter: "in_memory",
-        postgres_adapter: "planned_same_contract",
+        postgres_adapter: if database_url_configured() {
+            "env_configured_not_verified"
+        } else {
+            "planned_same_contract"
+        },
         contract: vec![
             "workflow_events",
             "review_packets",
@@ -703,7 +763,7 @@ pub fn router_with_state(state: VaccineDocumentState) -> Router {
         )
         .route(
             "/v0/read-models/source-quality-backlog",
-            get(planned_source_quality_backlog),
+            get(source_quality_backlog),
         )
         .route("/vaccine-documents/uploads", post(upload_vaccine_document))
         .route(
@@ -798,26 +858,169 @@ async fn owned_operations_not_found(request: Request<Body>) -> (StatusCode, Json
     )
 }
 
-async fn planned_source_quality_backlog(
-    Extension(request_trace): Extension<RequestTraceEvidence>,
-) -> (StatusCode, Json<Value>) {
-    (
-        StatusCode::NOT_IMPLEMENTED,
-        Json(json!({
-            "error": {
-                "code": "planned_not_wired",
-                "message": "The source quality backlog read model route is reserved for the owned operations API, but the local runtime has not wired the durable BI projection yet.",
-                "safe_error_class": "planned_not_wired",
-                "details": [{
-                    "field": "route",
-                    "reason": "/v0/read-models/source-quality-backlog"
-                }]
-            },
-            "request_id": request_trace.request_id(),
-            "correlation_id": request_trace.request_correlation_id(),
-            "live_side_effects_allowed": false
-        })),
-    )
+async fn source_quality_backlog(
+    Extension(_request_trace): Extension<RequestTraceEvidence>,
+) -> (StatusCode, Json<SourceQualityBacklogPayload>) {
+    let Some(database_url) = configured_database_url() else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(source_quality_backlog_payload(
+                ReadModelDatabasePayload {
+                    status: "not_configured",
+                    adapter: "tokio_postgres",
+                    error: Some("DATABASE_URL is not configured; in-memory workflow routes remain available".to_owned()),
+                },
+                Vec::new(),
+            )),
+        );
+    };
+
+    match query_source_quality_backlog(&database_url).await {
+        Ok(records) => (
+            StatusCode::OK,
+            Json(source_quality_backlog_payload(
+                ReadModelDatabasePayload {
+                    status: "connected",
+                    adapter: "tokio_postgres",
+                    error: None,
+                },
+                records,
+            )),
+        ),
+        Err(error) => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(source_quality_backlog_payload(
+                ReadModelDatabasePayload {
+                    status: "query_failed",
+                    adapter: "tokio_postgres",
+                    error: Some(safe_database_error(&error)),
+                },
+                Vec::new(),
+            )),
+        ),
+    }
+}
+
+fn source_quality_backlog_payload(
+    database: ReadModelDatabasePayload,
+    records: Vec<SourceQualityBacklogRecordPayload>,
+) -> SourceQualityBacklogPayload {
+    SourceQualityBacklogPayload {
+        api_contract: api_dto_contract("source_quality_backlog_read_model"),
+        read_model: ReadModelDescriptorPayload {
+            name: "source_quality_backlog",
+            source: "postgres_view",
+            projection_version: "source_quality_backlog.v1",
+        },
+        data_posture: ReadModelDataPosturePayload {
+            safe_synthetic_data: true,
+            live_side_effects_allowed: false,
+            provider_payload_passthrough: false,
+            provider_writes_allowed: false,
+            customer_messages_allowed: false,
+        },
+        database,
+        records,
+    }
+}
+
+async fn query_source_quality_backlog(
+    database_url: &str,
+) -> Result<Vec<SourceQualityBacklogRecordPayload>, tokio_postgres::Error> {
+    let (client, connection) = tokio_postgres::connect(database_url, NoTls).await?;
+    tokio::spawn(async move {
+        if let Err(error) = connection.await {
+            tracing::warn!(safe_error_class = "database_connection", %error, "postgres read-model connection ended");
+        }
+    });
+
+    let rows = client
+        .query(
+            "SELECT issue_ref,
+                    location_id::text AS location_id,
+                    tenant_id,
+                    affected_entity_kind,
+                    affected_entity_id,
+                    field_path,
+                    issue_kind,
+                    severity,
+                    freshness,
+                    sensitivity,
+                    workflow_blocking,
+                    owner_persona,
+                    review_gate,
+                    resolution_status,
+                    source_refs,
+                    workflow_event_id::text AS workflow_event_id,
+                    latest_outcome_id::text AS latest_outcome_id,
+                    projection_version,
+                    caveats
+             FROM source_quality_backlog
+             ORDER BY CASE severity
+                    WHEN 'critical' THEN 1
+                    WHEN 'high' THEN 2
+                    WHEN 'medium' THEN 3
+                    ELSE 4
+                END,
+                issue_ref
+             LIMIT 50",
+            &[],
+        )
+        .await?;
+
+    Ok(rows
+        .iter()
+        .map(source_quality_backlog_record_from_row)
+        .collect())
+}
+
+fn source_quality_backlog_record_from_row(row: &Row) -> SourceQualityBacklogRecordPayload {
+    SourceQualityBacklogRecordPayload {
+        issue_ref: row.get("issue_ref"),
+        location_id: row.get("location_id"),
+        tenant_id: row.get("tenant_id"),
+        affected_entity_kind: row.get("affected_entity_kind"),
+        affected_entity_id: row.get("affected_entity_id"),
+        field_path: row.get("field_path"),
+        issue_kind: row.get("issue_kind"),
+        severity: row.get("severity"),
+        freshness: row.get("freshness"),
+        sensitivity: row.get("sensitivity"),
+        workflow_blocking: row.get("workflow_blocking"),
+        owner_persona: row.get("owner_persona"),
+        review_gate: row.get("review_gate"),
+        resolution_status: row.get("resolution_status"),
+        source_refs: row.get("source_refs"),
+        workflow_event_id: row.get("workflow_event_id"),
+        latest_outcome_id: row.get("latest_outcome_id"),
+        projection_version: row.get("projection_version"),
+        caveats: row.get("caveats"),
+    }
+}
+
+fn configured_database_url() -> Option<String> {
+    env::var("DATABASE_URL")
+        .ok()
+        .filter(|value| !value.trim().is_empty() && !value.contains("***"))
+}
+
+fn database_url_configured() -> bool {
+    configured_database_url().is_some()
+}
+
+fn minio_env_configured() -> bool {
+    env::var("MINIO_ENDPOINT")
+        .ok()
+        .is_some_and(|value| !value.trim().is_empty())
+}
+
+fn safe_database_error(error: &tokio_postgres::Error) -> String {
+    let message = error.to_string();
+    if message.to_ascii_lowercase().contains("password") {
+        "postgres read-model query failed; details redacted".to_owned()
+    } else {
+        message
+    }
 }
 
 async fn healthz() -> Json<HealthPayload> {
@@ -833,8 +1036,16 @@ async fn readyz() -> Json<ReadinessPayload> {
     Json(ReadinessPayload {
         api_contract: api_dto_contract("runtime_readiness"),
         service: "pet-resort-api",
-        database: "not_configured",
-        object_storage: "not_configured",
+        database: if database_url_configured() {
+            "configured_not_verified"
+        } else {
+            "not_configured"
+        },
+        object_storage: if minio_env_configured() {
+            "env_configured_not_verified"
+        } else {
+            "not_configured"
+        },
         agent_runtime: "fake_deterministic",
         workflow_repository: workflow_repository_readiness_payload(),
         observability: ObservabilityReadinessPayload {

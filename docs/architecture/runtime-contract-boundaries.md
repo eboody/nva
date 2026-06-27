@@ -97,8 +97,9 @@ Presentation caveat from the readiness audit: these DTOs are currently Rust stru
 
 The readiness DTO exposes the same posture under `workflow_repository`:
 
-- `active_adapter = "in_memory"` means the API shell is still local/demo state.
-- `postgres_adapter = "planned_same_contract"` means the durable adapter should implement the same handler-facing contract, not force route rewrites.
+- `active_adapter = "in_memory"` means the API shell is still local/demo state; readiness does not promote Postgres to an active adapter from environment variables alone.
+- `postgres_adapter = "planned_same_contract"` means no database URL is configured yet but the durable adapter should implement the same handler-facing contract, not force route rewrites.
+- `postgres_adapter = "env_configured_not_verified"` means a database URL is present for read models, but readiness has not executed a connectivity/query probe; the read-model endpoint itself reports `database.status = "connected"` only after its query succeeds.
 - `contract = ["workflow_events", "review_packets", "audit_events", "outcomes", "documents"]` names the durable surface area that maps to the migration spine.
 
 A future SQLx/Postgres implementation should sit behind this seam and persist the same semantic records to `workflow_events`, `workflow_results`, `review_packets`, `approval_records`, `audit_events`, outcome tables, document/object metadata, and outbox candidates. It must keep the same safety posture: no live customer sends, provider/PMS writes, medical acceptance, payments, schedule changes, or production claims without explicit approval/outbox gates.
@@ -213,7 +214,7 @@ Strong current proof:
 
 Remaining readiness gaps to call out honestly:
 
-1. Durable API persistence is not wired to the migration spine; current API state is largely in-memory for demo determinism.
+1. Durable API persistence has only a narrow read-model query path so far; most mutable API state intentionally remains in-memory for demo determinism until each workflow is promoted through reviewed Postgres repository ports.
 2. API DTOs are not yet exported as OpenAPI/client schema.
 3. Cross-cutting request/job correlation is not yet implemented end to end.
 4. Worker durable leasing/outbox processing remains a shell.

@@ -15,8 +15,9 @@ Open these in order:
 1. `docs/presentation/assets/owned-operations-api-replacement.html` — the static HTML/SVG one-frame thesis.
 2. `docs/presentation/owned-operations-api-visual-guide.md` — narration for the diagram and safety caveats.
 3. `docs/presentation/job-presentation-walkthrough.md#local-demo-slice-data-quality-hygiene-in-five-minutes` — the demo section with expected anchors.
-4. `apps/api/openapi/owned-operations-v0.openapi.json` — checked OpenAPI contract artifact.
-5. `docs/presentation/nva-presentation-checklist.md#5-demo-command-and-what-to-watch-for` — live-demo anchors and claims-to-avoid context.
+4. `docs/ops/spacetimedb-realtime-queue-demo.md` — realtime queue runbook and the honest local ABI fallback boundary.
+5. `apps/api/openapi/owned-operations-v0.openapi.json` — checked OpenAPI contract artifact.
+6. `docs/presentation/nva-presentation-checklist.md#5-demo-command-and-what-to-watch-for` — live-demo anchors and claims-to-avoid context.
 
 If the audience needs only the business story, start from `docs/presentation/nva-sendable-job-contact-summary.md` and then show the visual artifact.
 
@@ -68,6 +69,31 @@ Wrapper close:
 
 - `demo_owned_operations_api_ok local_fixture_only=true live_side_effects_allowed=false`
 
+
+## Expected realtime queue anchors
+
+These are expected from the presenter script, depending on whether the local SpacetimeDB host can publish the module:
+
+```sh
+scripts/spacetimedb_realtime_queue_demo.sh --self-test
+scripts/spacetimedb_realtime_queue_demo.sh --force-fallback
+```
+
+Current local caveat: `spacetime build --project-path apps/spacetimedb` succeeds, but local publish may fail with `module abi 10.4` against host `10.0`. In that case the script intentionally falls back to a deterministic event-stream demo. Do not describe fallback output as a successful live SpacetimeDB publish.
+
+Realtime presenter markers:
+
+- `ALICE_UPDATE_SEEN` — Location 101 staff queue update appears without a static re-query.
+- `SAM_LOCATION_101_HIDDEN` — Location 202 staff does not see Location 101 work.
+- `SAM_MUTATION_BLOCKED` — out-of-scope mutation fails closed.
+- `MORGAN_ACTION_SEEN` — Location 101 manager sees manager-gated work.
+- `UNSAFE_SIDE_EFFECT_BLOCKED` — customer/provider side effects stay disabled.
+- `AUDIT_OUTCOME_EVIDENCE` — the terminal shows audit/outcome proof instead of claiming live execution.
+
+Use this narration:
+
+"The SpacetimeDB angle is the realtime substrate: reducer-style commands and subscriptions can make scoped work visible to the right staff/manager immediately across a large location portfolio. It is an adapter around app-owned policy, not a second business-logic source of truth. Postgres and S3/MinIO remain the durable audit/reporting/evidence backbone unless future proof gates justify removing them. This local fixture/fallback proof does not claim production SSO, live Gingr access, or customer/provider side effects."
+
 ## Checked OpenAPI artifact path
 
 Use this file when someone asks for contract evidence beyond prose:
@@ -106,6 +132,8 @@ Before presenting, run this from the repo root:
 
 ```sh
 ./scripts/demo_owned_operations_api.sh
+scripts/spacetimedb_realtime_queue_demo.sh --self-test
+scripts/spacetimedb_realtime_queue_demo.sh --force-fallback
 ./scripts/check_docs.sh
 python scripts/check_markdown_links.py --repo-root .
 grep -qi '<script' docs/presentation/assets/owned-operations-api-replacement.html && echo 'unexpected script tag' && exit 1 || echo 'html_static_no_script=true'
@@ -120,7 +148,8 @@ What is real now:
 
 - local/fixture-only Data-Quality Hygiene proof;
 - checked OpenAPI artifact and local demo wrapper;
-- review-gated cleanup packet, blocked unsafe action, labor-outcome evidence, and disabled worker/outbox posture.
+- review-gated cleanup packet, blocked unsafe action, labor-outcome evidence, and disabled worker/outbox posture;
+- fixture-backed realtime role/location queue story with an honest local SpacetimeDB fallback boundary.
 
 What not to claim:
 
@@ -128,7 +157,8 @@ What not to claim:
 - no provider/PMS writes;
 - no customer/member sends;
 - no payment, refund, discount, schedule, capacity, or medical/safety decisions;
-- no production deployment, complete Gingr replacement, or live BI cutover.
+- no production deployment, production SSO/authz, complete Gingr replacement, or live BI cutover.
+- no claim that the fallback event-stream is a live published SpacetimeDB module.
 
 Close the fallback with:
 

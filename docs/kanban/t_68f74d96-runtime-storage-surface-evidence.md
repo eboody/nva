@@ -52,10 +52,10 @@ FOUND target/doc/app/tools/enum.ExternalToolCandidate.html
 
 ### Issues to fix or track
 
-1. Stale/over-claimed worker crate-root Rustdoc in `apps/worker/src/lib.rs`:
-   - Current wording: “Worker shell for durable Postgres-backed pet-resort workflows.”
+1. Resolved stale/over-claimed worker crate-root Rustdoc in `apps/worker/src/lib.rs`:
+   - Original wording was “Worker shell for durable Postgres-backed pet-resort workflows”; current wording is “Worker shell for safe local/background pet-resort workflow execution.”
    - Why it matters: `apps/worker/README.md` says durable leasing, queue consumers, schedulers, concrete app services, and provider writes are not implemented yet. A non-coder could infer a deployed durable Postgres worker exists.
-   - Suggested fix: change the crate root to “Worker shell for safe local/background pet-resort workflow execution” or mention Postgres only as a future adapter/storage implementation.
+   - Resolution: keep Postgres references limited to explicit local/demo or future adapter/storage implementation contexts.
 
 2. Stale copied Rustdoc sentence in `storage/src/operations.rs`:
    - `StoredManagerDailyBriefLaborMinutes::try_new` says “Validates and wraps a non-empty brand name before persistence.”

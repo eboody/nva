@@ -97,6 +97,8 @@ fn checked_openapi_artifact_names_owned_v0_operations_and_safe_schemas() {
         "DataQualityHygieneOutcomeCaptureRequest",
         "DataQualityHygieneOutcomeCaptureResponse",
         "DataQualityHygieneOutcomeSummaryResponse",
+        "SourceQualityBacklogResponse",
+        "ReadModelDatabaseStatus",
         "ReadinessResponse",
         "OpsMetricsSummaryResponse",
     ] {
@@ -227,22 +229,36 @@ async fn v0_data_quality_draft_rejection_preserves_safe_error_shape() {
 }
 
 #[tokio::test]
-async fn v0_planned_read_model_route_returns_owned_planned_error_envelope() {
+async fn v0_read_model_route_returns_safe_fallback_when_database_is_not_configured() {
+    unsafe {
+        std::env::remove_var("DATABASE_URL");
+    }
+
     let (status, payload) =
         get_json("/v0/read-models/source-quality-backlog?location_id=local").await;
 
-    assert_eq!(status, axum_http::StatusCode::NOT_IMPLEMENTED);
-    assert_eq!(payload["error"]["code"], "planned_not_wired");
-    assert_eq!(payload["error"]["safe_error_class"], "planned_not_wired");
-    assert_eq!(payload["live_side_effects_allowed"], false);
+    assert_eq!(status, axum_http::StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(
+        payload["api_contract"]["workflow"],
+        "source_quality_backlog_read_model"
+    );
+    assert_eq!(payload["read_model"]["name"], "source_quality_backlog");
+    assert_eq!(payload["database"]["status"], "not_configured");
+    assert_eq!(payload["data_posture"]["live_side_effects_allowed"], false);
+    assert_eq!(payload["data_posture"]["provider_writes_allowed"], false);
+    assert_eq!(payload["records"], json!([]));
 
     let spec: Value = serde_json::from_str(OPENAPI).expect("checked OpenAPI json parses");
-    let error_code_enum =
-        spec["components"]["schemas"]["ErrorEnvelope"]["properties"]["error"]["properties"]["code"]
-            ["enum"]
-            .as_array()
-            .expect("error code enum exists");
-    assert!(error_code_enum.contains(&json!("planned_not_wired")));
+    let route_responses =
+        &spec["paths"]["/v0/read-models/source-quality-backlog"]["get"]["responses"];
+    assert_eq!(
+        route_responses["200"]["content"]["application/json"]["schema"]["$ref"],
+        "#/components/schemas/SourceQualityBacklogResponse"
+    );
+    assert_eq!(
+        route_responses["503"]["content"]["application/json"]["schema"]["$ref"],
+        "#/components/schemas/SourceQualityBacklogResponse"
+    );
 }
 
 #[tokio::test]

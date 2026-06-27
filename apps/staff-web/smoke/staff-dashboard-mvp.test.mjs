@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+const localDemoApiRoute = readFileSync(new URL("../app/api/local-demo/[...path]/route.ts", import.meta.url), "utf8");
 
 const requiredOperationalSurfaces = [
   "Session guard",
@@ -127,4 +128,35 @@ test("staff dashboard exposes api readiness metrics and repository contract post
   ]) {
     assert.match(page, new RegExp(expected, "i"), `missing API readiness/metrics story evidence: ${expected}`);
   }
+});
+
+test("staff dashboard has live local API loading with labeled fallback fixtures", () => {
+  for (const expected of [
+    "NEXT_PUBLIC_PET_RESORT_API_BASE_URL",
+    "PET_RESORT_API_BASE_URL",
+    "/api/local-demo",
+    "Live local API data",
+    "Fallback fixture data",
+    "DB-backed when API is reachable; deterministic fallback when API is unavailable",
+    "/v0/readyz",
+    "/v0/ops/metrics/summary",
+    "/v0/read-models/source-quality-backlog",
+    "DB-backed read-model records",
+    "Unavailable local API data",
+    "staff-web labels the read-model proof unavailable instead of claiming live DB evidence",
+    "static fallback; local DB read model unavailable",
+    "No live provider/PMS writes, customer sends, payments, refunds, discounts, schedule changes, or medical/safety decisions"
+  ]) {
+    assert.match(page, new RegExp(expected, "i"), `missing live/fallback posture evidence: ${expected}`);
+  }
+});
+
+test("local demo API proxy rejects path traversal before upstream fetch", () => {
+  assert.match(localDemoApiRoute, /function safeLocalDemoApiPath/);
+  assert.match(localDemoApiRoute, /segments\[0\] !== allowedPathRoot/);
+  assert.match(localDemoApiRoute, /segment === "\."/);
+  assert.match(localDemoApiRoute, /segment === "\.\."/);
+  assert.match(localDemoApiRoute, /segment\.includes\("\/"\)/);
+  assert.match(localDemoApiRoute, /encodeURIComponent\(segment\)/);
+  assert.doesNotMatch(localDemoApiRoute, /fetch\(`\$\{apiBaseUrl\}\/\$\{path\}`/);
 });

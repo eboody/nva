@@ -1,0 +1,16 @@
+[package]
+name = "nva-spacetimedb"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+app.workspace = true
+domain.workspace = true
+spacetimedb = "2"
+uuid.workspace = true

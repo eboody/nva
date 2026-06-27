@@ -3,6 +3,7 @@ members = [
     "app",
     "apps/cli",
     "apps/api",
+    "apps/spacetimedb",
     "apps/worker",
     "domain",
     "storage",
@@ -21,7 +22,7 @@ async-trait = "0.1"
 axum = "0.8"
 bon = "3.9"
 bytes = "1"
-chrono = { version = "0.4", features = ["serde"] }
+chrono = { version = "0.4", default-features = false, features = ["serde", "std"] }
 clap = { version = "4.5", features = ["derive"] }
 derive_more = { version = "2.0", features = ["display", "from", "into"] }
 hmac = "0.12"
@@ -45,4 +46,4 @@ tower-http = { version = "0.6", features = ["trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 url = "2"
-uuid = { version = "1.10", features = ["serde", "v4"] }
+uuid = { version = "1.10", features = ["serde"] }

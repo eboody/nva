@@ -10,6 +10,7 @@ COPY integrations ./integrations
 COPY apps/api ./apps/api
 COPY apps/worker ./apps/worker
 COPY apps/cli ./apps/cli
+COPY apps/spacetimedb ./apps/spacetimedb
 
 RUN cargo build --locked --release -p pet-resort-worker
 

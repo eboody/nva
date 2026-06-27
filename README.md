@@ -20,7 +20,7 @@ Use the published/non-coder landing source at [docs/public/index.html](docs/publ
 
 ## Presentation path: safe local owned API proof
 
-For a job or networking conversation, start with the [NVA demo executive brief](docs/presentation/nva-demo-executive-brief.md). The one-minute story is simple: there was no live NVA/Gingr access, so the project does not pretend to be a production integration. It proves the safer first step: a local owned operations API shape where Gingr is source evidence, staff work is review-gated, BI gets cleaner read-model concepts, labor outcomes are measured, and live side effects stay disabled.
+For a job or networking conversation, start with the [NVA demo executive brief](docs/presentation/nva-demo-executive-brief.md). The one-minute story is simple: there was no live NVA/Gingr access, so the project does not pretend to be a production integration. It proves the safer first step: a local owned operations layer where Gingr is source evidence, staff work is review-gated, BI gets cleaner read-model concepts, labor outcomes are measured, a SpacetimeDB runtime adapter can project realtime role/location-scoped queue views, and live side effects stay disabled.
 
 Use these presentation docs in order:
 
@@ -31,10 +31,13 @@ Use these presentation docs in order:
 5. [Static demo fallback packet](docs/presentation/nva-static-demo-fallback.md) for presenting confidently if the terminal is slow or unavailable without pretending stale output is fresh proof.
 6. [Executive brief](docs/presentation/nva-demo-executive-brief.md) for the one-sentence pitch, email-ready summary, and 30-second/2-minute scripts.
 7. [Owned operations API visual guide](docs/presentation/owned-operations-api-visual-guide.md) and [standalone HTML/SVG diagram](docs/presentation/assets/owned-operations-api-replacement.html) for the memorable one-frame thesis: Gingr-centered extraction today -> NVA-owned operations API/read-model layer tomorrow.
-8. [Job presentation walkthrough](docs/presentation/job-presentation-walkthrough.md) for the five-minute talk and exact demo commands.
-9. [Owned operations API replacement talk track](docs/presentation/owned-operations-api-replacement-talk-track.md) when the audience asks why this is not "just use Gingr" or "just pull BI data."
-10. [Skeptical review](docs/presentation/nva-demo-skeptical-review.md) for likely objections, caveats, and claims to avoid.
-11. [Checked OpenAPI artifact](apps/api/openapi/owned-operations-v0.openapi.json) when the audience wants contract evidence beyond prose.
+8. [Local demo walkthrough](docs/demo/local-demo-walkthrough.md) for the job-contact run sheet: setup commands, 3-5 minute script, endpoint list, Q&A, fallback visual references, and caveats.
+9. [Job presentation walkthrough](docs/presentation/job-presentation-walkthrough.md) for the five-minute talk and exact demo commands.
+10. [Owned operations API replacement talk track](docs/presentation/owned-operations-api-replacement-talk-track.md) when the audience asks why this is not "just use Gingr" or "just pull BI data."
+11. [Skeptical review](docs/presentation/nva-demo-skeptical-review.md) for likely objections, caveats, and claims to avoid.
+12. [Checked OpenAPI artifact](apps/api/openapi/owned-operations-v0.openapi.json) when the audience wants contract evidence beyond prose.
+13. [SpacetimeDB runtime adapter README](apps/spacetimedb/README.md) and [realtime queue demo runbook](docs/ops/spacetimedb-realtime-queue-demo.md) when the audience wants the realtime reducer/subscription boundary behind the local proof.
+14. [Audit/reporting/evidence backbone](docs/architecture/audit-reporting-evidence-backbone.md) when the audience asks why Postgres/S3 still matter beside SpacetimeDB.
 
 Keep Data-Quality Hygiene as the first runnable slice. For the shortest live demo from the repo root, run the safe local wrapper:
 
@@ -42,7 +45,16 @@ Keep Data-Quality Hygiene as the first runnable slice. For the shortest live dem
 ./scripts/demo_owned_operations_api.sh
 ```
 
-Expected anchors: `openapi_title=NVA Pet Resorts Owned Operations API`, `openapi_paths=8`, `contract_lane_ok live_side_effects_allowed=false`, `context_ok`, `draft_validation_ok`, `blocked_draft_validation_ok`, `outcome_ok`, `smoke_assertions_ok estimated_minutes_saved=15 actual_minutes_saved=17`, `[data-quality-hygiene-worker-outbox-smoke] disabled worker/outbox proof passed as local internal handoff only`, and `demo_owned_operations_api_ok local_fixture_only=true live_side_effects_allowed=false`.
+Expected anchors: `openapi_title=NVA Pet Resorts Owned Operations API`, `openapi_paths=8`, `contract_lane_ok live_side_effects_allowed=false`, `context_ok`, `draft_validation_ok`, `blocked_draft_validation_ok`, `outcome_ok`, `smoke_assertions_ok estimated_minutes_saved=15 actual_minutes_saved=17`, `[data-quality-hygiene-worker-outbox-smoke] disabled worker/outbox proof passed as local internal handoff only`, and `demo_owned_operations_api_ok local_fixture_only=true live_side_effects_allowed=false`. For the realtime queue story, run `scripts/spacetimedb_realtime_queue_demo.sh --self-test` and `scripts/spacetimedb_realtime_queue_demo.sh --force-fallback`; treat fallback output as an honest fixture/event-stream proof if the local SpacetimeDB host ABI cannot publish the module.
+
+If you want to run the full Docker Compose local demo stack with Postgres, MinIO, API, worker, staff-web, migration/seed, and smoke proof, use:
+
+```sh
+docker compose up --build -d
+./scripts/smoke_local_demo.sh
+```
+
+See [Local Docker Compose demo runbook](docs/ops/local-demo-compose.md) for reset commands, the one-shot `migrate-seed` service, and the optional `agent-infra` OpenViking profile.
 
 If you want to run the workflow and operations lanes separately, use:
 
@@ -51,7 +63,7 @@ If you want to run the workflow and operations lanes separately, use:
 ./scripts/smoke_data_quality_hygiene_disabled_worker_outbox.sh
 ```
 
-This is architecture/demo-ready proof only: it uses fixture/local state and fake/disabled side-effect posture, not live NVA/Gingr credentials, production data, provider writes, customer sends, payment/refund/discount actions, schedule changes, medical/safety decisions, or production deployment. Real access would unlock read-only source validation, BI query comparison, and a scoped integration pilot; production or replacement claims still require durable Postgres wiring, published schemas, auth/location scope, worker leasing/dead-letter views, owner-approved BI/KPI definitions, and explicit approval for any live action.
+This is architecture/demo-ready proof only: it uses fixture/local state and fake/disabled side-effect posture, not live NVA/Gingr credentials, production data, production SSO, provider writes, customer sends, payment/refund/discount actions, schedule changes, medical/safety decisions, or production deployment. SpacetimeDB is the realtime storage/runtime adapter for scoped reducers/subscriptions, not a business-logic rewrite or a claim that Postgres/S3 are obsolete. Real access would unlock read-only source validation, BI query comparison, role/location mapping validation, and a scoped integration pilot; production or replacement claims still require durable Postgres/audit/export wiring, S3/MinIO evidence retention, published schemas, production auth/location scope, worker leasing/dead-letter views, owner-approved BI/KPI definitions, and explicit approval for any live action.
 
 ## Canonical docs path
 
@@ -186,11 +198,19 @@ For docs-only README/navigation changes, run:
 python scripts/check_markdown_links.py --repo-root .
 ```
 
-For executable docs and wiki/navigation checks, run:
+For executable docs, wiki/navigation checks, and workspace closeout guardrails, run:
 
 ```sh
 ./scripts/check_docs.sh
 ```
+
+For the narrow Kanban closeout guardrail by itself, run:
+
+```sh
+python scripts/check_workspace_quality.py --repo-root .
+```
+
+Use the closeout checklist in [docs/quality/kanban-closeout-checklist.md](docs/quality/kanban-closeout-checklist.md) before completing or owner-reviewing board work.
 
 For the public docs artifact published at the Rustdoc root, keep the non-coder landing page source in [docs/public/index.html](docs/public/index.html) and generate the local artifact with:
 

@@ -2,6 +2,7 @@ use chrono::NaiveDate;
 use uuid::Uuid;
 
 use app::data_quality_hygiene;
+use app::data_quality_hygiene::AuthorizationPolicy;
 use domain::{data_quality, entities, operations, policy, source};
 
 #[test]
@@ -393,6 +394,240 @@ fn data_quality_hygiene_outcome_records_actual_minutes_without_external_mutation
     );
 }
 
+#[test]
+fn manager_actor_records_reviewed_outcome_through_app_owned_ports() {
+    let action_id = data_quality_hygiene::ActionId::try_new("dq-action-1").unwrap();
+    let mut service = fixture_outcome_capture_service();
+
+    let receipt = service
+        .record_reviewed_outcome(data_quality_hygiene::OutcomeCaptureRequest::new(
+            data_quality_hygiene::ActorId::try_new("gm-riley").unwrap(),
+            outcome_record(data_quality_hygiene::FeedbackOutcome::Completed),
+        ))
+        .unwrap();
+
+    assert_eq!(receipt.action_id(), &action_id);
+    assert_eq!(service.outcome_recorder().outcomes().len(), 1);
+    assert_eq!(service.audit_log().records().len(), 1);
+    assert_eq!(service.blocked_action_log().records().len(), 0);
+    assert_eq!(
+        service.outcome_recorder().outcomes()[0].action_id(),
+        &action_id
+    );
+}
+
+#[test]
+fn staff_actor_without_manager_gate_records_blocked_action_instead_of_outcome() {
+    let mut service = fixture_outcome_capture_service();
+    service
+        .actor_directory_mut()
+        .add_actor(data_quality_hygiene::ActorAssignment::new(
+            data_quality_hygiene::ActorId::try_new("front-desk-1").unwrap(),
+            entities::ActorRef::Staff {
+                staff_id: entities::StaffId::try_new("front-desk-1").unwrap(),
+            },
+            data_quality_hygiene::ReviewerRole::FrontDeskAgent,
+            vec![location_id()],
+        ));
+
+    let result = service.record_reviewed_outcome(data_quality_hygiene::OutcomeCaptureRequest::new(
+        data_quality_hygiene::ActorId::try_new("front-desk-1").unwrap(),
+        outcome_record(data_quality_hygiene::FeedbackOutcome::Completed),
+    ));
+
+    assert_eq!(result, Err(data_quality_hygiene::Error::ActorNotAuthorized));
+    assert_eq!(service.outcome_recorder().outcomes().len(), 0);
+    assert_eq!(service.audit_log().records().len(), 0);
+    assert_eq!(service.blocked_action_log().records().len(), 1);
+    assert_eq!(
+        service.blocked_action_log().records()[0].reason(),
+        data_quality_hygiene::BlockedActionReason::ActorLacksReviewGate
+    );
+}
+
+#[test]
+fn role_location_authorization_separates_queue_work_from_manager_outcomes() {
+    let policy = data_quality_hygiene::RoleLocationAuthorization;
+    let review_item = data_quality_hygiene::ReviewQueueItem::new(
+        data_quality_hygiene::ActionId::try_new("dq-action-1").unwrap(),
+        location_id(),
+        vec![policy::ReviewGate::ManagerApproval],
+    );
+    let alice = data_quality_hygiene::ActorAssignment::new(
+        data_quality_hygiene::ActorId::try_new("alice").unwrap(),
+        entities::ActorRef::Staff {
+            staff_id: entities::StaffId::try_new("staff-alice").unwrap(),
+        },
+        data_quality_hygiene::ReviewerRole::FrontDeskLead,
+        vec![location_id()],
+    );
+    let sam = data_quality_hygiene::ActorAssignment::new(
+        data_quality_hygiene::ActorId::try_new("sam").unwrap(),
+        entities::ActorRef::Staff {
+            staff_id: entities::StaffId::try_new("staff-sam").unwrap(),
+        },
+        data_quality_hygiene::ReviewerRole::FrontDeskLead,
+        vec![location_id_202()],
+    );
+    let morgan = data_quality_hygiene::ActorAssignment::new(
+        data_quality_hygiene::ActorId::try_new("morgan").unwrap(),
+        entities::ActorRef::Manager {
+            manager_id: entities::ManagerId::try_new("manager-morgan").unwrap(),
+        },
+        data_quality_hygiene::ReviewerRole::GeneralManager,
+        vec![location_id()],
+    );
+    let ai = data_quality_hygiene::ActorAssignment::new(
+        data_quality_hygiene::ActorId::try_new("dq-ai").unwrap(),
+        entities::ActorRef::System,
+        data_quality_hygiene::ReviewerRole::OperationsAnalyst,
+        vec![location_id()],
+    );
+
+    assert!(policy.can_work_queue_item(&alice, &review_item));
+    assert!(!policy.can_work_queue_item(&sam, &review_item));
+    assert!(!policy.can_record_outcome(&alice, &review_item));
+    assert!(policy.can_record_outcome(&morgan, &review_item));
+    assert!(policy.can_work_queue_item(&ai, &review_item));
+    assert!(!policy.can_record_outcome(&ai, &review_item));
+}
+
+fn fixture_outcome_capture_service() -> data_quality_hygiene::OutcomeCaptureService<
+    FixtureActorDirectory,
+    data_quality_hygiene::RoleLocationAuthorization,
+    FixtureReviewQueueStore,
+    FixtureOutcomeRecorder,
+    FixtureAuditLog,
+    FixtureBlockedActionLog,
+> {
+    let action_id = data_quality_hygiene::ActionId::try_new("dq-action-1").unwrap();
+    data_quality_hygiene::OutcomeCaptureService::new(
+        FixtureActorDirectory::new(vec![data_quality_hygiene::ActorAssignment::new(
+            data_quality_hygiene::ActorId::try_new("gm-riley").unwrap(),
+            entities::ActorRef::Manager {
+                manager_id: entities::ManagerId::try_new("gm-riley").unwrap(),
+            },
+            data_quality_hygiene::ReviewerRole::GeneralManager,
+            vec![location_id()],
+        )]),
+        data_quality_hygiene::RoleLocationAuthorization,
+        FixtureReviewQueueStore::new(vec![data_quality_hygiene::ReviewQueueItem::new(
+            action_id,
+            location_id(),
+            vec![policy::ReviewGate::ManagerApproval],
+        )]),
+        FixtureOutcomeRecorder::default(),
+        FixtureAuditLog::default(),
+        FixtureBlockedActionLog::default(),
+    )
+}
+
+#[derive(Debug, Default)]
+struct FixtureActorDirectory {
+    actors: Vec<data_quality_hygiene::ActorAssignment>,
+}
+
+impl FixtureActorDirectory {
+    fn new(actors: Vec<data_quality_hygiene::ActorAssignment>) -> Self {
+        Self { actors }
+    }
+
+    fn add_actor(&mut self, actor: data_quality_hygiene::ActorAssignment) {
+        self.actors.push(actor);
+    }
+}
+
+impl data_quality_hygiene::ActorDirectory for FixtureActorDirectory {
+    fn resolve_actor(
+        &self,
+        actor_id: &data_quality_hygiene::ActorId,
+    ) -> Option<data_quality_hygiene::ActorAssignment> {
+        self.actors
+            .iter()
+            .find(|actor| actor.actor_id() == actor_id)
+            .cloned()
+    }
+}
+
+#[derive(Debug)]
+struct FixtureReviewQueueStore {
+    review_items: Vec<data_quality_hygiene::ReviewQueueItem>,
+}
+
+impl FixtureReviewQueueStore {
+    fn new(review_items: Vec<data_quality_hygiene::ReviewQueueItem>) -> Self {
+        Self { review_items }
+    }
+}
+
+impl data_quality_hygiene::ReviewQueueStore for FixtureReviewQueueStore {
+    fn review_item_for_action(
+        &self,
+        action_id: &data_quality_hygiene::ActionId,
+    ) -> Option<data_quality_hygiene::ReviewQueueItem> {
+        self.review_items
+            .iter()
+            .find(|item| item.action_id() == action_id)
+            .cloned()
+    }
+}
+
+#[derive(Debug, Default)]
+struct FixtureOutcomeRecorder {
+    outcomes: Vec<data_quality_hygiene::OutcomeRecord>,
+}
+
+impl FixtureOutcomeRecorder {
+    fn outcomes(&self) -> &[data_quality_hygiene::OutcomeRecord] {
+        &self.outcomes
+    }
+}
+
+impl data_quality_hygiene::OutcomeRecorder for FixtureOutcomeRecorder {
+    fn record_outcome(
+        &mut self,
+        outcome: data_quality_hygiene::OutcomeRecord,
+    ) -> data_quality_hygiene::OutcomeReceipt {
+        let receipt = data_quality_hygiene::OutcomeReceipt::new(outcome.action_id().clone());
+        self.outcomes.push(outcome);
+        receipt
+    }
+}
+
+#[derive(Debug, Default)]
+struct FixtureAuditLog {
+    records: Vec<data_quality_hygiene::AuditRecord>,
+}
+
+impl FixtureAuditLog {
+    fn records(&self) -> &[data_quality_hygiene::AuditRecord] {
+        &self.records
+    }
+}
+
+impl data_quality_hygiene::AuditLog for FixtureAuditLog {
+    fn append_audit_record(&mut self, record: data_quality_hygiene::AuditRecord) {
+        self.records.push(record);
+    }
+}
+
+#[derive(Debug, Default)]
+struct FixtureBlockedActionLog {
+    records: Vec<data_quality_hygiene::BlockedActionRecord>,
+}
+
+impl FixtureBlockedActionLog {
+    fn records(&self) -> &[data_quality_hygiene::BlockedActionRecord] {
+        &self.records
+    }
+}
+
+impl data_quality_hygiene::BlockedActionLog for FixtureBlockedActionLog {
+    fn record_blocked_action(&mut self, record: data_quality_hygiene::BlockedActionRecord) {
+        self.records.push(record);
+    }
+}
+
 fn candidate(
     id: &str,
     kind: data_quality_hygiene::CandidateKind,
@@ -460,6 +695,10 @@ fn source_provenance() -> source::Provenance {
 
 fn location_id() -> entities::LocationId {
     entities::LocationId(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0001))
+}
+
+fn location_id_202() -> entities::LocationId {
+    entities::LocationId(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0002))
 }
 
 fn operating_day() -> operations::operating_day::Date {

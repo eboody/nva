@@ -293,7 +293,7 @@ pub struct ManagerDailyBriefReportingGroup {
 pub struct StoredManagerDailyBriefLaborMinutes(u16);
 
 impl StoredManagerDailyBriefLaborMinutes {
-    /// Validates and wraps a non-empty brand name before persistence.
+    /// Validates and wraps a non-zero labor-minute quantity before persistence.
     pub fn try_new(value: u16) -> Result<Self> {
         if value == 0 {
             return Err(Error::InvalidDomainValue {

@@ -14,5 +14,4 @@ strum.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
-chrono.workspace = true
 uuid.workspace = true

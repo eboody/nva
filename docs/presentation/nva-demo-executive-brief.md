@@ -83,6 +83,7 @@ The right next step is not production access or live writes. It is read-only val
 
 - [README presentation path](../../README.md#presentation-path-safe-local-owned-api-proof)
 - [Final presentation checklist](nva-presentation-checklist.md)
+- [Local demo walkthrough](../demo/local-demo-walkthrough.md)
 - [Owned operations API visual guide](owned-operations-api-visual-guide.md)
 - [Standalone HTML/SVG visual](assets/owned-operations-api-replacement.html)
 - [Job presentation walkthrough](job-presentation-walkthrough.md)

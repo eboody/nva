@@ -4,23 +4,21 @@ Use this as a spoken script for a job, networking, hiring-manager, product, oper
 
 ## Recommended opening line
 
-"I built a safe local proof of the operations layer I think NVA Pet Resorts would want above systems like Gingr — not a fake production integration, but the owned API, review, audit, and BI-read-model seam you would need before connecting anything live."
+"I built a safe local proof of the operations layer I think NVA Pet Resorts would want above systems like Gingr — not a fake production integration, but the owned API, realtime queue, review, audit, and BI-read-model seam you would need before connecting anything live."
 
 ## Three-minute version
 
 ### 0:00-0:25 — Open with the honest thesis
 
-"I built this under a real constraint: I did not have live NVA or Gingr access, so I did not pretend to integrate with production systems. Instead, I built the safer first step: a local proof of an NVA-owned operations API and read-model layer above provider systems like Gingr.
+"I built this under a real constraint: I did not have live NVA or Gingr access, so I did not pretend to integrate with production systems. Instead, I built the safer first step: a local proof of an NVA-owned operations layer above provider systems like Gingr.
 
-The point is not to clone Gingr. Gingr is source evidence. NVA still needs product-owned contracts for review queues, source-quality cleanup, labor outcomes, audit, and BI-friendly read models. This repo shows what that seam could look like while keeping live side effects disabled."
+The point is not to clone Gingr. Gingr is source evidence. NVA still needs product-owned contracts for review queues, source-quality cleanup, labor outcomes, audit, BI-friendly read models, and now a realtime role/location-scoped operating loop. This repo shows that seam while keeping live side effects disabled."
 
 ### 0:25-1:10 — Explain the visual
 
 Open `docs/presentation/owned-operations-api-visual-guide.md` or `docs/presentation/assets/owned-operations-api-replacement.html`.
 
-"This picture is the project in one frame. On the left is the current pattern: a provider system such as Gingr emits source data, BI extracts it, and operations still have to infer a lot of meaning downstream — which records are stale, what cleanup was reviewed, what labor was saved, and what is safe to act on.
-
-On the right is the product direction I would build toward. Provider data stays visible as evidence, with provenance and caveats. NVA owns the operations API, workflow packets, review gates, audit/events/metrics, and BI read models. The safety boundary is explicit: no customer sends, no provider writes, no payment, schedule, capacity, or medical decisions, and no production claim in this local proof."
+"This picture is the project in one frame. Provider data stays visible as evidence, with provenance and caveats. NVA owns the operations API, workflow packets, review gates, audit/events/metrics, BI read models, and scoped queue views. SpacetimeDB fits on the runtime edge: reducers and subscriptions can publish staff and manager views, while domain and app code still own the business rules. The safety boundary is explicit: no customer sends, no provider writes, no payment, schedule, capacity, or medical decisions, and no production claim in this local proof."
 
 ### 1:10-2:15 — Narrate the demo
 
@@ -30,25 +28,21 @@ Run or point to:
 ./scripts/demo_owned_operations_api.sh
 ```
 
-"The runnable slice is Data-Quality Hygiene because it connects the business need to something concrete. The demo has three lanes.
+"The runnable slice is Data-Quality Hygiene. The contract lane checks the OpenAPI boundary and confirms live side effects are disabled. The workflow lane turns a source-quality issue into a reviewable cleanup packet, validates a safe internal recommendation, rejects unsafe actions like customer messaging or source repair, and records reviewed labor evidence. The operations lane proves the worker/outbox posture is disabled and local. The closeout marker is `demo_owned_operations_api_ok local_fixture_only=true live_side_effects_allowed=false`.
 
-First, the contract lane checks the OpenAPI boundary for the owned operations API and confirms live side effects are disabled.
-
-Second, the workflow lane turns a source-quality issue into a reviewable cleanup packet. It validates a safe internal recommendation, rejects unsafe actions like customer messaging or source repair, and records the reviewed outcome with estimated and actual labor minutes.
-
-Third, the operations lane proves the worker/outbox posture is disabled and local. Outbox-shaped work is treated as a future approved handoff, not as a live sender. The important closeout marker is `demo_owned_operations_api_ok local_fixture_only=true live_side_effects_allowed=false`."
+If there is time, the realtime queue script adds the SpacetimeDB story: Alice at Location 101 sees queue updates, Sam at Location 202 is hidden/blocked, Morgan sees manager-gated work, and unsafe customer/provider side effects stay blocked. On this workstation it may use the documented ABI fallback, so I would not call it a live published module."
 
 ### 2:15-2:45 — State caveats confidently
 
 "What is real here is the architecture and local proof: typed contracts, safe demo routes, source refs, review gates, blocked actions, labor-outcome records, OpenAPI evidence, and tests.
 
-What I am not claiming is equally important: no live NVA or Gingr credentials, no production data, no production deployment, no provider/PMS writes, no member sends, no money movement, no schedule changes, and no medical or safety decisions. The API is still local/in-memory for the demo; durable production wiring, auth/location scope, worker leasing, monitoring, and owner-approved live-action paths are future work."
+What I am not claiming is equally important: no live NVA or Gingr credentials, no production data, no production deployment, no production SSO, no provider/PMS writes, no member sends, no money movement, no schedule changes, and no medical or safety decisions. Auth and role/location scope are fixtures; durable production wiring and approved live-action paths are future work."
 
 ### 2:45-3:00 — Ask for the next safe step and close
 
-"The next useful step is not production credentials or write access. I would ask for narrow read-only validation: endpoint or report docs, redacted exports or sample source snapshots, provider ID/status/service-line mappings, BI query inventory, and approved KPI definitions. Then we can compare the owned read models against real source shape and scope one safe dual-run pilot while live writes and sends remain disabled.
+"The next useful step is not production credentials or write access. I would ask for narrow read-only validation: endpoint/report docs, redacted exports or snapshots, provider and role/location mappings, BI query inventory, and approved KPI definitions. Then we can compare the owned read models against real source shape and scope one safe dual-run pilot while live writes and sends remain disabled.
 
-The reason I think this is credible is that it says exactly where automation stops: local contract proof now, read-only validation next, and no live side effects until the approval path and system-of-record authority are real."
+That is credible because it says where automation stops: local proof now, read-only validation next, and no live side effects until approval and system-of-record authority are real."
 
 ## Optional five-minute expansion
 
@@ -77,9 +71,13 @@ Suggested narration:
 
 "I would not over-rotate on the terminal output. The business meaning is: source evidence enters with caveats, reviewable work is created, unsafe actions stay blocked, staff outcome evidence is recorded, and BI gets cleaner concepts to consume later."
 
+### Add before the close: why SpacetimeDB does not eliminate Postgres/S3
+
+"SpacetimeDB is the realtime operations runtime: reducers, subscriptions, and scoped staff/manager queue views. I would still keep Postgres and S3-compatible storage in the enterprise design because they have different jobs: Postgres is the durable audit, history, SQL reporting, reconciliation, and export ledger; S3 or MinIO is for immutable source snapshots, documents, media, export bundles, hashes, and manifests. I would remove Postgres only after SpacetimeDB proves years-scale audit retention, point-in-time history, BI-safe exports, source reconciliation, object-evidence handling, backup/restore, and operational tooling."
+
 ### Add before the close: what I would build next
 
-"The next engineering slice I would choose is durable Data-Quality Hygiene: API request to Postgres workflow/review/audit/outcome rows, disabled or fake worker execution, reviewed internal outbox candidate, correlated logs, local metrics, and eventually queue/dead-letter views. I would still keep customer sends, provider writes, payments, schedule changes, and medical/safety actions disabled until explicit owner approval and system-of-record authority exist."
+"The next engineering slice I would choose is durable realtime Data-Quality Hygiene: API request or reducer command to scoped SpacetimeDB queue/read-model rows, durable Postgres workflow/review/audit/outcome rows with the same correlation id, S3/MinIO evidence refs when raw source snapshots are needed, disabled or fake worker execution, reviewed internal outbox candidate, correlated logs, local metrics, and eventually queue/dead-letter views. I would still keep customer sends, provider writes, payments, schedule changes, and medical/safety actions disabled until explicit owner approval and system-of-record authority exist."
 
 ## If the local demo is slow or fails
 
@@ -96,6 +94,8 @@ Use these instead of spec-heavy language:
 - "I did not fake a production integration."
 - "Gingr is source evidence, not product authority."
 - "The proof shows where automation stops."
+- "SpacetimeDB is the realtime adapter, not a business-logic rewrite."
+- "Role and location scope matters when one operating model has to work across roughly 170 locations."
 - "BI should get cleaner upstream meaning, not just another raw export to repair."
 - "The next ask is read-only shape, not write access."
 - "This is presentation-ready architecture and local proof, not a production replacement claim."
@@ -108,6 +108,8 @@ Do not say:
 - "This replaces Gingr today."
 - "The API is production-ready."
 - "The database is live behind every route."
+- "The SpacetimeDB module is published and production-ready."
+- "SpacetimeDB means Postgres and object storage are unnecessary now."
 - "The worker sends messages or repairs provider data."
 - "BI can turn off its current database now."
 
@@ -118,6 +120,8 @@ Say instead:
 - "Production readiness requires approved access, durable persistence, auth/location scope, monitoring, rollback, and explicit live-action gates."
 - "The current worker/outbox path is disabled and review-gated."
 - "BI could consume owned read models after durable wiring and read-only/dual-run validation."
+- "The current realtime demo uses fixture actors/local fallback where the SpacetimeDB host ABI is incompatible; it proves the boundary/story, not production SSO or live Gingr access."
+- "Postgres/S3 remain the durable audit/reporting/evidence backbone unless SpacetimeDB-only proof gates are met."
 
 ## Recommended closing line
 

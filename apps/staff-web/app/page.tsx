@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 
 type StaffRole = "staff" | "lead" | "manager";
 
@@ -476,13 +476,13 @@ const auditTrail = [
 const apiReadinessPosture = {
   routes: [
     {
-      path: "/readyz",
+      path: "/v0/readyz",
       workflow: "runtime_readiness",
       boundary: "api_runtime_dto",
       summary: "Readiness DTO reports database/object storage as not_configured for local demo, agent runtime as fake_deterministic, active adapter: in_memory, and planned adapter: postgres same-contract."
     },
     {
-      path: "/ops/metrics/summary",
+      path: "/v0/ops/metrics/summary",
       workflow: "ops_metrics_summary",
       boundary: "api_runtime_dto",
       summary: "Aggregate-only metrics DTO exposes product labor rollups plus inquiry_count, review_packet_count, audit_event_count, and outcome_count without raw customer/provider payloads."
@@ -492,11 +492,150 @@ const apiReadinessPosture = {
   productionPlan: "Prometheus/OpenTelemetry plan: request_latency, error_rate, queue_depth, dead_letter_count, review_sla, outbox_failures, and worker_lease_age."
 };
 
+type ApiSourceLabel = "Live local API data" | "Fallback fixture data" | "Unavailable local API data";
+type ApiProofCard = {
+  title: string;
+  endpoint: string;
+  sourceLabel: ApiSourceLabel;
+  status: string;
+  summary: string;
+  freshness: string;
+};
+
+type LocalApiProof = {
+  sourceLabel: ApiSourceLabel;
+  baseUrl: string;
+  posture: string;
+  cards: ApiProofCard[];
+  caveat?: string;
+};
+
+const petResortApiBaseUrlEnvName = "NEXT_PUBLIC_PET_RESORT_API_BASE_URL";
+const staffWebApiProxyBase = "/api/local-demo";
+const fallbackApiBaseLabel = `not configured — staff-web uses /api/local-demo as a same-origin runtime proxy; set PET_RESORT_API_BASE_URL on the server or ${petResortApiBaseUrlEnvName} for direct browser fetches`;
+const noLiveSideEffectBoundary = "No live provider/PMS writes, customer sends, payments, refunds, discounts, schedule changes, or medical/safety decisions.";
+
+const fallbackLocalApiProof: LocalApiProof = {
+  sourceLabel: "Fallback fixture data",
+  baseUrl: fallbackApiBaseLabel,
+  posture: "DB-backed when API is reachable; deterministic fallback when API is unavailable.",
+  cards: [
+    {
+      title: "API health/readiness",
+      endpoint: "/v0/readyz",
+      sourceLabel: "Fallback fixture data",
+      status: "fallback static readiness",
+      summary: "Local presentation fallback mirrors the safe API posture: database/object storage not_configured, fake deterministic agent runtime, active adapter: in_memory, planned adapter: postgres same-contract.",
+      freshness: "Loaded from deterministic fallback fixtures in staff-web; no terminal or API server required."
+    },
+    {
+      title: "Labor outcomes",
+      endpoint: "/v0/ops/metrics/summary",
+      sourceLabel: "Fallback fixture data",
+      status: "fallback aggregate metrics",
+      summary: "Shows product labor rollups, inquiry_count, review_packet_count, audit_event_count, and outcome_count as aggregate-only proof without raw customer/provider payloads.",
+      freshness: "Fallback counts are deterministic presentation fixtures; live/local counters replace them when the API responds."
+    },
+    {
+      title: "Source-quality backlog",
+      endpoint: "/v0/read-models/source-quality-backlog",
+      sourceLabel: "Fallback fixture data",
+      status: "static fallback; local DB read model unavailable",
+      summary: "Backlog route is wired for the Data-Quality Hygiene read model; fallback keeps source ambiguity visible without claiming a fresh DB-backed projection.",
+      freshness: "Use this card only as a no-terminal/static fallback when the local read-model API cannot be reached."
+    },
+    {
+      title: "Audit lineage/freshness",
+      endpoint: "/v0/readyz + /v0/ops/metrics/summary",
+      sourceLabel: "Fallback fixture data",
+      status: "review-gated audit proof",
+      summary: "Audit lineage is represented by append-only event counts, source refs, correlation IDs, and review/outcome records; outbox/review records are handoff candidates, not send permission.",
+      freshness: noLiveSideEffectBoundary
+    }
+  ]
+};
+
+function textField(value: unknown, fallback: string): string {
+  return typeof value === "string" && value.length > 0 ? value : fallback;
+}
+
+function recordField(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+}
+
+async function fetchLocalApiJson(baseUrl: string, endpoint: string, signal: AbortSignal): Promise<{ status: number; payload: Record<string, unknown> }> {
+  const response = await fetch(`${baseUrl.replace(/\/$/, "")}${endpoint}`, { signal });
+  const contentType = response.headers.get("content-type") ?? "";
+  if (!contentType.toLowerCase().includes("application/json")) {
+    throw new Error(`Local API ${endpoint} returned non-JSON content (${response.status})`);
+  }
+  const payload = await response.json() as Record<string, unknown>;
+  return { status: response.status, payload };
+}
+
+function buildLiveApiProof(
+  baseUrl: string,
+  ready: { status: number; payload: Record<string, unknown> },
+  metrics: { status: number; payload: Record<string, unknown> },
+  backlog: { status: number; payload: Record<string, unknown> }
+): LocalApiProof {
+  const workflowRepository = recordField(ready.payload.workflow_repository);
+  const observability = recordField(ready.payload.observability);
+  const runtimeCounters = recordField(metrics.payload.local_runtime_counters);
+  const productLaborMetrics = recordField(metrics.payload.product_labor_metrics);
+  const backlogDatabase = recordField(backlog.payload.database);
+  const backlogRecords = Array.isArray(backlog.payload.records) ? backlog.payload.records.length : 0;
+  const backlogStatus = textField(backlogDatabase?.status, "unknown");
+  const backlogIsConnected = backlog.status === 200 && backlogStatus === "connected";
+
+  return {
+    sourceLabel: "Live local API data",
+    baseUrl,
+    posture: "DB-backed when API is reachable; deterministic fallback when API is unavailable.",
+    cards: [
+      {
+        title: "API health/readiness",
+        endpoint: "/v0/readyz",
+        sourceLabel: "Live local API data",
+        status: `HTTP ${ready.status} • ${textField(ready.payload.service, "pet-resort-api")} • database ${textField(ready.payload.database, "unknown")}`,
+        summary: `agent_runtime ${textField(ready.payload.agent_runtime, "unknown")}; active adapter: ${textField(workflowRepository?.active_adapter, "unknown")}; planned adapter: ${textField(workflowRepository?.postgres_adapter, "unknown").replaceAll("_", " ")}; live customer/provider writes ${textField(ready.payload.live_customer_messaging, "unknown")}/${textField(ready.payload.live_provider_writes, "unknown")}.`,
+        freshness: textField(observability?.metrics_scope, "runtime freshness reported by local API readiness DTO")
+      },
+      {
+        title: "Labor outcomes",
+        endpoint: "/v0/ops/metrics/summary",
+        sourceLabel: "Live local API data",
+        status: `HTTP ${metrics.status} • aggregate_only metrics`,
+        summary: `Runtime counters: inquiry_count ${String(runtimeCounters?.inquiry_count ?? 0)}, review_packet_count ${String(runtimeCounters?.review_packet_count ?? 0)}, audit_event_count ${String(runtimeCounters?.audit_event_count ?? 0)}, outcome_count ${String(runtimeCounters?.outcome_count ?? 0)}. Labor rollups are API-owned product metrics: ${Object.keys(productLaborMetrics ?? {}).join(", ") || "none yet"}.`,
+        freshness: "Live/local API response fetched in the browser; payload logging remains disabled."
+      },
+      {
+        title: "Source-quality backlog",
+        endpoint: "/v0/read-models/source-quality-backlog",
+        sourceLabel: backlogIsConnected ? "Live local API data" : "Unavailable local API data",
+        status: backlog.status === 200 ? `HTTP ${backlog.status} • database ${backlogStatus}` : `HTTP ${backlog.status} • read model ${backlogStatus}`,
+        summary: backlogIsConnected
+          ? `Source-quality backlog route returned ${backlogRecords} live/local DB-backed read-model records; use rows only as local DB/read-model evidence.`
+          : `Source-quality backlog route is wired but did not return DB-backed rows (${backlogStatus}); staff-web labels the read-model proof unavailable instead of claiming live DB evidence.`,
+        freshness: `request/correlation: ${textField(backlog.payload.request_id, "not returned")} / ${textField(backlog.payload.correlation_id, "not returned")}`
+      },
+      {
+        title: "Audit lineage/freshness",
+        endpoint: "/v0/readyz + /v0/ops/metrics/summary",
+        sourceLabel: "Live local API data",
+        status: "review-gated audit proof",
+        summary: "Readiness and metrics came from the live local API. Outbox/review records remain handoff candidates, not permission to send.",
+        freshness: noLiveSideEffectBoundary
+      }
+    ]
+  };
+}
+
 function StatusBadge({ status }: { status: Readiness | IncidentStatus }) {
   return <span className="badge">{status.replaceAll("_", " ")}</span>;
 }
 
-function Panel({ title, eyebrow, children }: Readonly<{ title: string; eyebrow?: string; children: React.ReactNode }>) {
+function Panel({ title, eyebrow, children }: Readonly<{ title: string; eyebrow?: string; children: ReactNode }>) {
   return (
     <section aria-labelledby={`${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-heading`} className="panel">
       {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
@@ -520,6 +659,40 @@ export default function Home() {
   const dailyBriefTotalBeforeMinutes = managerDailyBriefActions.reduce((total, action) => total + action.beforeMinutes, 0);
   const dailyBriefTotalEstimatedAfterMinutes = managerDailyBriefActions.reduce((total, action) => total + action.estimatedAfterMinutes, 0);
   const dailyBriefTotalEstimatedSavedMinutes = dailyBriefTotalBeforeMinutes - dailyBriefTotalEstimatedAfterMinutes;
+  const [localApiProof, setLocalApiProof] = useState<LocalApiProof>(fallbackLocalApiProof);
+
+  useEffect(() => {
+    const configuredBaseUrl = process.env.NEXT_PUBLIC_PET_RESORT_API_BASE_URL?.trim() || staffWebApiProxyBase;
+
+    const abortController = new AbortController();
+    const apiBaseUrl = configuredBaseUrl;
+
+    async function loadLocalApiProof() {
+      try {
+        const [ready, metrics, backlog] = await Promise.all([
+          fetchLocalApiJson(apiBaseUrl, "/v0/readyz", abortController.signal),
+          fetchLocalApiJson(apiBaseUrl, "/v0/ops/metrics/summary", abortController.signal),
+          fetchLocalApiJson(apiBaseUrl, "/v0/read-models/source-quality-backlog", abortController.signal)
+        ]);
+        if (ready.status >= 500 || metrics.status >= 500) {
+          throw new Error(`Local API readiness/metrics unavailable (${ready.status}/${metrics.status})`);
+        }
+        setLocalApiProof(buildLiveApiProof(apiBaseUrl, ready, metrics, backlog));
+      } catch (error) {
+        if (!abortController.signal.aborted) {
+          setLocalApiProof({
+            ...fallbackLocalApiProof,
+            baseUrl: apiBaseUrl,
+            caveat: `Fell back after local API fetch failed: ${error instanceof Error ? error.message : "unknown error"}`
+          });
+        }
+      }
+    }
+
+    void loadLocalApiProof();
+
+    return () => abortController.abort();
+  }, []);
 
   function recordIncident(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -543,6 +716,7 @@ export default function Home() {
           "Session guard",
           "Today operations",
           "API readiness and observability contract",
+          "Live API / fallback proof",
           "Pet profile",
           "Reservation view",
           "Inquiry intake queue",
@@ -618,6 +792,35 @@ export default function Home() {
         </div>
         <p><strong>Safety:</strong> {apiReadinessPosture.safety}</p>
         <p><strong>Production metrics:</strong> {apiReadinessPosture.productionPlan}</p>
+      </Panel>
+
+      <Panel title="Live API / fallback proof" eyebrow="live local API loading + no-terminal fallback">
+        <div className="record-card">
+          <div className="record-header">
+            <div>
+              <h3>{localApiProof.sourceLabel}</h3>
+              <p>Browser API base ({petResortApiBaseUrlEnvName} or same-origin proxy): {localApiProof.baseUrl}</p>
+            </div>
+            <span className="badge">{localApiProof.sourceLabel}</span>
+          </div>
+          <p>{localApiProof.posture}</p>
+          <p><strong>Safety boundary:</strong> {noLiveSideEffectBoundary}</p>
+          {localApiProof.caveat ? <p className="muted">{localApiProof.caveat}</p> : null}
+        </div>
+        <div className="card-grid">
+          {localApiProof.cards.map((card) => (
+            <article className="record-card" key={`${card.title}-${card.endpoint}`}>
+              <div className="record-header">
+                <h3>{card.title}</h3>
+                <span className="badge">{card.sourceLabel}</span>
+              </div>
+              <p><strong>Endpoint:</strong> {card.endpoint}</p>
+              <p><strong>Status:</strong> {card.status}</p>
+              <p>{card.summary}</p>
+              <small>Freshness/lineage: {card.freshness}</small>
+            </article>
+          ))}
+        </div>
       </Panel>
 
       <Panel title="Pet profile" eyebrow="role-scoped pet facts">
