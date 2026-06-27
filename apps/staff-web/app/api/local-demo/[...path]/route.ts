@@ -36,7 +36,7 @@ function safeLocalDemoApiPath(segments: string[]): string | undefined {
 }
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   context: { params: Promise<{ path?: string[] }> }
 ) {
   const params = await context.params;
@@ -63,8 +63,14 @@ export async function GET(
   try {
     const upstreamUrl = new URL(`${apiBaseUrl}/`);
     upstreamUrl.pathname = `${upstreamUrl.pathname.replace(/\/$/, "")}/${path}`;
+    upstreamUrl.search = request.nextUrl.search;
+    const upstreamHeaders = new Headers({ accept: "application/json" });
+    const requestId = request.headers.get("x-request-id");
+    const correlationId = request.headers.get("x-correlation-id");
+    if (requestId) upstreamHeaders.set("x-request-id", requestId);
+    if (correlationId) upstreamHeaders.set("x-correlation-id", correlationId);
     const upstream = await fetch(upstreamUrl, {
-      headers: { accept: "application/json" },
+      headers: upstreamHeaders,
       cache: "no-store"
     });
     const contentType = upstream.headers.get("content-type") ?? "application/json";
