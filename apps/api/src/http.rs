@@ -738,6 +738,10 @@ pub fn router_with_state(state: VaccineDocumentState) -> Router {
             get(manager_daily_brief_agent_context),
         )
         .route(
+            "/v0/agent/context/manager-daily-brief",
+            get(manager_daily_brief_agent_context),
+        )
+        .route(
             "/agent/drafts/manager-daily-brief",
             post(submit_manager_daily_brief_agent_draft),
         )

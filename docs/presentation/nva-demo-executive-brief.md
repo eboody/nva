@@ -22,7 +22,19 @@ That boundary is the point. The demo shows judgment as much as code: build the u
 
 Gingr can say what a provider system emitted. It should not define NVA's workflow authority, labor metrics, BI projections, or approval gates. The owned API turns provider/source evidence into NVA operating contracts with source refs, review status, caveats, outcomes, and audit lineage.
 
-This is not a Gingr clone. It is a path for NVA to reduce dependence on provider-shaped data over time while BI and operations get cleaner upstream answers.
+This is not a Gingr clone and not an AI dashboard standing beside Gingr. It is a piece-meal migration path for NVA to reduce dependence on provider-shaped data over time while BI and operations get cleaner upstream answers.
+
+## Migration spine
+
+The practical sequence is:
+
+1. read-only source evidence;
+2. owned workflow authority;
+3. BI/read-model replacement;
+4. controlled outbox/writeback;
+5. workflow-by-workflow replacement.
+
+The current no-access boundary is safe judgment, not a gap to hide. The demo proves the owned seam with fixture evidence before asking anyone for credentials. Real access should start with approved read-only docs, exports, sample rows, source snapshots, field dictionaries, and BI query inventory so the mappings and read models can be validated without live writes.
 
 ## What runs locally now
 
@@ -65,6 +77,24 @@ The next ask is narrow and read-only: approved docs, exports, sample data, or so
 - define owner-approved KPI and retention/redaction rules;
 - keep live writes, sends, payment, schedule, and medical/safety actions out of scope until separately approved.
 
+## CEO close: cautious pilot scaler
+
+For a 170-location portfolio, I would frame the value as an illustrative scaler to validate, not as a savings claim. A conservative first model is:
+
+| Scenario | Per-location assumption | 170-location illustration | Caveat |
+|---|---:|---:|---|
+| Read-only validation target | 1–2 staff hours/week | 170–340 staff hours/week | Illustrative only; confirm against real volume, wage bands, and BI definitions. |
+| Two repeatable workflows | 3–5 staff hours/week | 510–850 staff hours/week | Still a sizing model, not production ROI; use it to decide whether to instrument a broader pilot. |
+
+The next ask I would make of a job contact or senior operator is intentionally safe:
+
+1. read-only exports or source snapshots for one or two workflows;
+2. sample rows with field dictionaries and provenance notes;
+3. the current BI query inventory for labor, exceptions, cleanup, conversion, and follow-up metrics;
+4. owner-approved KPI definitions plus retention/redaction rules.
+
+A 2–3 week validation frame is enough for the next proof: week 1 maps source fields and BI queries, week 2 compares owned read models against real sample rows, and week 3 runs a reviewed pilot lane if the first comparisons are useful. Live writes, customer messaging, payment/refund actions, schedule/capacity changes, and medical or safety decisions remain out of scope until separately approved.
+
 ## 30-second pitch
 
 "I did not have live NVA or Gingr access, so I did not fake a production integration. I built the safe seam NVA would need first: an owned operations API proof that turns source evidence into reviewable cleanup work, records labor outcomes, keeps live side effects disabled, and gives BI cleaner read-model concepts. Gingr is treated as source evidence, not product authority. The next useful step is read-only validation against real docs, exports, or sample data."
@@ -81,6 +111,7 @@ The right next step is not production access or live writes. It is read-only val
 
 ## Quick links
 
+- [Migration spine note](owned-backend-migration-spine.md)
 - [README presentation path](../../README.md#presentation-path-safe-local-owned-api-proof)
 - [Final presentation checklist](nva-presentation-checklist.md)
 - [Local demo walkthrough](../demo/local-demo-walkthrough.md)

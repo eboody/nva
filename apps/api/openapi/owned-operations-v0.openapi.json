@@ -1218,6 +1218,174 @@
             }
           }
         }
+      },
+      "ManagerDailyBriefContextResponse": {
+        "type": "object",
+        "required": [
+          "api_contract",
+          "workflow",
+          "location_id",
+          "operating_day",
+          "service_demand_facts",
+          "checkout_completion_exceptions",
+          "crm_retention_opportunities",
+          "manager_brief_actions",
+          "data_quality_issues",
+          "source_refs",
+          "allowed_agent_actions",
+          "blocked_actions",
+          "labor_impact",
+          "audit",
+          "observability"
+        ],
+        "properties": {
+          "api_contract": {
+            "type": "object",
+            "required": [
+              "owner",
+              "boundary",
+              "workflow",
+              "provider_payload_passthrough",
+              "provider_dto_boundary"
+            ],
+            "properties": {
+              "owner": {
+                "type": "string",
+                "const": "pet_resort_api"
+              },
+              "boundary": {
+                "type": "string",
+                "const": "api_runtime_dto"
+              },
+              "workflow": {
+                "type": "string",
+                "const": "manager_daily_brief"
+              },
+              "provider_payload_passthrough": {
+                "type": "boolean",
+                "const": false
+              },
+              "provider_dto_boundary": {
+                "type": "string",
+                "const": "provider_evidence_only"
+              }
+            }
+          },
+          "workflow": {
+            "type": "object",
+            "required": [
+              "name",
+              "version"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "const": "manager_daily_brief"
+              },
+              "version": {
+                "type": "string"
+              }
+            }
+          },
+          "location_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "operating_day": {
+            "type": "string",
+            "format": "date"
+          },
+          "service_demand_facts": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "checkout_completion_exceptions": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "crm_retention_opportunities": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "manager_brief_actions": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "data_quality_issues": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "source_refs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "allowed_agent_actions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Agent may rank/summarize/estimate only; live actions are blocked."
+          },
+          "blocked_actions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Includes provider/PMS mutation, customer send, schedule/capacity, payment, and safety-sensitive actions."
+          },
+          "labor_impact": {
+            "type": "object",
+            "required": [
+              "before_minutes",
+              "after_minutes",
+              "minutes_saved"
+            ],
+            "properties": {
+              "before_minutes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "after_minutes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "minutes_saved": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          },
+          "audit": {
+            "type": "object",
+            "required": [
+              "context_packet_id",
+              "correlation_id"
+            ],
+            "properties": {
+              "context_packet_id": {
+                "type": "string"
+              },
+              "correlation_id": {
+                "type": "string"
+              }
+            }
+          },
+          "observability": {
+            "type": "object"
+          }
+        }
       }
     }
   },
@@ -1266,6 +1434,24 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OpsMetricsSummaryResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/agent/context/manager-daily-brief": {
+      "get": {
+        "operationId": "getManagerDailyBriefContext",
+        "description": "Read-only manager daily brief context assembled from existing app/domain workflow contracts and synthetic source refs. It exposes reviewable manager actions and blocked live side effects without provider writes, customer sends, schedule changes, payment actions, or safety decisions.",
+        "responses": {
+          "200": {
+            "description": "Source-grounded, read-only manager daily brief packet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagerDailyBriefContextResponse"
                 }
               }
             }

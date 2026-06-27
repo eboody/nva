@@ -20,7 +20,7 @@ Use the published/non-coder landing source at [docs/public/index.html](docs/publ
 
 ## Presentation path: safe local owned API proof
 
-For a job or networking conversation, start with the [NVA demo executive brief](docs/presentation/nva-demo-executive-brief.md). The one-minute story is simple: there was no live NVA/Gingr access, so the project does not pretend to be a production integration. It proves the safer first step: a local owned operations layer where Gingr is source evidence, staff work is review-gated, BI gets cleaner read-model concepts, labor outcomes are measured, a SpacetimeDB runtime adapter can project realtime role/location-scoped queue views, and live side effects stay disabled.
+For a job or networking conversation, start with the [NVA demo executive brief](docs/presentation/nva-demo-executive-brief.md). The one-minute story is simple: there was no live NVA/Gingr access, so the project does not pretend to be a production integration. It proves the safer first step: a local owned operations layer where Gingr is source evidence, not product authority; staff work is review-gated; BI gets cleaner read-model concepts; labor outcomes are measured; a SpacetimeDB runtime adapter can project realtime queues; and no customer/provider side effects are live.
 
 Use these presentation docs in order:
 
@@ -30,14 +30,15 @@ Use these presentation docs in order:
 4. [Final presentation checklist](docs/presentation/nva-presentation-checklist.md) for the live run sheet, pre-flight commands, fallback path, and claims to avoid.
 5. [Static demo fallback packet](docs/presentation/nva-static-demo-fallback.md) for presenting confidently if the terminal is slow or unavailable without pretending stale output is fresh proof.
 6. [Executive brief](docs/presentation/nva-demo-executive-brief.md) for the one-sentence pitch, email-ready summary, and 30-second/2-minute scripts.
-7. [Owned operations API visual guide](docs/presentation/owned-operations-api-visual-guide.md) and [standalone HTML/SVG diagram](docs/presentation/assets/owned-operations-api-replacement.html) for the memorable one-frame thesis: Gingr-centered extraction today -> NVA-owned operations API/read-model layer tomorrow.
-8. [Local demo walkthrough](docs/demo/local-demo-walkthrough.md) for the job-contact run sheet: setup commands, 3-5 minute script, endpoint list, Q&A, fallback visual references, and caveats.
-9. [Job presentation walkthrough](docs/presentation/job-presentation-walkthrough.md) for the five-minute talk and exact demo commands.
-10. [Owned operations API replacement talk track](docs/presentation/owned-operations-api-replacement-talk-track.md) when the audience asks why this is not "just use Gingr" or "just pull BI data."
-11. [Skeptical review](docs/presentation/nva-demo-skeptical-review.md) for likely objections, caveats, and claims to avoid.
-12. [Checked OpenAPI artifact](apps/api/openapi/owned-operations-v0.openapi.json) when the audience wants contract evidence beyond prose.
-13. [SpacetimeDB runtime adapter README](apps/spacetimedb/README.md) and [realtime queue demo runbook](docs/ops/spacetimedb-realtime-queue-demo.md) when the audience wants the realtime reducer/subscription boundary behind the local proof.
-14. [Audit/reporting/evidence backbone](docs/architecture/audit-reporting-evidence-backbone.md) when the audience asks why Postgres/S3 still matter beside SpacetimeDB.
+7. [Owned backend migration spine](docs/presentation/owned-backend-migration-spine.md) for the five-phase piece-meal path: read-only source evidence -> owned workflow authority -> BI/read-model replacement -> controlled outbox/writeback -> workflow-by-workflow replacement.
+8. [Owned operations API visual guide](docs/presentation/owned-operations-api-visual-guide.md) and [standalone HTML/SVG diagram](docs/presentation/assets/owned-operations-api-replacement.html) for the memorable one-frame thesis: Gingr-centered extraction today -> NVA-owned operations API/read-model layer tomorrow.
+9. [Local demo walkthrough](docs/demo/local-demo-walkthrough.md) for the job-contact run sheet: setup commands, 3-5 minute script, endpoint list, Q&A, fallback visual references, and caveats.
+10. [Job presentation walkthrough](docs/presentation/job-presentation-walkthrough.md) for the five-minute talk and exact demo commands.
+11. [Owned operations API replacement talk track](docs/presentation/owned-operations-api-replacement-talk-track.md) when the audience asks why this is not "just use Gingr" or "just pull BI data."
+12. [Skeptical review](docs/presentation/nva-demo-skeptical-review.md) for likely objections, caveats, and claims to avoid.
+13. [Checked OpenAPI artifact](apps/api/openapi/owned-operations-v0.openapi.json) when the audience wants contract evidence beyond prose.
+14. [SpacetimeDB runtime adapter README](apps/spacetimedb/README.md) and [realtime queue demo runbook](docs/ops/spacetimedb-realtime-queue-demo.md) when the audience wants the realtime reducer/subscription boundary behind the local proof.
+15. [Audit/reporting/evidence backbone](docs/architecture/audit-reporting-evidence-backbone.md) when the audience asks why Postgres/S3 still matter beside SpacetimeDB.
 
 Keep Data-Quality Hygiene as the first runnable slice. For the shortest live demo from the repo root, run the safe local wrapper:
 
@@ -45,7 +46,7 @@ Keep Data-Quality Hygiene as the first runnable slice. For the shortest live dem
 ./scripts/demo_owned_operations_api.sh
 ```
 
-Expected anchors: `openapi_title=NVA Pet Resorts Owned Operations API`, `openapi_paths=8`, `contract_lane_ok live_side_effects_allowed=false`, `context_ok`, `draft_validation_ok`, `blocked_draft_validation_ok`, `outcome_ok`, `smoke_assertions_ok estimated_minutes_saved=15 actual_minutes_saved=17`, `[data-quality-hygiene-worker-outbox-smoke] disabled worker/outbox proof passed as local internal handoff only`, and `demo_owned_operations_api_ok local_fixture_only=true live_side_effects_allowed=false`. For the realtime queue story, run `scripts/spacetimedb_realtime_queue_demo.sh --self-test` and `scripts/spacetimedb_realtime_queue_demo.sh --force-fallback`; treat fallback output as an honest fixture/event-stream proof if the local SpacetimeDB host ABI cannot publish the module.
+Expected anchors: `openapi_title=NVA Pet Resorts Owned Operations API`, `openapi_paths=9`, `contract_lane_ok live_side_effects_allowed=false`, `context_ok`, `draft_validation_ok`, `blocked_draft_validation_ok`, `outcome_ok`, `smoke_assertions_ok estimated_minutes_saved=15 actual_minutes_saved=17`, `[data-quality-hygiene-worker-outbox-smoke] disabled worker/outbox proof passed as local internal handoff only`, and `demo_owned_operations_api_ok local_fixture_only=true live_side_effects_allowed=false`. For the realtime queue story, run `scripts/spacetimedb_realtime_queue_demo.sh --self-test` and `scripts/spacetimedb_realtime_queue_demo.sh --force-fallback`; treat fallback output as an honest fixture/event-stream proof if the local SpacetimeDB host ABI cannot publish the module.
 
 If you want to run the full Docker Compose local demo stack with Postgres, MinIO, API, worker, staff-web, migration/seed, and smoke proof, use:
 

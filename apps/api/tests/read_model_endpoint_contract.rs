@@ -64,7 +64,7 @@ async fn read_model_routes_keep_fallback_safe_and_label_configured_storage_truth
     let (status, payload) = get_json("/readyz").await;
 
     assert_eq!(status, axum_http::StatusCode::OK);
-    assert_eq!(payload["database"], "configured_not_verified");
+    assert_eq!(payload["database"], "env_configured_not_verified");
     assert_eq!(payload["object_storage"], "env_configured_not_verified");
     assert_eq!(
         payload["workflow_repository"]["active_adapter"],

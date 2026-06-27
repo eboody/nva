@@ -30,7 +30,7 @@ async fn get_json(uri: &str) -> (axum_http::StatusCode, serde_json::Value) {
 #[tokio::test]
 async fn manager_daily_brief_agent_context_returns_source_grounded_read_only_packet() {
     let (status, payload) = get_json(
-        "/agent/context/manager-daily-brief?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",
+        "/v0/agent/context/manager-daily-brief?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",
     )
     .await;
 
@@ -111,7 +111,7 @@ async fn manager_daily_brief_agent_context_returns_source_grounded_read_only_pac
 #[tokio::test]
 async fn manager_daily_brief_agent_context_reports_missing_facts_as_typed_data_quality_issues() {
     let (status, payload) = get_json(
-        "/agent/context/manager-daily-brief?location_id=00c0ffee-0000-0000-0000-000000000002&operating_day=2026-06-18",
+        "/v0/agent/context/manager-daily-brief?location_id=00c0ffee-0000-0000-0000-000000000002&operating_day=2026-06-18",
     )
     .await;
 

@@ -71,6 +71,7 @@ fn checked_openapi_artifact_names_owned_v0_operations_and_safe_schemas() {
         "/v0/healthz",
         "/v0/readyz",
         "/v0/ops/metrics/summary",
+        "/v0/agent/context/manager-daily-brief",
         "/v0/agent/context/data-quality-hygiene",
         "/v0/agent/drafts/data-quality-hygiene",
         "/v0/data-quality-hygiene/actions/{action_id}/outcome",
@@ -97,6 +98,7 @@ fn checked_openapi_artifact_names_owned_v0_operations_and_safe_schemas() {
         "DataQualityHygieneOutcomeCaptureRequest",
         "DataQualityHygieneOutcomeCaptureResponse",
         "DataQualityHygieneOutcomeSummaryResponse",
+        "ManagerDailyBriefContextResponse",
         "SourceQualityBacklogResponse",
         "ReadModelDatabaseStatus",
         "ReadinessResponse",
@@ -160,6 +162,32 @@ async fn v0_routes_expose_safe_runtime_readiness_and_data_quality_context() {
     assert_eq!(ready["workflow_repository"]["active_adapter"], "in_memory");
     assert_eq!(ready["live_customer_messaging"], "disabled");
     assert_eq!(ready["live_provider_writes"], "disabled");
+
+    let (manager_context_status, manager_context) = get_json(
+        "/v0/agent/context/manager-daily-brief?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",
+    )
+    .await;
+    assert_eq!(manager_context_status, axum_http::StatusCode::OK);
+    assert_eq!(manager_context["workflow"]["name"], "manager_daily_brief");
+    assert!(
+        manager_context["manager_brief_actions"]
+            .as_array()
+            .unwrap()
+            .len()
+            >= 1
+    );
+    assert!(
+        manager_context["blocked_actions"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("mutate_provider_or_pms_record"))
+    );
+    assert!(
+        manager_context["blocked_actions"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("change_staff_schedule"))
+    );
 
     let (context_status, context) = get_json(
         "/v0/agent/context/data-quality-hygiene?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",

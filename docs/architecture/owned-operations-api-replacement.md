@@ -159,13 +159,13 @@ Downstream cards should avoid endpoint-first cloning and instead derive schemas 
 
 ## Replacement readiness ladder
 
-Use this ladder when describing progress:
+Use this ladder when describing progress. The phase names should stay consistent across presentation docs:
 
-1. Architecture/demo-ready: owned contracts and local proofs exist; no live side effects or production claims.
-2. Durable v0 proof: one workflow persists through owned Postgres workflow/review/audit/outcome/read models with safe local/stubbed side effects.
-3. BI-read-model pilot: selected BI/operator questions consume owned read models with lineage and caveats.
-4. Adapter dual-run: Gingr imports feed the owned API alongside existing BI workarounds, with reconciliation reports and no unapproved writes.
-5. Workflow replacement: staff uses the owned workflow for a scoped operational job while Gingr remains read/source or approved system-of-record as needed.
+1. Read-only source evidence: approved docs, exports, sample rows, source snapshots, field dictionaries, or BI query inventory validate provider/source shape without live writes.
+2. Owned workflow authority: NVA-owned contracts, review packets, blocked actions, outcomes, and audit events decide operational meaning while Gingr remains evidence.
+3. BI/read-model replacement: selected BI/operator questions consume owned read models with lineage and caveats instead of raw provider-table workarounds.
+4. Controlled outbox/writeback: approved side-effect adapters are introduced only behind review, audit, idempotency, fallback, and dead-letter controls.
+5. Workflow-by-workflow replacement: staff uses the owned workflow for a scoped operational job while Gingr remains read/source or approved system-of-record as needed.
 6. Provider shrinkage: after legal/ops/security approval, approved write paths or alternative systems reduce the operational need for Gingr workflow screens.
 
 Anything beyond the first two rungs requires owner decisions, real access, production data handling, security/privacy review, and explicit approval for any live operational side effect.

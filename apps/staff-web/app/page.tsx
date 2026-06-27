@@ -8,6 +8,7 @@ type ApiSnapshot = {
   ready: string;
   metrics: string;
   backlog: string;
+  managerBrief: string;
 };
 
 type TechnicalCall = {
@@ -31,6 +32,32 @@ type SourceQualityRow = {
   caveats?: string[];
 };
 
+type ProofStatus = "implemented" | "contract" | "future";
+
+type BackendPiece = {
+  name: string;
+  status: ProofStatus;
+  role: string;
+  proof: string;
+};
+
+type LaborTool = {
+  name: string;
+  status: ProofStatus;
+  laborReduced: string;
+  promise: string;
+  backendPieces: string[];
+  proof: string;
+  safety: string;
+};
+
+type RoiScenario = {
+  label: string;
+  perLocation: string;
+  portfolio: string;
+  note: string;
+};
+
 type TechnicalProof = {
   calls: TechnicalCall[];
   dbRows: SourceQualityRow[];
@@ -42,6 +69,117 @@ type TechnicalProof = {
   };
   lastRunIso: string;
 };
+
+const proofStatusLabel: Record<ProofStatus, string> = {
+  implemented: "Implemented in demo",
+  contract: "Contract-proven",
+  future: "Future live integration"
+};
+
+const backendPieces: BackendPiece[] = [
+  {
+    name: "Source adapters / provider evidence / provenance",
+    status: "contract",
+    role: "Gingr and provider systems stay source evidence first, with every imported fact tagged by origin instead of treated as product authority.",
+    proof: "Synthetic source-quality rows carry issue refs, field paths, projection versions, caveats, and review gates."
+  },
+  {
+    name: "Owned domain model",
+    status: "contract",
+    role: "NVA-owned workflow concepts become the operating model: inquiry, review packet, audit event, source issue, outcome, and labor metric.",
+    proof: "The UI speaks in owned workflow outputs and safety gates rather than provider-screen tasks."
+  },
+  {
+    name: "Versioned /v0 operations API",
+    status: "implemented",
+    role: "A stable API boundary lets staff tools and read models evolve without binding the demo to one PMS screen.",
+    proof: "Browser calls /v0/readyz, /v0/ops/metrics/summary, and /v0/read-models/source-quality-backlog through the local Next proxy."
+  },
+  {
+    name: "Postgres migrations and projections",
+    status: "implemented",
+    role: "Owned projections make source quality and workflow status queryable outside the PMS, one read model at a time.",
+    proof: "The live proof panel displays DB-backed source_quality_backlog rows, row counts, and raw JSON."
+  },
+  {
+    name: "Review gates / safety policies",
+    status: "implemented",
+    role: "Risky actions route to staff or manager approval before confirmation, messaging, schedule changes, or policy-sensitive decisions.",
+    proof: "The walkthrough keeps approval local and explicitly reports that live sends and provider writes remain disabled."
+  },
+  {
+    name: "Audit trail / outbox posture",
+    status: "future",
+    role: "Workflow authority moves into owned events first; external side effects wait behind an approval-gated outbox.",
+    proof: "Audit counters are present; controlled live writeback/outbox execution remains deliberately future-only."
+  },
+  {
+    name: "BI/read models / metrics",
+    status: "implemented",
+    role: "Labor and quality metrics come from owned read models so the business can replace spreadsheet/BI fragments incrementally.",
+    proof: "The metrics summary and KPI strip expose inquiry, review, audit, outcome, and read-model evidence."
+  },
+  {
+    name: "Staff tools / AI draft boundary",
+    status: "implemented",
+    role: "AI can prepare work packets and drafts, but staff remains the authority for sends, confirmations, and exceptions.",
+    proof: "The staff cockpit simulates approval while preserving the no-live-send, no-PMS-write boundary."
+  }
+];
+
+const laborTools: LaborTool[] = [
+  {
+    name: "Data-quality hygiene",
+    status: "implemented",
+    laborReduced: "Source reconciliation labor",
+    promise: "Find stale, conflicting, or missing source facts before staff re-key the same exceptions across tools.",
+    backendPieces: ["source refs", "Postgres read model", "review gate", "outcome metrics"],
+    proof: "API-backed proof: /v0/read-models/source-quality-backlog returns live DB rows shown below.",
+    safety: "Read-only hygiene queue; no merge, delete, or provider mutation behavior."
+  },
+  {
+    name: "Intake / booking triage",
+    status: "contract",
+    laborReduced: "Front-desk parsing and draft labor",
+    promise: "Turn messy requests into review packets with missing facts, draft replies, and staff approval checkpoints.",
+    backendPieces: ["source refs", "review packets", "AI draft boundary", "outbox/review safety"],
+    proof: "Domain/contract-backed prototype using the same inquiry, review-packet, and audit-event vocabulary as the owned backend.",
+    safety: "Prototype only: drafts are local UI artifacts; live sends, availability promises, and PMS writes stay disabled."
+  },
+  {
+    name: "Manager daily brief",
+    status: "implemented",
+    laborReduced: "Manager context-gathering labor",
+    promise: "Summarize blocked bookings, document gaps, review queues, and labor trends from owned workflow evidence.",
+    backendPieces: ["read models", "review packets", "outcome metrics", "audit trail"],
+    proof: "API-backed read-only proof: /v0/agent/context/manager-daily-brief assembles source-grounded manager actions and blocked side effects.",
+    safety: "Read-only briefing suggests attention areas; it cannot change schedules, capacity, policy, or safety decisions."
+  },
+  {
+    name: "Checkout / retention completion",
+    status: "future",
+    laborReduced: "Follow-up and revenue leakage labor",
+    promise: "Catch incomplete checkout, follow-up, or retention work once approved outbox adapters exist.",
+    backendPieces: ["outbox/review safety", "outcome metrics", "read models", "audit trail"],
+    proof: "Future slice: listed to show how the same backend expands after read-only proof and staff-review controls are accepted.",
+    safety: "No payment, refund, customer-send, or retention automation is active in this demo."
+  }
+];
+
+const roiScenarios: RoiScenario[] = [
+  {
+    label: "Conservative read-only validation target",
+    perLocation: "1–2 staff hours / week",
+    portfolio: "170–340 hours / week across 170 locations",
+    note: "Illustrative only: confirm against real task volume, wage bands, and current BI definitions before using in any business case."
+  },
+  {
+    label: "If two workflows prove repeatable",
+    perLocation: "3–5 staff hours / week",
+    portfolio: "510–850 hours / week across 170 locations",
+    note: "Still a sizing model, not a savings claim; use it to decide whether the next pilot is worth instrumenting."
+  }
+];
 
 const steps: Array<{
   id: StepId;
@@ -155,7 +293,7 @@ function runtimeCounters(value: unknown): TechnicalProof["counters"] {
 export default function Home() {
   const [activeStep, setActiveStep] = useState<StepId>("intake");
   const [approved, setApproved] = useState(false);
-  const [api, setApi] = useState<ApiSnapshot>({ ready: "checking…", metrics: "checking…", backlog: "checking…" });
+  const [api, setApi] = useState<ApiSnapshot>({ ready: "checking…", metrics: "checking…", backlog: "checking…", managerBrief: "checking…" });
   const [proof, setProof] = useState<TechnicalProof | null>(null);
   const [proofLoading, setProofLoading] = useState(false);
 
@@ -189,13 +327,14 @@ export default function Home() {
   async function runTechnicalProof() {
     setProofLoading(true);
     try {
-      const [ready, metrics, backlog] = await Promise.all([
+      const [ready, metrics, backlog, managerBrief] = await Promise.all([
         fetchArtifact("API readiness", "/v0/readyz"),
         fetchArtifact("Runtime counters", "/v0/ops/metrics/summary"),
-        fetchArtifact("Postgres read-model", "/v0/read-models/source-quality-backlog")
+        fetchArtifact("Postgres read-model", "/v0/read-models/source-quality-backlog"),
+        fetchArtifact("Manager brief context", "/v0/agent/context/manager-daily-brief?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17")
       ]);
       setProof({
-        calls: [ready.call, metrics.call, backlog.call],
+        calls: [ready.call, metrics.call, backlog.call, managerBrief.call],
         counters: runtimeCounters(metrics.json),
         dbRows: sourceRows(backlog.json),
         lastRunIso: new Date().toISOString()
@@ -203,7 +342,8 @@ export default function Home() {
       setApi({
         ready: statusText(ready.json),
         metrics: "aggregate metrics live",
-        backlog: `${sourceRows(backlog.json).length} DB-backed rows`
+        backlog: `${sourceRows(backlog.json).length} DB-backed rows`,
+        managerBrief: "source-grounded packet live"
       });
     } finally {
       setProofLoading(false);
@@ -244,9 +384,124 @@ export default function Home() {
 
       <section className="kpi-strip" aria-label="Key demo proof points">
         <article><strong>0</strong><span>live sends / PMS writes</span></article>
-        <article><strong>3</strong><span>browser API calls</span></article>
+        <article><strong>4</strong><span>browser API calls</span></article>
         <article><strong>{proof?.dbRows.length ?? "…"}</strong><span>Postgres read-model rows</span></article>
         <article><strong>{proof?.calls.length ?? "…"}</strong><span>visible JSON artifacts</span></article>
+      </section>
+
+      <section className="system-map" aria-label="Owned backend system map">
+        <div className="system-map-header">
+          <div>
+            <p className="eyebrow">Owned backend migration map</p>
+            <h2>Replace Gingr piece by piece: source evidence first, NVA authority next.</h2>
+            <p>
+              This demo does not claim live Gingr or NVA access. It shows the backend pieces needed to stand above source systems,
+              prove value safely, and migrate workflow authority one slice at a time.
+            </p>
+          </div>
+          <div className="status-legend" aria-label="Proof status legend">
+            <span className="status-pill implemented">Implemented in demo</span>
+            <span className="status-pill contract">Contract-proven</span>
+            <span className="status-pill future">Future live integration</span>
+          </div>
+        </div>
+        <div className="migration-lane" aria-label="Piece-meal replacement phases">
+          <span>Read-only source evidence</span>
+          <b>→</b>
+          <span>Owned workflow authority</span>
+          <b>→</b>
+          <span>BI/read-model replacement</span>
+          <b>→</b>
+          <span>Approval-gated writeback</span>
+          <b>→</b>
+          <span>Workflow-by-workflow replacement</span>
+        </div>
+        <div className="backend-piece-grid">
+          {backendPieces.map((piece) => (
+            <article className={`backend-piece ${piece.status}`} key={piece.name}>
+              <span className={`status-pill ${piece.status}`}>{proofStatusLabel[piece.status]}</span>
+              <h3>{piece.name}</h3>
+              <p>{piece.role}</p>
+              <small>{piece.proof}</small>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="labor-tools" aria-label="Labor tools portfolio">
+        <div className="labor-tools-header">
+          <div>
+            <p className="eyebrow">Labor tools on one backend</p>
+            <h2>Not separate apps: one owned operations backend, several labor reducers.</h2>
+            <p>
+              The portfolio below uses the same source references, review packets, read models, metrics,
+              and approval-gated outbox posture. Data-quality hygiene and manager daily brief are API-backed
+              read-only proofs today; intake triage remains honestly labeled as a domain/contract-backed prototype.
+            </p>
+          </div>
+          <a href="#technical-proof">Verify live API proofs</a>
+        </div>
+        <div className="labor-tool-grid">
+          {laborTools.map((tool) => (
+            <article className={`labor-tool ${tool.status}`} key={tool.name}>
+              <div className="labor-tool-topline">
+                <span className={`status-pill ${tool.status}`}>{proofStatusLabel[tool.status]}</span>
+                <small>{tool.laborReduced}</small>
+              </div>
+              <h3>{tool.name}</h3>
+              <p>{tool.promise}</p>
+              <div className="backend-chip-row" aria-label={`${tool.name} backend pieces`}>
+                {tool.backendPieces.map((piece) => <small key={piece}>{piece}</small>)}
+              </div>
+              <b>{tool.proof}</b>
+              <em>{tool.safety}</em>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="pilot-close" aria-label="CEO pilot closeout">
+        <div className="pilot-close-header">
+          <p className="eyebrow">CEO / pilot close</p>
+          <h2>A cautious 170-location story: prove the seam, then scale only what validates.</h2>
+          <p>
+            The business case should start as an instrumented read-only pilot, not a claim that this demo has real NVA data or production savings.
+            The goal is to learn whether owned read models can repeatedly remove low-risk staff labor while preserving human review for every risky action.
+          </p>
+        </div>
+        <div className="roi-grid" aria-label="Illustrative ROI scaler">
+          {roiScenarios.map((scenario) => (
+            <article className="roi-card" key={scenario.label}>
+              <span>Illustrative only</span>
+              <h3>{scenario.label}</h3>
+              <strong>{scenario.perLocation}</strong>
+              <p>{scenario.portfolio}</p>
+              <small>{scenario.note}</small>
+            </article>
+          ))}
+          <article className="pilot-ask-card">
+            <span>What I would ask for next</span>
+            <ul>
+              <li>Read-only exports or source snapshots for one or two workflows.</li>
+              <li>Sample rows with field dictionaries and provenance notes.</li>
+              <li>Current BI query inventory for labor, exceptions, cleanup, and conversion metrics.</li>
+              <li>Owner-approved KPI definitions plus retention/redaction rules.</li>
+            </ul>
+          </article>
+        </div>
+        <div className="pilot-plan" aria-label="Pilot framing and exclusions">
+          <article>
+            <h3>2–3 week validation frame</h3>
+            <p>
+              Week 1: map read-only source fields and BI queries. Week 2: compare owned read models against real sample rows.
+              Week 3, if useful: run a reviewed pilot lane for one workflow with measured labor minutes, misses, and operator feedback.
+            </p>
+          </article>
+          <article className="exclusions">
+            <h3>Out of scope until separately approved</h3>
+            <p>No live writes, no customer messaging, no payment/refund actions, no schedule/capacity changes, and no medical or safety decisions.</p>
+          </article>
+        </div>
       </section>
 
       <section className="walkthrough-card" aria-label="Interactive walkthrough">
@@ -281,7 +536,7 @@ export default function Home() {
           <div>
             <p className="eyebrow">Live technical artifacts</p>
             <h2>Show the API and DB doing work.</h2>
-            <p>Click once during the presentation: the browser calls the deployed Next.js proxy, the proxy calls the internal Rust API, and one endpoint reads a Postgres view seeded by migrations.</p>
+            <p>Click once during the presentation: the browser calls the deployed Next.js proxy, the proxy calls the internal Rust API, one endpoint reads a Postgres view seeded by migrations, and one endpoint assembles the manager brief from existing app/domain contracts.</p>
           </div>
           <button onClick={runTechnicalProof} disabled={proofLoading}>{proofLoading ? "Running…" : "Run live proof again"}</button>
         </div>
@@ -335,7 +590,7 @@ export default function Home() {
       </section>
 
       <section className="proof-grid" id="proof" aria-label="Readiness proof and safety boundaries">
-        <article className="proof-card"><p className="eyebrow">Live readiness</p><h2>API is checked from the browser.</h2><dl><div><dt>/v0/readyz</dt><dd>{api.ready}</dd></div><div><dt>metrics</dt><dd>{api.metrics}</dd></div><div><dt>backlog</dt><dd>{api.backlog}</dd></div></dl></article>
+        <article className="proof-card"><p className="eyebrow">Live readiness</p><h2>API is checked from the browser.</h2><dl><div><dt>/v0/readyz</dt><dd>{api.ready}</dd></div><div><dt>metrics</dt><dd>{api.metrics}</dd></div><div><dt>backlog</dt><dd>{api.backlog}</dd></div><div><dt>manager brief</dt><dd>{api.managerBrief}</dd></div></dl></article>
         <article className="proof-card safety"><p className="eyebrow">Hard boundary</p><h2>Built to demo without access.</h2><ul><li>No live customer messages</li><li>No PMS/provider writes</li><li>No payment/refund actions</li><li>No autonomous medical/safety decisions</li></ul></article>
         <article className="proof-card architecture"><p className="eyebrow">Architecture story</p><h2>Job-contact version</h2><div className="pipeline" aria-label="Architecture pipeline"><span>Staff UI</span><b>→</b><span>Next proxy</span><b>→</b><span>Rust API</span><b>→</b><span>Postgres read model</span></div><p>The page now shows both the product story and the technical evidence: live browser calls, HTTP statuses, latency, counters, DB projection rows, and raw JSON excerpts.</p></article>
       </section>

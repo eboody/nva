@@ -19,7 +19,7 @@ print(f"openapi_title={data['info']['title']}")
 print(f"openapi_version={data['info']['version']}")
 print(f"openapi_paths={len(paths)}")
 for route in paths:
-    if "data-quality" in route or "read-models" in route or "ops/metrics" in route:
+    if "data-quality" in route or "read-models" in route or "ops/metrics" in route or "manager-daily-brief" in route:
         print(f"owned_route={route}")
 print("contract_lane_ok live_side_effects_allowed=false")
 PY
