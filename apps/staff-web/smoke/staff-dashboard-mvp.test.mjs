@@ -30,6 +30,18 @@ test("manager brief demo shows the full source-to-brief contract", () => {
   assert.doesNotMatch(page, /technical proof/i);
 });
 
+test("demo steps narrate the human manager workflow", () => {
+  for (const expected of [
+    "messy morning",
+    "facts tracked",
+    "manager brief",
+    "review recorded",
+    "step-explainer"
+  ]) {
+    assert.match(page, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
+  }
+});
+
 test("brief action schema keeps the thought-through pieces visible", () => {
   for (const expected of [
     "source ref",

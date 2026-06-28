@@ -5,11 +5,11 @@ import { useState } from "react";
 type StepId = "collect" | "track" | "brief" | "outcome";
 type Tone = "ok" | "warn" | "hold" | "info";
 
-const steps: Array<{ id: StepId; number: string; label: string }> = [
-  { id: "collect", number: "01", label: "collect" },
-  { id: "track", number: "02", label: "track" },
-  { id: "brief", number: "03", label: "brief" },
-  { id: "outcome", number: "04", label: "prove" }
+const steps: Array<{ id: StepId; number: string; label: string; explainer: string }> = [
+  { id: "collect", number: "01", label: "messy morning", explainer: "Start with the scattered signals a manager would otherwise chase across notes, rooms, documents, capacity, and labor." },
+  { id: "track", number: "02", label: "facts tracked", explainer: "Each signal keeps its source, field path, freshness, caveat, review gate, and labor estimate visible before it becomes advice." },
+  { id: "brief", number: "03", label: "manager brief", explainer: "The workflow turns those source-backed facts into a ranked daily action plan a GM or front desk lead can review quickly." },
+  { id: "outcome", number: "04", label: "review recorded", explainer: "No customer send or PMS write happens here; the demo records review status and minutes saved as synthetic proof." }
 ];
 
 const sourceFacts: Array<{
@@ -53,6 +53,7 @@ export default function Home() {
   const [activeStep, setActiveStep] = useState<StepId>("collect");
   const [approved, setApproved] = useState(false);
   const activeIndex = steps.findIndex((step) => step.id === activeStep);
+  const activeStepDetail = steps[activeIndex]?.explainer;
 
   return (
     <main className="stage" data-step={activeStep}>
@@ -72,7 +73,7 @@ export default function Home() {
           {steps.map((step, index) => (
             <button
               key={step.id}
-              className={index <= activeIndex ? "lit" : ""}
+              className={step.id === activeStep ? "lit active" : index <= activeIndex ? "lit" : ""}
               onClick={() => setActiveStep(step.id)}
               aria-pressed={step.id === activeStep}
             >
@@ -80,6 +81,8 @@ export default function Home() {
             </button>
           ))}
         </nav>
+
+        <p className="step-explainer">{activeStepDetail}</p>
 
         <section className="brief-lab" aria-label="Manager brief construction scene">
           <aside className="source-board panel">

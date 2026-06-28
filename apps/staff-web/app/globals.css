@@ -104,8 +104,23 @@ button { font: inherit; }
   color: #071018;
   background: #ecfeff;
 }
+.step-dock button.active {
+  border-color: rgba(255,255,255,.86);
+  background: #ffffff;
+  box-shadow: 0 14px 34px rgba(34,211,238,.26);
+  transform: translateY(-1px);
+}
 .step-dock b { font-size: .78rem; opacity: .72; }
 .step-dock span { font-weight: 950; }
+
+.step-explainer {
+  margin: -6px 0 0;
+  max-width: 860px;
+  color: #dbeafe;
+  font-size: clamp(.98rem, 1.4vw, 1.18rem);
+  font-weight: 800;
+  line-height: 1.45;
+}
 
 .brief-lab {
   display: grid;
