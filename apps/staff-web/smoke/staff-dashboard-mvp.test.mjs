@@ -154,6 +154,27 @@ test("proof drawer keeps technical evidence behind the visual workflow", () => {
   }
 });
 
+test("next ask closes with narrow read-only real access request", () => {
+  assert.match(page, /<section className="next-ask" aria-label="Safe real-access next ask">/);
+  assert.match(page, /<h2>What real access would unlock<\/h2>/);
+
+  for (const expected of [
+    "next-ask",
+    "read-only sample exports",
+    "field dictionaries",
+    "BI query inventory",
+    "one workflow",
+    "out of scope",
+    "writes",
+    "sends",
+    "payments",
+    "schedules",
+    "medical/safety decisions"
+  ]) {
+    assert.match(page + styles, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
+  }
+});
+
 test("local demo API proxy still rejects path traversal before upstream fetch", () => {
   assert.match(localDemoApiRoute, /function safeLocalDemoApiPath/);
   assert.match(localDemoApiRoute, /segments\[0\] !== allowedPathRoot/);

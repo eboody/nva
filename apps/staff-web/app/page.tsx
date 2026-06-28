@@ -80,6 +80,12 @@ const proofBullets = [
   "synthetic fixture until read-only access approved for exports, field dictionaries, and BI query inventory"
 ];
 
+const nextAskItems = [
+  "read-only sample exports",
+  "field dictionaries",
+  "BI query inventory"
+];
+
 export default function Home() {
   const [activeStep, setActiveStep] = useState<StepId>("collect");
   const [approved, setApproved] = useState(false);
@@ -223,6 +229,24 @@ export default function Home() {
             </ul>
           </div>
         </details>
+
+        <section className="next-ask" aria-label="Safe real-access next ask">
+          <div>
+            <div className="panel-kicker">narrow validation ask</div>
+            <h2>What real access would unlock</h2>
+            <p>
+              For one workflow, share read-only sample exports, field dictionaries, and BI query inventory so the brief can map real source fields to review-ready labor proof.
+            </p>
+          </div>
+          <ul>
+            {nextAskItems.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+          <p className="next-ask-boundary">
+            Out of scope: writes, sends, payments, schedules, and medical/safety decisions.
+          </p>
+        </section>
       </section>
     </main>
   );
