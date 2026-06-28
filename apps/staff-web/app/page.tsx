@@ -16,7 +16,7 @@ const steps: Array<{ id: StepId; number: string; label: string; explainer: strin
   { id: "collect", number: "01", label: "messy morning", explainer: "Start with the scattered signals a manager would otherwise chase across notes, rooms, documents, capacity, and labor." },
   { id: "track", number: "02", label: "facts tracked", explainer: "Each signal keeps its source, field path, freshness, caveat, review gate, and labor estimate visible before it becomes advice." },
   { id: "brief", number: "03", label: "manager brief", explainer: "The workflow turns those source-backed facts into a ranked daily action plan a GM or front desk lead can review quickly." },
-  { id: "outcome", number: "04", label: "review recorded", explainer: "No customer send or PMS write happens here; the demo records review status and minutes saved as synthetic proof." }
+  { id: "outcome", number: "04", label: "review recorded", explainer: "The manager records the disposition, keeps unsafe actions locked, and turns the morning cleanup into measurable labor proof." }
 ];
 
 const morningChaos = [
@@ -74,10 +74,10 @@ const blockedBoundaries = [
 
 const proofBullets = [
   "staff-web smoke tests keep the source-to-brief anchors covered",
-  "local API proof with side effects disabled: no PMS/provider writes or customer sends",
-  "source refs/caveats attached before any Manager Daily Brief recommendation",
+  "local API proof runs with side effects disabled: no PMS/provider writes or customer sends",
+  "source refs/caveats attach before any Manager Daily Brief recommendation",
   "estimated vs reviewed minutes converts outcome/labor proof into manager-visible savings",
-  "synthetic fixture until read-only access approved for exports, field dictionaries, and BI query inventory"
+  "sample data stays contained until read-only exports, field dictionaries, and BI query inventory are approved"
 ];
 
 const nextAskItems = [
@@ -94,35 +94,40 @@ export default function Home() {
 
   return (
     <main className="stage" data-step={activeStep}>
-      <section className="demo-frame" aria-label="Manager daily brief demo">
-        <div className="demo-mode-ribbon" role="note">
-          <strong>DEMO MODE — NOT LIVE</strong>
-          <span>proper demo page · synthetic fixture only · no production connection</span>
-        </div>
-
-        <section className="presentation-frame" aria-label="Presenter-safe demo opening">
+      <section className="app-frame" aria-label="Manager daily brief workspace">
+        <section className="command-bar" aria-label="Morning operations workspace">
           <header className="hero-row">
             <div className="brand-mark"><span>N</span></div>
             <div className="title-stack">
-              <p className="eyebrow">Show this safely</p>
+              <p className="eyebrow">Pet resort ops</p>
               <h1>Manager Daily Brief</h1>
-              <p>synthetic · source-backed · review-gated</p>
+              <p>turn the morning mess into reviewed work</p>
             </div>
             <div className="saved-meter" aria-label="Labor saved metric">
               <strong>48</strong><span>min saved</span>
             </div>
           </header>
 
-          <aside className="live-status-panel" aria-label="Live integration status">
-            <strong>No production connection</strong>
-            <span>synthetic fixture only</span>
-            <span>customer sends locked</span>
-            <span>PMS writes locked</span>
+          <aside className="shift-console" aria-label="Shift command summary">
+            <div>
+              <span>site</span>
+              <strong>Sample Pet Resort</strong>
+            </div>
+            <div>
+              <span>open risks</span>
+              <strong>2</strong>
+            </div>
+            <div>
+              <span>safe actions</span>
+              <strong>3 ready</strong>
+            </div>
           </aside>
 
-          <article className="demo-script-card" aria-label="Presenter talk track guardrail">
-            <strong>Do not claim this is live.</strong>
-            <p>Say: this is a proper demo page for the Manager Daily Brief workflow. The read-only validation request is sample exports, field dictionaries, and BI query inventory.</p>
+          <article className="action-console" aria-label="Action safety console">
+            <strong>System actions</strong>
+            <div><span className="dot locked" />customer message locked</div>
+            <div><span className="dot locked" />PMS update locked</div>
+            <div><span className="dot open" />manager review open</div>
           </article>
         </section>
 
@@ -135,7 +140,7 @@ export default function Home() {
           </div>
         </section>
 
-        <nav className="step-dock" aria-label="Demo steps">
+        <nav className="step-dock" aria-label="Workflow steps">
           {steps.map((step, index) => (
             <button
               key={step.id}
@@ -185,7 +190,7 @@ export default function Home() {
               <div className="gate-row locked"><span className="gate-icon pms-icon" /><b>PMS write</b><i>locked</i></div>
               <div className="gate-row open"><span className="gate-icon review-icon" /><b>manager review</b><i>ready</i></div>
               <article className="honesty-card" aria-label="No-access safety boundary">
-                <strong>Built without live access</strong>
+                <strong>Sample workspace</strong>
                 <p>Next useful step: read-only validation against sample exports, field dictionaries, and BI query inventory.</p>
                 <ul>
                   {blockedBoundaries.map((boundary) => (
@@ -241,7 +246,7 @@ export default function Home() {
         <details className="proof-drawer">
           <summary>Proof behind the scene</summary>
           <div className="proof-drawer-body">
-            <code>./scripts/demo_owned_operations_api.sh</code>
+            <code>local operations API proof</code>
             <ul>
               {proofBullets.map((proof) => (
                 <li key={proof}>{proof}</li>

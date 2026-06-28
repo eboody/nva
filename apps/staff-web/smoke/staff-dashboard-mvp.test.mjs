@@ -10,7 +10,7 @@ const literalPattern = (text) => new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, 
 
 const primaryPageCopy = page.replace(/<details className="proof-drawer">[\s\S]*?<\/details>/, "");
 
-test("manager brief demo shows the full source-to-brief contract", () => {
+test("manager brief workspace shows the full source-to-brief contract", () => {
   for (const expected of [
     "Manager Daily Brief",
     "collected facts",
@@ -42,7 +42,7 @@ test("primary page copy stays product-first, not architecture-first", () => {
   }
 });
 
-test("demo steps narrate the human manager workflow", () => {
+test("workflow steps narrate the human manager workflow", () => {
   for (const expected of [
     "messy morning",
     "facts tracked",
@@ -60,31 +60,46 @@ test("primary page copy keeps the before-after-safety-next-ask anchors", () => {
     "messy morning",
     "Manager Daily Brief",
     "review recorded",
-    "Built without live access",
+    "Sample workspace",
     "What real access would unlock"
   ]) {
     assert.match(primaryPageCopy, literalPattern(expected));
   }
 });
 
-test("live page is replaced by a presenter-safe demo surface", () => {
+test("primary screen reads like software in use, not a labeled sales artifact", () => {
   for (const expected of [
-    "DEMO MODE — NOT LIVE",
-    "proper demo page",
-    "Show this safely",
-    "No production connection",
-    "synthetic fixture only",
-    "read-only validation request",
-    "Do not claim this is live"
+    "Pet resort ops",
+    "turn the morning mess into reviewed work",
+    "Sample Pet Resort",
+    "open risks",
+    "safe actions",
+    "System actions",
+    "customer message locked",
+    "PMS update locked",
+    "manager review open"
   ]) {
     assert.match(primaryPageCopy, literalPattern(expected));
   }
 
+  for (const forbidden of [
+    /DEMO MODE/i,
+    /proper demo page/i,
+    /Show this safely/i,
+    /No production connection/i,
+    /synthetic fixture only/i,
+    /Do not claim this is live/i,
+    /presenter/i,
+    /talk track/i
+  ]) {
+    assert.doesNotMatch(primaryPageCopy, forbidden);
+  }
+
   for (const expectedClass of [
-    "demo-mode-ribbon",
-    "presentation-frame",
-    "demo-script-card",
-    "live-status-panel"
+    "app-frame",
+    "command-bar",
+    "shift-console",
+    "action-console"
   ]) {
     assert.match(page + styles, literalPattern(expectedClass));
   }
@@ -138,7 +153,7 @@ test("manager actions show review-ready and blocked statuses", () => {
 test("safety remains visual and side effects stay blocked", () => {
   for (const expected of [
     "synthetic",
-    "review-gated",
+    "review gate",
     "customer send",
     "PMS write",
     "locked",
@@ -151,11 +166,11 @@ test("safety remains visual and side effects stay blocked", () => {
   }
 });
 
-test("no-access honesty card names blocked boundaries and validation next step", () => {
+test("sample workspace card names blocked boundaries and validation next step", () => {
   for (const expected of [
     "blockedBoundaries",
     "honesty-card",
-    "Built without live access",
+    "Sample workspace",
     "no live NVA/Gingr data",
     "no customer sends",
     "no PMS writes",
@@ -191,10 +206,10 @@ test("proof drawer keeps technical evidence behind the visual workflow", () => {
   for (const expected of [
     "staff-web smoke tests",
     "local API proof",
-    "source refs/caveats attached",
+    "source refs/caveats attach",
     "estimated vs reviewed minutes",
-    "synthetic fixture until read-only access approved",
-    "./scripts/demo_owned_operations_api.sh",
+    "sample data stays contained until read-only exports",
+    "local operations API proof",
     "side effects disabled",
     "outcome/labor proof"
   ]) {
