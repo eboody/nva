@@ -6,6 +6,10 @@ const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const styles = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 const localDemoApiRoute = readFileSync(new URL("../app/api/local-demo/[...path]/route.ts", import.meta.url), "utf8");
 
+const literalPattern = (text) => new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+
+const primaryPageCopy = page.replace(/<details className="proof-drawer">[\s\S]*?<\/details>/, "");
+
 test("manager brief demo shows the full source-to-brief contract", () => {
   for (const expected of [
     "Manager Daily Brief",
@@ -22,12 +26,20 @@ test("manager brief demo shows the full source-to-brief contract", () => {
     "48",
     "min saved"
   ]) {
-    assert.match(page, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
+    assert.match(page, literalPattern(expected));
   }
+});
 
-  assert.doesNotMatch(page, /architecture story/i);
-  assert.doesNotMatch(page, /owned backend migration map/i);
-  assert.doesNotMatch(page, /technical proof/i);
+test("primary page copy stays product-first, not architecture-first", () => {
+  for (const forbidden of [
+    /owned backend migration map/i,
+    /architecture story/i,
+    /\bDTOs?\b/i,
+    /read model replacement strategy/i,
+    /technical proof first/i
+  ]) {
+    assert.doesNotMatch(primaryPageCopy, forbidden);
+  }
 });
 
 test("demo steps narrate the human manager workflow", () => {
@@ -38,7 +50,20 @@ test("demo steps narrate the human manager workflow", () => {
     "review recorded",
     "step-explainer"
   ]) {
-    assert.match(page, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
+    assert.match(page, literalPattern(expected));
+  }
+});
+
+test("primary page copy keeps the before-after-safety-next-ask anchors", () => {
+  for (const expected of [
+    "Before the brief:",
+    "messy morning",
+    "Manager Daily Brief",
+    "review recorded",
+    "Built without live access",
+    "What real access would unlock"
+  ]) {
+    assert.match(primaryPageCopy, literalPattern(expected));
   }
 });
 
