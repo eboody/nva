@@ -7,77 +7,115 @@ const styles = readFileSync(new URL("../app/globals.css", import.meta.url), "utf
 const localDemoApiRoute = readFileSync(new URL("../app/api/local-demo/[...path]/route.ts", import.meta.url), "utf8");
 
 const literalPattern = (text) => new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-
 const primaryPageCopy = page.replace(/<details className="proof-drawer">[\s\S]*?<\/details>/, "");
 
-test("manager brief workspace shows the full source-to-brief contract", () => {
+test("surface is framed for a CEO cost-reduction daily report", () => {
   for (const expected of [
-    "Manager Daily Brief",
-    "collected facts",
-    "Reservation",
-    "Pet profile",
-    "Rabies proof",
-    "Capacity",
-    "Labor plan",
-    "ranked action plan",
-    "Review boarding vs labor",
-    "Clear rabies document",
-    "Quiet-room plan for Miso",
-    "48",
-    "min saved"
+    "Portfolio cost control",
+    "Daily Manager Report",
+    "CEO wants",
+    "fewer wasted manager hours",
+    "modeled monthly cost",
+    "$25.1k",
+    "manager prep removed",
+    "live side effects",
+    "0"
   ]) {
     assert.match(page, literalPattern(expected));
   }
 });
 
-test("primary page copy stays product-first, not architecture-first", () => {
-  for (const forbidden of [
-    /owned backend migration map/i,
-    /architecture story/i,
-    /\bDTOs?\b/i,
-    /read model replacement strategy/i,
-    /technical proof first/i
-  ]) {
-    assert.doesNotMatch(primaryPageCopy, forbidden);
-  }
-});
-
-test("workflow steps narrate the human manager workflow", () => {
+test("generated report contains concrete ranked cost levers", () => {
   for (const expected of [
-    "messy morning",
-    "facts tracked",
-    "manager brief",
-    "review recorded",
-    "step-explainer"
+    "Today’s cost-reduction brief",
+    "3 ranked levers",
+    "Labor risk before 10am",
+    "Vaccine/document rework",
+    "Premium room constraint",
+    "2 short · 12 arrivals",
+    "31 staff-hours recoverable",
+    "$6.7k retention-risk protected"
   ]) {
     assert.match(page, literalPattern(expected));
   }
 });
 
-test("primary page copy keeps the before-after-safety-next-ask anchors", () => {
+test("selected report line separates CEO readout from manager action", () => {
   for (const expected of [
-    "Before the brief:",
-    "messy morning",
-    "Manager Daily Brief",
-    "review recorded",
-    "Sample workspace",
-    "What real access would unlock"
+    "CEO readout",
+    "executiveReadout",
+    "managerAction",
+    "modeled impact",
+    "manager gets this action",
+    "Move one cross-trained lead",
+    "Pre-clear two documents",
+    "Hold quiet room for Miso"
   ]) {
-    assert.match(primaryPageCopy, literalPattern(expected));
+    assert.match(page, literalPattern(expected));
   }
 });
 
-test("primary screen reads like software in use, not a labeled sales artifact", () => {
+test("evidence chain shows where each report piece comes from", () => {
   for (const expected of [
-    "Pet resort ops",
-    "turn the morning mess into reviewed work",
-    "Sample Pet Resort",
-    "open risks",
-    "safe actions",
-    "System actions",
-    "customer message locked",
-    "PMS update locked",
-    "manager review open"
+    "Evidence chain",
+    "Why this appeared in the report",
+    "PMS reservation feed",
+    "labor schedule / timeclock",
+    "uploaded vaccine documents",
+    "pet profile + stay notes",
+    "room inventory projection",
+    "raw signal",
+    "created fact",
+    "report use"
+  ]) {
+    assert.match(page, literalPattern(expected));
+  }
+});
+
+test("report factory explains how pieces are created before appearing in report", () => {
+  for (const expected of [
+    "Report factory",
+    "How the pieces get created",
+    "read source record",
+    "preserve provenance",
+    "normalize into operating fact",
+    "score labor/cost impact",
+    "rank manager action",
+    "lock unsafe side effects",
+    "record outcome",
+    "selected lineage"
+  ]) {
+    assert.match(page, literalPattern(expected));
+  }
+});
+
+test("source facts include provenance, transformation, gate, and contribution", () => {
+  for (const expected of [
+    "read-only source adapter → reservation fact",
+    "schedule import → labor variance model",
+    "OCR/extraction → document quality flag",
+    "note parser → care constraint fact",
+    "ops projection → caveated capacity fact",
+    "no PMS write",
+    "manager owns staffing choice",
+    "human document review",
+    "no autonomous care decision",
+    "projection caveat visible"
+  ]) {
+    assert.match(page, literalPattern(expected));
+  }
+});
+
+test("safety is visible without pretending to have live access", () => {
+  for (const expected of [
+    "sample workspace",
+    "read-only inputs · writes locked",
+    "customer send locked",
+    "PMS write locked",
+    "schedule change locked",
+    "read-only exports",
+    "field dictionaries",
+    "BI query inventory"
   ]) {
     assert.match(primaryPageCopy, literalPattern(expected));
   }
@@ -85,156 +123,49 @@ test("primary screen reads like software in use, not a labeled sales artifact", 
   for (const forbidden of [
     /DEMO MODE/i,
     /proper demo page/i,
-    /Show this safely/i,
-    /No production connection/i,
-    /synthetic fixture only/i,
-    /Do not claim this is live/i,
     /presenter/i,
-    /talk track/i
+    /talk track/i,
+    /Comprehensive Summary/i,
+    /Migration Strategy/i,
+    /architecture story/i,
+    /\bDTOs?\b/i
   ]) {
     assert.doesNotMatch(primaryPageCopy, forbidden);
   }
+});
 
+test("visual layout supports report, executive readout, evidence, and factory panels", () => {
   for (const expectedClass of [
-    "app-frame",
-    "command-bar",
-    "shift-console",
-    "action-console"
+    "ceo-board",
+    "metric-strip",
+    "workspace-grid",
+    "report-panel",
+    "executive-panel",
+    "evidence-panel",
+    "factory-panel",
+    "report-line",
+    "evidence-card",
+    "pipeline-list",
+    "proof-drawer"
   ]) {
     assert.match(page + styles, literalPattern(expectedClass));
   }
 });
 
-test("before the brief strip shows concrete morning pain", () => {
-  for (const expected of [
-    "Before the brief:",
-    "7:20am lobby rush",
-    "12 arrivals before 10",
-    "rabies proof unclear",
-    "coverage 2 short",
-    "quiet-room request buried",
-    "chaos-strip"
-  ]) {
-    assert.match(page + styles, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
-  }
-});
-
-test("brief action schema keeps the thought-through pieces visible", () => {
-  for (const expected of [
-    "source ref",
-    "field path",
-    "freshness",
-    "quality flag",
-    "review gate",
-    "labor estimate",
-    "manager approval",
-    "document review",
-    "before",
-    "after"
-  ]) {
-    assert.match(page, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
-  }
-});
-
-test("manager actions show review-ready and blocked statuses", () => {
-  for (const expected of [
-    "status: \"review-ready\"",
-    "status: \"blocked\"",
-    "review ready",
-    "blocked",
-    "status-badge",
-    "status-review-ready",
-    "status-blocked"
-  ]) {
-    assert.match(page + styles, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
-  }
-});
-
-test("safety remains visual and side effects stay blocked", () => {
-  for (const expected of [
-    "synthetic",
-    "review gate",
-    "customer send",
-    "PMS write",
-    "locked",
-    "manager review",
-    "ready",
-    "record review",
-    "outcome recorded"
-  ]) {
-    assert.match(page, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
-  }
-});
-
-test("sample workspace card names blocked boundaries and validation next step", () => {
-  for (const expected of [
-    "blockedBoundaries",
-    "honesty-card",
-    "Sample workspace",
-    "no live NVA/Gingr data",
-    "no customer sends",
-    "no PMS writes",
-    "no payment/schedule/medical decisions",
-    "read-only validation"
-  ]) {
-    assert.match(page + styles, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
-  }
-});
-
-test("visual layout contains collection, tracking, brief, and proof panels", () => {
-  for (const expectedClass of [
-    "brief-lab",
-    "source-board",
-    "source-card",
-    "assembly-column",
-    "pipeline-card",
-    "gate-card",
-    "manager-brief",
-    "brief-action",
-    "proof-board",
-    "approval-button"
-  ]) {
-    assert.match(styles + page, new RegExp(expectedClass, "i"));
-  }
-});
-
-test("proof drawer keeps technical evidence behind the visual workflow", () => {
+test("proof drawer preserves technical/evidence package below the primary CEO view", () => {
   assert.match(page, /<details className="proof-drawer">/);
-  assert.match(page, /<summary>Proof behind the scene<\/summary>/);
-  assert.match(page, /proofBullets/);
-
+  assert.match(page, /<summary>Proof package behind this screen<\/summary>/);
   for (const expected of [
-    "staff-web smoke tests",
-    "local API proof",
-    "source refs/caveats attach",
-    "estimated vs reviewed minutes",
-    "sample data stays contained until read-only exports",
-    "local operations API proof",
-    "side effects disabled",
-    "outcome/labor proof"
+    "Source contracts",
+    "Cost model",
+    "Safety posture",
+    "Next validation",
+    "source name, raw signal, normalized fact, caveat/gate",
+    "labor/rework/retention value",
+    "customer sends, PMS writes, schedule changes",
+    "real NVA/Gingr operating data"
   ]) {
-    assert.match(page + styles, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
-  }
-});
-
-test("next ask closes with narrow read-only real access request", () => {
-  assert.match(page, /<section className="next-ask" aria-label="Safe real-access next ask">/);
-  assert.match(page, /<h2>What real access would unlock<\/h2>/);
-
-  for (const expected of [
-    "next-ask",
-    "read-only sample exports",
-    "field dictionaries",
-    "BI query inventory",
-    "one workflow",
-    "out of scope",
-    "writes",
-    "sends",
-    "payments",
-    "schedules",
-    "medical/safety decisions"
-  ]) {
-    assert.match(page + styles, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
+    assert.match(page, literalPattern(expected));
   }
 });
 

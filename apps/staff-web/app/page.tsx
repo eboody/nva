@@ -2,276 +2,276 @@
 
 import { useState } from "react";
 
-type StepId = "collect" | "track" | "brief" | "outcome";
-type Tone = "ok" | "warn" | "hold" | "info";
-type BriefActionStatus = "review-ready" | "blocked" | "watch";
-
-const briefActionStatusLabels: Record<BriefActionStatus, string> = {
-  "review-ready": "review ready",
-  blocked: "blocked",
-  watch: "watch"
+type EvidenceStatus = "ready" | "review" | "blocked";
+type ReportLine = {
+  id: string;
+  title: string;
+  costSignal: string;
+  executiveReadout: string;
+  managerAction: string;
+  monthlyImpact: string;
+  evidenceIds: string[];
+  status: EvidenceStatus;
 };
 
-const steps: Array<{ id: StepId; number: string; label: string; explainer: string }> = [
-  { id: "collect", number: "01", label: "messy morning", explainer: "Start with the scattered signals a manager would otherwise chase across notes, rooms, documents, capacity, and labor." },
-  { id: "track", number: "02", label: "facts tracked", explainer: "Each signal keeps its source, field path, freshness, caveat, review gate, and labor estimate visible before it becomes advice." },
-  { id: "brief", number: "03", label: "manager brief", explainer: "The workflow turns those source-backed facts into a ranked daily action plan a GM or front desk lead can review quickly." },
-  { id: "outcome", number: "04", label: "review recorded", explainer: "The manager records the disposition, keeps unsafe actions locked, and turns the morning cleanup into measurable labor proof." }
-];
-
-const morningChaos = [
-  "7:20am lobby rush",
-  "12 arrivals before 10",
-  "rabies proof unclear",
-  "coverage 2 short",
-  "quiet-room request buried"
-];
-
-const sourceFacts: Array<{
-  name: string;
-  system: string;
-  fields: string;
-  tracked: string;
-  tone: Tone;
-}> = [
-  { name: "Reservation", system: "PMS", fields: "Jul 3–7 · boarding · enrichment", tracked: "record id · updated 6:41", tone: "ok" },
-  { name: "Pet profile", system: "staff note", fields: "noise-sensitive · quiet room", tracked: "author · timestamp · source ref", tone: "info" },
-  { name: "Rabies proof", system: "document", fields: "attachment present · expiry unclear", tracked: "OCR · reviewer gate", tone: "warn" },
-  { name: "Capacity", system: "ops sheet", fields: "rooms tight · enrichment waitlist", tracked: "projection version · caveat", tone: "hold" },
-  { name: "Labor plan", system: "timeclock", fields: "AM coverage 2 short", tracked: "shift id · confidence", tone: "warn" }
-];
-
-const briefActions: Array<{
-  rank: string;
-  title: string;
-  owner: string;
-  why: string;
+type EvidenceNode = {
+  id: string;
+  source: string;
+  rawSignal: string;
+  normalizedFact: string;
+  reportContribution: string;
+  createdBy: string;
   gate: string;
-  before: string;
-  after: string;
-  status: BriefActionStatus;
-  tone: Tone;
-}> = [
-  { rank: "1", title: "Review boarding vs labor", owner: "GM", why: "capacity + AM coverage risk", gate: "manager approval", before: "45m", after: "15m", status: "blocked", tone: "warn" },
-  { rank: "2", title: "Clear rabies document", owner: "front desk", why: "attached, expiry needs review", gate: "document review", before: "20m", after: "8m", status: "review-ready", tone: "hold" },
-  { rank: "3", title: "Quiet-room plan for Miso", owner: "kennel lead", why: "noise-sensitive stay note", gate: "review ready", before: "8m", after: "2m", status: "review-ready", tone: "ok" }
+};
+
+const statusLabels: Record<EvidenceStatus, string> = {
+  ready: "manager-ready",
+  review: "review-needed",
+  blocked: "automation-locked"
+};
+
+const reportLines: ReportLine[] = [
+  {
+    id: "labor",
+    title: "Labor risk before 10am",
+    costSignal: "2 short · 12 arrivals · 4 enrichment adds",
+    executiveReadout: "Morning coverage mismatch is the largest avoidable labor leak today.",
+    managerAction: "Move one cross-trained lead to lobby until 10:30; defer non-critical enrichment calls.",
+    monthlyImpact: "$18.4k modeled avoidable labor / rework",
+    evidenceIds: ["reservations", "timeclock", "capacity"],
+    status: "ready"
+  },
+  {
+    id: "docs",
+    title: "Vaccine/document rework",
+    costSignal: "7 arrivals · 2 unclear rabies proofs",
+    executiveReadout: "Front desk will spend the first rush chasing documents unless review starts now.",
+    managerAction: "Pre-clear two documents and assign one front-desk owner before lobby opens.",
+    monthlyImpact: "31 staff-hours recoverable",
+    evidenceIds: ["documents", "reservations"],
+    status: "review"
+  },
+  {
+    id: "rooms",
+    title: "Premium room constraint",
+    costSignal: "quiet-room request · room inventory tight",
+    executiveReadout: "One high-value stay has a preventable service-risk flag.",
+    managerAction: "Hold quiet room for Miso; manager approves any trade-off before customer confirmation.",
+    monthlyImpact: "$6.7k retention-risk protected",
+    evidenceIds: ["profile", "capacity", "reservations"],
+    status: "blocked"
+  }
 ];
 
-const auditEvents = [
-  "source refs attached",
-  "data caveat visible",
-  "send blocked",
-  "PMS write blocked",
-  "manager outcome recorded"
+const evidenceNodes: EvidenceNode[] = [
+  {
+    id: "reservations",
+    source: "PMS reservation feed",
+    rawSignal: "12 arrivals before 10 · Jul 3 boarding · enrichment add-ons",
+    normalizedFact: "arrival_density=high · revenue_services=4 · operating_day=2026-07-03",
+    reportContribution: "Ranks labor-risk line and attaches affected reservations.",
+    createdBy: "read-only source adapter → reservation fact",
+    gate: "no PMS write"
+  },
+  {
+    id: "timeclock",
+    source: "labor schedule / timeclock",
+    rawSignal: "AM role coverage: -2 vs forecast · kennel lead starts 11:00",
+    normalizedFact: "coverage_gap=2 · role=front_desk+kennel · confidence=.84",
+    reportContribution: "Turns demand into a costed staffing exception instead of a vague alert.",
+    createdBy: "schedule import → labor variance model",
+    gate: "manager owns staffing choice"
+  },
+  {
+    id: "documents",
+    source: "uploaded vaccine documents",
+    rawSignal: "rabies attachment present · expiry field unreadable",
+    normalizedFact: "document_state=needs_review · blocker=rabies_expiry",
+    reportContribution: "Creates a pre-rush document-review task with owner and reason.",
+    createdBy: "OCR/extraction → document quality flag",
+    gate: "human document review"
+  },
+  {
+    id: "profile",
+    source: "pet profile + stay notes",
+    rawSignal: "Miso noise-sensitive · quiet-room request buried in note",
+    normalizedFact: "care_constraint=quiet_room · customer_value=risk_protect",
+    reportContribution: "Promotes hidden care note into manager-visible room decision.",
+    createdBy: "note parser → care constraint fact",
+    gate: "no autonomous care decision"
+  },
+  {
+    id: "capacity",
+    source: "room inventory projection",
+    rawSignal: "premium rooms tight · enrichment waitlist likely",
+    normalizedFact: "capacity_pressure=medium_high · caveat=projection",
+    reportContribution: "Explains why the top actions matter today, not next week.",
+    createdBy: "ops projection → caveated capacity fact",
+    gate: "projection caveat visible"
+  }
 ];
 
-const blockedBoundaries = [
-  "no live NVA/Gingr data",
-  "no customer sends",
-  "no PMS writes",
-  "no payment/schedule/medical decisions"
+const creationPipeline = [
+  "read source record",
+  "preserve provenance",
+  "normalize into operating fact",
+  "score labor/cost impact",
+  "rank manager action",
+  "lock unsafe side effects",
+  "record outcome"
 ];
 
-const proofBullets = [
-  "staff-web smoke tests keep the source-to-brief anchors covered",
-  "local API proof runs with side effects disabled: no PMS/provider writes or customer sends",
-  "source refs/caveats attach before any Manager Daily Brief recommendation",
-  "estimated vs reviewed minutes converts outcome/labor proof into manager-visible savings",
-  "sample data stays contained until read-only exports, field dictionaries, and BI query inventory are approved"
-];
-
-const nextAskItems = [
-  "read-only sample exports",
-  "field dictionaries",
-  "BI query inventory"
+const boardMetrics = [
+  { label: "modeled monthly cost", value: "$25.1k", sub: "labor + rework + retention risk" },
+  { label: "manager prep removed", value: "48m", sub: "from source chasing to review" },
+  { label: "live side effects", value: "0", sub: "sends / writes / schedule changes" }
 ];
 
 export default function Home() {
-  const [activeStep, setActiveStep] = useState<StepId>("collect");
-  const [approved, setApproved] = useState(false);
-  const activeIndex = steps.findIndex((step) => step.id === activeStep);
-  const activeStepDetail = steps[activeIndex]?.explainer;
+  const [selectedReportId, setSelectedReportId] = useState(reportLines[0].id);
+  const selectedLine = reportLines.find((line) => line.id === selectedReportId) ?? reportLines[0];
+  const selectedEvidence = evidenceNodes.filter((node) => selectedLine.evidenceIds.includes(node.id));
 
   return (
-    <main className="stage" data-step={activeStep}>
-      <section className="app-frame" aria-label="Manager daily brief workspace">
-        <section className="command-bar" aria-label="Morning operations workspace">
-          <header className="hero-row">
-            <div className="brand-mark"><span>N</span></div>
-            <div className="title-stack">
-              <p className="eyebrow">Pet resort ops</p>
-              <h1>Manager Daily Brief</h1>
-              <p>turn the morning mess into reviewed work</p>
-            </div>
-            <div className="saved-meter" aria-label="Labor saved metric">
-              <strong>48</strong><span>min saved</span>
-            </div>
-          </header>
-
-          <aside className="shift-console" aria-label="Shift command summary">
-            <div>
-              <span>site</span>
-              <strong>Sample Pet Resort</strong>
-            </div>
-            <div>
-              <span>open risks</span>
-              <strong>2</strong>
-            </div>
-            <div>
-              <span>safe actions</span>
-              <strong>3 ready</strong>
-            </div>
-          </aside>
-
-          <article className="action-console" aria-label="Action safety console">
-            <strong>System actions</strong>
-            <div><span className="dot locked" />customer message locked</div>
-            <div><span className="dot locked" />PMS update locked</div>
-            <div><span className="dot open" />manager review open</div>
-          </article>
-        </section>
-
-        <section className="chaos-strip" aria-label="Synthetic morning before the brief">
-          <strong>Before the brief:</strong>
+    <main className="stage">
+      <section className="ceo-board" aria-label="CEO cost reduction daily report demo">
+        <header className="topbar">
+          <div className="brand-mark">N</div>
           <div>
-            {morningChaos.map((signal) => (
-              <span key={signal}>{signal}</span>
-            ))}
+            <p className="eyebrow">Portfolio cost control</p>
+            <h1>Daily Manager Report</h1>
+            <p className="subtitle">what the CEO wants: fewer wasted manager hours, fewer avoidable misses, proof behind every recommendation</p>
           </div>
+          <aside className="safety-chip" aria-label="Safety boundary">
+            <b>sample workspace</b>
+            <span>read-only inputs · writes locked</span>
+          </aside>
+        </header>
+
+        <section className="metric-strip" aria-label="Executive impact metrics">
+          {boardMetrics.map((metric) => (
+            <article key={metric.label}>
+              <span>{metric.label}</span>
+              <strong>{metric.value}</strong>
+              <small>{metric.sub}</small>
+            </article>
+          ))}
         </section>
 
-        <nav className="step-dock" aria-label="Workflow steps">
-          {steps.map((step, index) => (
-            <button
-              key={step.id}
-              className={step.id === activeStep ? "lit active" : index <= activeIndex ? "lit" : ""}
-              onClick={() => setActiveStep(step.id)}
-              aria-pressed={step.id === activeStep}
-            >
-              <b>{step.number}</b><span>{step.label}</span>
-            </button>
-          ))}
-        </nav>
-
-        <p className="step-explainer">{activeStepDetail}</p>
-
-        <section className="brief-lab" aria-label="Manager brief construction scene">
-          <aside className="source-board panel">
-            <div className="panel-kicker">collected facts</div>
-            <h2>One morning, five signals</h2>
-            <div className="source-list">
-              {sourceFacts.map((fact) => (
-                <article className={`source-card ${fact.tone}`} key={fact.name}>
-                  <div className="source-head"><b>{fact.name}</b><span>{fact.system}</span></div>
-                  <p>{fact.fields}</p>
-                  <i>{fact.tracked}</i>
-                </article>
-              ))}
-            </div>
-          </aside>
-
-          <section className="assembly-column" aria-label="Tracking and review pipeline">
-            <div className="pipeline-card panel">
-              <div className="panel-kicker">tracked on every fact</div>
-              <div className="chip-grid">
-                <span>source ref</span>
-                <span>field path</span>
-                <span>freshness</span>
-                <span>quality flag</span>
-                <span>review gate</span>
-                <span>labor estimate</span>
+        <section className="workspace-grid">
+          <section className="report-panel panel" aria-label="Generated executive report">
+            <div className="panel-head">
+              <div>
+                <p className="eyebrow">Generated 6:15am · Sample Pet Resort</p>
+                <h2>Today’s cost-reduction brief</h2>
               </div>
-              <div className="flow-line"><i /><i /><i /></div>
+              <span className="report-badge">3 ranked levers</span>
             </div>
 
-            <div className="gate-card panel">
-              <div className="panel-kicker">automation boundary</div>
-              <div className="gate-row locked"><span className="gate-icon mail-icon" /><b>customer send</b><i>locked</i></div>
-              <div className="gate-row locked"><span className="gate-icon pms-icon" /><b>PMS write</b><i>locked</i></div>
-              <div className="gate-row open"><span className="gate-icon review-icon" /><b>manager review</b><i>ready</i></div>
-              <article className="honesty-card" aria-label="No-access safety boundary">
-                <strong>Sample workspace</strong>
-                <p>Next useful step: read-only validation against sample exports, field dictionaries, and BI query inventory.</p>
-                <ul>
-                  {blockedBoundaries.map((boundary) => (
-                    <li key={boundary}>{boundary}</li>
-                  ))}
-                </ul>
-              </article>
+            <div className="report-list">
+              {reportLines.map((line, index) => (
+                <button
+                  key={line.id}
+                  className={`report-line ${selectedReportId === line.id ? "selected" : ""}`}
+                  onClick={() => setSelectedReportId(line.id)}
+                  aria-pressed={selectedReportId === line.id}
+                >
+                  <b>{index + 1}</b>
+                  <span className="line-main">
+                    <strong>{line.title}</strong>
+                    <small>{line.costSignal}</small>
+                  </span>
+                  <i className={`status-pill ${line.status}`}>{statusLabels[line.status]}</i>
+                </button>
+              ))}
             </div>
           </section>
 
-          <article className="manager-brief panel">
-            <div className="brief-header">
+          <section className="executive-panel panel" aria-label="Selected CEO readout">
+            <p className="eyebrow">CEO readout</p>
+            <h2>{selectedLine.title}</h2>
+            <p className="readout">{selectedLine.executiveReadout}</p>
+            <div className="impact-card">
+              <span>modeled impact</span>
+              <strong>{selectedLine.monthlyImpact}</strong>
+            </div>
+            <div className="manager-action">
+              <span>manager gets this action</span>
+              <p>{selectedLine.managerAction}</p>
+            </div>
+            <div className="locked-actions" aria-label="Locked actions">
+              <span>customer send locked</span>
+              <span>PMS write locked</span>
+              <span>schedule change locked</span>
+            </div>
+          </section>
+
+          <section className="evidence-panel panel" aria-label="Evidence used by selected report line">
+            <div className="panel-head compact">
               <div>
-                <div className="panel-kicker">today · jul 3</div>
-                <h2>ranked action plan</h2>
+                <p className="eyebrow">Evidence chain</p>
+                <h2>Why this appeared in the report</h2>
               </div>
-              <div className="brief-score"><strong>3</strong><span>actions</span></div>
+              <span>{selectedEvidence.length} sources</span>
             </div>
-
-            <div className="action-list">
-              {briefActions.map((action) => (
-                <section className={`brief-action ${action.tone}`} key={action.rank}>
-                  <div className="rank">{action.rank}</div>
-                  <div className="action-copy">
-                    <h3>{action.title}</h3>
-                    <div className="action-meta">
-                      <span>{action.owner}</span>
-                      <span>{action.gate}</span>
-                      <span className={`status-badge status-${action.status}`}>{briefActionStatusLabels[action.status]}</span>
-                    </div>
-                    <p>{action.why}</p>
-                  </div>
-                  <div className="minutes"><b>{action.before}</b><i>→</i><b>{action.after}</b></div>
-                </section>
+            <div className="evidence-stack">
+              {selectedEvidence.map((node) => (
+                <article className="evidence-card" key={node.id}>
+                  <div className="source-title"><b>{node.source}</b><i>{node.gate}</i></div>
+                  <dl>
+                    <div><dt>raw signal</dt><dd>{node.rawSignal}</dd></div>
+                    <div><dt>created fact</dt><dd>{node.normalizedFact}</dd></div>
+                    <div><dt>report use</dt><dd>{node.reportContribution}</dd></div>
+                  </dl>
+                </article>
               ))}
             </div>
-          </article>
+          </section>
 
-          <aside className="proof-board panel">
-            <div className="panel-kicker">outcome proof</div>
-            <div className="proof-number"><strong>48</strong><span>{approved ? "actual min saved" : "estimated min saved"}</span></div>
-            <ul>
-              {auditEvents.map((event, index) => (
-                <li key={event} className={index <= activeIndex || approved ? "on" : ""}><span />{event}</li>
+          <section className="factory-panel panel" aria-label="How report pieces are created">
+            <p className="eyebrow">Report factory</p>
+            <h2>How the pieces get created</h2>
+            <ol className="pipeline-list">
+              {creationPipeline.map((step) => (
+                <li key={step}>{step}</li>
               ))}
-            </ul>
-            <button className={approved ? "approval-button approved" : "approval-button"} onClick={() => setApproved((value) => !value)}>
-              <span>{approved ? "✓" : "•"}</span>{approved ? "outcome recorded" : "record review"}
-            </button>
-          </aside>
+            </ol>
+            <div className="artifact-card">
+              <span>selected lineage</span>
+              <strong>{selectedEvidence.map((node) => node.createdBy).join("  →  ")}</strong>
+            </div>
+          </section>
+        </section>
+
+        <section className="validation-strip" aria-label="What makes this real with approved access">
+          <b>What makes it real</b>
+          <span>read-only exports</span>
+          <span>field dictionaries</span>
+          <span>BI query inventory</span>
+          <i>then the same report is generated from actual operating data, still with sends/writes locked</i>
         </section>
 
         <details className="proof-drawer">
-          <summary>Proof behind the scene</summary>
-          <div className="proof-drawer-body">
-            <code>local operations API proof</code>
-            <ul>
-              {proofBullets.map((proof) => (
-                <li key={proof}>{proof}</li>
-              ))}
-            </ul>
+          <summary>Proof package behind this screen</summary>
+          <div className="proof-grid">
+            <article>
+              <b>Source contracts</b>
+              <p>Each recommendation carries source name, raw signal, normalized fact, caveat/gate, and report contribution.</p>
+            </article>
+            <article>
+              <b>Cost model</b>
+              <p>The page separates executive impact, manager action, and measurable labor/rework/retention value.</p>
+            </article>
+            <article>
+              <b>Safety posture</b>
+              <p>The workflow can generate review-ready recommendations while customer sends, PMS writes, schedule changes, payments, and medical decisions remain locked.</p>
+            </article>
+            <article>
+              <b>Next validation</b>
+              <p>With read-only exports, field dictionaries, and BI query inventory, the same report can be grounded in real NVA/Gingr operating data without asking for write access.</p>
+            </article>
           </div>
         </details>
-
-        <section className="next-ask" aria-label="Safe real-access next ask">
-          <div>
-            <div className="panel-kicker">narrow validation ask</div>
-            <h2>What real access would unlock</h2>
-            <p>
-              For one workflow, share read-only sample exports, field dictionaries, and BI query inventory so the brief can map real source fields to review-ready labor proof.
-            </p>
-          </div>
-          <ul>
-            {nextAskItems.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-          <p className="next-ask-boundary">
-            Out of scope: writes, sends, payments, schedules, and medical/safety decisions.
-          </p>
-        </section>
       </section>
     </main>
   );
