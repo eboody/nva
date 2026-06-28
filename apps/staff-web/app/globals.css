@@ -406,6 +406,24 @@ button { font: inherit; }
   font-weight: 950;
   text-transform: uppercase;
 }
+.action-meta .status-badge {
+  padding: 5px 10px;
+  border: 2px solid currentColor;
+  box-shadow: 0 8px 20px rgba(15,23,42,.12);
+  letter-spacing: .06em;
+}
+.status-review-ready {
+  color: #064e3b !important;
+  background: #bbf7d0 !important;
+}
+.status-blocked {
+  color: #7f1d1d !important;
+  background: #fecaca !important;
+}
+.status-watch {
+  color: #78350f !important;
+  background: #fde68a !important;
+}
 .minutes {
   display: grid;
   place-items: center;

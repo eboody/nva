@@ -4,6 +4,13 @@ import { useState } from "react";
 
 type StepId = "collect" | "track" | "brief" | "outcome";
 type Tone = "ok" | "warn" | "hold" | "info";
+type BriefActionStatus = "review-ready" | "blocked" | "watch";
+
+const briefActionStatusLabels: Record<BriefActionStatus, string> = {
+  "review-ready": "review ready",
+  blocked: "blocked",
+  watch: "watch"
+};
 
 const steps: Array<{ id: StepId; number: string; label: string; explainer: string }> = [
   { id: "collect", number: "01", label: "messy morning", explainer: "Start with the scattered signals a manager would otherwise chase across notes, rooms, documents, capacity, and labor." },
@@ -42,11 +49,12 @@ const briefActions: Array<{
   gate: string;
   before: string;
   after: string;
+  status: BriefActionStatus;
   tone: Tone;
 }> = [
-  { rank: "1", title: "Review boarding vs labor", owner: "GM", why: "capacity + AM coverage risk", gate: "manager approval", before: "45m", after: "15m", tone: "warn" },
-  { rank: "2", title: "Clear rabies document", owner: "front desk", why: "attached, expiry needs review", gate: "document review", before: "20m", after: "8m", tone: "hold" },
-  { rank: "3", title: "Quiet-room plan for Miso", owner: "kennel lead", why: "noise-sensitive stay note", gate: "review ready", before: "8m", after: "2m", tone: "ok" }
+  { rank: "1", title: "Review boarding vs labor", owner: "GM", why: "capacity + AM coverage risk", gate: "manager approval", before: "45m", after: "15m", status: "blocked", tone: "warn" },
+  { rank: "2", title: "Clear rabies document", owner: "front desk", why: "attached, expiry needs review", gate: "document review", before: "20m", after: "8m", status: "review-ready", tone: "hold" },
+  { rank: "3", title: "Quiet-room plan for Miso", owner: "kennel lead", why: "noise-sensitive stay note", gate: "review ready", before: "8m", after: "2m", status: "review-ready", tone: "ok" }
 ];
 
 const auditEvents = [
@@ -156,6 +164,7 @@ export default function Home() {
                     <div className="action-meta">
                       <span>{action.owner}</span>
                       <span>{action.gate}</span>
+                      <span className={`status-badge status-${action.status}`}>{briefActionStatusLabels[action.status]}</span>
                     </div>
                     <p>{action.why}</p>
                   </div>

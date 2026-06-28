@@ -66,11 +66,24 @@ test("brief action schema keeps the thought-through pieces visible", () => {
     "labor estimate",
     "manager approval",
     "document review",
-    "review ready",
     "before",
     "after"
   ]) {
     assert.match(page, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
+  }
+});
+
+test("manager actions show review-ready and blocked statuses", () => {
+  for (const expected of [
+    "status: \"review-ready\"",
+    "status: \"blocked\"",
+    "review ready",
+    "blocked",
+    "status-badge",
+    "status-review-ready",
+    "status-blocked"
+  ]) {
+    assert.match(page + styles, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
   }
 });
 
