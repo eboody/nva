@@ -111,6 +111,7 @@ The right next step is not production access or live writes. It is read-only val
 
 ## Quick links
 
+- [Manager brief demo script](intelligible-manager-brief-demo-script.md)
 - [Migration spine note](owned-backend-migration-spine.md)
 - [README presentation path](../../README.md#presentation-path-safe-local-owned-api-proof)
 - [Final presentation checklist](nva-presentation-checklist.md)
