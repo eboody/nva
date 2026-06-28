@@ -95,16 +95,36 @@ export default function Home() {
   return (
     <main className="stage" data-step={activeStep}>
       <section className="demo-frame" aria-label="Manager daily brief demo">
-        <header className="hero-row">
-          <div className="brand-mark"><span>N</span></div>
-          <div className="title-stack">
-            <h1>Manager Daily Brief</h1>
-            <p>synthetic · source-backed · review-gated</p>
-          </div>
-          <div className="saved-meter" aria-label="Labor saved metric">
-            <strong>48</strong><span>min saved</span>
-          </div>
-        </header>
+        <div className="demo-mode-ribbon" role="note">
+          <strong>DEMO MODE — NOT LIVE</strong>
+          <span>proper demo page · synthetic fixture only · no production connection</span>
+        </div>
+
+        <section className="presentation-frame" aria-label="Presenter-safe demo opening">
+          <header className="hero-row">
+            <div className="brand-mark"><span>N</span></div>
+            <div className="title-stack">
+              <p className="eyebrow">Show this safely</p>
+              <h1>Manager Daily Brief</h1>
+              <p>synthetic · source-backed · review-gated</p>
+            </div>
+            <div className="saved-meter" aria-label="Labor saved metric">
+              <strong>48</strong><span>min saved</span>
+            </div>
+          </header>
+
+          <aside className="live-status-panel" aria-label="Live integration status">
+            <strong>No production connection</strong>
+            <span>synthetic fixture only</span>
+            <span>customer sends locked</span>
+            <span>PMS writes locked</span>
+          </aside>
+
+          <article className="demo-script-card" aria-label="Presenter talk track guardrail">
+            <strong>Do not claim this is live.</strong>
+            <p>Say: this is a proper demo page for the Manager Daily Brief workflow. The read-only validation request is sample exports, field dictionaries, and BI query inventory.</p>
+          </article>
+        </section>
 
         <section className="chaos-strip" aria-label="Synthetic morning before the brief">
           <strong>Before the brief:</strong>

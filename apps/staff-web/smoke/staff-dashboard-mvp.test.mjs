@@ -67,6 +67,29 @@ test("primary page copy keeps the before-after-safety-next-ask anchors", () => {
   }
 });
 
+test("live page is replaced by a presenter-safe demo surface", () => {
+  for (const expected of [
+    "DEMO MODE — NOT LIVE",
+    "proper demo page",
+    "Show this safely",
+    "No production connection",
+    "synthetic fixture only",
+    "read-only validation request",
+    "Do not claim this is live"
+  ]) {
+    assert.match(primaryPageCopy, literalPattern(expected));
+  }
+
+  for (const expectedClass of [
+    "demo-mode-ribbon",
+    "presentation-frame",
+    "demo-script-card",
+    "live-status-panel"
+  ]) {
+    assert.match(page + styles, literalPattern(expectedClass));
+  }
+});
+
 test("before the brief strip shows concrete morning pain", () => {
   for (const expected of [
     "Before the brief:",

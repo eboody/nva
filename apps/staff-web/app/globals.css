@@ -27,9 +27,85 @@ button { font: inherit; }
   box-shadow: 0 34px 100px rgba(0,0,0,.46);
   backdrop-filter: blur(20px);
   display: grid;
-  grid-template-rows: auto auto auto auto 1fr auto;
+  grid-template-rows: auto auto auto auto auto 1fr auto;
   gap: clamp(12px, 1.7vw, 20px);
   overflow: hidden;
+}
+
+.demo-mode-ribbon {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid rgba(251,191,36,.42);
+  border-radius: 999px;
+  padding: 10px 16px;
+  color: #fffbeb;
+  background: linear-gradient(90deg, rgba(127,29,29,.78), rgba(120,53,15,.72));
+  box-shadow: 0 18px 50px rgba(0,0,0,.25);
+}
+.demo-mode-ribbon strong {
+  font-size: .9rem;
+  font-weight: 1000;
+  letter-spacing: .08em;
+}
+.demo-mode-ribbon span {
+  color: #fde68a;
+  font-size: .86rem;
+  font-weight: 900;
+}
+
+.presentation-frame {
+  display: grid;
+  grid-template-columns: minmax(420px, 1fr) minmax(220px, .36fr) minmax(280px, .52fr);
+  gap: 14px;
+  align-items: stretch;
+}
+.presentation-frame .hero-row {
+  min-width: 0;
+}
+.eyebrow {
+  margin: 0 0 6px !important;
+  color: #67e8f9 !important;
+  font-size: .82rem;
+  font-weight: 1000 !important;
+  text-transform: uppercase;
+  letter-spacing: .14em !important;
+}
+.live-status-panel,
+.demo-script-card {
+  border: 1px solid rgba(255,255,255,.13);
+  border-radius: 24px;
+  padding: 14px;
+  background: rgba(3,7,18,.58);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+}
+.live-status-panel {
+  display: grid;
+  gap: 8px;
+}
+.live-status-panel strong,
+.demo-script-card strong {
+  color: #fef3c7;
+  font-size: .98rem;
+  font-weight: 1000;
+}
+.live-status-panel span {
+  border-radius: 999px;
+  padding: 7px 9px;
+  color: #cffafe;
+  background: rgba(8,47,73,.55);
+  font-size: .76rem;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.demo-script-card p {
+  margin: 8px 0 0;
+  color: #dbeafe;
+  font-size: .9rem;
+  font-weight: 850;
+  line-height: 1.38;
 }
 
 .hero-row,
@@ -648,12 +724,14 @@ button { font: inherit; }
 .approval-button.approved span { background: #166534; }
 
 @media (max-width: 1160px) {
+  .presentation-frame { grid-template-columns: 1fr; }
   .brief-lab { grid-template-columns: 1fr 1fr; }
   .manager-brief { grid-column: span 2; }
   .proof-drawer ul { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .next-ask { grid-template-columns: 1fr; }
 }
 @media (max-width: 760px) {
+  .demo-mode-ribbon { align-items: flex-start; border-radius: 22px; flex-direction: column; }
   .hero-row { align-items: flex-start; }
   .saved-meter { width: 120px; padding: 12px; }
   .brief-lab { grid-template-columns: 1fr; }
