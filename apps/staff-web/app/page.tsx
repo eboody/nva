@@ -2,36 +2,69 @@
 
 import { useState } from "react";
 
-type StepId = "inbox" | "packet" | "gate" | "brief";
+type StepId = "collect" | "track" | "brief" | "outcome";
+type Tone = "ok" | "warn" | "hold" | "info";
 
-const steps: Array<{
-  id: StepId;
-  number: string;
-  label: string;
-  scene: string;
+const steps: Array<{ id: StepId; number: string; label: string }> = [
+  { id: "collect", number: "01", label: "collect" },
+  { id: "track", number: "02", label: "track" },
+  { id: "brief", number: "03", label: "brief" },
+  { id: "outcome", number: "04", label: "prove" }
+];
+
+const sourceFacts: Array<{
+  name: string;
+  system: string;
+  fields: string;
+  tracked: string;
+  tone: Tone;
 }> = [
-  { id: "inbox", number: "01", label: "mess", scene: "incoming" },
-  { id: "packet", number: "02", label: "packet", scene: "normalized" },
-  { id: "gate", number: "03", label: "gate", scene: "blocked" },
-  { id: "brief", number: "04", label: "brief", scene: "done" }
+  { name: "Reservation", system: "PMS", fields: "Jul 3–7 · boarding · enrichment", tracked: "record id · updated 6:41", tone: "ok" },
+  { name: "Pet profile", system: "staff note", fields: "noise-sensitive · quiet room", tracked: "author · timestamp · source ref", tone: "info" },
+  { name: "Rabies proof", system: "document", fields: "attachment present · expiry unclear", tracked: "OCR · reviewer gate", tone: "warn" },
+  { name: "Capacity", system: "ops sheet", fields: "rooms tight · enrichment waitlist", tracked: "projection version · caveat", tone: "hold" },
+  { name: "Labor plan", system: "timeclock", fields: "AM coverage 2 short", tracked: "shift id · confidence", tone: "warn" }
+];
+
+const briefActions: Array<{
+  rank: string;
+  title: string;
+  owner: string;
+  why: string;
+  gate: string;
+  before: string;
+  after: string;
+  tone: Tone;
+}> = [
+  { rank: "1", title: "Review boarding vs labor", owner: "GM", why: "capacity + AM coverage risk", gate: "manager approval", before: "45m", after: "15m", tone: "warn" },
+  { rank: "2", title: "Clear rabies document", owner: "front desk", why: "attached, expiry needs review", gate: "document review", before: "20m", after: "8m", tone: "hold" },
+  { rank: "3", title: "Quiet-room plan for Miso", owner: "kennel lead", why: "noise-sensitive stay note", gate: "review ready", before: "8m", after: "2m", tone: "ok" }
+];
+
+const auditEvents = [
+  "source refs attached",
+  "data caveat visible",
+  "send blocked",
+  "PMS write blocked",
+  "manager outcome recorded"
 ];
 
 export default function Home() {
-  const [activeStep, setActiveStep] = useState<StepId>("inbox");
+  const [activeStep, setActiveStep] = useState<StepId>("collect");
   const [approved, setApproved] = useState(false);
   const activeIndex = steps.findIndex((step) => step.id === activeStep);
 
   return (
     <main className="stage" data-step={activeStep}>
-      <section className="demo-frame" aria-label="Visual pet resort workflow demo">
-        <header className="top-strip">
+      <section className="demo-frame" aria-label="Manager daily brief demo">
+        <header className="hero-row">
           <div className="brand-mark"><span>N</span></div>
           <div className="title-stack">
-            <h1>Miso → manager brief</h1>
-            <p>synthetic · no live sends · no PMS writes</p>
+            <h1>Manager Daily Brief</h1>
+            <p>synthetic · source-backed · review-gated</p>
           </div>
-          <div className="saved-meter">
-            <strong>23</strong><span>min saved</span>
+          <div className="saved-meter" aria-label="Labor saved metric">
+            <strong>48</strong><span>min saved</span>
           </div>
         </header>
 
@@ -48,65 +81,82 @@ export default function Home() {
           ))}
         </nav>
 
-        <section className="visual-flow" aria-label="Before after workflow visualization">
-          <article className="phone-card messy-card">
-            <div className="phone-top"><i /><i /><i /></div>
-            <div className="message-bubble big">Board July 3–7?</div>
-            <div className="message-bubble">rabies attached?</div>
-            <div className="message-bubble small">noise-sensitive</div>
-            <div className="message-bubble">add enrichment?</div>
-            <div className="notification-stack">
-              <span className="dot call" /><span className="dot mail" /><span className="dot note" />
+        <section className="brief-lab" aria-label="Manager brief construction scene">
+          <aside className="source-board panel">
+            <div className="panel-kicker">collected facts</div>
+            <h2>One morning, five signals</h2>
+            <div className="source-list">
+              {sourceFacts.map((fact) => (
+                <article className={`source-card ${fact.tone}`} key={fact.name}>
+                  <div className="source-head"><b>{fact.name}</b><span>{fact.system}</span></div>
+                  <p>{fact.fields}</p>
+                  <i>{fact.tracked}</i>
+                </article>
+              ))}
             </div>
-          </article>
+          </aside>
 
-          <div className="transform-column" aria-hidden="true">
-            <div className="pulse-ring"><span>→</span></div>
-            <div className="trace-line" />
-          </div>
-
-          <article className="work-packet">
-            <div className="pet-avatar" aria-hidden="true"><i /><b /></div>
-            <div className="packet-main">
-              <h2>Miso</h2>
-              <div className="date-strip"><span>Jul 3</span><i /><span>Jul 7</span></div>
-              <div className="packet-grid">
-                <div className="tile ok"><b>boarding</b><span>ready</span></div>
-                <div className="tile warn"><b>rabies</b><span>review</span></div>
-                <div className="tile info"><b>room</b><span>quiet</span></div>
-                <div className="tile hold"><b>enrich</b><span>capacity</span></div>
+          <section className="assembly-column" aria-label="Tracking and review pipeline">
+            <div className="pipeline-card panel">
+              <div className="panel-kicker">tracked on every fact</div>
+              <div className="chip-grid">
+                <span>source ref</span>
+                <span>field path</span>
+                <span>freshness</span>
+                <span>quality flag</span>
+                <span>review gate</span>
+                <span>labor estimate</span>
               </div>
+              <div className="flow-line"><i /><i /><i /></div>
+            </div>
+
+            <div className="gate-card panel">
+              <div className="panel-kicker">automation boundary</div>
+              <div className="gate-row locked"><span className="gate-icon mail-icon" /><b>customer send</b><i>locked</i></div>
+              <div className="gate-row locked"><span className="gate-icon pms-icon" /><b>PMS write</b><i>locked</i></div>
+              <div className="gate-row open"><span className="gate-icon review-icon" /><b>manager review</b><i>ready</i></div>
+            </div>
+          </section>
+
+          <article className="manager-brief panel">
+            <div className="brief-header">
+              <div>
+                <div className="panel-kicker">today · jul 3</div>
+                <h2>ranked action plan</h2>
+              </div>
+              <div className="brief-score"><strong>3</strong><span>actions</span></div>
+            </div>
+
+            <div className="action-list">
+              {briefActions.map((action) => (
+                <section className={`brief-action ${action.tone}`} key={action.rank}>
+                  <div className="rank">{action.rank}</div>
+                  <div className="action-copy">
+                    <h3>{action.title}</h3>
+                    <div className="action-meta">
+                      <span>{action.owner}</span>
+                      <span>{action.gate}</span>
+                    </div>
+                    <p>{action.why}</p>
+                  </div>
+                  <div className="minutes"><b>{action.before}</b><i>→</i><b>{action.after}</b></div>
+                </section>
+              ))}
             </div>
           </article>
 
-          <aside className="gate-panel">
-            <div className="gate-row locked"><span className="gate-icon mail-icon" /><b>send</b><i>locked</i></div>
-            <div className="gate-row locked"><span className="gate-icon pms-icon" /><b>PMS</b><i>locked</i></div>
-            <div className="gate-row open"><span className="gate-icon review-icon" /><b>review</b><i>ready</i></div>
-          </aside>
-
-          <aside className="brief-card">
-            <div className="brief-top"><span>brief</span><b>today</b></div>
-            <div className="brief-number">23</div>
-            <div className="brief-bars"><i /><i /><i /></div>
+          <aside className="proof-board panel">
+            <div className="panel-kicker">outcome proof</div>
+            <div className="proof-number"><strong>48</strong><span>{approved ? "actual min saved" : "estimated min saved"}</span></div>
             <ul>
-              <li><span />3 actions</li>
-              <li><span />1 blocked</li>
-              <li><span />0 unsafe</li>
+              {auditEvents.map((event, index) => (
+                <li key={event} className={index <= activeIndex || approved ? "on" : ""}><span />{event}</li>
+              ))}
             </ul>
+            <button className={approved ? "approval-button approved" : "approval-button"} onClick={() => setApproved((value) => !value)}>
+              <span>{approved ? "✓" : "•"}</span>{approved ? "outcome recorded" : "record review"}
+            </button>
           </aside>
-        </section>
-
-        <section className="action-zone" aria-label="Simulated safe action">
-          <button className={approved ? "approval-button approved" : "approval-button"} onClick={() => setApproved((value) => !value)}>
-            <span>{approved ? "✓" : "•"}</span>{approved ? "review recorded" : "approve draft"}
-          </button>
-          <div className="audit-dots" aria-label="Audit trail visualization">
-            <i className={activeIndex >= 0 ? "on" : ""} />
-            <i className={activeIndex >= 1 ? "on" : ""} />
-            <i className={activeIndex >= 2 ? "on" : ""} />
-            <i className={approved || activeIndex >= 3 ? "on" : ""} />
-          </div>
         </section>
       </section>
     </main>
