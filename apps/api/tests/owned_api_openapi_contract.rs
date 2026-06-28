@@ -170,11 +170,10 @@ async fn v0_routes_expose_safe_runtime_readiness_and_data_quality_context() {
     assert_eq!(manager_context_status, axum_http::StatusCode::OK);
     assert_eq!(manager_context["workflow"]["name"], "manager_daily_brief");
     assert!(
-        manager_context["manager_brief_actions"]
+        !manager_context["manager_brief_actions"]
             .as_array()
             .unwrap()
-            .len()
-            >= 1
+            .is_empty()
     );
     assert!(
         manager_context["blocked_actions"]
