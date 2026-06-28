@@ -3,74 +3,68 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+const styles = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 const localDemoApiRoute = readFileSync(new URL("../app/api/local-demo/[...path]/route.ts", import.meta.url), "utf8");
 
-test("staff demo leads with a concrete show-not-tell operator workflow", () => {
+test("visual demo starts from one workflow instead of an architecture pitch", () => {
   for (const expected of [
-    "Watch one messy pet-resort request become a safe manager action plan",
-    "Avery: Can Miso board July 3–7",
-    "Miso • Boarding July 3–7",
-    "Manager Daily Brief",
-    "23 min",
-    "estimated labor removed today",
-    "Step {stepNumber} / 4",
-    "Simulate staff approval"
+    "Miso → manager brief",
+    "Board July 3–7?",
+    "rabies attached?",
+    "noise-sensitive",
+    "add enrichment?",
+    "23",
+    "min saved",
+    "approve draft"
   ]) {
-    assert.match(page, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"), `missing show-not-tell evidence: ${expected}`);
+    assert.match(page, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
   }
+
+  assert.doesNotMatch(page, /architecture story/i);
+  assert.doesNotMatch(page, /owned backend migration map/i);
+  assert.doesNotMatch(page, /technical proof/i);
 });
 
-test("sensitive actions remain visibly blocked or review-gated", () => {
+test("show-dont-tell version keeps copy intentionally sparse", () => {
+  const visibleWords = page
+    .replace(/<[^>]+>/g, " ")
+    .replace(/[{}()[\]=>?:;.,`"'|/]/g, " ")
+    .split(/\s+/)
+    .filter((word) => /^[A-Za-z][A-Za-z-]*$/.test(word));
+
+  assert.ok(visibleWords.length < 450, `page has too many visible/candidate words: ${visibleWords.length}`);
+});
+
+test("safety is visual and terse", () => {
   for (const expected of [
-    "no live NVA data",
-    "no customer sends",
+    "no live sends",
     "no PMS writes",
-    "No availability promised",
-    "Confirm or reject booking",
-    "Approve medical/vaccine record",
-    "Change capacity or staff schedule",
-    "Send customer messages",
-    "0 unsafe automations enabled",
-    "cannot send, confirm, charge, or mutate provider systems"
+    "send",
+    "PMS",
+    "locked",
+    "review",
+    "ready",
+    "0 unsafe"
   ]) {
-    assert.match(page, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"), `missing safety boundary: ${expected}`);
+    assert.match(page, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
   }
 });
 
-test("demo honestly distinguishes live/local API proof from fallback fixtures", () => {
-  for (const expected of [
-    "Live/local API proof is connected",
-    "Fallback mode is honestly labeled",
-    "Live local API data",
-    "Fallback fixture data",
-    "API unavailable or unconfigured; page does not claim DB evidence",
-    "DB-backed read-model records",
-    "Static fallback rows",
-    "PET_RESORT_API_BASE_URL not configured or API unreachable",
-    "/v0/readyz",
-    "/v0/ops/metrics/summary",
-    "/v0/read-models/source-quality-backlog",
-    "/v0/agent/context/manager-daily-brief"
+test("visual layout contains the staged product scene", () => {
+  for (const expectedClass of [
+    "visual-flow",
+    "phone-card",
+    "work-packet",
+    "gate-panel",
+    "brief-card",
+    "audit-dots",
+    "pulse-ring"
   ]) {
-    assert.match(page, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"), `missing live/fallback posture evidence: ${expected}`);
+    assert.match(styles + page, new RegExp(expectedClass, "i"));
   }
 });
 
-test("job-contact close frames the no-access prototype without overclaiming", () => {
-  for (const expected of [
-    "I did not have access, so I built the safe seam first",
-    "What is strong now",
-    "What it does not claim",
-    "What access would unlock",
-    "No production NVA/Gingr data",
-    "Read-only source snapshots",
-    "one instrumented pilot lane"
-  ]) {
-    assert.match(page, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"), `missing no-access presentation framing: ${expected}`);
-  }
-});
-
-test("local demo API proxy rejects path traversal before upstream fetch", () => {
+test("local demo API proxy still rejects path traversal before upstream fetch", () => {
   assert.match(localDemoApiRoute, /function safeLocalDemoApiPath/);
   assert.match(localDemoApiRoute, /segments\[0\] !== allowedPathRoot/);
   assert.match(localDemoApiRoute, /segment === "\."/);
