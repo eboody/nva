@@ -42,6 +42,20 @@ test("demo steps narrate the human manager workflow", () => {
   }
 });
 
+test("before the brief strip shows concrete morning pain", () => {
+  for (const expected of [
+    "Before the brief:",
+    "7:20am lobby rush",
+    "12 arrivals before 10",
+    "rabies proof unclear",
+    "coverage 2 short",
+    "quiet-room request buried",
+    "chaos-strip"
+  ]) {
+    assert.match(page + styles, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
+  }
+});
+
 test("brief action schema keeps the thought-through pieces visible", () => {
   for (const expected of [
     "source ref",

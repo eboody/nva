@@ -27,8 +27,8 @@ button { font: inherit; }
   box-shadow: 0 34px 100px rgba(0,0,0,.46);
   backdrop-filter: blur(20px);
   display: grid;
-  grid-template-rows: auto auto 1fr;
-  gap: clamp(14px, 2vw, 22px);
+  grid-template-rows: auto auto auto auto 1fr;
+  gap: clamp(12px, 1.7vw, 20px);
   overflow: hidden;
 }
 
@@ -81,6 +81,41 @@ button { font: inherit; }
   letter-spacing: -.08em;
 }
 .saved-meter span { color: #334155; font-weight: 950; }
+
+.chaos-strip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: fit-content;
+  max-width: 100%;
+  border: 1px solid rgba(251,191,36,.3);
+  border-radius: 999px;
+  padding: 9px 12px;
+  background: linear-gradient(90deg, rgba(251,191,36,.18), rgba(248,113,113,.11));
+  box-shadow: 0 14px 40px rgba(0,0,0,.18);
+}
+.chaos-strip strong {
+  flex: 0 0 auto;
+  color: #fde68a;
+  font-size: .82rem;
+  font-weight: 950;
+  letter-spacing: .02em;
+}
+.chaos-strip div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.chaos-strip span {
+  border-radius: 999px;
+  padding: 5px 9px;
+  color: #fff7ed;
+  background: rgba(15,23,42,.52);
+  border: 1px solid rgba(255,255,255,.09);
+  font-size: .78rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
 
 .step-dock {
   flex-wrap: wrap;

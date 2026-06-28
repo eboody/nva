@@ -12,6 +12,14 @@ const steps: Array<{ id: StepId; number: string; label: string; explainer: strin
   { id: "outcome", number: "04", label: "review recorded", explainer: "No customer send or PMS write happens here; the demo records review status and minutes saved as synthetic proof." }
 ];
 
+const morningChaos = [
+  "7:20am lobby rush",
+  "12 arrivals before 10",
+  "rabies proof unclear",
+  "coverage 2 short",
+  "quiet-room request buried"
+];
+
 const sourceFacts: Array<{
   name: string;
   system: string;
@@ -68,6 +76,15 @@ export default function Home() {
             <strong>48</strong><span>min saved</span>
           </div>
         </header>
+
+        <section className="chaos-strip" aria-label="Synthetic morning before the brief">
+          <strong>Before the brief:</strong>
+          <div>
+            {morningChaos.map((signal) => (
+              <span key={signal}>{signal}</span>
+            ))}
+          </div>
+        </section>
 
         <nav className="step-dock" aria-label="Demo steps">
           {steps.map((step, index) => (
