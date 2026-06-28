@@ -27,7 +27,7 @@ button { font: inherit; }
   box-shadow: 0 34px 100px rgba(0,0,0,.46);
   backdrop-filter: blur(20px);
   display: grid;
-  grid-template-rows: auto auto auto auto 1fr;
+  grid-template-rows: auto auto auto auto 1fr auto;
   gap: clamp(12px, 1.7vw, 20px);
   overflow: hidden;
 }
@@ -524,6 +524,56 @@ button { font: inherit; }
 }
 .proof-board li.on { color: #ecfeff; }
 .proof-board li.on span { background: #22d3ee; box-shadow: 0 0 18px rgba(34,211,238,.5); }
+.proof-drawer {
+  border: 1px solid rgba(148,163,184,.2);
+  border-radius: 22px;
+  padding: 0;
+  color: #dbeafe;
+  background: rgba(3,7,18,.36);
+}
+.proof-drawer summary {
+  cursor: pointer;
+  padding: 13px 16px;
+  color: #e2e8f0;
+  font-size: .9rem;
+  font-weight: 950;
+  letter-spacing: .01em;
+}
+.proof-drawer[open] summary {
+  border-bottom: 1px solid rgba(148,163,184,.16);
+}
+.proof-drawer-body {
+  display: grid;
+  gap: 12px;
+  padding: 0 16px 16px;
+}
+.proof-drawer code {
+  width: fit-content;
+  border: 1px solid rgba(103,232,249,.22);
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: #cffafe;
+  background: rgba(8,47,73,.45);
+  font-size: .8rem;
+  font-weight: 850;
+}
+.proof-drawer ul {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.proof-drawer li {
+  border-radius: 16px;
+  padding: 10px;
+  color: #cbd5e1;
+  background: rgba(255,255,255,.055);
+  font-size: .76rem;
+  font-weight: 850;
+  line-height: 1.32;
+}
 .approval-button {
   margin-top: auto;
   border: 0;
@@ -554,6 +604,7 @@ button { font: inherit; }
 @media (max-width: 1160px) {
   .brief-lab { grid-template-columns: 1fr 1fr; }
   .manager-brief { grid-column: span 2; }
+  .proof-drawer ul { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 760px) {
   .hero-row { align-items: flex-start; }
@@ -562,4 +613,5 @@ button { font: inherit; }
   .manager-brief { grid-column: auto; }
   .brief-action { grid-template-columns: 40px 1fr; }
   .minutes { grid-column: 2; justify-self: start; grid-auto-flow: column; }
+  .proof-drawer ul { grid-template-columns: 1fr; }
 }

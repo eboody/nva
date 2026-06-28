@@ -135,6 +135,25 @@ test("visual layout contains collection, tracking, brief, and proof panels", () 
   }
 });
 
+test("proof drawer keeps technical evidence behind the visual workflow", () => {
+  assert.match(page, /<details className="proof-drawer">/);
+  assert.match(page, /<summary>Proof behind the scene<\/summary>/);
+  assert.match(page, /proofBullets/);
+
+  for (const expected of [
+    "staff-web smoke tests",
+    "local API proof",
+    "source refs/caveats attached",
+    "estimated vs reviewed minutes",
+    "synthetic fixture until read-only access approved",
+    "./scripts/demo_owned_operations_api.sh",
+    "side effects disabled",
+    "outcome/labor proof"
+  ]) {
+    assert.match(page + styles, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
+  }
+});
+
 test("local demo API proxy still rejects path traversal before upstream fetch", () => {
   assert.match(localDemoApiRoute, /function safeLocalDemoApiPath/);
   assert.match(localDemoApiRoute, /segments\[0\] !== allowedPathRoot/);

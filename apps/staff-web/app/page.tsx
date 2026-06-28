@@ -72,6 +72,14 @@ const blockedBoundaries = [
   "no payment/schedule/medical decisions"
 ];
 
+const proofBullets = [
+  "staff-web smoke tests keep the source-to-brief anchors covered",
+  "local API proof with side effects disabled: no PMS/provider writes or customer sends",
+  "source refs/caveats attached before any Manager Daily Brief recommendation",
+  "estimated vs reviewed minutes converts outcome/labor proof into manager-visible savings",
+  "synthetic fixture until read-only access approved for exports, field dictionaries, and BI query inventory"
+];
+
 export default function Home() {
   const [activeStep, setActiveStep] = useState<StepId>("collect");
   const [approved, setApproved] = useState(false);
@@ -203,6 +211,18 @@ export default function Home() {
             </button>
           </aside>
         </section>
+
+        <details className="proof-drawer">
+          <summary>Proof behind the scene</summary>
+          <div className="proof-drawer-body">
+            <code>./scripts/demo_owned_operations_api.sh</code>
+            <ul>
+              {proofBullets.map((proof) => (
+                <li key={proof}>{proof}</li>
+              ))}
+            </ul>
+          </div>
+        </details>
       </section>
     </main>
   );
