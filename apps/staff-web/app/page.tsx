@@ -65,6 +65,13 @@ const auditEvents = [
   "manager outcome recorded"
 ];
 
+const blockedBoundaries = [
+  "no live NVA/Gingr data",
+  "no customer sends",
+  "no PMS writes",
+  "no payment/schedule/medical decisions"
+];
+
 export default function Home() {
   const [activeStep, setActiveStep] = useState<StepId>("collect");
   const [approved, setApproved] = useState(false);
@@ -143,6 +150,15 @@ export default function Home() {
               <div className="gate-row locked"><span className="gate-icon mail-icon" /><b>customer send</b><i>locked</i></div>
               <div className="gate-row locked"><span className="gate-icon pms-icon" /><b>PMS write</b><i>locked</i></div>
               <div className="gate-row open"><span className="gate-icon review-icon" /><b>manager review</b><i>ready</i></div>
+              <article className="honesty-card" aria-label="No-access safety boundary">
+                <strong>Built without live access</strong>
+                <p>Next useful step: read-only validation against sample exports, field dictionaries, and BI query inventory.</p>
+                <ul>
+                  {blockedBoundaries.map((boundary) => (
+                    <li key={boundary}>{boundary}</li>
+                  ))}
+                </ul>
+              </article>
             </div>
           </section>
 

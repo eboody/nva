@@ -103,6 +103,21 @@ test("safety remains visual and side effects stay blocked", () => {
   }
 });
 
+test("no-access honesty card names blocked boundaries and validation next step", () => {
+  for (const expected of [
+    "blockedBoundaries",
+    "honesty-card",
+    "Built without live access",
+    "no live NVA/Gingr data",
+    "no customer sends",
+    "no PMS writes",
+    "no payment/schedule/medical decisions",
+    "read-only validation"
+  ]) {
+    assert.match(page + styles, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
+  }
+});
+
 test("visual layout contains collection, tracking, brief, and proof panels", () => {
   for (const expectedClass of [
     "brief-lab",
