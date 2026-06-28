@@ -5,149 +5,68 @@ import assert from "node:assert/strict";
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const localDemoApiRoute = readFileSync(new URL("../app/api/local-demo/[...path]/route.ts", import.meta.url), "utf8");
 
-const requiredOperationalSurfaces = [
-  "Session guard",
-  "Today operations",
-  "Pet profile",
-  "Reservation view",
-  "Inquiry intake queue",
-  "Parsed lead",
-  "Inquiry draft reply",
-  "Missing-info task",
-  "Booking triage",
-  "Hard-rule results",
-  "AI recommendation",
-  "Staff confirmation controls",
-  "Confirmation draft",
-  "Task queue",
-  "Document review queue",
-  "Staff notes",
-  "Incident entry",
-  "Incident list",
-  "Manager Daily Brief",
-  "Daily brief action review",
-  "Review gates",
-  "Blocked action boundaries",
-  "Outcome capture",
-  "Labor savings evidence",
-  "Audit-visible staff actions"
-];
-
-test("staff dashboard exposes all MVP operational surfaces", () => {
-  for (const surface of requiredOperationalSurfaces) {
-    assert.match(page, new RegExp(surface, "i"), `${surface} surface is missing`);
-  }
-});
-
-test("sensitive actions are visibly draft or review oriented", () => {
-  assert.match(page, /no live customer sends/i);
-  assert.match(page, /draft/i);
-  assert.match(page, /manager review/i);
-  assert.match(page, /append-only audit/i);
-});
-
-test("booking triage makes confirmation rejection and exception gates explicit", () => {
-  assert.match(page, /confirmed booking automation requires staff approval/i);
-  assert.match(page, /reject\/decline remains human approval gated/i);
-  assert.match(page, /special-care acceptance requires care-team approval/i);
-  assert.match(page, /behavior exceptions require behavior review/i);
-  assert.match(page, /produce draft confirmation/i);
-});
-
-test("incident escalation MVP keeps serious decisions behind human gates", () => {
+test("staff demo leads with a concrete show-not-tell operator workflow", () => {
   for (const expected of [
-    "Record incident",
-    "classification draft",
-    "Generate owner-message draft",
-    "Create follow-up task",
-    "CustomerMessageApproval",
-    "BehaviorReview",
-    "ManagerApproval",
-    "final classification requires manager approval",
-    "Eligibility-impacting flag recommendation only",
-    "manager-review queue"
-  ]) {
-    assert.match(page, new RegExp(expected, "i"), `missing incident MVP evidence: ${expected}`);
-  }
-});
-
-test("vaccine document review UI shows upload extraction approval eligibility and audit boundaries", () => {
-  for (const expected of [
-    "Vaccine document MVP",
-    "Upload sample vaccine document",
-    "vaccine_extraction.v1",
-    "medical document uncertainty policy",
-    "Approve vaccine record",
-    "Reject vaccine record",
-    "pet eligibility updates only after approval",
-    "document.received",
-    "vaccine_record.review_requested",
-    "approval.decision.recorded"
-  ]) {
-    assert.match(page, new RegExp(expected, "i"), `missing vaccine document MVP evidence: ${expected}`);
-  }
-});
-
-test("manager daily brief UI exposes review outcomes and labor-savings loop", () => {
-  for (const expected of [
+    "Watch one messy pet-resort request become a safe manager action plan",
+    "Avery: Can Miso board July 3–7",
+    "Miso • Boarding July 3–7",
     "Manager Daily Brief",
-    "source evidence summary",
-    "Daily brief action review",
-    "Approve action",
-    "Defer action",
-    "Suppress action",
-    "Source fact wrong",
-    "actual minutes spent",
-    "estimated vs actual labor minutes saved",
-    "change_staff_schedule",
-    "mutate_provider_or_pms_record",
-    "send_customer_message",
-    "move_refund_discount_or_payment",
-    "hide_source_data_quality_issue"
+    "23 min",
+    "estimated labor removed today",
+    "Step {stepNumber} / 4",
+    "Simulate staff approval"
   ]) {
-    assert.match(page, new RegExp(expected, "i"), `missing manager daily brief UI evidence: ${expected}`);
+    assert.match(page, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"), `missing show-not-tell evidence: ${expected}`);
   }
 });
 
-test("staff dashboard exposes api readiness metrics and repository contract posture", () => {
+test("sensitive actions remain visibly blocked or review-gated", () => {
   for (const expected of [
-    "API readiness and observability contract",
-    "/readyz",
-    "/ops/metrics/summary",
-    "runtime_readiness",
-    "ops_metrics_summary",
-    "api_runtime_dto",
-    "active adapter: in_memory",
-    "planned adapter: postgres same-contract",
-    "live_side_effects: disabled",
-    "audit_event_count",
-    "review_packet_count",
-    "outcome_count",
-    "inquiry_count",
-    "Prometheus/OpenTelemetry plan"
+    "no live NVA data",
+    "no customer sends",
+    "no PMS writes",
+    "No availability promised",
+    "Confirm or reject booking",
+    "Approve medical/vaccine record",
+    "Change capacity or staff schedule",
+    "Send customer messages",
+    "0 unsafe automations enabled",
+    "cannot send, confirm, charge, or mutate provider systems"
   ]) {
-    assert.match(page, new RegExp(expected, "i"), `missing API readiness/metrics story evidence: ${expected}`);
+    assert.match(page, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"), `missing safety boundary: ${expected}`);
   }
 });
 
-test("staff dashboard has live local API loading with labeled fallback fixtures", () => {
+test("demo honestly distinguishes live/local API proof from fallback fixtures", () => {
   for (const expected of [
-    "NEXT_PUBLIC_PET_RESORT_API_BASE_URL",
-    "PET_RESORT_API_BASE_URL",
-    "/api/local-demo",
+    "Live/local API proof is connected",
+    "Fallback mode is honestly labeled",
     "Live local API data",
     "Fallback fixture data",
-    "DB-backed when API is reachable; deterministic fallback when API is unavailable",
+    "API unavailable or unconfigured; page does not claim DB evidence",
+    "DB-backed read-model records",
+    "Static fallback rows",
+    "PET_RESORT_API_BASE_URL not configured or API unreachable",
     "/v0/readyz",
     "/v0/ops/metrics/summary",
     "/v0/read-models/source-quality-backlog",
-    "DB-backed read-model records",
-    "Unavailable local API data",
-    "staff-web labels the read-model proof unavailable instead of claiming live DB evidence",
-    "static fallback; local DB read model unavailable",
-    "No live provider/PMS writes, customer sends, payments, refunds, discounts, schedule changes, or medical/safety decisions"
+    "/v0/agent/context/manager-daily-brief"
   ]) {
-    assert.match(page, new RegExp(expected, "i"), `missing live/fallback posture evidence: ${expected}`);
+    assert.match(page, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"), `missing live/fallback posture evidence: ${expected}`);
+  }
+});
+
+test("job-contact close frames the no-access prototype without overclaiming", () => {
+  for (const expected of [
+    "I did not have access, so I built the safe seam first",
+    "What is strong now",
+    "What it does not claim",
+    "What access would unlock",
+    "No production NVA/Gingr data",
+    "Read-only source snapshots",
+    "one instrumented pilot lane"
+  ]) {
+    assert.match(page, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"), `missing no-access presentation framing: ${expected}`);
   }
 });
 
