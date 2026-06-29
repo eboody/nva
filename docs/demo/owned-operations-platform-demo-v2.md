@@ -158,6 +158,14 @@ Close copy candidate:
 
 `Pilot ask: approve read-only exports, field dictionaries, and BI query inventory for one resort/workflow slice so NVA can validate source mappings, compare read models, and keep all sends/writes locked until an owner-approved gate exists.`
 
+Executive close requirements added by card 06:
+
+- ROI/pilot value must be framed as a model, not a production claim: one-location modeled value, visible assumptions, and any 170-location portfolio scaler labeled illustrative/planning-only rather than guaranteed.
+- Safe next ask must name approved read-only exports, field dictionaries, sample rows/docs, BI query inventory, and one or two workflows to validate.
+- The close must explicitly state it is not asking for live customer sends, PMS/provider writes, payment/refund/discount actions, schedule changes, medical/safety decisions, or staffing mandate action.
+- Pilot success criteria must include source mapping confidence, manager action usefulness, minutes saved / rework avoided, wrong-source findings, and read-model comparison against current BI.
+- Keep the close compact and product-like: it should help an executive decide the narrow pilot ask, not turn the page into a pitch deck.
+
 ## Tool portfolio definitions
 
 ### Manager Daily Brief

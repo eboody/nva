@@ -83,7 +83,7 @@ export async function GET(
         "cache-control": "no-store"
       }
     });
-  } catch (error) {
-    return unavailable(error instanceof Error ? error.message : "Unknown local demo API proxy failure.");
+  } catch {
+    return unavailable("Local demo API proxy is unavailable; retry after the sample API is configured.");
   }
 }
