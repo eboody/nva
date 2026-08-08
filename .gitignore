@@ -8,5 +8,7 @@ build/
 .DS_Store
 /tmp/
 .var/
+.artifacts/
+apps/staff-web/.artifacts/
 __pycache__/
 *.py[cod]

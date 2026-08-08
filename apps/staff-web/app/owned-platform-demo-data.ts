@@ -9,6 +9,128 @@ export type SourceEvidenceCard = {
   readOnlyState: string;
 };
 
+export type SourceEventCard = {
+  id: string;
+  eventLabel: string;
+  receivedAt: string;
+  boundaryTags: string[];
+  eventSummary: string;
+  sourceRef: string;
+  providerModelPath: string;
+  nvaTargetModelPath: string;
+  traceModelPath: string;
+  payloadPreview: Record<string, string | number | boolean>;
+  initiallyOpen: boolean;
+};
+
+export type DbProjectionProofArtifact = {
+  id: string;
+  order: string;
+  artifactName: string;
+  artifactKind: "table" | "view";
+  proofPosture: "actual local Postgres proof" | "deterministic trace proof";
+  rowCount: number;
+  correlationId: string;
+  stageLink: string;
+  summary: string;
+  rowPreview: Record<string, string | number | boolean | string[]>;
+  inspect: string[];
+};
+
+export type HermesProcessorStage = {
+  id: string;
+  order: string;
+  label: string;
+  state: "queued" | "running" | "done" | "error";
+  headline: string;
+  detail: string;
+  evidence: string;
+};
+
+export type HermesProcessorLogLine = {
+  timestamp: string;
+  level: "INFO" | "WARN" | "ERROR";
+  target: string;
+  event: string;
+  correlationId: string;
+  summary: string;
+};
+
+export type HermesProcessorPanel = {
+  serviceLabel: string;
+  containerName: string;
+  correlationId: string;
+  status: "done" | "running" | "unavailable";
+  runtimeStatus: string;
+  mode: string;
+  boundary: string;
+  unavailableDegradation: string;
+  inputSummary: string[];
+  stages: HermesProcessorStage[];
+  logLines: HermesProcessorLogLine[];
+  reportFragment: {
+    title: string;
+    artifactRef: string;
+    summary: string;
+    calculation: string;
+    managerActions: string[];
+  };
+  inspect: string[];
+};
+
+export type NetworkRequestProof = {
+  id: string;
+  method: "GET" | "POST";
+  browserPath: string;
+  upstreamPath: string;
+  expectedStatus: number;
+  proofPurpose: string;
+  responsePreview: Record<string, string | number | boolean>;
+};
+
+export type ManagerReportAction = {
+  rank: number;
+  title: string;
+  owner: string;
+  urgency: string;
+  recommendation: string;
+  sourceLineage: string[];
+  calculations: string[];
+  estimatedMinutesSaved: number;
+  reviewRequirements: string[];
+  lockedSideEffects: string[];
+};
+
+export type ManagerDailyReportArtifact = {
+  title: string;
+  artifactRef: string;
+  correlationId: string;
+  generatedBy: string;
+  summary: string;
+  valueProof: {
+    sourceSnapshots: number;
+    normalizedFacts: number;
+    dbProofRefs: number;
+    reviewLocks: number;
+    estimatedMinutesSaved: number;
+  };
+  rankedActions: ManagerReportAction[];
+  sourceLineageSummary: string[];
+  calculationProof: string[];
+  reviewGates: string[];
+  lockedSideEffects: string[];
+};
+
+export type InformationLifespanStage = {
+  id: string;
+  order: string;
+  label: string;
+  headline: string;
+  proofKind: "source" | "model" | "db" | "processor" | "calculation" | "network" | "report";
+  proofSummary: string;
+  inspect: string[];
+};
+
 export type OwnedBackendSpineStage = {
   id: string;
   title: string;
@@ -154,6 +276,510 @@ export const sourceEvidenceCards: SourceEvidenceCard[] = [
     readOnlyState: "read-only"
   }
 ];
+
+export const informationLifespanStages: InformationLifespanStage[] = [
+  {
+    id: "mock-source-received",
+    order: "01",
+    label: "Mock Gingr event received",
+    headline: "Synthetic read-only source evidence enters the trace.",
+    proofKind: "source",
+    proofSummary: "Mocked Gingr reservation, care note, and vaccine evidence are accepted as fixture evidence only.",
+    inspect: ["fixtures/information-lifespan/hermes-processor-input.json", "integrations/gingr/src/response.rs"]
+  },
+  {
+    id: "provider-dto-model",
+    order: "02",
+    label: "Provider DTO / source model shown",
+    headline: "Provider-shaped DTOs are visible before NVA owns meaning.",
+    proofKind: "model",
+    proofSummary: "gingr::response shapes map toward app::information_lifespan::SourcePayload without claiming provider authority.",
+    inspect: ["integrations/gingr/src/dto/README.md", "integrations/gingr/src/mapping/"]
+  },
+  {
+    id: "snapshot-provenance-stored",
+    order: "03",
+    label: "Source snapshot + provenance stored",
+    headline: "Correlation id ties source snapshots to import/run evidence.",
+    proofKind: "db",
+    proofSummary: "source_import_runs and workflow_events rows preserve provenance for the same correlation id.",
+    inspect: ["migrations/0001_mvp_foundation.sql", "fixtures/seed/local-demo.sql"]
+  },
+  {
+    id: "nva-models-normalized",
+    order: "04",
+    label: "NVA-owned models normalized",
+    headline: "Source evidence becomes NVA-owned workflow facts.",
+    proofKind: "model",
+    proofSummary: "Domain/app models carry reservation, care-note, and vaccine-review meaning into manager brief packets.",
+    inspect: ["app/src/information_lifespan.rs", "app/src/manager_daily_brief.rs"]
+  },
+  {
+    id: "db-projections-read",
+    order: "05",
+    label: "Database rows/projections written/read",
+    headline: "Local DB rows and projection proof light up in sequence.",
+    proofKind: "db",
+    proofSummary: "information_lifespan_db_lifecycle_proof joins import, workflow, issue, outcome, and audit rows.",
+    inspect: ["migrations/0002_data_quality_read_models.sql", "fixtures/seed/local-demo-data-quality.sql"]
+  },
+  {
+    id: "hermes-processor-runs",
+    order: "06",
+    label: "Hermes processor container runs",
+    headline: "Dockerized Hermes bridge enriches the report artifact.",
+    proofKind: "processor",
+    proofSummary: "The local processor writes structured JSON/JSONL output or labels unavailable fallback honestly.",
+    inspect: ["apps/hermes-processor/processor.py", ".var/information-lifespan/processor-output.json"]
+  },
+  {
+    id: "calculations-review-gates",
+    order: "07",
+    label: "Calculations/ranking/review gates applied",
+    headline: "Labor value and unsafe-action locks are computed into the report.",
+    proofKind: "calculation",
+    proofSummary: "60 minute manual morning scan - 18 minute reviewed packet = 42 estimated minutes saved; five review locks remain closed.",
+    inspect: ["app/src/manager_daily_brief.rs", "app/tests/information_lifespan_trace_contract.rs"]
+  },
+  {
+    id: "api-network-response",
+    order: "08",
+    label: "API/network response returned",
+    headline: "Browser-visible POST/GET calls prove the local API path.",
+    proofKind: "network",
+    proofSummary: "POST /run returns the trace, then GET /:correlation_id/report replays the same artifact.",
+    inspect: ["apps/api/src/http.rs", "apps/staff-web/app/api/local-demo/[...path]/route.ts"]
+  },
+  {
+    id: "manager-report-appears",
+    order: "09",
+    label: "Manager Daily Report appears",
+    headline: "The final manager packet shows lineage, calculations, locks, and labor-value proof.",
+    proofKind: "report",
+    proofSummary: "artifact://manager-daily-report/synthetic-2026-06-29 stays tied to the active correlation id.",
+    inspect: ["app/src/manager_daily_brief.rs", "apps/staff-web/app/page.tsx"]
+  }
+];
+
+export const sourceEventCards: SourceEventCard[] = [
+  {
+    id: "mock-gingr-reservation-received",
+    eventLabel: "Mock Gingr event received",
+    receivedAt: "2026-06-29 13:00Z",
+    boundaryTags: ["mocked Gingr", "read-only evidence", "not product truth"],
+    eventSummary: "System receives a synthetic boarding reservation payload for the Manager Daily Report trace.",
+    sourceRef: "fixture://mock-gingr/reservations/9001001.json",
+    providerModelPath: "gingr::response::ReservationRecord",
+    nvaTargetModelPath: "domain::reservation::StayFact",
+    traceModelPath: "app::information_lifespan::SourcePayload",
+    payloadPreview: {
+      synthetic: true,
+      id: 9001001,
+      animal_id: 8101,
+      status: "checked_in",
+      service_type: "boarding",
+      why_received: "manager daily report needs today's in-house boarding demand and source lineage"
+    },
+    initiallyOpen: true
+  },
+  {
+    id: "mock-gingr-care-note-received",
+    eventLabel: "Mock Gingr care note received",
+    receivedAt: "2026-06-29 14:30Z",
+    boundaryTags: ["mocked Gingr", "read-only evidence", "not product truth"],
+    eventSummary: "Internal-only care note enters the same source-evidence lane before any customer send is possible.",
+    sourceRef: "fixture://mock-gingr/care-notes/9001001-feeding.json",
+    providerModelPath: "gingr::response::provider::Payload",
+    nvaTargetModelPath: "domain::care::CareNoteFact",
+    traceModelPath: "app::information_lifespan::SourcePayload",
+    payloadPreview: {
+      synthetic: true,
+      reservation_id: 9001001,
+      animal_id: 8101,
+      note_type: "feeding",
+      visibility: "internal_only"
+    },
+    initiallyOpen: false
+  },
+  {
+    id: "mock-gingr-vaccine-received",
+    eventLabel: "Mock Gingr vaccine review received",
+    receivedAt: "2026-06-29 14:35Z",
+    boundaryTags: ["mocked Gingr", "read-only evidence", "not product truth"],
+    eventSummary: "Near-expiry vaccine evidence becomes a staff review gate, not an automated medical decision.",
+    sourceRef: "fixture://mock-gingr/vaccines/8101-rabies.json",
+    providerModelPath: "gingr::response::provider::Payload",
+    nvaTargetModelPath: "domain::vaccine::ReviewFact",
+    traceModelPath: "app::information_lifespan::SourcePayload",
+    payloadPreview: {
+      synthetic: true,
+      animal_id: 8101,
+      vaccine_name: "rabies",
+      expires_on: "2026-07-05",
+      verification_status: "needs_staff_review"
+    },
+    initiallyOpen: false
+  }
+];
+
+export const dbProjectionLifecycleProofs: DbProjectionProofArtifact[] = [
+  {
+    id: "source-import-run-row",
+    order: "01",
+    artifactName: "source_import_runs",
+    artifactKind: "table",
+    proofPosture: "actual local Postgres proof",
+    rowCount: 1,
+    correlationId: "info-lifespan-demo-2026-06-29",
+    stageLink: "lights up after source/model stages",
+    summary: "Synthetic mocked Gingr import run persisted locally before NVA workflow/report projections read it.",
+    rowPreview: {
+      id: "00000000-0000-4000-8000-00000000a801",
+      source_system: "mock_gingr_readonly_fixture",
+      mode: "read_only_snapshot",
+      status: "completed",
+      record_count: 3,
+      rejected_count: 0,
+      redaction_posture: "raw_payloads_redacted_or_referenced"
+    },
+    inspect: ["migrations/0002_data_quality_read_models.sql", "fixtures/seed/local-demo.sql"]
+  },
+  {
+    id: "workflow-event-row",
+    order: "02",
+    artifactName: "workflow_events",
+    artifactKind: "table",
+    proofPosture: "actual local Postgres proof",
+    rowCount: 1,
+    correlationId: "info-lifespan-demo-2026-06-29",
+    stageLink: "lights up after source/model stages",
+    summary: "NVA-owned workflow event carries the correlation_id and source_import_run_id that tie source evidence to report work.",
+    rowPreview: {
+      workflow_name: "information_lifespan_manager_daily_report",
+      event_kind: "manager_daily_report.trace_replayed",
+      subject_kind: "location",
+      correlation_id: "info-lifespan-demo-2026-06-29",
+      source_import_run_id: "00000000-0000-4000-8000-00000000a801",
+      live_side_effects_disabled: true
+    },
+    inspect: ["migrations/0001_mvp_foundation.sql", "fixtures/seed/local-demo.sql"]
+  },
+  {
+    id: "source-quality-issue-row",
+    order: "03",
+    artifactName: "source_quality_issues",
+    artifactKind: "table",
+    proofPosture: "actual local Postgres proof",
+    rowCount: 1,
+    correlationId: "info-lifespan-demo-2026-06-29",
+    stageLink: "lights up after source/model stages",
+    summary: "A near-expiry vaccine source ambiguity becomes a review issue instead of an automated medical/safety decision.",
+    rowPreview: {
+      issue_ref: "source_quality_issue:vaccine-near-expiry:8101",
+      affected_entity_kind: "pet",
+      field_path: "vaccine.rabies.expires_on",
+      severity: "medium",
+      sensitivity: "medical_or_vaccination",
+      review_gate: "manager_approval",
+      raw_payload: "redacted/reference-only"
+    },
+    inspect: ["migrations/0002_data_quality_read_models.sql", "fixtures/seed/local-demo.sql"]
+  },
+  {
+    id: "manager-brief-outcome-row",
+    order: "04",
+    artifactName: "manager_daily_brief_outcomes",
+    artifactKind: "table",
+    proofPosture: "actual local Postgres proof",
+    rowCount: 1,
+    correlationId: "info-lifespan-demo-2026-06-29",
+    stageLink: "lights up after source/model stages",
+    summary: "Manager Daily Report outcome records labor-value proof while side effects stay unavailable.",
+    rowPreview: {
+      id: "00000000-0000-4000-8000-00000000ae01",
+      action_id: "manager_daily_brief_outcome:synthetic-2026-06-29",
+      estimated_minutes_saved: 42,
+      source_snapshot_count: 3,
+      review_gate_count: 5,
+      live_side_effects_disabled: true
+    },
+    inspect: ["app/src/manager_daily_brief.rs", "fixtures/seed/local-demo.sql"]
+  },
+  {
+    id: "audit-events-readback",
+    order: "05",
+    artifactName: "audit_events",
+    artifactKind: "table",
+    proofPosture: "actual local Postgres proof",
+    rowCount: 2,
+    correlationId: "info-lifespan-demo-2026-06-29",
+    stageLink: "lights up after source/model stages",
+    summary: "Two local audit rows prove the trace was reviewed and side-effect locks stayed visible.",
+    rowPreview: {
+      actions: ["information_lifespan.db_projection_rows_written", "information_lifespan.manager_daily_report_review_required"],
+      actor_kinds: ["agent", "manager"],
+      subject_kind: "workflow_event",
+      live_side_effects_disabled: true,
+      row_count: 2
+    },
+    inspect: ["migrations/0001_mvp_foundation.sql", "fixtures/seed/local-demo.sql"]
+  },
+  {
+    id: "lifecycle-proof-view",
+    order: "06",
+    artifactName: "information_lifespan_db_lifecycle_proof",
+    artifactKind: "view",
+    proofPosture: "deterministic trace proof",
+    rowCount: 1,
+    correlationId: "info-lifespan-demo-2026-06-29",
+    stageLink: "lights up after source/model stages",
+    summary: "Projection joins import, workflow, issue, review, outcome, and audit rows into one engineering proof view.",
+    rowPreview: {
+      projection_version: "information_lifespan_db_lifecycle_proof.v1",
+      correlation_id: "info-lifespan-demo-2026-06-29",
+      source_system: "mock_gingr_readonly_fixture",
+      source_quality_issue_refs: ["source_quality_issue:vaccine-near-expiry:8101"],
+      audit_event_count: 2,
+      caveats: ["synthetic_local_demo_only", "live_side_effects_disabled", "raw_payloads_redacted_or_referenced"]
+    },
+    inspect: ["migrations/0002_data_quality_read_models.sql", "scripts/migrate-and-seed-local.sh"]
+  }
+];
+
+export const informationLifespanNetworkRequests: NetworkRequestProof[] = [
+  {
+    id: "run-report-post",
+    method: "POST",
+    browserPath: "/api/local-demo/v0/demo/information-lifespan/run",
+    upstreamPath: "/v0/demo/information-lifespan/run",
+    expectedStatus: 200,
+    proofPurpose: "Starts the deterministic trace replay and returns the Manager Daily Report artifact payload.",
+    responsePreview: {
+      correlation_id: "info-lifespan-demo-2026-06-29",
+      stage_count: 8,
+      artifact_ref: "artifact://manager-daily-report/synthetic-2026-06-29",
+      estimated_labor_minutes_saved: 42,
+      live_side_effects_allowed: false,
+      synthetic_data_only: true
+    }
+  },
+  {
+    id: "report-replay-get",
+    method: "GET",
+    browserPath: "/api/local-demo/v0/demo/information-lifespan/info-lifespan-demo-2026-06-29/report",
+    upstreamPath: "/v0/demo/information-lifespan/info-lifespan-demo-2026-06-29/report",
+    expectedStatus: 200,
+    proofPurpose: "Replays the same report by correlation id so the final artifact is addressable, not just fixture copy.",
+    responsePreview: {
+      workflow: "information_lifespan_demo_report",
+      correlation_id: "info-lifespan-demo-2026-06-29",
+      artifact_ref: "artifact://manager-daily-report/synthetic-2026-06-29",
+      locked_side_effect_count: 5,
+      response_contains_lineage: true,
+      live_side_effects_allowed: false
+    }
+  }
+];
+
+export const managerDailyReportArtifact: ManagerDailyReportArtifact = {
+  title: "Manager Daily Report — synthetic 2026-06-29",
+  artifactRef: "artifact://manager-daily-report/synthetic-2026-06-29",
+  correlationId: "info-lifespan-demo-2026-06-29",
+  generatedBy: "POST /v0/demo/information-lifespan/run → GET report replay",
+  summary: "A manager-ready morning packet ranked by source-backed urgency; every action keeps the source, calculation, review gate, and locked side effect visible.",
+  valueProof: {
+    sourceSnapshots: 3,
+    normalizedFacts: 3,
+    dbProofRefs: 6,
+    reviewLocks: 5,
+    estimatedMinutesSaved: 42
+  },
+  rankedActions: [
+    {
+      rank: 1,
+      title: "Review near-expiry rabies evidence before check-in exception work",
+      owner: "Manager + trained staff reviewer",
+      urgency: "High — medical/vaccine ambiguity affects today's boarding confidence",
+      recommendation: "Open the review packet, inspect the mocked source refs, and record a human disposition before any eligibility or customer-facing claim.",
+      sourceLineage: [
+        "fixture://mock-gingr/vaccines/8101-rabies.json",
+        "source_quality_issue:vaccine-near-expiry:8101",
+        "review_packet:vaccine-near-expiry:8101"
+      ],
+      calculations: [
+        "1 near-expiry vaccine issue",
+        "manager_approval gate required",
+        "medical/vaccine acceptance remains locked"
+      ],
+      estimatedMinutesSaved: 18,
+      reviewRequirements: ["manager_approval", "medical_document_review", "record reviewed disposition"],
+      lockedSideEffects: ["medical_or_vaccine_acceptance", "customer_sends", "provider_pms_writes"]
+    },
+    {
+      rank: 2,
+      title: "Compare boarding arrival density against morning coverage",
+      owner: "General manager",
+      urgency: "Medium — demand/staffing scan is useful but cannot change schedules",
+      recommendation: "Use the ranked packet as prep for the manager huddle; any staffing response stays a manager decision outside the agent.",
+      sourceLineage: [
+        "fixture://mock-gingr/reservations/9001001.json",
+        "workflow_event:manager-daily-report:2026-06-29",
+        "manager_daily_brief_outcome:synthetic-2026-06-29"
+      ],
+      calculations: [
+        "60 minute manual morning scan",
+        "18 minute reviewed packet",
+        "42 total estimated minutes saved across the report"
+      ],
+      estimatedMinutesSaved: 16,
+      reviewRequirements: ["manager_shift_review", "audit reviewed disposition"],
+      lockedSideEffects: ["schedule_or_staffing_changes", "provider_pms_writes", "payments_refunds_discounts"]
+    },
+    {
+      rank: 3,
+      title: "Check internal feeding note before drafting any customer update",
+      owner: "Front desk lead",
+      urgency: "Normal — internal care context should not leak into a send path",
+      recommendation: "Review the internal-only note in the manager packet; keep any customer-facing update locked until approved content and channel rules exist.",
+      sourceLineage: [
+        "fixture://mock-gingr/care-notes/9001001-feeding.json",
+        "domain::care::CareNoteFact",
+        "app::manager_daily_brief::SourceFact"
+      ],
+      calculations: ["1 internal-only care note", "customer-visible draft suppressed", "8 estimated review minutes saved"],
+      estimatedMinutesSaved: 8,
+      reviewRequirements: ["front_desk_or_manager_review", "customer_message_approval before any send"],
+      lockedSideEffects: ["customer_sends", "medical_or_vaccine_acceptance", "provider_pms_writes"]
+    }
+  ],
+  sourceLineageSummary: [
+    "Mock Gingr/source payloads are read-only fixture evidence, not product truth.",
+    "NVA-owned facts and workflow packets carry source refs into DB proof and report actions.",
+    "The local API response repeats correlation id, network proof, log proof, calculations, and safety locks."
+  ],
+  calculationProof: [
+    "source_snapshots = reservation + care_note + vaccine = 3",
+    "normalized_facts = reservation demand + care exception + vaccine review = 3",
+    "estimated_labor_minutes_saved = 60 minute manual morning scan - 18 minute reviewed packet = 42"
+  ],
+  reviewGates: ["provider_write_locked", "customer_send_locked", "medical_review_required", "schedule_change_locked", "payment_movement_locked"],
+  lockedSideEffects: ["provider_pms_writes", "customer_sends", "medical_or_vaccine_acceptance", "schedule_or_staffing_changes", "payments_refunds_discounts"]
+};
+
+export const hermesProcessorPanel: HermesProcessorPanel = {
+  serviceLabel: "Hermes processor container",
+  containerName: "docker compose service hermes-processor",
+  correlationId: "info-lifespan-demo-2026-06-29",
+  status: "done",
+  runtimeStatus: "hermes_cli_unavailable_explicit_fallback",
+  mode: "deterministic_local_bridge",
+  boundary: "containerized local processor · synthetic input only · no live writes · no real credentials required",
+  unavailableDegradation: "If the processor container or artifact is unavailable, this panel keeps the last safe input summary visible and shows an unavailable state instead of inventing output.",
+  inputSummary: [
+    "3 synthetic mock Gingr source payloads accepted as provider evidence only",
+    "DB projection proof read from information_lifespan_db_lifecycle_proof",
+    "calculation input: 60 minute manual morning scan - 18 minute reviewed packet",
+    "live_side_effects_allowed=false; provider writes, sends, schedule/payment/medical paths locked"
+  ],
+  stages: [
+    {
+      id: "input-accepted",
+      order: "01",
+      label: "input accepted",
+      state: "done",
+      headline: "synthetic trace mounted into container",
+      detail: "fixtures/information-lifespan/hermes-processor-input.json carries source refs, DB projection ids, calculations, and safety gates.",
+      evidence: "accepted_synthetic_trace"
+    },
+    {
+      id: "runtime-checked",
+      order: "02",
+      label: "runtime posture checked",
+      state: "done",
+      headline: "Hermes runtime posture explicit",
+      detail: "The local Docker bridge reports hermes_cli_unavailable_explicit_fallback and can fail hard when require-runtime mode is enabled.",
+      evidence: "runtime_posture_checked"
+    },
+    {
+      id: "locks-applied",
+      order: "03",
+      label: "review locks applied",
+      state: "running",
+      headline: "unsafe side effects remain locked",
+      detail: "Provider/PMS writes, customer sends, schedule changes, payment movement, and medical/vaccine decisions stay review-required.",
+      evidence: "unsafe_side_effects_locked"
+    },
+    {
+      id: "report-enriched",
+      order: "04",
+      label: "report fragment generated",
+      state: "done",
+      headline: "Manager Daily Report enriched",
+      detail: "The processor writes .var/information-lifespan/processor-output.json and structured JSONL logs with the same correlation id.",
+      evidence: "manager_daily_report_enriched"
+    },
+    {
+      id: "unavailable-fallback",
+      order: "fallback",
+      label: "unavailable state",
+      state: "error",
+      headline: "processor unavailable is visible",
+      detail: "The UI degrades to this redacted status instead of claiming a live run when no processor output is present.",
+      evidence: "hermes_processor_unavailable"
+    }
+  ],
+  logLines: [
+    {
+      timestamp: "2026-06-29T15:00:00Z",
+      level: "INFO",
+      target: "hermes_processor.information_lifespan",
+      event: "accepted_synthetic_trace",
+      correlationId: "info-lifespan-demo-2026-06-29",
+      summary: "synthetic_data_only=true"
+    },
+    {
+      timestamp: "2026-06-29T15:00:00Z",
+      level: "INFO",
+      target: "hermes_processor.runtime",
+      event: "runtime_posture_checked",
+      correlationId: "info-lifespan-demo-2026-06-29",
+      summary: "mode=deterministic_local_bridge runtime_status=hermes_cli_unavailable_explicit_fallback"
+    },
+    {
+      timestamp: "2026-06-29T15:00:00Z",
+      level: "WARN",
+      target: "hermes_processor.safety",
+      event: "unsafe_side_effects_locked",
+      correlationId: "info-lifespan-demo-2026-06-29",
+      summary: "provider/PMS writes, customer sends, schedule changes, payments/refunds/discounts, and medical/vaccine acceptance decisions locked"
+    },
+    {
+      timestamp: "2026-06-29T15:00:00Z",
+      level: "INFO",
+      target: "hermes_processor.report",
+      event: "manager_daily_report_enriched",
+      correlationId: "info-lifespan-demo-2026-06-29",
+      summary: "artifact://manager-daily-report/synthetic-2026-06-29 estimated_labor_minutes_saved=42"
+    }
+  ],
+  reportFragment: {
+    title: "Manager Daily Report — synthetic 2026-06-29",
+    artifactRef: "artifact://manager-daily-report/synthetic-2026-06-29",
+    summary: "3 source snapshots, 3 normalized facts, 1 workflow packet, 5 review locks, 42 estimated labor minutes saved",
+    calculation: "60 minute manual morning scan - 18 minute reviewed packet = 42 minutes saved",
+    managerActions: [
+      "Review near-expiry rabies vaccine evidence for animal 8101",
+      "Check dinner appetite after internal feeding note before any customer-facing update"
+    ]
+  },
+  inspect: [
+    "docker-compose.yml",
+    "apps/hermes-processor/processor.py",
+    ".var/information-lifespan/processor-output.json",
+    ".var/information-lifespan/processor-log.jsonl",
+    "schemas/information-lifespan-hermes-processor-output.schema.json"
+  ]
+};
 
 export const ownedBackendSpineStages: OwnedBackendSpineStage[] = [
   {

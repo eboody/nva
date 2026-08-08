@@ -35,9 +35,10 @@ function safeLocalDemoApiPath(segments: string[]): string | undefined {
   return segments.map((segment) => encodeURIComponent(segment)).join("/");
 }
 
-export async function GET(
+async function proxyLocalDemoApi(
   request: NextRequest,
-  context: { params: Promise<{ path?: string[] }> }
+  context: { params: Promise<{ path?: string[] }> },
+  method: "GET" | "POST"
 ) {
   const params = await context.params;
   const path = safeLocalDemoApiPath(params.path ?? []);
@@ -70,6 +71,7 @@ export async function GET(
     if (requestId) upstreamHeaders.set("x-request-id", requestId);
     if (correlationId) upstreamHeaders.set("x-correlation-id", correlationId);
     const upstream = await fetch(upstreamUrl, {
+      method,
       headers: upstreamHeaders,
       cache: "no-store"
     });
@@ -86,4 +88,18 @@ export async function GET(
   } catch {
     return unavailable("Local demo API proxy is unavailable; retry after the sample API is configured.");
   }
+}
+
+export async function GET(
+  request: NextRequest,
+  context: { params: Promise<{ path?: string[] }> }
+) {
+  return proxyLocalDemoApi(request, context, "GET");
+}
+
+export async function POST(
+  request: NextRequest,
+  context: { params: Promise<{ path?: string[] }> }
+) {
+  return proxyLocalDemoApi(request, context, "POST");
 }

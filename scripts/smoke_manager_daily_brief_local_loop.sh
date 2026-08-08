@@ -7,7 +7,6 @@ LOCATION_ID="${LOCATION_ID:-00c0ffee-0000-0000-0000-000000000001}"
 OPERATING_DAY="${OPERATING_DAY:-2026-06-17}"
 PET_RESORT_API_HOST_PORT="${PET_RESORT_API_HOST_PORT:-3001}"
 PET_RESORT_API_URL="${PET_RESORT_API_URL:-http://127.0.0.1:${PET_RESORT_API_HOST_PORT}}"
-OPENVIKING_HEALTH_URL="${OPENVIKING_HEALTH_URL:-http://127.0.0.1:${PET_RESORT_OPENVIKING_HOST_PORT:-1933}/health}"
 SMOKE_TMP_DIR="${SMOKE_TMP_DIR:-$(mktemp -d)}"
 export PET_RESORT_API_URL
 
@@ -36,39 +35,19 @@ wait_for_http() {
     sleep "$delay"
   done
   printf '%s did not become reachable at %s after %s attempts\n' "$label" "$url" "$attempts" >&2
-  docker compose --profile agent-infra ps >&2 || true
-  docker compose --profile agent-infra logs --no-color --tail=80 pet-resort-api openviking >&2 || true
+  docker compose ps >&2 || true
+  docker compose logs --no-color --tail=80 pet-resort-api >&2 || true
   exit 1
-}
-
-check_openviking_or_document_blocker() {
-  local url="$1"
-  if OPENVIKING_HEALTH_URL="$url" scripts/preflight_openviking_agent_infra.sh \
-    --allow-uninitialized \
-    --status-file "${SMOKE_TMP_DIR}/openviking-status.txt"; then
-    if grep -q '^openviking_status=healthy$' "${SMOKE_TMP_DIR}/openviking-status.txt"; then
-      log "openviking is reachable at $url"
-    else
-      log "OpenViking agent-infra preflight documented an initialization blocker; continuing app-owned smoke loop"
-      docker compose --profile agent-infra logs --no-color --tail=40 openviking >"${SMOKE_TMP_DIR}/openviking-blocker.log" 2>&1 || true
-    fi
-    return 0
-  fi
-
-  log "OpenViking config exists but health failed; documenting logs and continuing app-owned smoke loop"
-  docker compose --profile agent-infra logs --no-color --tail=80 openviking >"${SMOKE_TMP_DIR}/openviking-blocker.log" 2>&1 || true
-  return 0
 }
 
 require docker
 require curl
 require python
 
-log "starting local postgres, minio, app API/worker, and OpenViking via docker compose"
-docker compose --profile agent-infra up --build -d postgres minio pet-resort-api pet-resort-worker openviking
+log "starting local postgres, minio, app API, and worker via docker compose"
+docker compose up --build -d postgres minio pet-resort-api pet-resort-worker
 
 wait_for_http "${PET_RESORT_API_URL}/healthz" "pet-resort-api"
-check_openviking_or_document_blocker "${OPENVIKING_HEALTH_URL}"
 
 log "reading app-owned Manager Daily Brief context through Hermes/tool bridge"
 scripts/hermes-tools/get_manager_daily_brief_context \
@@ -209,7 +188,4 @@ print(
 PY
 
 log "smoke artifacts written under ${SMOKE_TMP_DIR}"
-if [[ -f "${SMOKE_TMP_DIR}/openviking-status.txt" ]]; then
-  log "$(tr '\n' ';' <"${SMOKE_TMP_DIR}/openviking-status.txt")"
-fi
 log "full local Manager Daily Brief loop passed without live customer/PMS/payment side effects"

@@ -1,245 +1,55 @@
-# NVA Pet Resorts entity atlas
+# NVA Pet Resorts pilot scaffold
 
-This repository is an **entity-first operating model for labor-cost reduction** across NVA Pet Resorts. It is not a crate-first Rust index and it is not a generic AI demo. Start with the pet-resort thing a non-coder recognizes, then follow the proof trail to workflows, authority, automation boundaries, value measurement, source/Rustdoc evidence, and tests.
+This repository is a local, code-backed proof of safe AI-assisted operations workflows for NVA Pet Resorts.
 
-A reader should be able to pick any important entity and answer:
+It is meant to show how I would approach a first pilot before touching production systems: source-grounded workflow packets, review gates, blocked side effects, and measurable outcome capture.
 
-- What is it in pet-resort language?
-- Why does it exist, and which labor, safety, source-quality, or customer-trust problem does it reduce?
-- Which workflows, source-backed rules/promises ([contracts](docs/glossary-architecture-terms.md#contract)), review queues, or source systems feature it?
-- Which other entities does it depend on or feed?
-- Who or what is authoritative: source system, domain rule/contract, app packet, database/reporting view ([storage projection](docs/glossary-architecture-terms.md#projection)), runtime shell, or human role?
-- What may automation summarize, rank, draft, recommend, validate, route, or record?
-- What remains blocked or human-reviewed?
-- How is value measured: minutes saved, handle time, rework avoided, wrong-source findings, staff disposition, or outcome record?
-- Where do source files, Rustdoc pages, doctests/tests, public docs, and local smoke checks prove the claim?
+## What this is
 
-## Public front door
+- A Rust-first local pilot scaffold.
+- A typed Pet Resorts domain and workflow model.
+- A safe API/demo surface for reviewed internal work.
+- A fixture-backed proof for two initial workflows:
+  - Data Quality Hygiene
+  - Manager Daily Brief
+- A Gingr/provider adapter scaffold for source evidence, not live production writes.
 
-Use the published/non-coder landing source at [docs/public/index.html](docs/public/index.html) when the audience needs the public entrypoint. It mirrors this README's operating model: entity atlas first, workflows and crate/Rustdoc pages as evidence after the business meaning is clear.
+## What this is not
 
-## Presentation path: safe local owned API proof
+- Not connected to live NVA systems.
+- Not a production Gingr integration.
+- Not an autonomous agent that can message customers, update reservations, move money, or change schedules.
+- Not a claim of measured NVA labor savings yet.
 
-For a job or networking conversation, start with the [NVA demo executive brief](docs/presentation/nva-demo-executive-brief.md). The one-minute story is simple: there was no live NVA/Gingr access, so the project does not pretend to be a production integration. It proves the safer first step: a local owned operations layer where Gingr is source evidence, not product authority; staff work is review-gated; BI gets cleaner read-model concepts; labor outcomes are measured; a SpacetimeDB runtime adapter can project realtime queues; and no customer/provider side effects are live.
+## First pilot workflows
 
-Use these presentation docs in order:
+1. [Data Quality Hygiene](docs/pilot/data-quality-cleanup.md)
+2. [Manager Daily Brief](docs/pilot/manager-daily-brief.md)
 
-1. [Sendable job-contact summary](docs/presentation/nva-sendable-job-contact-summary.md) for a concise forwardable link or email paste-in.
-2. [Job-contact Q&A](docs/presentation/nva-job-contact-qa.md) for recruiter, hiring-manager, and skeptical-stakeholder objection responses.
-3. [Three-minute presentation script](docs/presentation/nva-3-minute-presentation-script.md) for a human spoken opening, demo narration, caveats, access ask, and close.
-4. [Final presentation checklist](docs/presentation/nva-presentation-checklist.md) for the live run sheet, pre-flight commands, fallback path, and claims to avoid.
-5. [Static demo fallback packet](docs/presentation/nva-static-demo-fallback.md) for presenting confidently if the terminal is slow or unavailable without pretending stale output is fresh proof.
-6. [Executive brief](docs/presentation/nva-demo-executive-brief.md) for the one-sentence pitch, email-ready summary, and 30-second/2-minute scripts.
-7. [Owned backend migration spine](docs/presentation/owned-backend-migration-spine.md) for the five-phase piece-meal path: read-only source evidence -> owned workflow authority -> BI/read-model replacement -> controlled outbox/writeback -> workflow-by-workflow replacement.
-8. [Owned operations API visual guide](docs/presentation/owned-operations-api-visual-guide.md) and [standalone HTML/SVG diagram](docs/presentation/assets/owned-operations-api-replacement.html) for the memorable one-frame thesis: Gingr-centered extraction today -> NVA-owned operations API/read-model layer tomorrow.
-9. [Local demo walkthrough](docs/demo/local-demo-walkthrough.md) for the job-contact run sheet: setup commands, 3-5 minute script, endpoint list, Q&A, fallback visual references, and caveats.
-10. [Job presentation walkthrough](docs/presentation/job-presentation-walkthrough.md) for the five-minute talk and exact demo commands.
-11. [Owned operations API replacement talk track](docs/presentation/owned-operations-api-replacement-talk-track.md) when the audience asks why this is not "just use Gingr" or "just pull BI data."
-12. [Skeptical review](docs/presentation/nva-demo-skeptical-review.md) for likely objections, caveats, and claims to avoid.
-13. [Checked OpenAPI artifact](apps/api/openapi/owned-operations-v0.openapi.json) when the audience wants contract evidence beyond prose.
-14. [SpacetimeDB runtime adapter README](apps/spacetimedb/README.md) and [realtime queue demo runbook](docs/ops/spacetimedb-realtime-queue-demo.md) when the audience wants the realtime reducer/subscription boundary behind the local proof.
-15. [Audit/reporting/evidence backbone](docs/architecture/audit-reporting-evidence-backbone.md) when the audience asks why Postgres/S3 still matter beside SpacetimeDB.
+Safety framing:
 
-Keep Data-Quality Hygiene as the first runnable slice. For the shortest live demo from the repo root, run the safe local wrapper:
+- [Safety boundaries](docs/pilot/safety-boundaries.md)
+- [Access needed next](docs/pilot/next-access-needed.md)
+
+## Run the local pilot proof
 
 ```sh
-./scripts/demo_owned_operations_api.sh
+./scripts/demo_nva_pilot.sh
 ```
 
-Expected anchors: `openapi_title=NVA Pet Resorts Owned Operations API`, `openapi_paths=9`, `contract_lane_ok live_side_effects_allowed=false`, `context_ok`, `draft_validation_ok`, `blocked_draft_validation_ok`, `outcome_ok`, `smoke_assertions_ok estimated_minutes_saved=15 actual_minutes_saved=17`, `[data-quality-hygiene-worker-outbox-smoke] disabled worker/outbox proof passed as local internal handoff only`, and `demo_owned_operations_api_ok local_fixture_only=true live_side_effects_allowed=false`. For the realtime queue story, run `scripts/spacetimedb_realtime_queue_demo.sh --self-test` and `scripts/spacetimedb_realtime_queue_demo.sh --force-fallback`; treat fallback output as an honest fixture/event-stream proof if the local SpacetimeDB host ABI cannot publish the module.
+The demo uses local/fixture data and prints the two workflow smoke paths. Live side effects remain disabled.
 
-If you want to run the full Docker Compose local demo stack with Postgres, MinIO, API, worker, staff-web, migration/seed, and smoke proof, use:
-
-```sh
-docker compose up --build -d
-./scripts/smoke_local_demo.sh
-```
-
-See [Local Docker Compose demo runbook](docs/ops/local-demo-compose.md) for reset commands, the one-shot `migrate-seed` service, and the optional `agent-infra` OpenViking profile.
-
-If you want to run the workflow and operations lanes separately, use:
-
-```sh
-./scripts/smoke_data_quality_hygiene_local_loop.sh
-./scripts/smoke_data_quality_hygiene_disabled_worker_outbox.sh
-```
-
-This is architecture/demo-ready proof only: it uses fixture/local state and fake/disabled side-effect posture, not live NVA/Gingr credentials, production data, production SSO, provider writes, customer sends, payment/refund/discount actions, schedule changes, medical/safety decisions, or production deployment. SpacetimeDB is the realtime storage/runtime adapter for scoped reducers/subscriptions, not a business-logic rewrite or a claim that Postgres/S3 are obsolete. Real access would unlock read-only source validation, BI query comparison, role/location mapping validation, and a scoped integration pilot; production or replacement claims still require durable Postgres/audit/export wiring, S3/MinIO evidence retention, published schemas, production auth/location scope, worker leasing/dead-letter views, owner-approved BI/KPI definitions, and explicit approval for any live action.
-
-## Canonical docs path
-
-If you are new, trust this sequence first. It is the canonical reader path for understanding the labor-saving operating model without starting from crate names:
-
-1. **Start here:** this README explains the strategy, authority layers, automation boundaries, and value-measurement contract.
-2. **Choose the business entity:** [NVA Pet Resorts entity index](docs/design/entity-index.md) is the canonical atlas spine for source systems, provenance, customers, pets, reservations, service-line contracts, care/vaccine/incident facts, workflow packets, agents, review gates, blocked actions, outcomes, labor minutes, Gingr/provider boundaries, and storage/runtime shells.
-3. **Follow relationships:** [Entity atlas relationship map](docs/design/entity-atlas-relationships.md) shows the proof chain from provider/staff/import evidence to source refs, domain facts, app packets, agent drafts, human review, outcomes, storage, and runtime proof.
-4. **Enter from a job-to-be-done:** [Workflow-to-entity navigation map](docs/design/workflow-to-entity-navigation-map.md) routes booking triage, data-quality hygiene, checkout, grooming retention, daily updates/Pawgress, manager brief, and regional exception questions back to the entity families.
-5. **Read operator workflows:** [Operator workflow index](docs/workflows/operator/README.md) contains the current workflow pages after the entity relationships and review gates are clear.
-6. **Verify proof:** [Contract crosswalk closeout](docs/entity-atlas/contract-crosswalk/README.md) is the source/Rustdoc/test proof layer for claims about source entry, normalization, workflow use, persistence, runtime exposure, evidence gaps, and caveats.
-
-Supporting routes are useful after the canonical path:
-
-- [Entity atlas audience paths](docs/design/entity-atlas-audience-paths.md) gives role-specific routes for operations leaders, resort managers/front-desk, IT/integration, compliance/safety, and product/customer-success readers.
-- [Glossary translation layer](docs/design/glossary-translation-layer.md) and [glossary index](docs/glossary.md) translate repo/Rust terms that could otherwise hide the pet-resort meaning.
-- [Runtime contract boundaries](docs/architecture/runtime-contract-boundaries.md) is the five-minute technical explainer for how provider evidence flows through DTOs, provenance/source refs, domain/app packets, API review contracts, DB audit/outcome projections, and approved outbox handoffs without pretending to have live provider authority.
-- [Job presentation walkthrough](docs/presentation/job-presentation-walkthrough.md) packages the same story for a five-minute verbal introduction: script, boundary diagram, real-now-vs-access-required caveats, and DTO/API/DB/logging answers for a job or networking conversation.
-- [Docs successor and archive map](docs/design/successor-archive-map.md) labels current canonical pages, supporting proof, background/discovery docs, internal QA/audit reports, Kanban/planning artifacts, and superseded workflow/spec pages.
-- Safety maps, audits, QA notes, board artifacts, planning docs, and discovery/background pages are supporting evidence or work history. They should not outrank the canonical path above unless a page explicitly says it is the current source of record for a narrow safety, proof, or verification question.
-- Archived, superseded, duplicate, or older planning pages should be read as history unless they link forward to the current entity index, relationship map, workflow map, operator workflow pages, contract crosswalk, or successor/archive map.
-
-Front-door principle: the strategy is labor-saving, source-grounded, review-gated operational workflow automation with outcome capture. Gingr and other provider systems provide source evidence; they are not the strategy or automatic business truth. BI, read models, reporting databases, storage projections, and dashboards measure or visualize reviewed work; they do not own workflow authority or bypass human/system-of-record review gates.
-
-Current proof-chain lens for this model-depth board: source/provider evidence and source refs must flow into domain/app contracts, then into agent-safe packets or drafts, then through a named human/system-of-record review gate, then into outcome/labor-minute evidence, and only then into storage/runtime/Rustdoc/reporting proof. If a page says an agent saves labor, it should name the role and workflow: front desk booking triage, checkout completion, grooming retention, Pawgress/daily-update copy drafting, manager daily brief, data-quality hygiene, training package review, retail reorder review, or daycare package review. If a page cannot show source evidence, a review gate, and outcome proof, treat the claim as planned or qualitative rather than measured labor reduction.
-
-## How to read any entity
-
-Every important public entity page, README section, Rustdoc page, or operator guide should preserve this entity reading contract:
-
-| Question | Required answer |
-| --- | --- |
-| What is it? | Plain-English pet-resort meaning, with source/module names only when they carry authority. |
-| Why does it exist? | Labor, safety, customer-trust, source-quality, revenue, or review problem it helps reduce. |
-| Where is it used? | Workflows, source-backed contracts, app packets, storage projections, Gingr mappings, tests, Rustdocs, and runtime shells that feature it. |
-| What does it relate to? | Source evidence, downstream drafts, review gates, blocked actions, packets, storage records, outcomes, DTOs, and runtime surfaces. |
-| Who is authoritative? | Source system, domain contract, app workflow, storage projection, runtime shell, or human/system-of-record role — with projection meaning reporting/review view, not live decision authority. |
-| What can automation do? | Draft, rank, summarize, route, validate, record, or recommend only from source-backed app/domain contracts. |
-| What is blocked? | Customer/member sends, provider/PMS writes, schedule/capacity changes, payments/refunds/discounts, source hiding, medical/safety approvals, incident decisions, vaccine acceptance, policy exceptions, and labor/staffing mandates unless a specific app-owned approval contract and human/system-of-record action allows them. |
-| How is value measured? | Outcome records, labor minutes, handle time, avoided rework, wrong-source findings, completed/deferred/suppressed disposition, or reviewed staff/manager feedback. |
-| Where is the proof? | Source files, Rustdoc item pages, doctests/tests, design docs, local smoke checks, and public-doc build checks. |
-
-## Entity navigation map
-
-Start from the family nearest the business question, not from a crate name:
-
-| Entity family | Use it when the reader asks... | Main route |
-| --- | --- | --- |
-| Source, provenance, and data quality | Where did this fact come from, is it clean enough to use, and what ambiguity must stay visible? | [Source/provenance/data-quality atlas](docs/design/source-provenance-data-quality-atlas.md) |
-| Core pet-resort entities | Which customer, pet, reservation, service-line, care, vaccine, incident, message, or staff facts matter? | [PetSuites core entity atlas](docs/design/entity-atlas-petsuites-core-entities.md) |
-| Workflow packets, agents, drafts, and review queues | What can an agent draft or recommend, and which packet/review queue owns the work? | [Workflow packets and agents atlas](docs/design/entity-atlas-workflow-packets-agents.md) |
-| Review gates and blocked actions | What must be approved by a human or system of record, and what is explicitly forbidden? | [Review safety boundaries atlas](docs/design/entity-atlas-review-safety-boundaries.md) |
-| Outcome, labor, operations, money, and safety evidence | How do we prove labor was reduced without unsafe side effects? | [Outcomes/operations/money atlas](docs/design/entity-atlas-outcomes-operations-money.md) |
-| Revenue/service-line opportunities | How do grooming, training, retail, package, product, rebooking, and retention opportunities stay review-gated? | [Revenue opportunity atlas](docs/design/entity-atlas-revenue-opportunity-entities.md) |
-| Gingr/provider boundary | How do provider facts become source evidence instead of blind business truth? | [Gingr provider boundary atlas](docs/integrations/gingr/provider-boundary-atlas.md) |
-| Runtime, storage, API, worker, CLI, and contract-test surfaces | Where are projections, local demos, tests, APIs, workers, and CLI routes exposed safely? | [Runtime/storage/API atlas](docs/design/entity-atlas-runtime-storage-api-surfaces.md) |
-
-## Workflow entrypoints, routed back to entities
-
-Workflow pages are wayfinding for familiar jobs-to-be-done; the entity atlas remains the spine. If you enter from an operator workflow, use [docs/design/workflow-to-entity-navigation-map.md](docs/design/workflow-to-entity-navigation-map.md) first, then the workflow page:
-
-- [Operator workflow index](docs/workflows/operator/README.md)
-- [Manager Daily Brief](docs/workflows/operator/manager-daily-brief.md)
-- [Booking Triage](docs/workflows/operator/booking-triage.md)
-- [Data Quality Hygiene](docs/workflows/operator/data-quality-hygiene.md)
-- [Checkout Completion](docs/workflows/operator/checkout-completion.md)
-- [Grooming Rebooking / Retention](docs/workflows/operator/grooming-rebooking-retention.md)
-- [Daily Updates / Pawgress Drafts](docs/workflows/operator/daily-updates-pawgress-drafts.md)
-- [Regional Labor Exceptions / Future Portfolio View](docs/workflows/operator/regional-labor-exceptions.md)
-
-The business acceptance lens and measurement docs are:
-
-- [nva-pet-resorts-ai-context.md](nva-pet-resorts-ai-context.md)
-- [Labor-cost reduction crosswalk](docs/design/labor-cost-reduction-crosswalk.md)
-- [Manager Daily Brief measurable labor loop](docs/design/manager-daily-brief-measurable-labor-loop.md)
-- [Data-quality hygiene local smoke](docs/ops/data-quality-hygiene-local-smoke.md)
-- [Agent/app infrastructure contract](docs/architecture/agent-app-infrastructure.md)
-- [Builder modernization policy](docs/architecture/builder-modernization-policy.md)
-- [Agent/app infrastructure readiness audit](docs/audits/2026-06-18-agent-app-infrastructure-readiness.md)
-- [Labor-cost platform readiness audit](docs/audits/2026-06-18-labor-cost-platform-readiness.md)
-
-## Authority, automation, and human-review boundaries
-
-Canonical boundary: agents prepare source-backed review work inside app-owned workflow contracts; humans or approved systems of record keep live operational authority. Read these safety routes before treating any recommendation as action-ready, then use each operator workflow page for its specific blocked-action list:
-
-- [Source evidence map](docs/safety/source-evidence-map.md)
-- [Operator safety model](docs/safety/agent-safety-model-for-operators.md)
-- [Review boundaries matrix](docs/safety/review-boundaries-matrix.md)
-- [Entity/action safety overlays](docs/safety/entity-action-overlays/README.md)
-- [Evidence, policy, blocked actions, and outcomes](docs/safety/evidence-policy-blocked-actions-outcomes.md)
-- [Labor-cost with human review crosswalk](docs/safety/labor-cost-with-human-review-crosswalk.md)
-
-## Contract crosswalk and proof paths
-
-Use the contract crosswalk when an entity page or workflow claim needs source/Rustdoc/test proof rather than plain-English explanation. Here, [contract](docs/glossary-architecture-terms.md#contract) means a source-backed rule or code promise in this repo, not a legal/customer/vendor agreement:
-
-- [Contract crosswalk closeout](docs/entity-atlas/contract-crosswalk/README.md): package index, coverage summary, evidence gaps, and Entity Atlas/public-docs handoff.
-- [Crosswalk schema](docs/entity-atlas/contract-crosswalk/crosswalk-schema.md): required row shape.
-- [Surface inventory](docs/entity-atlas/contract-crosswalk/surface-inventory.md): where an entity appears in source, docs, tests, and Rustdoc.
-- [Source/provider flows](docs/entity-atlas/contract-crosswalk/source-provider-flows.md): where provider evidence enters and normalizes.
-- [Workflow packets](docs/entity-atlas/contract-crosswalk/workflow-packets.md): where entities are used by app workflows.
-- [Storage/persistence](docs/entity-atlas/contract-crosswalk/storage-persistence.md): where entities are projected or deliberately not persisted.
-- [Runtime exposure](docs/entity-atlas/contract-crosswalk/runtime-exposure.md): API, worker, CLI, web, and script exposure.
-- [Relationship adjacency and flow diagrams](docs/entity-atlas/contract-crosswalk/relationship-adjacency.md): bidirectional enter -> normalize -> use -> persist -> expose paths.
-
-## Rustdoc/source evidence after the entity meaning is clear
-
-Crate and module names are evidence paths, not the primary table of contents. Use them after the entity family explains the pet-resort meaning:
-
-- Business vocabulary and invariant-bearing pet-resort facts — the repo's [semantic](docs/glossary-architecture-terms.md#semantic) meaning/source-of-truth vocabulary after validation: [domain/README.md](domain/README.md), [domain/src/lib.rs](domain/src/lib.rs), and service-line/operator summaries for [boarding](domain/src/boarding/README.md), [daycare](domain/src/daycare/README.md), [grooming](domain/src/grooming/README.md), [training](domain/src/training/README.md), [retail](domain/src/retail/README.md), [reservation/checkout](domain/src/reservation/README.md), [money](domain/src/money/README.md), and [payment](domain/src/payment/README.md).
-- Cross-service safety/support source surfaces: [care](domain/src/care.rs), [documents](domain/src/document.rs), [vaccines](domain/src/vaccine.rs), [temperament](domain/src/temperament.rs), [incidents](domain/src/incident.rs), and [shared entities/review records](domain/src/entities.rs).
-- App-owned workflow packets, deterministic checks, draft validation, agent prompt packets, and tool-port contracts: [app/README.md](app/README.md), [app/src/lib.rs](app/src/lib.rs), [app/src/booking_triage.rs](app/src/booking_triage.rs), [app/src/data_quality_hygiene.rs](app/src/data_quality_hygiene.rs), [app/src/checkout_completion.rs](app/src/checkout_completion.rs), [app/src/crm_retention.rs](app/src/crm_retention.rs), [app/src/daily_update.rs](app/src/daily_update.rs), [app/src/manager_daily_brief.rs](app/src/manager_daily_brief.rs), [app/src/agents.rs](app/src/agents.rs), and [app/src/tools.rs](app/src/tools.rs).
-- Storage-shaped proof/projections and stable codecs — durable reporting/review views, not live authority: [storage/README.md](storage/README.md), [storage/src/lib.rs](storage/src/lib.rs), [storage/src/operations.rs](storage/src/operations.rs), and [storage/src/service_line/README.md](storage/src/service_line/README.md).
-- Gingr/provider evidence boundaries: [integrations/gingr/README.md](integrations/gingr/README.md), [docs/integrations/gingr/README.md](docs/integrations/gingr/README.md), [docs/integrations/gingr/fixtures/webhooks/README.md](docs/integrations/gingr/fixtures/webhooks/README.md), [integrations/gingr/src/endpoint/README.md](integrations/gingr/src/endpoint/README.md), [integrations/gingr/src/dto/README.md](integrations/gingr/src/dto/README.md), and [integrations/gingr/src/mapping/README.md](integrations/gingr/src/mapping/README.md).
-- Runtime shells that expose app/domain contracts without owning business truth: [apps/api/README.md](apps/api/README.md), [apps/worker/README.md](apps/worker/README.md), [apps/cli/README.md](apps/cli/README.md), [apps/api/src/http.rs](apps/api/src/http.rs), [apps/worker/src/runtime.rs](apps/worker/src/runtime.rs), and [apps/cli/src/main.rs](apps/cli/src/main.rs).
-
-The dependency direction remains: source/provider evidence and runtime input adapt into domain/app contracts; storage and runtime projections do not invent business truth or bypass review gates. When docs mention [promotion/demotion](docs/glossary-architecture-terms.md#promotion-demotion), read that as explicit data conversion between raw/provider/storage shapes and validated business meaning.
-
-## Documentation contracts
-
-READMEs are the wiki and navigation layer. They should explain labor saved, entity ownership, source-of-truth boundaries, relationships, human-review boundaries, value measurement, and where to inspect proof. They should not accumulate duplicate Rust snippets that can drift away from compiled APIs.
-
-Executable API examples belong in Rustdoc on source modules and crate roots, where `cargo test --doc` can compile-check them as contracts. When documenting behavior, prefer a README link to the relevant source/Rustdoc/test surface over copying code into Markdown. If a README must include a non-executable sketch, mark it as conceptual and keep it source-grounded.
-
-The docs-as-contracts plan is [docs/plans/2026-06-18-labor-cost-docs-as-contracts-kanban.md](docs/plans/2026-06-18-labor-cost-docs-as-contracts-kanban.md), and the editor checklist is [docs/quality/nva-documentation-style-guide.md](docs/quality/nva-documentation-style-guide.md). The practical rule: lead with labor saved for a specific pet-resort role, use operator English before module/API detail, include a concrete resort example, name source/Rustdoc evidence, state the human approval boundary, and keep executable API details in Rustdoc/source.
-
-## Verification
-
-For docs-only README/navigation changes, run:
-
-```sh
-python scripts/check_markdown_links.py --repo-root .
-```
-
-For executable docs, wiki/navigation checks, and workspace closeout guardrails, run:
-
-```sh
-./scripts/check_docs.sh
-```
-
-For the narrow Kanban closeout guardrail by itself, run:
-
-```sh
-python scripts/check_workspace_quality.py --repo-root .
-```
-
-Use the closeout checklist in [docs/quality/kanban-closeout-checklist.md](docs/quality/kanban-closeout-checklist.md) before completing or owner-reviewing board work.
-
-For the public docs artifact published at the Rustdoc root, keep the non-coder landing page source in [docs/public/index.html](docs/public/index.html) and generate the local artifact with:
-
-```sh
-./scripts/build_public_docs.sh
-```
-
-For code changes, run:
+## Useful checks
 
 ```sh
 cargo fmt --all -- --check
-cargo test --workspace --no-run
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace --all-targets --locked
+npm ci
+npm --workspace @pet-resort/staff-web run typecheck
+npm --workspace @pet-resort/staff-web run lint
 ```
 
-For the canonical local gate, run:
+## Internal archive
 
-```sh
-./scripts/test.sh
-```
-
-The external Rustdoc completeness guardrail can also be run directly:
-
-```sh
-python scripts/check_rustdoc_completeness.py
-```
-
-It executes the strict source-of-truth command:
-
-```sh
-RUSTDOCFLAGS='-D missing_docs' cargo doc --workspace --no-deps
-```
+Architecture audits, Kanban boards, broad presentation material, glossary inventories, and exploratory infrastructure notes are retained under [docs/internal](docs/internal/README.md). They are not the recommended first read for NVA stakeholders.

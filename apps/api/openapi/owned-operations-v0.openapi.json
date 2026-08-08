@@ -1602,6 +1602,62 @@
           }
         }
       }
+    },
+    "/v0/demo/information-lifespan/run": {
+      "post": {
+        "operationId": "runInformationLifespanDemo",
+        "description": "Runs the deterministic local information-lifespan replay from mocked read-only Gingr/source evidence through NVA-owned models, DB/projection proof, Dockerized Hermes processor proof, network proof, and a Manager Daily Report artifact. Synthetic/local only; no live customer sends, provider/PMS writes, payment/refund/discount actions, schedule changes, or medical/safety decisions are authorized.",
+        "responses": {
+          "200": {
+            "description": "Synthetic information-lifespan trace and Manager Daily Report artifact",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/demo/information-lifespan/{correlation_id}/report": {
+      "get": {
+        "operationId": "getInformationLifespanReport",
+        "description": "Replays the deterministic local Manager Daily Report artifact for the synthetic information-lifespan demo correlation id. Returns a safe not-found payload for any non-demo correlation id.",
+        "parameters": [
+          {
+            "name": "correlation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Synthetic Manager Daily Report replay payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Requested correlation id is not the deterministic local demo run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

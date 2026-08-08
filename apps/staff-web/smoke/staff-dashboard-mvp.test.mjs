@@ -157,6 +157,32 @@ test("read-only source evidence exposes source refs, freshness, caveats, and raw
   ]);
 });
 
+test("source-event cards show mocked Gingr receipt, model badges, and payload preview", () => {
+  assertContainsAll(surface, [
+    "export type SourceEventCard",
+    "sourceEventCards",
+    "Mock Gingr event received",
+    "mocked Gingr",
+    "read-only evidence",
+    "not product truth",
+    "model/type badges",
+    "gingr::response::ReservationRecord",
+    "domain::reservation::StayFact",
+    "app::information_lifespan::SourcePayload",
+    "fixture://mock-gingr/reservations/9001001.json",
+    "payload preview",
+    "why_received",
+    "manager daily report needs today's in-house boarding demand and source lineage"
+  ]);
+
+  assert.match(page, /sourceEventCards\.map/);
+  assert.match(page, /<details className="source-event-proof" open=\{event\.initiallyOpen\}>/);
+  assert.match(page, /JSON\.stringify\(event\.payloadPreview, null, 2\)/);
+  assert.match(styles, /\.source-event-card/);
+  assert.match(styles, /\.model-badge/);
+  assert.match(styles, /\.payload-preview/);
+});
+
 test("owned backend spine keeps operating authority in NVA-owned reviewable layers", () => {
   assertContainsAll(surface, [
     "NVA keeps the work rules, review decisions, labor outcomes, and reporting meaning in its own operating layer.",
@@ -167,6 +193,163 @@ test("owned backend spine keeps operating authority in NVA-owned reviewable laye
     "Audit + outcome events",
     "Read models for BI"
   ]);
+});
+
+test("database projection proof panel exposes local DB artifacts without becoming a SQL wall", () => {
+  assertContainsAll(surface, [
+    "export type DbProjectionProofArtifact",
+    "dbProjectionLifecycleProofs",
+    "Local DB / projection proof",
+    "lights up after source/model stages",
+    "actual local Postgres proof",
+    "deterministic trace proof",
+    "correlation_id",
+    "info-lifespan-demo-2026-06-29",
+    "information_lifespan_db_lifecycle_proof",
+    "source_import_runs",
+    "workflow_events",
+    "source_quality_issues",
+    "manager_daily_brief_outcomes",
+    "audit_events",
+    "row count",
+    "compact redacted row JSON",
+    "raw_payloads_redacted_or_referenced",
+    "live_side_effects_disabled",
+    "migrations/0002_data_quality_read_models.sql",
+    "fixtures/seed/local-demo.sql"
+  ]);
+
+  assert.match(page, /dbProjectionLifecycleProofs\.map/);
+  assert.match(page, /JSON\.stringify\(artifact\.rowPreview, null, 2\)/);
+  assert.match(page, /className="db-proof-panel panel"/);
+  assert.match(styles, /\.db-proof-panel/);
+  assert.match(styles, /\.db-proof-row-json/);
+
+  for (const forbidden of [/password/i, /secret/i, /api[_-]?key/i, /token/i, /private[_-]?key/i]) {
+    assert.doesNotMatch(demoData, forbidden);
+  }
+});
+
+test("database proof row previews stay aligned with the local demo seed", () => {
+  assertContainsAll(demoData, [
+    "manager_daily_report.trace_replayed",
+    "status: \"completed\"",
+    "rejected_count: 0",
+    "field_path: \"vaccine.rabies.expires_on\"",
+    "severity: \"medium\"",
+    "manager_daily_brief_outcome:synthetic-2026-06-29",
+    "estimated_minutes_saved: 42",
+    "information_lifespan.db_projection_rows_written",
+    "information_lifespan.manager_daily_report_review_required",
+    "actor_kinds: [\"agent\", \"manager\"]"
+  ]);
+});
+
+test("information lifespan stage machine supports ordered run, replay reset, correlation-keyed proof, and safe errors", () => {
+  assertContainsAll(surface, [
+    "export type InformationLifespanStage",
+    "informationLifespanStages",
+    "information-lifespan-stage-machine",
+    "Run information lifespan",
+    "Replay / reset",
+    "stage-machine-live-region",
+    "Mock Gingr event received",
+    "Provider DTO / source model shown",
+    "Source snapshot + provenance stored",
+    "NVA-owned models normalized",
+    "Database rows/projections written/read",
+    "Hermes processor container runs",
+    "Calculations/ranking/review gates applied",
+    "API/network response returned",
+    "Manager Daily Report appears",
+    "proof panels keyed by correlation id",
+    "activeCorrelationId",
+    "runSequence",
+    "clearStaleProofForReplay",
+    "request failed safely; no live side effects attempted"
+  ]);
+
+  assert.match(page, /setStageMachineStatus\("running"\)/);
+  assert.match(page, /setActiveStageIndex\(nextStageIndex\)/);
+  assert.match(page, /setActiveCorrelationId\(payload\.correlation_id\)/);
+  assert.match(page, /encodeURIComponent\(payload\.correlation_id\)/);
+  assert.match(page, /waitForStageMachineReplay/);
+  assert.match(page, /await visualReplayPromise/);
+  assert.match(page, /latestRunId/);
+  assert.match(page, /resetInformationLifespanDemo/);
+  assert.match(styles, /\.information-lifespan-stage-machine/);
+  assert.match(styles, /\.lifespan-stage-card\.active/);
+  assert.match(styles, /\.lifespan-stage-card\.error/);
+});
+
+test("Rube Goldberg polish organizes three planes with visible motion and proof drawers", () => {
+  assertContainsAll(`${page}\n${styles}`, [
+    "three-demo-planes",
+    "Product story",
+    "Stage/proof machine",
+    "Final report",
+    "story -> machine -> report",
+    "rube-goldberg-orb",
+    "stage-light",
+    "unlocking proof drawer",
+    "stageOrbTravel",
+    "stageLightSweep",
+    "proofDrawerGlow",
+    "lifespan-stage-card active"
+  ]);
+
+  assert.match(page, /<nav className="three-demo-planes" aria-label="Demo organization"/);
+  assert.match(page, /<span className="rube-goldberg-orb" aria-hidden="true"/);
+  assert.match(page, /<span className="stage-light" aria-hidden="true" \/>/);
+  assert.match(styles, /\.lifespan-stage-card\.active \.stage-light[\s\S]*animation: stageLightSweep/);
+  assert.match(styles, /\.lifespan-stage-card details\[open\][\s\S]*animation: proofDrawerGlow/);
+  assert.match(styles, /@media \(max-width: 720px\)[\s\S]*\.three-demo-planes/);
+});
+
+test("Hermes processor stage shows container execution, logs, output, and fallback states", () => {
+  assertContainsAll(surface, [
+    "export type HermesProcessorPanel",
+    "hermesProcessorPanel",
+    "Hermes processor container",
+    "docker compose service hermes-processor",
+    "containerized local processor",
+    "synthetic input only",
+    "no live writes",
+    "input summary",
+    "show running",
+    "show done",
+    "show unavailable",
+    "accepted_synthetic_trace",
+    "runtime_posture_checked",
+    "unsafe_side_effects_locked",
+    "manager_daily_report_enriched",
+    "structured log output",
+    "correlation_id",
+    "info-lifespan-demo-2026-06-29",
+    "generated/enriched report fragment",
+    "Manager Daily Report — synthetic 2026-06-29",
+    "42 estimated labor minutes saved",
+    "hermes_cli_unavailable_explicit_fallback",
+    "processor unavailable",
+    "The UI degrades to this redacted status instead of claiming a live run",
+    "Run information lifespan",
+    "network-visible run API",
+    "POST /v0/demo/information-lifespan/run",
+    "GET /v0/demo/information-lifespan/:correlation_id/report",
+    "ready; response includes trace, processor proof, safety gates, calculations, and final report",
+    "request failed safely",
+    "api-run-button",
+    "network-run-card",
+    ".var/information-lifespan/processor-output.json",
+    ".var/information-lifespan/processor-log.jsonl"
+  ]);
+
+  assert.match(page, /useState<"running" \| "done" \| "unavailable">/);
+  assert.match(page, /visibleProcessorStages\.map/);
+  assert.match(page, /JSON\.stringify\(\{ timestamp: line\.timestamp/);
+  assert.match(styles, /\.hermes-processor-panel/);
+  assert.match(styles, /\.processor-log-line/);
+  assert.match(styles, /\.processor-stage-card\.error/);
 });
 
 test("safety locks are visible as product behavior with no live side effects", () => {
@@ -299,6 +482,17 @@ test("selected tool interaction is stateful, labeled, and visibly selected", () 
   assert.match(page, /selectedTool\.lineageSteps\.map/);
 });
 
+test("stage controls expose accessible progress and pressed state", () => {
+  assert.match(page, /role="progressbar"/);
+  assert.match(page, /aria-valuemin=\{0\}/);
+  assert.match(page, /aria-valuemax=\{100\}/);
+  assert.match(page, /aria-valuenow=\{stageProgressPercent\}/);
+  assert.match(page, /aria-valuetext=\{`\$\{stageProgressPercent\}% complete/);
+  assert.match(page, /aria-pressed=\{processorView === "running"\}/);
+  assert.match(page, /aria-pressed=\{processorView === "done"\}/);
+  assert.match(page, /aria-pressed=\{processorView === "unavailable"\}/);
+});
+
 test("first-screen visual hierarchy and responsive accessibility are regression hardened", () => {
   assertContainsAll(`${page}\n${styles}`, [
     "story-pills",
@@ -373,5 +567,10 @@ test("local demo API proxy still rejects path traversal before upstream fetch", 
   assert.match(localDemoApiRoute, /segment === "\.\."/);
   assert.match(localDemoApiRoute, /segment\.includes\("\/"\)/);
   assert.match(localDemoApiRoute, /encodeURIComponent\(segment\)/);
+  assert.match(localDemoApiRoute, /export async function GET/);
+  assert.match(localDemoApiRoute, /export async function POST/);
+  assert.match(localDemoApiRoute, /method: "GET" \| "POST"/);
+  assert.match(localDemoApiRoute, /method,/);
+  assert.match(localDemoApiRoute, /fetch\(upstreamUrl/);
   assert.doesNotMatch(localDemoApiRoute, /fetch\(`\$\{apiBaseUrl\}\/\$\{path\}`/);
 });

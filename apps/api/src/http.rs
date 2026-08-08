@@ -8,7 +8,10 @@
 //! status until a future approved adapter crosses the customer/provider boundary.
 
 use crate::public_contract;
-use app::{checkout_completion, crm_retention, data_quality_hygiene, manager_daily_brief};
+use app::{
+    checkout_completion, crm_retention, data_quality_hygiene, information_lifespan,
+    manager_daily_brief,
+};
 use axum::{
     Json, Router,
     body::Body,
@@ -785,6 +788,22 @@ pub fn router_with_state(state: VaccineDocumentState) -> Router {
             "/v0/read-models/source-quality-backlog",
             get(source_quality_backlog),
         )
+        .route(
+            "/demo/information-lifespan/run",
+            post(run_information_lifespan_demo),
+        )
+        .route(
+            "/v0/demo/information-lifespan/run",
+            post(run_information_lifespan_demo),
+        )
+        .route(
+            "/demo/information-lifespan/{correlation_id}/report",
+            get(replay_information_lifespan_report),
+        )
+        .route(
+            "/v0/demo/information-lifespan/{correlation_id}/report",
+            get(replay_information_lifespan_report),
+        )
         .route("/vaccine-documents/uploads", post(upload_vaccine_document))
         .route(
             "/vaccine-documents/review-packets/{review_packet_id}/approve",
@@ -1041,6 +1060,164 @@ fn safe_database_error(error: &tokio_postgres::Error) -> String {
     } else {
         message
     }
+}
+
+async fn run_information_lifespan_demo(
+    Extension(request_trace): Extension<RequestTraceEvidence>,
+) -> (StatusCode, Json<Value>) {
+    let trace = information_lifespan::mock_gingr_manager_daily_report_trace();
+    let correlation_id = trace.correlation_id().as_str().to_owned();
+    let processor_proof = information_lifespan_processor_proof().await;
+
+    tracing::info!(
+        workflow = "information_lifespan_demo_run",
+        correlation_id,
+        synthetic_data_only = true,
+        live_side_effects_allowed = false,
+        "information lifespan demo replay returned manager report artifact"
+    );
+
+    (
+        StatusCode::OK,
+        Json(information_lifespan_run_payload(
+            "information_lifespan_demo_run",
+            &trace,
+            &request_trace,
+            processor_proof,
+        )),
+    )
+}
+
+async fn replay_information_lifespan_report(
+    Path(correlation_id): Path<String>,
+    Extension(request_trace): Extension<RequestTraceEvidence>,
+) -> (StatusCode, Json<Value>) {
+    let trace = information_lifespan::mock_gingr_manager_daily_report_trace();
+    if correlation_id != trace.correlation_id().as_str() {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(json!({
+                "error": {
+                    "code": "information_lifespan_run_not_found",
+                    "message": "Only the deterministic synthetic information-lifespan demo run is available in the local replay API"
+                },
+                "requested_correlation_id": correlation_id,
+                "available_correlation_id": trace.correlation_id().as_str(),
+                "synthetic_data_only": true,
+                "live_side_effects_allowed": false
+            })),
+        );
+    }
+
+    let processor_proof = information_lifespan_processor_proof().await;
+    (
+        StatusCode::OK,
+        Json(information_lifespan_run_payload(
+            "information_lifespan_demo_report",
+            &trace,
+            &request_trace,
+            processor_proof,
+        )),
+    )
+}
+
+async fn information_lifespan_processor_proof() -> Value {
+    let output_dir = env::var("INFORMATION_LIFESPAN_OUTPUT_DIR")
+        .unwrap_or_else(|_| ".var/information-lifespan".to_owned());
+    let output_path = format!("{output_dir}/processor-output.json");
+    match std::fs::read_to_string(&output_path) {
+        Ok(contents) => serde_json::from_str::<Value>(&contents).unwrap_or_else(|error| {
+            information_lifespan_processor_fallback(
+                "processor_output_parse_failed",
+                Some(output_path),
+                Some(error.to_string()),
+            )
+        }),
+        Err(error) => information_lifespan_processor_fallback(
+            "processor_output_not_present",
+            Some(output_path),
+            Some(error.to_string()),
+        ),
+    }
+}
+
+fn information_lifespan_processor_fallback(
+    status: &'static str,
+    output_path: Option<String>,
+    error: Option<String>,
+) -> Value {
+    json!({
+        "contract_version": "information_lifespan_hermes_processor_output.v1.local_api_fallback",
+        "status": status,
+        "output_path": output_path,
+        "error": error,
+        "simulated": true,
+        "why_simulated": "The API replay can return the deterministic app trace without starting Docker; run scripts/demo_information_lifespan.sh to refresh the real processor artifact.",
+        "processor": {
+            "service": "hermes-processor",
+            "runtime_status": "processor_artifact_unavailable_to_api"
+        },
+        "calculations": {
+            "estimated_labor_minutes_saved": 42
+        },
+        "final_report": {
+            "artifact_ref": "artifact://manager-daily-report/synthetic-2026-06-29",
+            "manager_actions": [
+                "review demand against staffing plan",
+                "review vaccine/care exception gates"
+            ]
+        },
+        "live_side_effects_allowed": false,
+        "review_gates": [
+            {"gate": "provider_write_locked", "locked": true},
+            {"gate": "customer_send_locked", "locked": true},
+            {"gate": "medical_review_required", "locked": true},
+            {"gate": "schedule_change_locked", "locked": true},
+            {"gate": "payment_movement_locked", "locked": true}
+        ]
+    })
+}
+
+fn information_lifespan_run_payload(
+    workflow: &'static str,
+    trace: &information_lifespan::TraceEnvelope,
+    request_trace: &RequestTraceEvidence,
+    processor_proof: Value,
+) -> Value {
+    json!({
+        "api_contract": api_dto_contract(workflow),
+        "correlation_id": trace.correlation_id().as_str(),
+        "observability": workflow_observability_payload(trace.correlation_id().as_str(), request_trace),
+        "trace": trace,
+        "source_model_proof": {
+            "source_system": trace.source_system(),
+            "source_payloads": trace.source_payloads(),
+            "provider_payloads_are_source_evidence_only": trace.provider_payloads_are_source_evidence_only()
+        },
+        "db_proof": trace.db_proof_entries(),
+        "processor_proof": processor_proof,
+        "calculations": trace.calculations(),
+        "safety": {
+            "synthetic_data_only": trace.uses_synthetic_data_only(),
+            "live_side_effects_allowed": trace.live_side_effects_allowed(),
+            "review_gates": trace.safety_gates(),
+            "locked_side_effects": [
+                "provider_pms_writes",
+                "customer_sends",
+                "medical_or_vaccine_acceptance",
+                "schedule_or_staffing_changes",
+                "payments_refunds_discounts"
+            ]
+        },
+        "network_proof": trace.network_proof_entries(),
+        "log_proof": trace.log_proof_entries(),
+        "final_report": trace.final_artifact(),
+        "deferred_production_work": [
+            "live NVA/Gingr access remains intentionally absent; all source evidence is synthetic/mock read-only fixture data",
+            "real customer sends, provider/PMS writes, payments/refunds/discounts, schedule changes, and medical/safety decisions remain locked behind human/system-of-record review gates",
+            "the API replay reads the processor artifact when present and otherwise labels its local fallback instead of pretending Docker or an LLM ran"
+        ]
+    })
 }
 
 async fn healthz() -> Json<HealthPayload> {

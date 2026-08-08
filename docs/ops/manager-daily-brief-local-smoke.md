@@ -34,7 +34,7 @@ This command starts:
 
 ```bash
 docker compose --profile agent-infra up --build -d \
-  postgres minio pet-resort-api pet-resort-worker openviking
+  postgres minio pet-resort-api pet-resort-worker
 ```
 
 Then it executes the Manager Daily Brief loop:
@@ -67,7 +67,7 @@ Use this when debugging individual contracts.
 ```bash
 export PET_RESORT_API_URL=http://127.0.0.1:3001
 docker compose --profile agent-infra up --build -d \
-  postgres minio pet-resort-api pet-resort-worker openviking
+  postgres minio pet-resort-api pet-resort-worker
 curl -fsS "$PET_RESORT_API_URL/healthz"
 
 scripts/hermes-tools/get_manager_daily_brief_context \
@@ -141,29 +141,4 @@ The outcome response includes `labor_savings_evidence.estimated_minutes_saved` a
 
 ## OpenViking preflight
 
-The smoke calls `scripts/preflight_openviking_agent_infra.sh --allow-uninitialized` before continuing through the app-owned Manager Daily Brief loop. In a fresh local Compose volume, the `openviking` container may start but return HTTP 503 because `/app/.openviking/ov.conf` is missing. The preflight writes `openviking-status.txt` under the smoke temp directory and prints the remediation:
-
-```bash
-docker compose --profile agent-infra up -d openviking
-docker compose exec openviking openviking-server init
-docker compose restart openviking
-scripts/preflight_openviking_agent_infra.sh
-```
-
-For non-interactive setup, an operator may provide the full `ov.conf` JSON through a local secret channel and let Compose pass it to the upstream entrypoint:
-
-```bash
-export OPENVIKING_CONF_CONTENT='<full ov.conf JSON from .env, 1Password, or another local secret source>'
-docker compose --profile agent-infra up -d openviking
-scripts/preflight_openviking_agent_infra.sh
-```
-
-Do not commit real provider keys, `root_api_key` values, or generated `ov.conf` files. This remains a precise agent-infra blocker only: the Manager Daily Brief labor loop does not rely on OpenViking for app-owned facts, source refs, validation, review gates, persistence, or labor-savings reporting.
-
-## Canonical repo gate
-
-After changes, run:
-
-```bash
-./scripts/test.sh
-```
+OpenViking is no longer part of the default Manager Daily Brief smoke path; the smoke uses the core local stack only.

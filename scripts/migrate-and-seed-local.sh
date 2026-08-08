@@ -34,4 +34,7 @@ echo "seeding safe synthetic local demo data"
 "${compose_bin[@]}" exec -T postgres psql -v ON_ERROR_STOP=1 -U pet_resort -d pet_resort < fixtures/seed/local-demo-data-quality.sql
 
 "${compose_bin[@]}" exec -T postgres psql -U pet_resort -d pet_resort -c \
-  "SELECT 'source_quality_backlog' AS read_model, count(*) FROM source_quality_backlog UNION ALL SELECT 'data_quality_hygiene_labor_outcomes', count(*) FROM data_quality_hygiene_labor_outcomes UNION ALL SELECT 'import_freshness', count(*) FROM import_freshness;"
+  "SELECT 'source_quality_backlog' AS read_model, count(*) FROM source_quality_backlog UNION ALL SELECT 'data_quality_hygiene_labor_outcomes', count(*) FROM data_quality_hygiene_labor_outcomes UNION ALL SELECT 'import_freshness', count(*) FROM import_freshness UNION ALL SELECT 'information_lifespan_db_lifecycle_proof', count(*) FROM information_lifespan_db_lifecycle_proof;"
+
+"${compose_bin[@]}" exec -T postgres psql -U pet_resort -d pet_resort -c \
+  "SELECT correlation_id, source_import_run_id, source_system, source_quality_issue_refs, manager_daily_brief_outcome_id, cardinality(audit_event_ids) AS audit_event_count FROM information_lifespan_db_lifecycle_proof WHERE correlation_id = 'info-lifespan-demo-2026-06-29';"

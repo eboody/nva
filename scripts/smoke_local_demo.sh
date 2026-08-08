@@ -130,21 +130,5 @@ if [[ "${side_effect_posture}" != "t" ]]; then
 fi
 echo "[smoke-local-demo] db_side_effect_posture=ok"
 
-if "${compose[@]}" ps --services --filter status=running | grep -qx openviking; then
-  openviking_health="$("${compose[@]}" ps --format json openviking 2>/dev/null | python -c 'import json,sys; raw=sys.stdin.read().strip(); print((json.loads(raw).get("Health") if raw else "unknown") or "unknown")' || true)"
-  case "${openviking_health}" in
-    healthy|starting|unknown)
-      echo "[smoke-local-demo] optional_agent_infra_openviking=${openviking_health}"
-      ;;
-    *)
-      if [[ "${require_optional_agent_infra}" == "1" ]]; then
-        fail "optional openviking profile is running but unhealthy (${openviking_health}) and REQUIRE_OPTIONAL_AGENT_INFRA=1"
-      fi
-      optional_warn "openviking is ${openviking_health}; core demo remains smoke-passed because agent-infra is optional/profiled"
-      ;;
-  esac
-else
-  echo "[smoke-local-demo] optional_agent_infra_openviking=not_running_profile_optional"
-fi
 
 echo "[smoke-local-demo] core_demo_ok local_fixture_only=true live_side_effects_allowed=false optional_agent_infra_required=${require_optional_agent_infra}"

@@ -197,3 +197,46 @@ FROM import_rollup ir
 LEFT JOIN gap_rollup gr
     ON gr.source_system = ir.source_system
    AND (gr.location_id = ir.location_id OR (gr.location_id IS NULL AND ir.location_id IS NULL));
+
+CREATE OR REPLACE VIEW information_lifespan_db_lifecycle_proof AS
+SELECT
+    we.payload->>'correlation_id' AS correlation_id,
+    we.payload->>'request_id' AS request_id,
+    we.id AS workflow_event_id,
+    we.workflow_name,
+    we.event_kind,
+    we.payload->>'source_import_run_id' AS source_import_run_id,
+    sir.source_system,
+    sir.adapter_version,
+    sir.mode AS source_import_mode,
+    sir.status AS source_import_status,
+    ARRAY_AGG(DISTINCT sqi.issue_ref) FILTER (WHERE sqi.issue_ref IS NOT NULL) AS source_quality_issue_refs,
+    rp.id AS review_packet_id,
+    ar.id AS approval_record_id,
+    mdbo.id AS manager_daily_brief_outcome_id,
+    ARRAY_AGG(DISTINCT ae.id) FILTER (WHERE ae.id IS NOT NULL) AS audit_event_ids,
+    jsonb_build_object(
+        'source_import_run', we.payload->>'source_import_proof_ref',
+        'workflow_event', we.payload->>'workflow_event_proof_ref',
+        'review_packet', rp.id,
+        'approval_record', ar.id,
+        'manager_daily_brief_outcome', mdbo.action_id,
+        'audit_lineage', we.payload->>'audit_lineage_proof_ref'
+    ) AS db_proof_refs,
+    'information_lifespan_db_lifecycle_proof.v1'::text AS projection_version,
+    ARRAY['synthetic_local_demo_only', 'live_side_effects_disabled', 'raw_payloads_redacted_or_referenced']::text[] AS caveats
+FROM workflow_events we
+LEFT JOIN source_import_runs sir
+    ON sir.id::text = we.payload->>'source_import_run_id'
+LEFT JOIN source_quality_issues sqi
+    ON sqi.workflow_event_id = we.id
+LEFT JOIN review_packets rp
+    ON rp.workflow_event_id = we.id
+LEFT JOIN approval_records ar
+    ON ar.review_packet_id = rp.id
+LEFT JOIN manager_daily_brief_outcomes mdbo
+    ON mdbo.workflow_event_id = we.id
+LEFT JOIN audit_events ae
+    ON ae.workflow_event_id = we.id
+WHERE we.workflow_name = 'information_lifespan_manager_daily_report'
+GROUP BY we.id, sir.id, rp.id, ar.id, mdbo.id;

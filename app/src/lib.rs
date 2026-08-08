@@ -34,6 +34,8 @@ pub mod crm_retention;
 pub mod daily_update;
 /// Duplicate/stale-record hygiene workflows that stop before provider mutation.
 pub mod data_quality_hygiene;
+/// Canonical trace contract and synthetic source evidence for the information-lifespan demo.
+pub mod information_lifespan;
 /// Local deterministic fixtures that exercise agent and tool gates.
 pub mod local_smoke;
 pub mod manager_daily_brief;

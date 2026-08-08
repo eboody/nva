@@ -443,3 +443,390 @@ SET idempotency_key = EXCLUDED.idempotency_key,
     payload = EXCLUDED.payload,
     status = EXCLUDED.status,
     available_at = EXCLUDED.available_at;
+
+-- Piece 2 information-lifespan proof rows: synthetic local-only DB lifecycle for the
+-- Manager Daily Report trace. These rows are deterministic and queryable through
+-- information_lifespan_db_lifecycle_proof; they do not contain real Gingr/NVA data
+-- and keep live_side_effects_allowed=false.
+WITH demo_location AS (
+    INSERT INTO locations (id, brand, name, timezone)
+    VALUES (
+        '00000000-0000-4000-8000-000000000101',
+        'Local Demo',
+        'Local/dev kennel',
+        'America/New_York'
+    )
+    ON CONFLICT (id) DO UPDATE
+    SET brand = EXCLUDED.brand,
+        name = EXCLUDED.name,
+        timezone = EXCLUDED.timezone,
+        updated_at = now()
+    RETURNING id
+), information_lifespan_import_run AS (
+    INSERT INTO source_import_runs (
+        id,
+        source_system,
+        adapter_version,
+        location_id,
+        tenant_id,
+        mode,
+        status,
+        started_at,
+        completed_at,
+        record_count,
+        rejected_count,
+        safe_error_class,
+        redaction_posture
+    )
+    SELECT
+        '00000000-0000-4000-8000-00000000a801',
+        'mock_gingr_readonly_fixture',
+        'information-lifespan.local-demo.v1',
+        demo_location.id,
+        'local-demo',
+        'read_only_snapshot',
+        'completed',
+        '2026-06-29T12:55:00Z'::timestamptz,
+        '2026-06-29T12:56:00Z'::timestamptz,
+        3,
+        0,
+        'not_applicable',
+        'raw_provider_payloads_redacted_or_referenced_only'
+    FROM demo_location
+    ON CONFLICT (id) DO UPDATE
+    SET source_system = EXCLUDED.source_system,
+        adapter_version = EXCLUDED.adapter_version,
+        location_id = EXCLUDED.location_id,
+        tenant_id = EXCLUDED.tenant_id,
+        mode = EXCLUDED.mode,
+        status = EXCLUDED.status,
+        started_at = EXCLUDED.started_at,
+        completed_at = EXCLUDED.completed_at,
+        record_count = EXCLUDED.record_count,
+        rejected_count = EXCLUDED.rejected_count,
+        safe_error_class = EXCLUDED.safe_error_class,
+        redaction_posture = EXCLUDED.redaction_posture
+    RETURNING id
+), information_lifespan_workflow_event AS (
+    INSERT INTO workflow_events (
+        id,
+        workflow_name,
+        event_kind,
+        subject_kind,
+        subject_id,
+        idempotency_key,
+        payload,
+        occurred_at
+    )
+    SELECT
+        '00000000-0000-4000-8000-00000000a901',
+        'information_lifespan_manager_daily_report',
+        'manager_daily_report.trace_replayed',
+        'location',
+        demo_location.id,
+        'workflow_event:manager-daily-report:2026-06-29',
+        jsonb_build_object(
+            'request_id', 'local-demo-information-lifespan-run-001',
+            'correlation_id', 'info-lifespan-demo-2026-06-29',
+            'source_system', 'mock_gingr_readonly_fixture',
+            'source_import_run_id', (SELECT id::text FROM information_lifespan_import_run),
+            'source_import_proof_ref', 'source_import_run:info-lifespan-demo-2026-06-29',
+            'workflow_event_proof_ref', 'workflow_event:manager-daily-report:2026-06-29',
+            'audit_lineage_proof_ref', 'audit_lineage:info-lifespan-demo-2026-06-29',
+            'source_payload_refs', jsonb_build_array(
+                'fixture://mock-gingr/reservations/9001001.json',
+                'fixture://mock-gingr/care-notes/9001001-feeding.json',
+                'fixture://mock-gingr/vaccines/8101-rabies.json'
+            ),
+            'live_side_effects_allowed', false,
+            'provider_writes_allowed', false,
+            'customer_messages_allowed', false,
+            'payment_actions_allowed', false
+        ),
+        '2026-06-29T13:00:00Z'::timestamptz
+    FROM demo_location
+    ON CONFLICT (id) DO UPDATE
+    SET workflow_name = EXCLUDED.workflow_name,
+        event_kind = EXCLUDED.event_kind,
+        subject_kind = EXCLUDED.subject_kind,
+        subject_id = EXCLUDED.subject_id,
+        idempotency_key = EXCLUDED.idempotency_key,
+        payload = EXCLUDED.payload,
+        occurred_at = EXCLUDED.occurred_at
+    RETURNING id, subject_id
+), information_lifespan_issue AS (
+    INSERT INTO source_quality_issues (
+        id,
+        issue_ref,
+        location_id,
+        tenant_id,
+        affected_entity_kind,
+        affected_entity_id,
+        field_path,
+        issue_kind,
+        severity,
+        freshness,
+        sensitivity,
+        workflow_blocking,
+        owner_persona,
+        review_gate,
+        resolution_status,
+        source_refs,
+        workflow_event_id
+    )
+    SELECT
+        '00000000-0000-4000-8000-00000000aa01',
+        'source_quality_issue:vaccine-near-expiry:8101',
+        demo_location.id,
+        'local-demo',
+        'pet',
+        'synthetic-pet-8101',
+        'vaccine.rabies.expires_on',
+        'stale_source_freshness',
+        'medium',
+        'current',
+        'medical_or_vaccination',
+        'blocking',
+        'front_desk_lead',
+        'manager_approval',
+        'open',
+        jsonb_build_array(
+            jsonb_build_object(
+                'source_system', 'mock_gingr_readonly_fixture',
+                'source_ref', 'fixture://mock-gingr/vaccines/8101-rabies.json',
+                'correlation_id', 'info-lifespan-demo-2026-06-29',
+                'redaction', 'raw_payload_not_persisted'
+            )
+        ),
+        information_lifespan_workflow_event.id
+    FROM demo_location, information_lifespan_workflow_event
+    ON CONFLICT (issue_ref) DO UPDATE
+    SET location_id = EXCLUDED.location_id,
+        tenant_id = EXCLUDED.tenant_id,
+        affected_entity_kind = EXCLUDED.affected_entity_kind,
+        affected_entity_id = EXCLUDED.affected_entity_id,
+        field_path = EXCLUDED.field_path,
+        issue_kind = EXCLUDED.issue_kind,
+        severity = EXCLUDED.severity,
+        freshness = EXCLUDED.freshness,
+        sensitivity = EXCLUDED.sensitivity,
+        workflow_blocking = EXCLUDED.workflow_blocking,
+        owner_persona = EXCLUDED.owner_persona,
+        review_gate = EXCLUDED.review_gate,
+        resolution_status = EXCLUDED.resolution_status,
+        source_refs = EXCLUDED.source_refs,
+        workflow_event_id = EXCLUDED.workflow_event_id,
+        updated_at = now()
+    RETURNING id, issue_ref
+), information_lifespan_review_packet AS (
+    INSERT INTO review_packets (
+        id,
+        subject_kind,
+        subject_id,
+        gate,
+        status,
+        workflow_event_id,
+        created_by_actor_kind,
+        created_by_actor_id
+    )
+    SELECT
+        '00000000-0000-4000-8000-00000000ab01',
+        'workflow_event',
+        information_lifespan_workflow_event.id,
+        'manager_approval',
+        'ready_for_review',
+        information_lifespan_workflow_event.id,
+        'agent',
+        'agent.information-lifespan.local-demo'
+    FROM information_lifespan_workflow_event
+    ON CONFLICT (id) DO UPDATE
+    SET subject_kind = EXCLUDED.subject_kind,
+        subject_id = EXCLUDED.subject_id,
+        gate = EXCLUDED.gate,
+        status = EXCLUDED.status,
+        workflow_event_id = EXCLUDED.workflow_event_id,
+        created_by_actor_kind = EXCLUDED.created_by_actor_kind,
+        created_by_actor_id = EXCLUDED.created_by_actor_id,
+        updated_at = now()
+    RETURNING id, subject_id
+), information_lifespan_approval AS (
+    INSERT INTO approval_records (
+        id,
+        target_kind,
+        target_id,
+        gate,
+        status,
+        requested_by_actor_kind,
+        requested_by_actor_id,
+        requested_at,
+        review_packet_id
+    )
+    SELECT
+        '00000000-0000-4000-8000-00000000ac01',
+        'message',
+        '00000000-0000-4000-8000-00000000b401',
+        'manager_approval',
+        'approval_requested',
+        'agent',
+        'agent.information-lifespan.local-demo',
+        '2026-06-29T13:01:00Z'::timestamptz,
+        information_lifespan_review_packet.id
+    FROM information_lifespan_review_packet
+    ON CONFLICT (id) DO UPDATE
+    SET target_kind = EXCLUDED.target_kind,
+        target_id = EXCLUDED.target_id,
+        gate = EXCLUDED.gate,
+        status = EXCLUDED.status,
+        requested_by_actor_kind = EXCLUDED.requested_by_actor_kind,
+        requested_by_actor_id = EXCLUDED.requested_by_actor_id,
+        requested_at = EXCLUDED.requested_at,
+        decided_by_actor_kind = NULL,
+        decided_by_actor_id = NULL,
+        decided_at = NULL,
+        review_packet_id = EXCLUDED.review_packet_id,
+        updated_at = now()
+    RETURNING id
+), information_lifespan_result AS (
+    INSERT INTO workflow_results (id, workflow_event_id, status, result)
+    SELECT
+        '00000000-0000-4000-8000-00000000ad01',
+        information_lifespan_workflow_event.id,
+        'needs_review',
+        jsonb_build_object(
+            'correlation_id', 'info-lifespan-demo-2026-06-29',
+            'source_snapshots', 3,
+            'normalized_facts', 3,
+            'workflow_packets', 1,
+            'review_gates', 5,
+            'audit_events', 2,
+            'estimated_labor_minutes_saved', 42,
+            'live_side_effects_allowed', false,
+            'review_required_before_customer_or_provider_action', true
+        )
+    FROM information_lifespan_workflow_event
+    ON CONFLICT (id) DO UPDATE
+    SET workflow_event_id = EXCLUDED.workflow_event_id,
+        status = EXCLUDED.status,
+        result = EXCLUDED.result
+    RETURNING id
+), information_lifespan_outcome AS (
+    INSERT INTO manager_daily_brief_outcomes (
+        id,
+        workflow_event_id,
+        approval_record_id,
+        action_id,
+        outcome,
+        actor_id,
+        actor_persona,
+        feedback,
+        owner_persona,
+        action_kind,
+        before_minutes,
+        actual_minutes,
+        estimated_minutes_saved,
+        location_id,
+        operating_day,
+        source_refs,
+        correlation_id,
+        recorded_at
+    )
+    SELECT
+        '00000000-0000-4000-8000-00000000ae01',
+        information_lifespan_workflow_event.id,
+        information_lifespan_approval.id,
+        'manager_daily_brief_outcome:synthetic-2026-06-29',
+        'deferred',
+        'local-demo-general-manager',
+        'general_manager',
+        'Synthetic demo: Manager Daily Report packet is ready for review; no live send, provider write, payment, schedule, or medical action occurred.',
+        'general_manager',
+        'investigate_source_data_quality_issue',
+        60,
+        18,
+        42,
+        information_lifespan_workflow_event.subject_id,
+        '2026-06-29'::date,
+        jsonb_build_array(
+            jsonb_build_object('source_system', 'mock_gingr_readonly_fixture', 'source_ref', 'fixture://mock-gingr/reservations/9001001.json', 'correlation_id', 'info-lifespan-demo-2026-06-29'),
+            jsonb_build_object('source_system', 'mock_gingr_readonly_fixture', 'source_ref', 'fixture://mock-gingr/care-notes/9001001-feeding.json', 'correlation_id', 'info-lifespan-demo-2026-06-29'),
+            jsonb_build_object('source_system', 'mock_gingr_readonly_fixture', 'source_ref', 'fixture://mock-gingr/vaccines/8101-rabies.json', 'correlation_id', 'info-lifespan-demo-2026-06-29')
+        ),
+        'info-lifespan-demo-2026-06-29',
+        '2026-06-29T13:03:00Z'::timestamptz
+    FROM information_lifespan_workflow_event, information_lifespan_approval
+    ON CONFLICT (action_id) DO UPDATE
+    SET workflow_event_id = EXCLUDED.workflow_event_id,
+        approval_record_id = EXCLUDED.approval_record_id,
+        outcome = EXCLUDED.outcome,
+        actor_id = EXCLUDED.actor_id,
+        actor_persona = EXCLUDED.actor_persona,
+        feedback = EXCLUDED.feedback,
+        owner_persona = EXCLUDED.owner_persona,
+        action_kind = EXCLUDED.action_kind,
+        before_minutes = EXCLUDED.before_minutes,
+        actual_minutes = EXCLUDED.actual_minutes,
+        estimated_minutes_saved = EXCLUDED.estimated_minutes_saved,
+        location_id = EXCLUDED.location_id,
+        operating_day = EXCLUDED.operating_day,
+        source_refs = EXCLUDED.source_refs,
+        correlation_id = EXCLUDED.correlation_id,
+        recorded_at = EXCLUDED.recorded_at
+    RETURNING id
+)
+INSERT INTO audit_events (
+    id,
+    occurred_at,
+    actor_kind,
+    actor_id,
+    subject_kind,
+    subject_id,
+    action,
+    workflow_event_id,
+    metadata
+)
+SELECT
+    audit_row.id,
+    audit_row.occurred_at,
+    audit_row.actor_kind,
+    audit_row.actor_id,
+    audit_row.subject_kind,
+    audit_row.subject_id,
+    audit_row.action,
+    audit_row.workflow_event_id,
+    audit_row.metadata
+FROM (
+    SELECT
+        '00000000-0000-4000-8000-00000000af01'::uuid AS id,
+        '2026-06-29T13:02:00Z'::timestamptz AS occurred_at,
+        'agent'::text AS actor_kind,
+        'agent.information-lifespan.local-demo'::text AS actor_id,
+        'workflow_event'::text AS subject_kind,
+        (SELECT id::text FROM information_lifespan_workflow_event) AS subject_id,
+        'information_lifespan.db_projection_rows_written'::text AS action,
+        (SELECT id FROM information_lifespan_workflow_event) AS workflow_event_id,
+        jsonb_build_object(
+            'correlation_id', 'info-lifespan-demo-2026-06-29',
+            'source_import_run', 'source_import_run:info-lifespan-demo-2026-06-29',
+            'review_packet', 'review_packet:vaccine-near-expiry:8101',
+            'manager_daily_brief_outcome', 'manager_daily_brief_outcome:synthetic-2026-06-29',
+            'live_side_effects_allowed', false
+        ) AS metadata
+    UNION ALL
+    SELECT
+        '00000000-0000-4000-8000-00000000af02'::uuid,
+        '2026-06-29T13:04:00Z'::timestamptz,
+        'manager'::text,
+        'local-demo-general-manager'::text,
+        'workflow_event'::text,
+        (SELECT id::text FROM information_lifespan_workflow_event),
+        'information_lifespan.manager_daily_report_review_required'::text,
+        (SELECT id FROM information_lifespan_workflow_event),
+        jsonb_build_object(
+            'correlation_id', 'info-lifespan-demo-2026-06-29',
+            'audit_lineage', 'audit_lineage:info-lifespan-demo-2026-06-29',
+            'customer_messages_allowed', false,
+            'provider_writes_allowed', false,
+            'medical_decisions_allowed', false
+        )
+) AS audit_row
+ON CONFLICT (id) DO NOTHING;

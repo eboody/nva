@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nva.local/schemas/information-lifespan-hermes-processor-output.schema.json",
+  "title": "Information Lifespan Hermes Processor Output",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "contract_version",
+    "correlation_id",
+    "synthetic_data_only",
+    "provider_payloads_are_source_evidence_only",
+    "live_side_effects_allowed",
+    "processor",
+    "lineage",
+    "calculations",
+    "review_gates",
+    "final_report",
+    "logs_ref"
+  ],
+  "properties": {
+    "contract_version": { "const": "information_lifespan_hermes_processor_output.v1" },
+    "correlation_id": { "const": "info-lifespan-demo-2026-06-29" },
+    "synthetic_data_only": { "const": true },
+    "provider_payloads_are_source_evidence_only": { "const": true },
+    "live_side_effects_allowed": { "const": false },
+    "processor": {
+      "type": "object",
+      "required": ["service", "mode", "hermes_cli_available", "runtime_status", "processed_at"],
+      "properties": {
+        "service": { "const": "hermes-processor" },
+        "mode": { "type": "string", "minLength": 1 },
+        "hermes_cli_available": { "type": "boolean" },
+        "runtime_status": {
+          "enum": ["hermes_cli_available", "hermes_cli_unavailable_explicit_fallback"]
+        },
+        "processed_at": { "const": "2026-06-29T15:00:00Z" }
+      }
+    },
+    "lineage": {
+      "type": "object",
+      "required": ["source_system", "source_payload_refs", "db_projection", "artifact_ref"],
+      "properties": {
+        "source_system": { "const": "mock_gingr_readonly_fixture" },
+        "source_payload_refs": {
+          "type": "array",
+          "minItems": 3,
+          "items": { "type": "string", "pattern": "^fixture://mock-gingr/" }
+        },
+        "artifact_ref": { "const": "artifact://manager-daily-report/synthetic-2026-06-29" }
+      }
+    },
+    "calculations": {
+      "type": "object",
+      "required": [
+        "source_snapshots",
+        "normalized_facts",
+        "workflow_packets",
+        "review_gates",
+        "estimated_labor_minutes_saved",
+        "expression"
+      ],
+      "properties": {
+        "source_snapshots": { "const": 3 },
+        "normalized_facts": { "const": 3 },
+        "workflow_packets": { "const": 1 },
+        "review_gates": { "const": 5 },
+        "estimated_labor_minutes_saved": { "const": 42 },
+        "expression": { "const": "60 minute manual morning scan - 18 minute reviewed packet" }
+      }
+    },
+    "review_gates": {
+      "type": "array",
+      "minItems": 5,
+      "items": {
+        "type": "object",
+        "required": ["gate", "locked", "reason"],
+        "properties": {
+          "locked": { "const": true }
+        }
+      }
+    },
+    "final_report": {
+      "type": "object",
+      "required": ["artifact_kind", "artifact_ref", "title", "summary", "manager_actions"],
+      "properties": {
+        "artifact_kind": { "const": "manager_daily_report" },
+        "artifact_ref": { "const": "artifact://manager-daily-report/synthetic-2026-06-29" },
+        "title": { "const": "Manager Daily Report — synthetic 2026-06-29" },
+        "summary": { "type": "string", "pattern": "42 estimated labor minutes saved" },
+        "manager_actions": { "type": "array", "minItems": 2 }
+      }
+    },
+    "logs_ref": { "const": "processor-log.jsonl" }
+  }
+}

@@ -2,7 +2,9 @@
   "name": "nva",
   "version": "0.1.0",
   "private": true,
-  "workspaces": ["apps/staff-web"],
+  "workspaces": [
+    "apps/staff-web"
+  ],
   "scripts": {
     "dev:web": "npm --workspace @pet-resort/staff-web run dev",
     "build:web": "npm --workspace @pet-resort/staff-web run build",
@@ -13,7 +15,8 @@
     "test:rust": "cargo test --workspace",
     "lint:rust": "cargo clippy --workspace --all-targets -- -D warnings",
     "fmt:rust": "cargo fmt --all -- --check",
-    "check:workspace": "python scripts/check_workspace_quality.py --repo-root ."
+    "check:workspace": "python scripts/check_workspace_quality.py --repo-root .",
+    "demo:pilot": "./scripts/demo_nva_pilot.sh"
   },
   "devDependencies": {}
 }

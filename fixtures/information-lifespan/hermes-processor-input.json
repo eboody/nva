@@ -1,0 +1,61 @@
+{
+  "contract_version": "information_lifespan_hermes_processor_input.v1",
+  "correlation_id": "info-lifespan-demo-2026-06-29",
+  "source_system": "mock_gingr_readonly_fixture",
+  "synthetic_data_only": true,
+  "provider_payloads_are_source_evidence_only": true,
+  "live_side_effects_allowed": false,
+  "source_payloads": [
+    {
+      "payload_kind": "reservation",
+      "authority": "provider_evidence_only",
+      "raw_payload_ref": "fixture://mock-gingr/reservations/9001001.json",
+      "provider_model_path": "gingr::response::ReservationRecord",
+      "nva_target_model_path": "domain::reservation::StayFact",
+      "evidence_summary": "Synthetic boarding reservation checked in for manager demand review."
+    },
+    {
+      "payload_kind": "care_note",
+      "authority": "provider_evidence_only",
+      "raw_payload_ref": "fixture://mock-gingr/care-notes/9001001-feeding.json",
+      "provider_model_path": "gingr::response::provider::Payload",
+      "nva_target_model_path": "domain::care::CareNoteFact",
+      "evidence_summary": "Synthetic internal feeding note creates a manager-visible care exception."
+    },
+    {
+      "payload_kind": "vaccine",
+      "authority": "provider_evidence_only",
+      "raw_payload_ref": "fixture://mock-gingr/vaccines/8101-rabies.json",
+      "provider_model_path": "gingr::response::provider::Payload",
+      "nva_target_model_path": "domain::vaccine::ReviewFact",
+      "evidence_summary": "Synthetic near-expiry rabies record is surfaced for staff review, not auto-accepted."
+    }
+  ],
+  "db_projection_proof": {
+    "view": "information_lifespan_db_lifecycle_proof",
+    "source_import_run_id": "00000000-0000-4000-8000-00000000a801",
+    "source_quality_issue_refs": ["source_quality_issue:vaccine-near-expiry:8101"],
+    "manager_daily_brief_outcome_id": "manager_daily_brief_outcome:synthetic-2026-06-29",
+    "audit_event_count": 2
+  },
+  "calculation_inputs": {
+    "manual_morning_scan_minutes": 60,
+    "reviewed_packet_minutes": 18,
+    "source_snapshot_count": 3,
+    "normalized_fact_count": 3,
+    "workflow_packet_count": 1,
+    "review_gate_count": 5
+  },
+  "requested_output": {
+    "artifact_kind": "manager_daily_report",
+    "artifact_ref": "artifact://manager-daily-report/synthetic-2026-06-29",
+    "title": "Manager Daily Report — synthetic 2026-06-29"
+  },
+  "safety_gates": [
+    "provider_write_locked",
+    "customer_send_locked",
+    "medical_review_required",
+    "schedule_change_locked",
+    "payment_movement_locked"
+  ]
+}
