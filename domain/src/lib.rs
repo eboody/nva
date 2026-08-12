@@ -66,6 +66,8 @@ pub mod retail;
 pub mod source;
 /// Staff contracts for scheduling, roles, training, and shift/labor context.
 pub mod staff;
+/// Strategic AI-operations contracts for lead response, CRM intelligence, optimization, GPT context, financial insight, and outcomes.
+pub mod strategic_ai_ops;
 /// Temperament contracts for group-play safety and behavior review evidence.
 pub mod temperament;
 /// Training contracts for programs, progress, trainer availability, and upsell workflows.
