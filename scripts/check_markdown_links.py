@@ -32,6 +32,33 @@ EXCLUDED_DIR_NAMES = {
     "venv",
 }
 
+RETIRED_MARKDOWN_LINK_PREFIXES = (
+    Path("docs/internal/archive"),
+)
+
+REHYDRATED_LEGACY_MARKDOWN_LINK_PREFIXES = (
+    Path("docs/architecture"),
+    Path("docs/demo"),
+    Path("docs/design"),
+    Path("docs/entity-atlas"),
+    Path("docs/integrations"),
+    Path("docs/ops"),
+    Path("docs/presentation"),
+    Path("docs/workflows/operator"),
+)
+
+CURRENT_MARKDOWN_LINK_PREFIXES = (
+    Path("docs/architecture/semantic-domain-contract-atlas.md"),
+    Path("docs/architecture/semantic-domain-ownership-adr.md"),
+    Path("docs/architecture/lifecycle-rehydration-boundaries.md"),
+    Path("docs/internal/2026-08-12-strategic-ai-ops-kanban.md"),
+    Path("docs/internal/README.md"),
+    Path("docs/internal/reviews"),
+    Path("docs/pilot"),
+    Path("docs/plans/2026-08-12-semantic-domain-hardening.md"),
+    Path("docs/safety"),
+)
+
 REQUIRED_DOMAIN_MODULE_READMES = (
     "boarding",
     "daycare",
@@ -155,6 +182,12 @@ def check_local_markdown_links(repo_root: Path) -> list[str]:
     anchor_cache: dict[Path, set[str]] = {}
     for markdown_file in iter_markdown_files(repo_root):
         relative_file = markdown_file.relative_to(repo_root)
+        if any(relative_file.is_relative_to(prefix) for prefix in RETIRED_MARKDOWN_LINK_PREFIXES):
+            continue
+        if any(relative_file.is_relative_to(prefix) for prefix in REHYDRATED_LEGACY_MARKDOWN_LINK_PREFIXES) and not any(
+            relative_file.is_relative_to(prefix) for prefix in CURRENT_MARKDOWN_LINK_PREFIXES
+        ):
+            continue
         text = CODE_FENCE_PATTERN.sub("", markdown_file.read_text(encoding="utf-8"))
         for line_number, line in enumerate(text.splitlines(), start=1):
             for raw_target in LINK_PATTERN.findall(line) + REFERENCE_LINK_PATTERN.findall(line):

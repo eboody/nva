@@ -17,5 +17,5 @@ for package in domain app storage gingr; do
 done
 python scripts/check_rustdoc_completeness.py
 python scripts/check_markdown_links.py
-python scripts/check_public_docs_landing.py
+python scripts/internal/check_public_docs_landing.py
 python scripts/check_workspace_quality.py --repo-root .

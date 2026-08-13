@@ -1658,6 +1658,87 @@
           }
         }
       }
+    },
+    "/v0/agent/context/permissioned-knowledge": {
+      "get": {
+        "operationId": "getPermissionedKnowledgeContext",
+        "description": "Read-only permissioned knowledge context assembled after deterministic authorization. Returns cited, redacted assistant context without live customer messages, provider/PMS writes, schedule changes, payment actions, or provider payload passthrough.",
+        "parameters": [
+          {
+            "name": "location_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "service",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "section",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized, redacted permissioned knowledge packet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/agent/context/site-finance": {
+      "get": {
+        "operationId": "getSiteFinanceContext",
+        "description": "Read-only site-finance recommendation context over deterministic fixture projections. Exposes review-gated financial recommendation proof without financial mutations, payment actions, provider writes, customer sends, deployment, or measured value claims.",
+        "responses": {
+          "200": {
+            "description": "Review-gated site finance recommendation packet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Fixture validation failed safely",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

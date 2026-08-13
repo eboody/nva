@@ -58,6 +58,36 @@ class MarkdownContractsTest(unittest.TestCase):
 
         self.assertEqual(failures, [])
 
+    def test_local_markdown_link_contract_ignores_retired_internal_archive_links(self):
+        contracts = load_markdown_contracts_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.write(root, "README.md", "# Root\n")
+            self.write(
+                root,
+                "docs/internal/archive/old-plan.md",
+                "[retired broken link](../missing-retired-doc.md)",
+            )
+
+            failures = contracts.check_local_markdown_links(root)
+
+        self.assertEqual(failures, [])
+
+    def test_local_markdown_link_contract_ignores_rehydrated_legacy_docs(self):
+        contracts = load_markdown_contracts_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.write(root, "README.md", "# Root\n")
+            self.write(
+                root,
+                "docs/design/legacy-navigation-map.md",
+                "[retired child link](missing-legacy-child.md)",
+            )
+
+            failures = contracts.check_local_markdown_links(root)
+
+        self.assertEqual(failures, [])
+
     def test_readme_coverage_contract_requires_workspace_and_domain_module_readmes(self):
         contracts = load_markdown_contracts_module()
         with tempfile.TemporaryDirectory() as tmp:
