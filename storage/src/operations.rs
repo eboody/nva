@@ -145,6 +145,10 @@ pub enum RecordKind {
     CoreServiceContracts,
     /// Manager-facing daily-brief labor evidence emitted by the booking triage workflow.
     ManagerDailyBriefOutcome,
+    /// Reviewed CRM retention recommendation/action/outcome correlation evidence.
+    CrmRetentionOutcome,
+    /// Reviewed site-finance recommendation/action/outcome correlation evidence.
+    SiteFinanceOutcome,
     /// Labor-evidence record for a data-quality hygiene workflow outcome.
     DataQualityHygieneOutcome,
     /// Source-quality backlog issue backing Data-Quality Hygiene BI read models.
@@ -272,6 +276,226 @@ pub enum ManagerDailyBriefActionKindCode {
     ApproveRetentionFollowUpDraft,
     /// Stable storage code for investigate source data quality issue.
     InvestigateSourceDataQualityIssue,
+    /// Stable storage code for reviewed capacity/labor recommendations.
+    ReviewCapacityLaborRecommendation,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    strum::Display,
+    strum::EnumString,
+    strum::VariantArray,
+)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
+/// Persisted reviewed outcomes for CRM retention recommendation/action correlation.
+pub enum CrmRetentionOutcomeCode {
+    /// Staff or system-of-record review confirmed a booked service after the retention action.
+    RecoveredBooking,
+    /// Staff/customer follow-up remains pending or was explicitly deferred.
+    Deferred,
+    /// Review suppressed outreach or action.
+    Suppressed,
+    /// Source facts were wrong and must not drive marketing or value attribution.
+    WrongSource,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    strum::Display,
+    strum::EnumString,
+    strum::VariantArray,
+)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
+/// Stored attribution class for reviewed CRM retention outcomes.
+pub enum CrmRetentionReviewedOutcomeClassificationCode {
+    /// Accepted evidence and reviewed outcome support counting one recovered booking.
+    RecoveredBooking,
+    /// Outcome does not support booking attribution because it is wrong-source, deferred, suppressed, or otherwise no-action.
+    NoActionOutcome,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+/// Stored CRM retention correlation row linking recommendation, review packet, source evidence, and reviewed outcome.
+pub struct CrmRetentionOutcomeRecord {
+    /// Cross-system identifier tying recommendation, action, and outcome together.
+    pub correlation_id: String,
+    /// Stable recommendation/action identifier produced by the retention workflow.
+    pub recommendation_id: String,
+    /// Review packet id that authorized review-only handling of the recommendation.
+    pub review_packet_id: String,
+    /// Reviewed outcome disposition.
+    pub outcome: CrmRetentionOutcomeCode,
+    /// Attribution class used by reporting to separate recovered bookings from no-action outcomes.
+    pub reviewed_outcome_classification: CrmRetentionReviewedOutcomeClassificationCode,
+    /// Staff, manager, or system actor that recorded the reviewed outcome.
+    pub actor_id: String,
+    /// Persona accountable for reviewing or recording this retention outcome.
+    pub actor_persona: ManagerDailyBriefPersonaCode,
+    /// Safe reviewer feedback without raw customer message body or provider payload.
+    pub feedback: String,
+    #[builder(default)]
+    /// Source evidence refs used to justify recommendation and outcome attribution.
+    pub source_refs: Vec<StoredSourceRecordRef>,
+    /// Timestamp when the reviewed outcome was recorded.
+    pub recorded_at: String,
+    /// Location whose retention opportunity was reviewed.
+    pub location_id: String,
+    /// Business date used for retention outcome grouping.
+    pub operating_day: String,
+}
+
+impl CrmRetentionOutcomeRecord {
+    /// Decodes a JSON storage payload into its typed CRM retention outcome record shape.
+    pub fn decode_json(raw: &str) -> Result<Self> {
+        serde_json::from_str(raw)
+            .map_err(|source| CodecError::decode(RecordKind::CrmRetentionOutcome, source).into())
+    }
+
+    /// Encodes the CRM retention outcome record as JSON for persistence or fixture comparison.
+    pub fn encode_json(&self) -> Result<String> {
+        serde_json::to_string(self)
+            .map_err(|source| CodecError::encode(RecordKind::CrmRetentionOutcome, source).into())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+/// Stored site-finance row linking source evidence, manager review, record-only action, and outcome attribution.
+pub struct SiteFinanceOutcomeRecord {
+    /// Cross-system identifier tying projection, recommendation, action, and outcome together.
+    pub correlation_id: String,
+    /// Location whose site-period finance evidence was reviewed.
+    pub location_id: String,
+    /// Site finance reporting period start.
+    pub period_start: String,
+    /// Site finance reporting period end.
+    pub period_end: String,
+    /// Service line included in the site finance projection.
+    pub service: String,
+    /// Stable recommendation identifier produced by the reviewed finance workflow.
+    pub recommendation_id: String,
+    /// Review packet id that authorized record-only handling of the recommendation.
+    pub review_packet_id: String,
+    /// Audit event id proving the review/action path stayed record-only.
+    pub audit_event_id: String,
+    /// Safe action label; this must not become a payment, discount, refund, or accounting mutation.
+    pub legal_action: String,
+    /// Whether the observed outcome has strong reviewed-action attribution.
+    pub can_support_value_claim: bool,
+    /// Currency code preserved for currency-aware reporting.
+    pub currency: String,
+    /// Net revenue in minor units after checked discount/refund arithmetic.
+    pub net_revenue_minor_units: u64,
+    /// Variance in minor units after relationship and currency checks.
+    pub variance_minor_units: u64,
+    #[builder(default)]
+    /// Source evidence refs used to justify projection and outcome attribution.
+    pub source_refs: Vec<StoredSourceRecordRef>,
+    /// Timestamp when the reviewed outcome was recorded.
+    pub recorded_at: String,
+}
+
+impl SiteFinanceOutcomeRecord {
+    /// Decodes a JSON storage payload into its typed site finance outcome record shape.
+    pub fn decode_json(raw: &str) -> Result<Self> {
+        serde_json::from_str(raw)
+            .map_err(|source| CodecError::decode(RecordKind::SiteFinanceOutcome, source).into())
+    }
+
+    /// Encodes the site finance outcome record as JSON for persistence or fixture comparison.
+    pub fn encode_json(&self) -> Result<String> {
+        serde_json::to_string(self)
+            .map_err(|source| CodecError::encode(RecordKind::SiteFinanceOutcome, source).into())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Reporting summary for reviewed CRM retention outcome records.
+pub struct CrmRetentionOutcomeSummary {
+    /// Location whose outcomes are summarized.
+    pub location_id: String,
+    /// Business date whose outcomes are summarized.
+    pub operating_day: String,
+    /// Optional correlation filter used to inspect one recommendation/action chain.
+    pub correlation_id: Option<String>,
+    /// Count of reviewed outcome rows in scope.
+    pub reviewed_outcome_count: usize,
+    /// Count of outcomes classified as recovered bookings.
+    pub recovered_booking_count: usize,
+    /// Count of outcomes classified as no-action.
+    pub no_action_outcome_count: usize,
+    /// Source evidence refs retained for audit and reconciliation.
+    pub source_refs: Vec<StoredSourceRecordRef>,
+    /// Recommendation ids included in the summary.
+    pub recommendation_ids: Vec<String>,
+}
+
+impl CrmRetentionOutcomeSummary {
+    /// Aggregates reviewed CRM retention outcomes by location, day, and optional correlation id.
+    pub fn from_records(
+        records: &[CrmRetentionOutcomeRecord],
+        location_id: &str,
+        operating_day: &str,
+        correlation_id: Option<&str>,
+    ) -> Self {
+        let mut summary = Self {
+            location_id: location_id.to_owned(),
+            operating_day: operating_day.to_owned(),
+            correlation_id: correlation_id.map(str::to_owned),
+            reviewed_outcome_count: 0,
+            recovered_booking_count: 0,
+            no_action_outcome_count: 0,
+            source_refs: Vec::new(),
+            recommendation_ids: Vec::new(),
+        };
+
+        for record in records.iter().filter(|record| {
+            record.location_id == location_id
+                && record.operating_day == operating_day
+                && correlation_id
+                    .is_none_or(|correlation_id| record.correlation_id == correlation_id)
+        }) {
+            summary.reviewed_outcome_count += 1;
+            match record.reviewed_outcome_classification {
+                CrmRetentionReviewedOutcomeClassificationCode::RecoveredBooking => {
+                    summary.recovered_booking_count += 1;
+                }
+                CrmRetentionReviewedOutcomeClassificationCode::NoActionOutcome => {
+                    summary.no_action_outcome_count += 1;
+                }
+            }
+            summary.source_refs.extend(record.source_refs.clone());
+            summary
+                .recommendation_ids
+                .push(record.recommendation_id.clone());
+        }
+
+        summary.recommendation_ids.sort();
+        summary.recommendation_ids.dedup();
+        summary
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Version tag for the durable manager daily-brief outcome row contract.
+pub enum ManagerDailyBriefOutcomeSchemaVersion {
+    /// Initial persisted Manager Daily Brief outcome row schema.
+    #[serde(rename = "manager_daily_brief_outcome.v0")]
+    #[default]
+    V0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -324,6 +548,10 @@ impl<'de> Deserialize<'de> for StoredManagerDailyBriefLaborMinutes {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 /// Stored evidence for a manager daily-brief action, including before/after labor minutes and source references.
 pub struct ManagerDailyBriefOutcomeRecord {
+    #[builder(default)]
+    #[serde(default)]
+    /// Stable schema version that makes row evolution explicit.
+    pub schema_version: ManagerDailyBriefOutcomeSchemaVersion,
     /// Stable workflow action identifier used for idempotent labor evidence.
     pub action_id: String,
     /// Final disposition recorded for the workflow action.
@@ -1340,6 +1568,63 @@ pub struct DataQualityHygieneLineageIds {
     pub recorded_at: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+/// Caller-supplied identifiers used to project reviewed workflow output into approval/outbox rows.
+pub struct ApprovalOutboxLineageIds {
+    /// Durable workflow event id supplied by the repository adapter before insert.
+    pub workflow_event_id: String,
+    /// Durable review packet id supplied by the repository adapter before insert.
+    pub review_packet_id: String,
+    /// Durable approval record id supplied by the repository adapter before insert.
+    pub approval_record_id: String,
+    /// Durable outbox record id supplied by the repository adapter before insert.
+    pub outbox_record_id: String,
+    /// Subject family persisted for workflow/review/approval rows.
+    pub subject_kind: String,
+    /// Subject id used by workflow/review/approval/outbox rows.
+    pub subject_id: String,
+    /// Idempotency key used by the workflow event row and derived outbox candidate.
+    pub idempotency_key: String,
+    /// Stable timestamp copied into row projections for deterministic tests and replay.
+    pub recorded_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+/// Workflow-specific values used by the shared approval/outbox projection.
+///
+/// The input deliberately keeps workflow names, topics, payloads, and actor ids explicit
+/// so the shared infrastructure does not erase service or workstream semantics.
+pub struct ApprovalOutboxProjectionInput {
+    /// Semantic workflow name persisted in `workflow_events.workflow_name`.
+    pub workflow_name: String,
+    /// Event kind persisted in `workflow_events.event_kind`.
+    pub event_kind: String,
+    /// Review gate used for packet, approval, and outbox rows.
+    pub gate: ReviewGateCode,
+    /// Whether a human/system-of-record review completed the local handoff candidate.
+    pub completed: bool,
+    /// Target aggregate kind matching the approved outbox candidate.
+    pub target_kind: String,
+    /// Agent actor id that prepared the packet and requested approval.
+    pub agent_actor_id: String,
+    /// Actor kind that decided completed review rows.
+    pub reviewing_actor_kind: ActorKindCode,
+    /// Actor id that decided completed review rows.
+    pub reviewing_actor_id: String,
+    /// Workflow payload for source refs, correlation evidence, and safety posture.
+    pub workflow_payload: serde_json::Value,
+    /// Reviewable result payload; never execution proof for live side effects.
+    pub result_payload: serde_json::Value,
+    /// Audit action used for the reviewed outcome row.
+    pub audit_action: String,
+    /// Audit metadata proving review, source refs, and side-effect posture.
+    pub audit_metadata: serde_json::Value,
+    /// Internal outbox topic produced only after approval.
+    pub outbox_topic: String,
+    /// Internal outbox payload produced only after approval.
+    pub outbox_payload: serde_json::Value,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, strum::Display)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
@@ -1533,6 +1818,17 @@ pub struct DataQualityHygieneOutcomeRow {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Storage-shaped site-finance outcome row with workflow and approval foreign keys.
+pub struct SiteFinanceOutcomeRow {
+    /// Parent workflow event id.
+    pub workflow_event_id: String,
+    /// Parent approval record id.
+    pub approval_record_id: String,
+    /// Typed storage outcome payload.
+    pub record: SiteFinanceOutcomeRecord,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Storage-shaped audit event row for append-only local proof.
 pub struct AuditEventRecord {
     /// Actor kind that produced the audit event.
@@ -1599,6 +1895,231 @@ pub struct DataQualityHygieneLocalPersistenceRecords {
     pub outbox_candidate: Option<OutboxRecord>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Complete storage projection for one reviewed local site-finance workflow outcome.
+pub struct SiteFinanceLocalPersistenceRecords {
+    /// Workflow event row.
+    pub workflow_event: WorkflowEventRecord,
+    /// Workflow result row.
+    pub workflow_result: WorkflowResultRecord,
+    /// Review packet row.
+    pub review_packet: ReviewPacketRecord,
+    /// Approval record row.
+    pub approval_record: ApprovalRecordRow,
+    /// Outcome row linked to workflow and approval rows.
+    pub outcome: SiteFinanceOutcomeRow,
+    /// Append-only audit rows for context creation and reviewed outcome capture.
+    pub audit_events: Vec<AuditEventRecord>,
+    /// Optional approved internal handoff candidate.
+    pub outbox_candidate: Option<OutboxRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Complete shared storage projection for a reviewed local workflow handoff.
+///
+/// This is the common approval/outbox spine proven by multiple vertical slices. Outcome
+/// payload rows remain workflow-owned so this infrastructure does not become a generic
+/// platform type that hides service or workstream semantics.
+pub struct ApprovalOutboxProjection {
+    /// Workflow event row.
+    pub workflow_event: WorkflowEventRecord,
+    /// Workflow result row.
+    pub workflow_result: WorkflowResultRecord,
+    /// Review packet row.
+    pub review_packet: ReviewPacketRecord,
+    /// Approval record row.
+    pub approval_record: ApprovalRecordRow,
+    /// Append-only audit rows for context creation and reviewed outcome capture.
+    pub audit_events: Vec<AuditEventRecord>,
+    /// Optional approved internal handoff candidate.
+    pub outbox_candidate: Option<OutboxRecord>,
+}
+
+impl ApprovalOutboxProjection {
+    /// Projects a reviewed workflow handoff into storage-shaped MVP rows without enabling live side effects.
+    pub fn from_reviewed_internal_handoff(
+        ids: ApprovalOutboxLineageIds,
+        input: ApprovalOutboxProjectionInput,
+    ) -> Self {
+        let workflow_event = WorkflowEventRecord {
+            id: ids.workflow_event_id.clone(),
+            workflow_name: input.workflow_name.clone(),
+            event_kind: input.event_kind,
+            subject_kind: ids.subject_kind.clone(),
+            subject_id: ids.subject_id.clone(),
+            idempotency_key: ids.idempotency_key.clone(),
+            payload: input.workflow_payload.clone(),
+            occurred_at: ids.recorded_at.clone(),
+            recorded_at: ids.recorded_at.clone(),
+        };
+
+        let workflow_result = WorkflowResultRecord {
+            id: format!("{}:result", ids.workflow_event_id),
+            workflow_event_id: ids.workflow_event_id.clone(),
+            status: if input.completed {
+                WorkflowResultStatusCode::Succeeded
+            } else {
+                WorkflowResultStatusCode::NeedsReview
+            },
+            result: input.result_payload,
+            error_code: None,
+            created_at: ids.recorded_at.clone(),
+        };
+
+        let review_packet = ReviewPacketRecord {
+            id: ids.review_packet_id.clone(),
+            subject_kind: ids.subject_kind.clone(),
+            subject_id: ids.subject_id.clone(),
+            gate: input.gate,
+            status: if input.completed {
+                ReviewPacketStatusCode::Approved
+            } else {
+                ReviewPacketStatusCode::ReadyForReview
+            },
+            workflow_event_id: ids.workflow_event_id.clone(),
+            created_by_actor_kind: ActorKindCode::Agent,
+            created_by_actor_id: input.agent_actor_id.clone(),
+            created_at: ids.recorded_at.clone(),
+            updated_at: ids.recorded_at.clone(),
+        };
+
+        let approval_record = ApprovalRecordRow {
+            id: ids.approval_record_id.clone(),
+            target_kind: input.target_kind.clone(),
+            target_id: ids.subject_id.clone(),
+            gate: input.gate,
+            status: if input.completed {
+                "approved"
+            } else {
+                "approval_requested"
+            }
+            .to_owned(),
+            requested_by_actor_kind: ActorKindCode::Agent,
+            requested_by_actor_id: input.agent_actor_id.clone(),
+            requested_at: ids.recorded_at.clone(),
+            decided_by_actor_kind: input.completed.then_some(input.reviewing_actor_kind),
+            decided_by_actor_id: input.completed.then(|| input.reviewing_actor_id.clone()),
+            decided_at: input.completed.then(|| ids.recorded_at.clone()),
+            review_packet_id: ids.review_packet_id.clone(),
+        };
+
+        let audit_events = vec![
+            AuditEventRecord {
+                actor_kind: ActorKindCode::Agent,
+                actor_id: input.agent_actor_id,
+                subject_kind: "workflow_event".to_owned(),
+                subject_id: ids.workflow_event_id.clone(),
+                action: format!("{}.context_recorded", input.workflow_name.replace('-', "_")),
+                workflow_event_id: ids.workflow_event_id.clone(),
+                metadata: input.workflow_payload,
+                occurred_at: ids.recorded_at.clone(),
+                recorded_at: ids.recorded_at.clone(),
+            },
+            AuditEventRecord {
+                actor_kind: input.reviewing_actor_kind,
+                actor_id: input.reviewing_actor_id,
+                subject_kind: "approval".to_owned(),
+                subject_id: ids.approval_record_id.clone(),
+                action: input.audit_action,
+                workflow_event_id: ids.workflow_event_id.clone(),
+                metadata: input.audit_metadata,
+                occurred_at: ids.recorded_at.clone(),
+                recorded_at: ids.recorded_at.clone(),
+            },
+        ];
+
+        let outbox_candidate = input.completed.then(|| OutboxRecord {
+            id: ids.outbox_record_id,
+            idempotency_key: format!("{}:internal-reviewed-handoff", ids.idempotency_key),
+            approval_record_id: ids.approval_record_id,
+            topic: input.outbox_topic,
+            review_gate: input.gate,
+            aggregate_kind: input.target_kind,
+            aggregate_id: ids.subject_id,
+            payload: input.outbox_payload,
+            status: OutboxStatusCode::Pending,
+            available_at: ids.recorded_at,
+        });
+
+        Self {
+            workflow_event,
+            workflow_result,
+            review_packet,
+            approval_record,
+            audit_events,
+            outbox_candidate,
+        }
+    }
+}
+
+impl SiteFinanceLocalPersistenceRecords {
+    /// Projects a reviewed site-finance outcome into storage-shaped MVP rows without enabling payments or accounting writes.
+    pub fn from_reviewed_outcome(
+        ids: ApprovalOutboxLineageIds,
+        outcome: SiteFinanceOutcomeRecord,
+    ) -> Self {
+        let projection = ApprovalOutboxProjection::from_reviewed_internal_handoff(
+            ids.clone(),
+            ApprovalOutboxProjectionInput::builder()
+                .workflow_name("site-finance".to_owned())
+                .event_kind("reviewed_recommendation_recorded".to_owned())
+                .gate(ReviewGateCode::ManagerApproval)
+                .completed(outcome.can_support_value_claim)
+                .target_kind("message".to_owned())
+                .agent_actor_id("site-finance-agent".to_owned())
+                .reviewing_actor_kind(ActorKindCode::Manager)
+                .reviewing_actor_id("site-finance-reviewer".to_owned())
+                .workflow_payload(json!({
+                    "correlation_id": outcome.correlation_id,
+                    "location_id": outcome.location_id,
+                    "recommendation_id": outcome.recommendation_id,
+                    "review_packet_id": outcome.review_packet_id,
+                    "audit_event_id": outcome.audit_event_id,
+                    "source_refs": outcome.source_refs,
+                    "payment_actions_allowed": false,
+                    "accounting_mutations_allowed": false,
+                }))
+                .result_payload(json!({
+                    "record_only_finance_action": true,
+                    "legal_action": outcome.legal_action,
+                    "can_support_value_claim": outcome.can_support_value_claim,
+                    "live_side_effects_allowed": false,
+                }))
+                .audit_action("site_finance.reviewed_recommendation_recorded".to_owned())
+                .audit_metadata(json!({
+                    "recommendation_id": outcome.recommendation_id,
+                    "legal_action": outcome.legal_action,
+                    "can_support_value_claim": outcome.can_support_value_claim,
+                    "payment_actions_allowed": false,
+                    "accounting_mutations_allowed": false,
+                }))
+                .outbox_topic("internal.site_finance.reviewed_handoff".to_owned())
+                .outbox_payload(json!({
+                    "recommendation_id": outcome.recommendation_id,
+                    "correlation_id": outcome.correlation_id,
+                    "source_refs": outcome.source_refs,
+                    "internal_handoff_only": true,
+                    "live_delivery_allowed": false,
+                }))
+                .build(),
+        );
+
+        Self {
+            workflow_event: projection.workflow_event,
+            workflow_result: projection.workflow_result,
+            review_packet: projection.review_packet,
+            approval_record: projection.approval_record,
+            outcome: SiteFinanceOutcomeRow {
+                workflow_event_id: ids.workflow_event_id,
+                approval_record_id: ids.approval_record_id,
+                record: outcome,
+            },
+            audit_events: projection.audit_events,
+            outbox_candidate: projection.outbox_candidate,
+        }
+    }
+}
+
 impl DataQualityHygieneLocalPersistenceRecords {
     /// Projects a reviewed Data-Quality Hygiene outcome into storage-shaped MVP rows without enabling live side effects.
     pub fn from_reviewed_outcome(
@@ -1617,139 +2138,67 @@ impl DataQualityHygieneLocalPersistenceRecords {
             "provider_writes_allowed": false,
             "customer_messages_allowed": false,
         });
-
-        let workflow_event = WorkflowEventRecord {
-            id: ids.workflow_event_id.clone(),
-            workflow_name: "data-quality-hygiene".to_owned(),
-            event_kind: "context_created".to_owned(),
-            subject_kind: "location".to_owned(),
-            subject_id: ids.subject_id.clone(),
-            idempotency_key: ids.idempotency_key.clone(),
-            payload: workflow_payload.clone(),
-            occurred_at: ids.recorded_at.clone(),
-            recorded_at: ids.recorded_at.clone(),
-        };
-
-        let workflow_result = WorkflowResultRecord {
-            id: format!("{}:result", ids.workflow_event_id),
-            workflow_event_id: ids.workflow_event_id.clone(),
-            status: if completed {
-                WorkflowResultStatusCode::Succeeded
-            } else {
-                WorkflowResultStatusCode::NeedsReview
-            },
-            result: json!({
-                "mode": "fake_deterministic_or_disabled",
-                "reviewable_output_only": true,
-                "action_id": outcome.action_id,
-                "outcome": outcome.outcome,
-                "live_side_effects_allowed": false,
-            }),
-            error_code: None,
-            created_at: ids.recorded_at.clone(),
-        };
-
-        let review_packet = ReviewPacketRecord {
-            id: ids.review_packet_id.clone(),
-            subject_kind: "location".to_owned(),
-            subject_id: ids.subject_id.clone(),
-            gate: ReviewGateCode::ManagerApproval,
-            status: if completed {
-                ReviewPacketStatusCode::Approved
-            } else {
-                ReviewPacketStatusCode::ReadyForReview
-            },
-            workflow_event_id: ids.workflow_event_id.clone(),
-            created_by_actor_kind: ActorKindCode::Agent,
-            created_by_actor_id: "data-quality-hygiene-agent".to_owned(),
-            created_at: ids.recorded_at.clone(),
-            updated_at: ids.recorded_at.clone(),
-        };
-
-        let approval_record = ApprovalRecordRow {
-            id: ids.approval_record_id.clone(),
-            target_kind: "message".to_owned(),
-            target_id: ids.subject_id.clone(),
-            gate: ReviewGateCode::ManagerApproval,
-            status: if completed {
-                "approved"
-            } else {
-                "approval_requested"
-            }
-            .to_owned(),
-            requested_by_actor_kind: ActorKindCode::Agent,
-            requested_by_actor_id: "data-quality-hygiene-agent".to_owned(),
-            requested_at: ids.recorded_at.clone(),
-            decided_by_actor_kind: completed.then_some(ActorKindCode::Staff),
-            decided_by_actor_id: completed.then(|| outcome.actor_id.clone()),
-            decided_at: completed.then(|| ids.recorded_at.clone()),
-            review_packet_id: ids.review_packet_id.clone(),
-        };
-
-        let audit_events = vec![
-            AuditEventRecord {
-                actor_kind: ActorKindCode::Agent,
-                actor_id: "data-quality-hygiene-agent".to_owned(),
-                subject_kind: "workflow_event".to_owned(),
-                subject_id: ids.workflow_event_id.clone(),
-                action: "data_quality_hygiene.context_created".to_owned(),
-                workflow_event_id: ids.workflow_event_id.clone(),
-                metadata: workflow_payload,
-                occurred_at: ids.recorded_at.clone(),
-                recorded_at: ids.recorded_at.clone(),
-            },
-            AuditEventRecord {
-                actor_kind: ActorKindCode::Staff,
-                actor_id: outcome.actor_id.clone(),
-                subject_kind: "approval".to_owned(),
-                subject_id: ids.approval_record_id.clone(),
-                action: "data_quality_hygiene.reviewed_outcome_recorded".to_owned(),
-                workflow_event_id: ids.workflow_event_id.clone(),
-                metadata: json!({
+        let projection = ApprovalOutboxProjection::from_reviewed_internal_handoff(
+            ApprovalOutboxLineageIds::builder()
+                .workflow_event_id(ids.workflow_event_id.clone())
+                .review_packet_id(ids.review_packet_id.clone())
+                .approval_record_id(ids.approval_record_id.clone())
+                .outbox_record_id(ids.outbox_record_id)
+                .subject_kind("location".to_owned())
+                .subject_id(ids.subject_id)
+                .idempotency_key(ids.idempotency_key)
+                .recorded_at(ids.recorded_at)
+                .build(),
+            ApprovalOutboxProjectionInput::builder()
+                .workflow_name("data-quality-hygiene".to_owned())
+                .event_kind("context_created".to_owned())
+                .gate(ReviewGateCode::ManagerApproval)
+                .completed(completed)
+                .target_kind("message".to_owned())
+                .agent_actor_id("data-quality-hygiene-agent".to_owned())
+                .reviewing_actor_kind(ActorKindCode::Staff)
+                .reviewing_actor_id(outcome.actor_id.clone())
+                .workflow_payload(workflow_payload)
+                .result_payload(json!({
+                    "mode": "fake_deterministic_or_disabled",
+                    "reviewable_output_only": true,
+                    "action_id": outcome.action_id,
+                    "outcome": outcome.outcome,
+                    "live_side_effects_allowed": false,
+                }))
+                .audit_action("data_quality_hygiene.reviewed_outcome_recorded".to_owned())
+                .audit_metadata(json!({
                     "action_id": outcome.action_id,
                     "outcome": outcome.outcome,
                     "resolution_status_after_review": outcome.resolution_status_after_review,
                     "estimated_minutes_saved": outcome.estimated_minutes_saved,
                     "actual_minutes_saved": outcome.actual_minutes_saved(),
                     "live_side_effects_allowed": false,
-                }),
-                occurred_at: ids.recorded_at.clone(),
-                recorded_at: ids.recorded_at.clone(),
-            },
-        ];
-
-        let outbox_candidate = completed.then(|| OutboxRecord {
-            id: ids.outbox_record_id.clone(),
-            idempotency_key: format!("{}:internal-reviewed-handoff", ids.idempotency_key),
-            approval_record_id: ids.approval_record_id.clone(),
-            topic: "internal.data_quality_hygiene.reviewed_handoff".to_owned(),
-            review_gate: ReviewGateCode::ManagerApproval,
-            aggregate_kind: "message".to_owned(),
-            aggregate_id: ids.subject_id.clone(),
-            payload: json!({
-                "action_id": outcome.action_id,
-                "correlation_id": outcome.correlation_id,
-                "issue_refs": outcome.issue_refs,
-                "source_refs": outcome.source_refs,
-                "internal_handoff_only": true,
-                "live_delivery_allowed": false,
-            }),
-            status: OutboxStatusCode::Pending,
-            available_at: ids.recorded_at.clone(),
-        });
+                }))
+                .outbox_topic("internal.data_quality_hygiene.reviewed_handoff".to_owned())
+                .outbox_payload(json!({
+                    "action_id": outcome.action_id,
+                    "correlation_id": outcome.correlation_id,
+                    "issue_refs": outcome.issue_refs,
+                    "source_refs": outcome.source_refs,
+                    "internal_handoff_only": true,
+                    "live_delivery_allowed": false,
+                }))
+                .build(),
+        );
 
         Self {
-            workflow_event,
-            workflow_result,
-            review_packet,
-            approval_record,
+            workflow_event: projection.workflow_event,
+            workflow_result: projection.workflow_result,
+            review_packet: projection.review_packet,
+            approval_record: projection.approval_record,
             outcome: DataQualityHygieneOutcomeRow {
                 workflow_event_id: ids.workflow_event_id,
                 approval_record_id: ids.approval_record_id,
                 record: outcome,
             },
-            audit_events,
-            outbox_candidate,
+            audit_events: projection.audit_events,
+            outbox_candidate: projection.outbox_candidate,
         }
     }
 }

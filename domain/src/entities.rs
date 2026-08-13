@@ -23,7 +23,7 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use nutype::nutype;
 #[allow(unused_imports)]
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use uuid::Uuid;
 
 use bon::Builder;
@@ -354,7 +354,7 @@ pub struct MedicationInstruction {
     pub review_requirement: care::MedicationReviewRequirement,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Builder)]
 /// Reservation record tying customer, pet, service, status, deposit, add-ons, and safety stops together.
 pub struct Reservation {
     /// Id retained from source records for staff review, safety gates, and workflow joins.
@@ -383,6 +383,77 @@ pub struct Reservation {
     #[builder(default)]
     /// Hard stops retained from source records for staff review, safety gates, and workflow joins.
     pub hard_stops: Vec<HardStop>,
+}
+
+#[derive(Deserialize)]
+struct RawReservation {
+    id: reservation::Id,
+    location_id: LocationId,
+    customer_id: CustomerId,
+    pet_ids: Vec<PetId>,
+    service: ServiceKind,
+    status: reservation::Status,
+    starts_at: DateTime<Utc>,
+    ends_at: DateTime<Utc>,
+    deposit: Option<Deposit>,
+    source: reservation::Source,
+    #[serde(default)]
+    requested_add_ons: Vec<AddOn>,
+    #[serde(default)]
+    hard_stops: Vec<HardStop>,
+}
+
+impl<'de> Deserialize<'de> for Reservation {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let raw = RawReservation::deserialize(deserializer)?;
+        Self::try_from_persisted(raw).map_err(serde::de::Error::custom)
+    }
+}
+
+impl Reservation {
+    fn try_from_persisted(raw: RawReservation) -> std::result::Result<Self, &'static str> {
+        if raw.ends_at <= raw.starts_at {
+            return Err("reservation end must be after start");
+        }
+        if raw.pet_ids.is_empty() {
+            return Err("reservation requires at least one pet");
+        }
+        if raw.hard_stops.contains(&HardStop::DepositRequired)
+            && !raw
+                .deposit
+                .as_ref()
+                .is_some_and(payment::Deposit::requires_collection)
+        {
+            return Err("deposit-required hard stop requires a collectible deposit");
+        }
+        if matches!(
+            raw.status,
+            reservation::Status::Cancelled
+                | reservation::Status::Rejected
+                | reservation::Status::CheckedOut
+        ) && !raw.hard_stops.is_empty()
+        {
+            return Err("terminal reservation status must not carry active hard stops");
+        }
+
+        Ok(Self {
+            id: raw.id,
+            location_id: raw.location_id,
+            customer_id: raw.customer_id,
+            pet_ids: raw.pet_ids,
+            service: raw.service,
+            status: raw.status,
+            starts_at: raw.starts_at,
+            ends_at: raw.ends_at,
+            deposit: raw.deposit,
+            source: raw.source,
+            requested_add_ons: raw.requested_add_ons,
+            hard_stops: raw.hard_stops,
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -865,7 +936,7 @@ pub enum IncidentSubject {
     Location(LocationId),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Builder)]
 /// Customer/internal message record that tracks subject, channel, draft/reference body, approval, and delivery state.
 pub struct Message {
     /// Id retained from source records for staff review, safety gates, and workflow joins.
@@ -887,7 +958,86 @@ pub struct Message {
     pub audit_refs: Vec<crate::audit::EventId>,
 }
 
+#[derive(Deserialize)]
+struct RawMessage {
+    id: MessageId,
+    subject: MessageSubject,
+    direction: message::Direction,
+    channel: message::Channel,
+    status: message::Status,
+    body_ref: message::BodyRef,
+    approval_gate: Option<policy::ReviewGate>,
+    #[serde(default)]
+    audit_refs: Vec<crate::audit::EventId>,
+}
+
+impl<'de> Deserialize<'de> for Message {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let raw = RawMessage::deserialize(deserializer)?;
+        Self::try_from_persisted(raw).map_err(serde::de::Error::custom)
+    }
+}
+
 impl Message {
+    fn try_from_persisted(raw: RawMessage) -> std::result::Result<Self, &'static str> {
+        if matches!(raw.direction, message::Direction::OutboundDraft)
+            && !matches!(
+                raw.status,
+                message::Status::DraftCreated
+                    | message::Status::ApprovalRequested
+                    | message::Status::Suppressed
+                    | message::Status::Cancelled
+            )
+        {
+            return Err("outbound draft cannot carry queued, attempted, or delivered status");
+        }
+        if matches!(
+            raw.status,
+            message::Status::ApprovedToQueue
+                | message::Status::Queued
+                | message::Status::SendAttempted
+                | message::Status::Delivered
+        ) && raw.approval_gate.is_none()
+        {
+            return Err("queued or approved outbound message requires approval gate evidence");
+        }
+        if matches!(raw.direction, message::Direction::InboundReceived)
+            && matches!(
+                raw.status,
+                message::Status::ApprovedToQueue
+                    | message::Status::Queued
+                    | message::Status::SendAttempted
+                    | message::Status::Delivered
+            )
+        {
+            return Err("inbound messages cannot carry outbound delivery lifecycle status");
+        }
+        if matches!(raw.direction, message::Direction::OutboundSent)
+            && !matches!(
+                raw.status,
+                message::Status::SendAttempted
+                    | message::Status::Delivered
+                    | message::Status::Failed
+            )
+        {
+            return Err("outbound sent message requires attempted, delivered, or failed status");
+        }
+
+        Ok(Self {
+            id: raw.id,
+            subject: raw.subject,
+            direction: raw.direction,
+            channel: raw.channel,
+            status: raw.status,
+            body_ref: raw.body_ref,
+            approval_gate: raw.approval_gate,
+            audit_refs: raw.audit_refs,
+        })
+    }
+
     /// Reports whether the message is still a draft or awaiting approval before any outbound send.
     pub fn requires_approval_before_send(&self) -> bool {
         self.approval_gate.is_some()

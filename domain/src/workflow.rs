@@ -22,7 +22,7 @@
 use chrono::{DateTime, Utc};
 use nutype::nutype;
 #[allow(unused_imports)]
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use uuid::Uuid;
 
 use crate::{entities, policy};
@@ -296,7 +296,7 @@ pub mod status_update {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 /// Workflow event that records what changed, who/what it concerns, and what evidence/risk came with it.
 pub struct Event {
     /// Workflow event ID value preserved for staff review and audit evidence.
@@ -313,6 +313,72 @@ pub struct Event {
     pub subject: Subject,
     /// Workflow policy context value preserved for staff review and audit evidence.
     pub policy_context: PolicyContext,
+}
+
+#[derive(Deserialize)]
+struct RawEvent {
+    event_id: EventId,
+    event_type: EventType,
+    occurred_at: DateTime<Utc>,
+    actor: entities::ActorRef,
+    location_id: entities::LocationId,
+    subject: Subject,
+    policy_context: PolicyContext,
+}
+
+impl<'de> Deserialize<'de> for Event {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let raw = RawEvent::deserialize(deserializer)?;
+        Self::try_from_persisted(raw).map_err(serde::de::Error::custom)
+    }
+}
+
+impl Event {
+    fn try_from_persisted(raw: RawEvent) -> std::result::Result<Self, &'static str> {
+        if !event_type_matches_subject(&raw.event_type, &raw.subject) {
+            return Err("workflow event subject does not match event type");
+        }
+        Ok(Self {
+            event_id: raw.event_id,
+            event_type: raw.event_type,
+            occurred_at: raw.occurred_at,
+            actor: raw.actor,
+            location_id: raw.location_id,
+            subject: raw.subject,
+            policy_context: raw.policy_context,
+        })
+    }
+}
+
+fn event_type_matches_subject(event_type: &EventType, subject: &Subject) -> bool {
+    match event_type {
+        EventType::InquiryReceived
+        | EventType::CustomerRegistered
+        | EventType::ReviewRequestEligible
+        | EventType::MembershipChanged
+        | EventType::LoyaltyCreditAvailable => {
+            matches!(subject, Subject::Customer(_) | Subject::External { .. })
+        }
+        EventType::PetProfileCreated
+        | EventType::VaccineDocumentUploaded
+        | EventType::DailyNoteCreated
+        | EventType::DailyUpdateNeeded
+        | EventType::IncidentCreated => {
+            matches!(
+                subject,
+                Subject::Pet(_) | Subject::Reservation(_) | Subject::External { .. }
+            )
+        }
+        EventType::BookingRequested
+        | EventType::BookingTriageNeeded
+        | EventType::BookingConfirmationNeeded
+        | EventType::CheckoutCompleted => {
+            matches!(subject, Subject::Reservation(_) | Subject::External { .. })
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

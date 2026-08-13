@@ -5,6 +5,17 @@ use strum::VariantArray;
 fn source_system_external_codes_parse_display_and_iterate_stably() {
     let cases = [
         ("gingr", source::System::Gingr),
+        ("telephony", source::System::Telephony),
+        ("sms_provider", source::System::SmsProvider),
+        ("email", source::System::Email),
+        ("web_chat", source::System::WebChat),
+        ("website_forms", source::System::WebsiteForms),
+        ("marketing_automation", source::System::MarketingAutomation),
+        ("crm", source::System::Crm),
+        ("finance_accounting", source::System::FinanceAccounting),
+        ("workforce_management", source::System::WorkforceManagement),
+        ("knowledge_base", source::System::KnowledgeBase),
+        ("provider_or_pms", source::System::ProviderOrPms),
         (
             "business_intelligence",
             source::System::BusinessIntelligence,

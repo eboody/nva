@@ -39,7 +39,16 @@ Fan-in lanes:
 
 ## Implemented domain coverage
 
-The initial strategic model contract is implemented in `domain/src/strategic_ai_ops.rs` with coverage tests in `domain/tests/strategic_ai_ops_model_contracts.rs`.
+Successor artifact status: the original `nva-strategic-ai-ops` intent is now mapped into the semantic-domain hardening artifacts rather than a standalone catch-all module. The initial strategic model contract was rehomed out of `domain/src/strategic_ai_ops.rs` and now lives under canonical owners: `domain::lead::response`, `domain::customer::intelligence`, `domain::operations::{labor,capacity,time_bucket}`, `domain::agent::{assistant,knowledge}`, `domain::analytics::{finance,outcome}`, `domain::access`, `domain::consent`, and `domain::identity`. The deprecated `domain::strategic_ai_ops` facade remains only as compatibility re-exports from those owners.
+
+Primary successor artifacts:
+
+- `docs/plans/2026-08-12-semantic-domain-hardening.md`
+- `docs/architecture/semantic-domain-contract-atlas.md`
+- `docs/architecture/semantic-domain-ownership-adr.md`
+- `docs/internal/reviews/semantic-domain-final.md`
+- `domain/tests/semantic_rehome_contracts.rs`
+- `domain/tests/strategic_ai_ops_model_contracts.rs`
 
 The model adds shared primitives and packet types for:
 
@@ -51,7 +60,7 @@ The model adds shared primitives and packet types for:
 - Cross-workstream outcomes: workstream, metric, before/after value, attribution strength, source system, recorded time, and value-claim eligibility.
 - Source/access foundation: expanded source-system vocabulary, actor roles, visibility scopes, allowed uses, and customer identity-match confidence.
 
-These additions intentionally model the strategic gaps without claiming live operational readiness. They create the semantic contracts downstream importers, agents, optimizers, dashboards, and review workflows can bind to.
+These additions intentionally model the strategic gaps without claiming live operational readiness. They create the semantic contracts downstream importers, agents, optimizers, dashboards, and review workflows can bind to. The recoverable archive/resume decision for `nva-strategic-ai-ops` is therefore: resume only if a future board needs fresh discovery/design beyond the successor hardening artifacts; do not resume merely to recreate the deleted catch-all module.
 
 ## Key design questions to answer next
 
@@ -64,4 +73,4 @@ These additions intentionally model the strategic gaps without claiming live ope
 
 ## Expected board status
 
-The board is `nva-strategic-ai-ops`. It should stay parked until the user explicitly asks to begin discovery/design execution. Once execution starts, docs/discovery workers can run in parallel. Code-mutating or repo-writing implementation should be serialized or isolated into worktrees.
+The board is `nva-strategic-ai-ops`. Its open intent has been mapped to the successor semantic-domain hardening artifacts above. It should stay parked or be recoverably archived unless the user explicitly asks to begin new discovery/design execution beyond the canonical owner modules now implemented here. Once any future execution starts, docs/discovery workers can run in parallel; code-mutating or repo-writing implementation should be serialized or isolated into worktrees.

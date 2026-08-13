@@ -105,6 +105,8 @@ pub enum IneligibilityReason {
     PreferredChannelNotAllowed,
     /// Explains that suppression, complaint, source-quality, or review flags prevent customer draft authority.
     SuppressionFlagRequiresReview,
+    /// Explains that CRM notes, segment membership, or campaign evidence was rejected, expired, or operations-only and therefore cannot justify marketing copy.
+    NoAcceptedMarketingEvidence,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -164,6 +166,28 @@ pub enum SuppressionFlag {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Review status applied to CRM notes, segment membership, and other retention evidence before it may personalize marketing drafts.
+pub enum EvidenceReviewStatus {
+    /// Evidence was reviewed and may be used to personalize a review-only follow-up draft.
+    Accepted,
+    /// Evidence was reviewed and rejected as unsuitable for personalization or recommendation.
+    Rejected,
+    /// Evidence is too old to justify a current marketing follow-up.
+    Expired,
+    /// Evidence may inform internal staff tasks but cannot drive customer marketing copy.
+    OperationsOnly,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Reviewed attribution class that correlates a retention recommendation/action to a staff-observed outcome without claiming unsupported value.
+pub enum ReviewedOutcomeClassification {
+    /// Staff or system-of-record evidence confirms a booked service after an accepted reviewed recommendation.
+    RecoveredBooking,
+    /// The recommendation produced no reviewed booking or remains deferred/suppressed/wrong-source.
+    NoActionOutcome,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 /// Concrete conversion type recorded after human/system-of-record action proves follow-up impact.
 pub enum ConversionKind {
     /// Staff or the booking system confirmed a grooming rebook after review.
@@ -219,6 +243,8 @@ pub struct OpportunityEvidence {
     reason_code: SourceGroundedReasonCode,
     summary: EvidenceSummary,
     provenance: source::Provenance,
+    #[builder(default = EvidenceReviewStatus::Accepted)]
+    review_status: EvidenceReviewStatus,
 }
 
 impl OpportunityEvidence {
@@ -235,6 +261,16 @@ impl OpportunityEvidence {
     /// Returns the provenance evidence available to retention follow-up review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn provenance(&self) -> &source::Provenance {
         &self.provenance
+    }
+
+    /// Returns the reviewed evidence status that decides whether this source fact may personalize a marketing draft or only internal staff work.
+    pub const fn review_status(&self) -> EvidenceReviewStatus {
+        self.review_status
+    }
+
+    /// Reports whether this evidence may be used for a customer-visible marketing draft after human review.
+    pub const fn can_drive_marketing_draft(&self) -> bool {
+        matches!(self.review_status, EvidenceReviewStatus::Accepted)
     }
 }
 
@@ -442,6 +478,14 @@ impl StaffReviewPacket {
         &self.opportunities
     }
 
+    /// Returns only accepted opportunities that may personalize a customer follow-up draft after the required review gate.
+    pub fn marketable_opportunities(&self) -> Vec<&RetentionOpportunity> {
+        self.opportunities
+            .iter()
+            .filter(|opportunity| opportunity.evidence().can_drive_marketing_draft())
+            .collect()
+    }
+
     /// Returns the review-only follow-up draft metadata; callers must still honor review gates and blocked actions.
     pub const fn draft_follow_up(&self) -> &DraftFollowUp {
         &self.draft_follow_up
@@ -608,6 +652,16 @@ fn eligibility_for(
         };
     }
 
+    if !request
+        .opportunities
+        .iter()
+        .any(|opportunity| opportunity.evidence().can_drive_marketing_draft())
+    {
+        return FollowUpEligibility::Ineligible {
+            reason: IneligibilityReason::NoAcceptedMarketingEvidence,
+        };
+    }
+
     if draft_channel.is_none() {
         return FollowUpEligibility::Ineligible {
             reason: request.contact_permission.denial_reason(),
@@ -711,5 +765,38 @@ impl OutcomeRecord {
     /// Returns the blocked actions evidence available to retention follow-up review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn blocked_actions(&self) -> Vec<BlockedAction> {
         blocked_actions_for()
+    }
+
+    /// Reports whether this outcome cites the same reservation, customer, and accepted source evidence as the reviewed packet.
+    pub fn matches_reviewed_packet(&self, packet: &Packet) -> bool {
+        self.reservation_id == packet.reservation_id
+            && self.customer_id == packet.customer_id
+            && self.evidence.iter().any(|evidence| {
+                evidence.can_drive_marketing_draft()
+                    && packet
+                        .source_record_refs()
+                        .contains(&source::RecordRef::from_provenance(evidence.provenance()))
+            })
+    }
+
+    /// Classifies reviewed retention outcomes for durable reporting while keeping no-action, wrong-source, and suppressed outcomes out of recovered-booking counts.
+    pub fn reviewed_outcome_classification_for(
+        &self,
+        packet: &Packet,
+    ) -> ReviewedOutcomeClassification {
+        if self.matches_reviewed_packet(packet)
+            && matches!(
+                self.outcome,
+                FollowUpOutcome::BookedNextStay
+                    | FollowUpOutcome::Converted {
+                        conversion: ConversionKind::ResortServiceBooked
+                            | ConversionKind::GroomingRebooked
+                    }
+            )
+        {
+            ReviewedOutcomeClassification::RecoveredBooking
+        } else {
+            ReviewedOutcomeClassification::NoActionOutcome
+        }
     }
 }

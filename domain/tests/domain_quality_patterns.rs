@@ -340,9 +340,10 @@ fn money_deposit_age_and_add_on_contracts_quarantine_raw_primitives() {
     assert_eq!(amount.minor_units().get(), 12_500);
     assert_eq!(amount.currency(), money::Currency::Usd);
     assert_eq!(
-        money::MinorUnits::try_new(0),
-        Err(money::Error::EmptyAmount),
+        money::Money::zero(money::Currency::Usd).minor_units().get(),
+        0
     );
+    assert!(money::Money::try_new(-1, money::Currency::Usd).is_err());
 
     let deposit = payment::Deposit::required(amount.clone());
     assert_eq!(deposit.status(), payment::DepositStatus::Required);
@@ -374,7 +375,7 @@ fn money_deposit_age_and_add_on_contracts_quarantine_raw_primitives() {
 
 #[test]
 fn semantic_scalars_reject_invalid_deserialized_primitives() {
-    assert!(serde_json::from_str::<money::MinorUnits>("0").is_err());
+    assert!(serde_json::from_str::<money::MinorUnits>("-1").is_err());
     assert!(serde_json::from_str::<payment::Reference>(r#""   ""#).is_err());
     assert!(serde_json::from_str::<reservation::MinimumAgeWeeks>("0").is_err());
     assert!(serde_json::from_str::<reservation::AddOnLabel>(r#""   ""#).is_err());

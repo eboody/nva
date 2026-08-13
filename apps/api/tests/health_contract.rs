@@ -157,6 +157,46 @@ async fn readiness_endpoint_reports_present_runtime_env_as_configured_but_unveri
 }
 
 #[tokio::test]
+async fn site_finance_agent_context_exposes_review_audit_and_nonclaimable_weak_attribution() {
+    let response = http::router()
+        .oneshot(
+            axum_http::request::Builder::new()
+                .uri("/agent/context/site-finance")
+                .body(Body::empty())
+                .expect("request builds"),
+        )
+        .await
+        .expect("site finance context request succeeds");
+
+    assert_eq!(response.status(), axum_http::StatusCode::OK);
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("body collects")
+        .to_bytes();
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("json payload");
+
+    assert_eq!(
+        payload["workflow"]["name"],
+        "site_finance_recommendation_outcome"
+    );
+    assert_eq!(payload["recommendation"]["review_gate"], "ManagerApproval");
+    assert_eq!(payload["action"]["allows_financial_mutation"], false);
+    assert_eq!(
+        payload["action"]["review_packet_id"],
+        "site-finance-review:00c0ffee:2026-06"
+    );
+    assert_eq!(
+        payload["action"]["audit_event_id"],
+        "audit:site-finance-review:00c0ffee:2026-06"
+    );
+    assert_eq!(payload["outcome"]["strong_attribution_claimable"], true);
+    assert_eq!(payload["outcome"]["weak_attribution_claimable"], false);
+    assert_eq!(payload["safety"]["financial_mutations_allowed"], false);
+}
+
+#[tokio::test]
 async fn inquiry_submission_creates_review_gated_intake_record() {
     let app = http::router_with_state(http::VaccineDocumentState::default());
     let response = app
@@ -283,6 +323,210 @@ async fn inquiry_intake_records_are_visible_to_staff_review_queue() {
 }
 
 #[tokio::test]
+async fn lead_response_fixture_walks_source_to_reviewed_outcome_without_live_side_effects() {
+    let app = http::router_with_state(http::VaccineDocumentState::default());
+    let fixture = json!({
+        "source_event_key": "gingr-lead-response-fixture-001",
+        "source_system": "mock_gingr_readonly_fixture",
+        "provider_model_path": "gingr::webhook::LeadInquirySubmitted",
+        "raw_payload_ref": "fixture://mock-gingr/leads/lead-response-001.json",
+        "received_at": "2026-07-03T14:00:00Z",
+        "location_id": "location_local",
+        "customer": {
+            "full_name": "Avery Chen",
+            "email": "avery@example.test",
+            "phone": "555-0101"
+        },
+        "pet": {"name": "Miso", "species": "dog"},
+        "service": "boarding",
+        "requested_dates": {"start": "2026-07-03", "end": "2026-07-07"},
+        "message": "Miso needs boarding over the holiday. Do you need vaccine records?",
+        "contact_attempts": [
+            {
+                "attempted_at": "2026-07-03T14:05:00Z",
+                "channel": "email",
+                "purpose": "lead_response",
+                "outcome": "drafted_for_review",
+                "message_ref": "message-draft:gingr-lead-response-fixture-001"
+            }
+        ],
+        "simulated_conversion": {
+            "reservation_id": "reservation:simulated-9001",
+            "converted_at": "2026-07-03T15:30:00Z",
+            "attribution_source": "website_form"
+        }
+    });
+
+    let created_response = app
+        .clone()
+        .oneshot(
+            axum_http::request::Builder::new()
+                .method(axum_http::Method::POST)
+                .uri("/inquiries")
+                .header(axum_http::header::CONTENT_TYPE, "application/json")
+                .body(Body::from(fixture.to_string()))
+                .expect("request builds"),
+        )
+        .await
+        .expect("fixture inquiry request succeeds");
+    assert_eq!(created_response.status(), axum_http::StatusCode::CREATED);
+    let created_body = created_response
+        .into_body()
+        .collect()
+        .await
+        .expect("body collects")
+        .to_bytes();
+    let created: serde_json::Value =
+        serde_json::from_slice(&created_body).expect("json intake payload");
+
+    assert_eq!(created["event"]["event_type"], "inquiry.received");
+    assert_eq!(
+        created["provenance"]["source_system"],
+        "mock_gingr_readonly_fixture"
+    );
+    assert_eq!(
+        created["provenance"]["provider_model_path"],
+        "gingr::webhook::LeadInquirySubmitted"
+    );
+    assert_eq!(
+        created["data_quality"]["classification"],
+        "accepted_fixture_evidence"
+    );
+    assert_eq!(
+        created["canonical_lead_event"]["stage"],
+        "waiting_on_customer"
+    );
+    assert_eq!(
+        created["workflow"]["identity_status"],
+        "candidate_match_from_contact_envelope"
+    );
+    assert_eq!(
+        created["workflow"]["consent_status"],
+        "reply_draft_requires_staff_review"
+    );
+    assert_eq!(
+        created["workflow"]["sla_status"],
+        "met_by_reviewed_draft_attempt"
+    );
+    assert_eq!(
+        created["review_packet"]["status"],
+        "ready_for_front_desk_review"
+    );
+    assert_eq!(created["review_packet"]["live_send_allowed"], false);
+    assert_eq!(created["review_packet"]["provider_write_allowed"], false);
+    assert_eq!(
+        created["storage_projection"]["adapter"],
+        "in_memory_workflow_repository"
+    );
+    assert_eq!(created["api_response"]["safe_to_return_to_staff"], true);
+    assert_eq!(
+        created["simulated_conversion"]["reservation_id"],
+        "reservation:simulated-9001"
+    );
+    assert_eq!(
+        created["outcome_attribution"]["review_status"],
+        "reviewed_simulated_outcome"
+    );
+    assert_eq!(
+        created["outcome_attribution"]["supports_value_claim"],
+        false
+    );
+
+    let replay_response = app
+        .clone()
+        .oneshot(
+            axum_http::request::Builder::new()
+                .method(axum_http::Method::POST)
+                .uri("/inquiries")
+                .header(axum_http::header::CONTENT_TYPE, "application/json")
+                .body(Body::from(fixture.to_string()))
+                .expect("request builds"),
+        )
+        .await
+        .expect("replay request succeeds");
+    assert_eq!(replay_response.status(), axum_http::StatusCode::OK);
+    let replay_body = replay_response
+        .into_body()
+        .collect()
+        .await
+        .expect("body collects")
+        .to_bytes();
+    let replay: serde_json::Value =
+        serde_json::from_slice(&replay_body).expect("json replay payload");
+    assert_eq!(
+        replay["replay"]["classification"],
+        "duplicate_idempotent_replay"
+    );
+
+    let queue_response = app
+        .oneshot(
+            axum_http::request::Builder::new()
+                .uri("/staff/inquiries")
+                .body(Body::empty())
+                .expect("request builds"),
+        )
+        .await
+        .expect("staff queue request succeeds");
+    let queue_body = queue_response
+        .into_body()
+        .collect()
+        .await
+        .expect("body collects")
+        .to_bytes();
+    let queue: serde_json::Value = serde_json::from_slice(&queue_body).expect("json queue payload");
+    assert_eq!(queue["records"].as_array().expect("records array").len(), 1);
+}
+
+#[tokio::test]
+async fn lead_response_fixture_classifies_invalid_and_out_of_order_events() {
+    let app = http::router_with_state(http::VaccineDocumentState::default());
+    let response = app
+        .oneshot(
+            axum_http::request::Builder::new()
+                .method(axum_http::Method::POST)
+                .uri("/inquiries")
+                .header(axum_http::header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({
+                        "source_event_key": "gingr-lead-response-fixture-invalid-001",
+                        "source_system": "mock_gingr_readonly_fixture",
+                        "provider_model_path": "gingr::webhook::LeadInquirySubmitted",
+                        "raw_payload_ref": "fixture://mock-gingr/leads/lead-response-invalid-001.json",
+                        "received_at": "2026-07-03T14:00:00Z",
+                        "location_id": "location_local",
+                        "customer": {"full_name": "Avery Chen", "email": "avery@example.test"},
+                        "pet": {"name": "Miso", "species": "dog"},
+                        "service": "boarding",
+                        "message": "Please call me about boarding.",
+                        "contact_attempts": [
+                            {"attempted_at": "2026-07-03T14:10:00Z", "channel": "email", "purpose": "lead_response", "outcome": "drafted_for_review"},
+                            {"attempted_at": "2026-07-03T14:05:00Z", "channel": "email", "purpose": "lead_response", "outcome": "drafted_for_review"}
+                        ]
+                    })
+                    .to_string(),
+                ))
+                .expect("request builds"),
+        )
+        .await
+        .expect("invalid fixture request succeeds");
+
+    assert_eq!(
+        response.status(),
+        axum_http::StatusCode::UNPROCESSABLE_ENTITY
+    );
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("body collects")
+        .to_bytes();
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("json error payload");
+    assert_eq!(payload["classification"], "invalid_out_of_order_event");
+    assert_eq!(payload["live_send_allowed"], false);
+    assert_eq!(payload["provider_write_allowed"], false);
+}
+
+#[tokio::test]
 async fn request_trace_echoes_safe_request_and_correlation_ids_without_payload_logging() {
     let response = http::router()
         .oneshot(
@@ -328,6 +572,82 @@ async fn request_trace_echoes_safe_request_and_correlation_ids_without_payload_l
     );
     assert!(payload.to_string().contains("ops-readiness-corr-001"));
     assert!(!payload.to_string().contains("Miso needs boarding"));
+}
+
+#[tokio::test]
+async fn permissioned_knowledge_context_returns_cited_redacted_packet_after_authorization() {
+    let response = http::router()
+        .oneshot(
+            axum_http::request::Builder::new()
+                .uri("/agent/context/permissioned-knowledge?location_id=00000000-0000-0000-0000-000000000170&service=boarding&role=front_desk&section=check-in.required-documents")
+                .body(Body::empty())
+                .expect("request builds"),
+        )
+        .await
+        .expect("knowledge context request succeeds");
+
+    assert_eq!(response.status(), axum_http::StatusCode::OK);
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("body collects")
+        .to_bytes();
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("json knowledge payload");
+
+    assert_eq!(
+        payload["api_contract"]["workflow"],
+        "permissioned_knowledge_assistant_packet"
+    );
+    assert_eq!(payload["answer_packet"]["state"], "Cited");
+    assert_eq!(
+        payload["retrieval"]["safe_to_enter_assistant_context"],
+        true
+    );
+    assert_eq!(payload["retrieval"]["authorized_passage_count"], 1);
+    assert_eq!(payload["retrieval"]["citation_count"], 1);
+    assert_eq!(payload["safety"]["live_side_effects_allowed"], false);
+    assert!(
+        payload["safety"]["forbidden_actions"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("provider_pms_write"))
+    );
+    assert!(!String::from_utf8_lossy(&body).contains("boarding check-in checklist"));
+}
+
+#[tokio::test]
+async fn permissioned_knowledge_context_escalates_scope_mismatch_before_content_enters_context() {
+    let response = http::router()
+        .oneshot(
+            axum_http::request::Builder::new()
+                .uri("/agent/context/permissioned-knowledge?location_id=00000000-0000-0000-0000-000000000171&service=boarding&role=front_desk&section=check-in.required-documents")
+                .body(Body::empty())
+                .expect("request builds"),
+        )
+        .await
+        .expect("knowledge context request succeeds");
+
+    assert_eq!(response.status(), axum_http::StatusCode::OK);
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("body collects")
+        .to_bytes();
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("json knowledge payload");
+
+    assert_eq!(payload["answer_packet"]["state"], "Escalated");
+    assert_eq!(
+        payload["retrieval"]["safe_to_enter_assistant_context"],
+        false
+    );
+    assert_eq!(payload["retrieval"]["authorized_passage_count"], 0);
+    assert_eq!(
+        payload["answer_packet"]["escalation_reason"],
+        "StaleOrMissingSource"
+    );
+    assert_eq!(payload["safety"]["live_side_effects_allowed"], false);
 }
 
 #[tokio::test]

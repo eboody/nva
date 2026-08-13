@@ -10,7 +10,7 @@
 use crate::public_contract;
 use app::{
     checkout_completion, crm_retention, data_quality_hygiene, information_lifespan,
-    manager_daily_brief,
+    manager_daily_brief, site_finance,
 };
 use axum::{
     Json, Router,
@@ -18,10 +18,13 @@ use axum::{
     extract::{Extension, MatchedPath, Path, Query, State},
     http::{HeaderName, HeaderValue, Request, Response, StatusCode},
     middleware::{self, Next},
+    response::IntoResponse,
     routing::{get, post},
 };
-use chrono::{DateTime, NaiveDate, Utc};
-use domain::{analytics, data_quality, entities, message, operations, policy, source};
+use chrono::{DateTime, NaiveDate, TimeZone, Utc};
+use domain::{
+    access, agent, analytics, data_quality, entities, message, operations, policy, source,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -85,6 +88,7 @@ trait WorkflowRepository {
         &self,
     ) -> &[storage::operations::DataQualityHygieneOutcomeRecord];
     fn record_inquiry_intake(&mut self, record: InquiryIntakeRecord);
+    fn inquiry_by_source_event_key(&self, source_event_key: &str) -> Option<InquiryIntakeRecord>;
     fn inquiry_staff_queue(&self) -> Vec<InquiryIntakeRecord>;
     fn record_manager_daily_brief_outcome(
         &mut self,
@@ -157,6 +161,13 @@ impl WorkflowRepository for VaccineDocumentStore {
 
     fn record_inquiry_intake(&mut self, record: InquiryIntakeRecord) {
         self.inquiry_intake_records.push(record);
+    }
+
+    fn inquiry_by_source_event_key(&self, source_event_key: &str) -> Option<InquiryIntakeRecord> {
+        self.inquiry_intake_records
+            .iter()
+            .find(|record| record.event.source_event_key == source_event_key)
+            .cloned()
     }
 
     fn inquiry_staff_queue(&self) -> Vec<InquiryIntakeRecord> {
@@ -390,6 +401,7 @@ struct ObservabilityGapPayload {
 struct ApiDtoContract {
     owner: &'static str,
     boundary: &'static str,
+    schema_version: &'static str,
     workflow: &'static str,
     provider_payload_passthrough: bool,
     provider_dto_boundary: &'static str,
@@ -399,6 +411,7 @@ fn api_dto_contract(workflow: &'static str) -> ApiDtoContract {
     ApiDtoContract {
         owner: "pet_resort_api",
         boundary: "api_runtime_dto",
+        schema_version: "pet_resort_api.runtime.v0",
         workflow,
         provider_payload_passthrough: false,
         provider_dto_boundary: "provider_evidence_only",
@@ -428,12 +441,19 @@ struct VaccineReviewDecisionRequest {
 #[derive(Debug, Deserialize)]
 struct InquirySubmissionRequest {
     source_event_key: String,
+    source_system: Option<String>,
+    provider_model_path: Option<String>,
+    raw_payload_ref: Option<String>,
+    received_at: Option<DateTime<Utc>>,
     location_id: String,
     customer: InquiryCustomerRequest,
     pet: InquiryPetRequest,
     service: String,
     requested_dates: Option<InquiryDateWindowRequest>,
     message: String,
+    #[serde(default)]
+    contact_attempts: Vec<InquiryContactAttemptRequest>,
+    simulated_conversion: Option<InquirySimulatedConversionRequest>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -455,13 +475,49 @@ struct InquiryDateWindowRequest {
     end: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct InquiryContactAttemptRequest {
+    attempted_at: DateTime<Utc>,
+    channel: String,
+    purpose: String,
+    outcome: String,
+    message_ref: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct InquirySimulatedConversionRequest {
+    reservation_id: String,
+    converted_at: DateTime<Utc>,
+    attribution_source: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 struct InquiryIntakeRecord {
     api_contract: ApiDtoContract,
     event: InquiryEvent,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    provenance: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data_quality: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    canonical_lead_event: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    workflow: Option<Value>,
     lead: ParsedInquiryLead,
     draft_reply: InquiryDraftReply,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    review_packet: Option<Value>,
     task: InquiryTask,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    storage_projection: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    api_response: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    simulated_conversion: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    outcome_attribution: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    replay: Option<Value>,
     agent_runtime: &'static str,
     policy_boundary: &'static str,
     audit_events: Vec<InquiryAuditEvent>,
@@ -755,6 +811,22 @@ pub fn router_with_state(state: VaccineDocumentState) -> Router {
         .route(
             "/agent/context/data-quality-hygiene",
             get(data_quality_hygiene_agent_context),
+        )
+        .route(
+            "/agent/context/permissioned-knowledge",
+            get(permissioned_knowledge_agent_context),
+        )
+        .route(
+            "/agent/context/site-finance",
+            get(site_finance_agent_context),
+        )
+        .route(
+            "/v0/agent/context/permissioned-knowledge",
+            get(permissioned_knowledge_agent_context),
+        )
+        .route(
+            "/v0/agent/context/site-finance",
+            get(site_finance_agent_context),
         )
         .route(
             "/v0/agent/context/data-quality-hygiene",
@@ -1358,14 +1430,92 @@ fn data_quality_hygiene_labor_rollup(
     }
 }
 
+fn classify_invalid_inquiry(request: &InquirySubmissionRequest) -> Option<Value> {
+    let received_at = request.received_at?;
+    let mut previous_attempt_at = None;
+    for attempt in &request.contact_attempts {
+        if attempt.attempted_at < received_at {
+            return Some(invalid_inquiry_payload(
+                "invalid_attempt_before_receipt",
+                &request.source_event_key,
+            ));
+        }
+        if previous_attempt_at.is_some_and(|previous| attempt.attempted_at < previous) {
+            return Some(invalid_inquiry_payload(
+                "invalid_out_of_order_event",
+                &request.source_event_key,
+            ));
+        }
+        previous_attempt_at = Some(attempt.attempted_at);
+    }
+    None
+}
+
+fn invalid_inquiry_payload(classification: &'static str, source_event_key: &str) -> Value {
+    json!({
+        "api_contract": api_dto_contract("inquiry_intake_rejected"),
+        "classification": classification,
+        "source_event_key": source_event_key,
+        "accepted": false,
+        "live_send_allowed": false,
+        "provider_write_allowed": false,
+        "queue_send_capability_reachable": false,
+        "policy_boundary": "invalid_source_event_remains_draft_only_no_live_send_no_provider_write"
+    })
+}
+
 async fn submit_inquiry(
     State(state): State<VaccineDocumentState>,
     Json(request): Json<InquirySubmissionRequest>,
-) -> (StatusCode, Json<InquiryIntakeRecord>) {
+) -> axum::response::Response {
     let mut store = state.store.lock().await;
+    if let Some(mut record) = store.inquiry_by_source_event_key(&request.source_event_key) {
+        if !inquiry_payload_matches_record(&request, &record) {
+            return (
+                StatusCode::CONFLICT,
+                Json(invalid_inquiry_payload(
+                    "idempotency_payload_drift",
+                    &request.source_event_key,
+                )),
+            )
+                .into_response();
+        }
+        record.replay = Some(json!({
+            "classification": "duplicate_idempotent_replay",
+            "source_event_key": request.source_event_key,
+            "stored_record_reused": true
+        }));
+        return (StatusCode::OK, Json(record)).into_response();
+    }
+    if let Some(error_payload) = classify_invalid_inquiry(&request) {
+        return (StatusCode::UNPROCESSABLE_ENTITY, Json(error_payload)).into_response();
+    }
     let record = build_inquiry_intake_record(request);
     store.record_inquiry_intake(record.clone());
-    (StatusCode::CREATED, Json(record))
+    (StatusCode::CREATED, Json(record)).into_response()
+}
+
+fn inquiry_payload_matches_record(
+    request: &InquirySubmissionRequest,
+    record: &InquiryIntakeRecord,
+) -> bool {
+    record.event.location_id == request.location_id
+        && record.lead.customer_name == request.customer.full_name
+        && record.lead.customer_email == request.customer.email
+        && record.lead.customer_phone == request.customer.phone
+        && record.lead.pet_name == request.pet.name
+        && record.lead.species == request.pet.species
+        && record.lead.service == request.service
+        && record.lead.original_message == request.message
+        && record
+            .lead
+            .requested_dates
+            .as_ref()
+            .map(|dates| (&dates.start, &dates.end))
+            == request
+                .requested_dates
+                .as_ref()
+                .map(|dates| (&dates.start, &dates.end))
 }
 
 async fn staff_inquiries(
@@ -1441,6 +1591,14 @@ struct ManagerDailyBriefOutcomeReportingRequest {
 struct DataQualityHygieneAgentContextQuery {
     location_id: Uuid,
     operating_day: NaiveDate,
+}
+
+#[derive(Debug, Deserialize)]
+struct PermissionedKnowledgeAgentContextQuery {
+    location_id: Uuid,
+    service: String,
+    role: String,
+    section: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1730,6 +1888,162 @@ async fn data_quality_hygiene_agent_context(
     let packet = local_data_quality_hygiene_packet(location_id, operating_day);
 
     Json(data_quality_hygiene_packet_payload(&packet, &request_trace))
+}
+
+async fn permissioned_knowledge_agent_context(
+    Extension(request_trace): Extension<RequestTraceEvidence>,
+    Query(query): Query<PermissionedKnowledgeAgentContextQuery>,
+) -> Json<Value> {
+    let service = permissioned_knowledge_service(&query.service);
+    let role = permissioned_knowledge_role(&query.role);
+    let context = agent::assistant::ActorContext::builder()
+        .actor_id(access::ActorId::try_new("fixture-knowledge-actor").unwrap())
+        .role(role)
+        .title(access::Title::try_new("Fixture Knowledge Actor").unwrap())
+        .location_id(entities::LocationId(query.location_id))
+        .purpose(agent::assistant::Purpose::SopLookup)
+        .allowed_uses(vec![access::AllowedUse::InternalDecisionSupport])
+        .build();
+    let request = app::permissioned_knowledge::Request::builder()
+        .context(context)
+        .service(service)
+        .requested_section(agent::knowledge::SectionRef::try_new(&query.section).unwrap())
+        .requested_at(Utc.with_ymd_and_hms(2026, 8, 12, 15, 0, 0).unwrap())
+        .build();
+    let packet = app::permissioned_knowledge::Workflow::answer(
+        &app::permissioned_knowledge::DeterministicFixtureRepository::default(),
+        request,
+    );
+    let correlation_id = format!(
+        "permissioned-knowledge:{}:{}:{}",
+        query.location_id, query.service, query.section
+    );
+
+    Json(json!({
+        "api_contract": api_dto_contract_payload("permissioned_knowledge_assistant_packet"),
+        "workflow": {
+            "name": "permissioned_knowledge_retrieval",
+            "version": "local-permissioned-knowledge-context-v1"
+        },
+        "actor_request": {
+            "location_id": query.location_id.to_string(),
+            "service": query.service,
+            "role": query.role,
+            "purpose": "sop_lookup"
+        },
+        "retrieval": {
+            "repository_adapter": "deterministic_fixture_repository",
+            "authorization_before_context": true,
+            "safe_to_enter_assistant_context": packet.safe_to_enter_assistant_context(),
+            "authorized_passage_count": packet.authorized_passages().len(),
+            "citation_count": packet.citations().len(),
+            "claims_are_cited": packet.claims_are_cited(),
+            "content_redacted_from_api_debug": true
+        },
+        "answer_packet": {
+            "state": packet.answer_state(),
+            "escalation_reason": packet.escalation_reason(),
+            "claim_text_redacted": true
+        },
+        "safety": {
+            "live_side_effects_allowed": packet.live_side_effects_allowed(),
+            "forbidden_actions": packet.forbidden_actions(),
+            "provider_payload_passthrough": false,
+            "customer_messages_allowed": false,
+            "provider_writes_allowed": false
+        },
+        "audit": {
+            "context_packet_id": format!("permissioned-knowledge-context:{}:{}", query.location_id, query.section),
+            "correlation_id": correlation_id,
+            "policy_owner": "deterministic_app"
+        },
+        "observability": workflow_observability_payload(&correlation_id, &request_trace)
+    }))
+}
+
+async fn site_finance_agent_context(
+    Extension(request_trace): Extension<RequestTraceEvidence>,
+) -> (StatusCode, Json<Value>) {
+    let slice = match site_finance::fixture_site_period_projection() {
+        Ok(slice) => slice,
+        Err(error) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "api_contract": api_dto_contract_payload("site_finance_recommendation_packet"),
+                    "safe_error_class": "fixture_validation_failed",
+                    "error": error.to_string(),
+                    "live_side_effects_allowed": false
+                })),
+            );
+        }
+    };
+    let review_packet_id = serde_json::to_value(slice.action().review_packet_id())
+        .ok()
+        .and_then(|value| value.as_str().map(ToOwned::to_owned))
+        .unwrap_or_else(|| "site-finance-review:00c0ffee:2026-06".to_owned());
+    let audit_event_id = serde_json::to_value(slice.action().audit_event_id())
+        .ok()
+        .and_then(|value| value.as_str().map(ToOwned::to_owned))
+        .unwrap_or_else(|| "audit:site-finance-review:00c0ffee:2026-06".to_owned());
+    let correlation_id = "site-finance:00c0ffee:2026-06";
+
+    (
+        StatusCode::OK,
+        Json(json!({
+            "api_contract": api_dto_contract_payload("site_finance_recommendation_packet"),
+            "workflow": {
+                "name": "site_finance_recommendation_outcome",
+                "version": "local-site-finance-context-v1"
+            },
+            "projection": {
+                "data_quality_status": slice.projection().data_quality_status(),
+                "net_revenue": slice.projection().net_revenue().ok(),
+                "variance": slice.projection().variance(),
+                "source_ref_count": slice.action().source_record_refs().len()
+            },
+            "recommendation": {
+                "review_gate": slice.recommendation().required_review_gate(),
+                "blocks_financial_mutation": slice.recommendation().blocks_financial_mutation(),
+                "kind": slice.recommendation().recommendation()
+            },
+            "action": {
+                "legal_action": slice.action().legal_action(),
+                "allows_financial_mutation": slice.action().allows_financial_mutation(),
+                "review_packet_id": review_packet_id,
+                "audit_event_id": audit_event_id
+            },
+            "outcome": {
+                "strong_attribution_claimable": slice.strong_outcome().can_support_value_claim(),
+                "weak_attribution_claimable": slice.weak_outcome().can_support_value_claim()
+            },
+            "safety": {
+                "live_side_effects_allowed": false,
+                "customer_messages_allowed": false,
+                "provider_writes_allowed": false,
+                "financial_mutations_allowed": false
+            },
+            "observability": workflow_observability_payload(correlation_id, &request_trace)
+        })),
+    )
+}
+
+fn permissioned_knowledge_service(raw: &str) -> entities::ServiceKind {
+    match raw {
+        "grooming" => entities::ServiceKind::Grooming,
+        "training" => entities::ServiceKind::Training,
+        "day_play" => entities::ServiceKind::DayPlay,
+        _ => entities::ServiceKind::Boarding,
+    }
+}
+
+fn permissioned_knowledge_role(raw: &str) -> access::ActorRole {
+    match raw {
+        "site_manager" => access::ActorRole::SiteManager,
+        "marketing" => access::ActorRole::Marketing,
+        "regional_operations" => access::ActorRole::RegionalOperations,
+        _ => access::ActorRole::FrontDesk,
+    }
 }
 
 async fn submit_data_quality_hygiene_agent_draft(
@@ -2215,6 +2529,9 @@ fn stored_manager_daily_brief_action_kind(
         manager_daily_brief::BriefActionKind::InvestigateSourceDataQualityIssue => {
             storage::operations::ManagerDailyBriefActionKindCode::InvestigateSourceDataQualityIssue
         }
+        manager_daily_brief::BriefActionKind::ReviewCapacityLaborRecommendation => {
+            storage::operations::ManagerDailyBriefActionKindCode::ReviewCapacityLaborRecommendation
+        }
     }
 }
 
@@ -2592,6 +2909,42 @@ fn build_inquiry_intake_record(request: InquirySubmissionRequest) -> InquiryInta
         request.customer.full_name, request.pet.name
     );
     let source_event_key = request.source_event_key.clone();
+    let has_lead_response_fixture = request.source_system.is_some()
+        || request.provider_model_path.is_some()
+        || request.raw_payload_ref.is_some()
+        || !request.contact_attempts.is_empty()
+        || request.simulated_conversion.is_some();
+    let source_system = request
+        .source_system
+        .clone()
+        .unwrap_or_else(|| "local_inquiry_fixture".to_owned());
+    let provider_model_path = request
+        .provider_model_path
+        .clone()
+        .unwrap_or_else(|| "pet_resort_api::InquirySubmissionRequest".to_owned());
+    let raw_payload_ref = request
+        .raw_payload_ref
+        .clone()
+        .unwrap_or_else(|| format!("api://inquiries/{}", request.source_event_key));
+    let received_at = request.received_at;
+    let first_attempt = request.contact_attempts.first();
+    let simulated_conversion = request.simulated_conversion.as_ref().map(|conversion| {
+        json!({
+            "reservation_id": conversion.reservation_id,
+            "converted_at": conversion.converted_at,
+            "attribution_source": conversion.attribution_source,
+            "source_event_key": request.source_event_key
+        })
+    });
+    let outcome_attribution = simulated_conversion.as_ref().map(|conversion| {
+        json!({
+            "review_status": "reviewed_simulated_outcome",
+            "source_event_key": request.source_event_key,
+            "converted_reservation_id": conversion["reservation_id"],
+            "supports_value_claim": false,
+            "value_claim_boundary": "synthetic conversion proves attribution semantics but not measured NVA value"
+        })
+    });
 
     InquiryIntakeRecord {
         api_contract: api_dto_contract("inquiry_intake"),
@@ -2600,6 +2953,46 @@ fn build_inquiry_intake_record(request: InquirySubmissionRequest) -> InquiryInta
             source_event_key: request.source_event_key,
             location_id: request.location_id,
         },
+        provenance: has_lead_response_fixture.then(|| {
+            json!({
+                "source_system": source_system,
+                "provider_model_path": provider_model_path,
+                "raw_payload_ref": raw_payload_ref,
+                "received_at": received_at,
+                "provider_payload_passthrough": false
+            })
+        }),
+        data_quality: has_lead_response_fixture.then(|| {
+            json!({
+                "classification": "accepted_fixture_evidence",
+                "quality_gate": "source_ref_present_provider_model_declared_no_raw_payload_passthrough",
+                "duplicate_policy": "source_event_key_idempotency"
+            })
+        }),
+        canonical_lead_event: has_lead_response_fixture.then(|| {
+            json!({
+                "event_type": "lead.website_form_submitted",
+                "source_event_key": source_event_key,
+                "stage": "waiting_on_customer",
+                "service_intent": request.service,
+                "relationship_check": "candidate_customer_contact_matches_inquiry_envelope"
+            })
+        }),
+        workflow: has_lead_response_fixture.then(|| {
+            json!({
+                "identity_status": "candidate_match_from_contact_envelope",
+                "consent_status": "reply_draft_requires_staff_review",
+                "sla_status": if first_attempt.is_some() { "met_by_reviewed_draft_attempt" } else { "awaiting_reviewed_attempt" },
+                "attempts": request.contact_attempts.iter().map(|attempt| json!({
+                    "attempted_at": attempt.attempted_at,
+                    "channel": attempt.channel,
+                    "purpose": attempt.purpose,
+                    "outcome": attempt.outcome,
+                    "review_gate": "front_desk_staff_review",
+                    "message_ref": attempt.message_ref
+                })).collect::<Vec<_>>()
+            })
+        }),
         lead: ParsedInquiryLead {
             customer_name: request.customer.full_name,
             customer_email: request.customer.email,
@@ -2625,12 +3018,40 @@ fn build_inquiry_intake_record(request: InquirySubmissionRequest) -> InquiryInta
                 "Thanks {first_name} — we received your inquiry. Could you send current vaccine records so our staff can review availability and next steps?"
             ),
         },
+        review_packet: has_lead_response_fixture.then(|| {
+            json!({
+                "status": "ready_for_front_desk_review",
+                "gate": "customer_message_approval",
+                "live_send_allowed": false,
+                "provider_write_allowed": false,
+                "queue_send_capability_reachable": false,
+                "message_ref": first_attempt.and_then(|attempt| attempt.message_ref.as_deref())
+            })
+        }),
         task: InquiryTask {
             kind: "missing_info_review",
             status: "open",
             title: task_title,
             review_gate: "front_desk_staff_review",
         },
+        storage_projection: has_lead_response_fixture.then(|| {
+            json!({
+                "adapter": "in_memory_workflow_repository",
+                "read_model": "staff_inquiry_review_queue",
+                "preserves_source_provenance": true,
+                "preserves_review_gate": true
+            })
+        }),
+        api_response: has_lead_response_fixture.then(|| {
+            json!({
+                "safe_to_return_to_staff": true,
+                "provider_payload_passthrough": false,
+                "live_side_effects_enabled": false
+            })
+        }),
+        simulated_conversion,
+        outcome_attribution,
+        replay: None,
         agent_runtime: "agent.inquiry-intake.fake_deterministic",
         policy_boundary: "draft_only_no_live_send_no_provider_write_no_booking_decision_without_staff_approval",
         audit_events: vec![
@@ -3533,6 +3954,17 @@ fn manager_brief_contact_provenance() -> source::Provenance {
 fn source_system_code(system: source::System) -> &'static str {
     match system {
         source::System::Gingr => "gingr",
+        source::System::Telephony => "telephony",
+        source::System::SmsProvider => "sms_provider",
+        source::System::Email => "email",
+        source::System::WebChat => "web_chat",
+        source::System::WebsiteForms => "website_forms",
+        source::System::MarketingAutomation => "marketing_automation",
+        source::System::Crm => "crm",
+        source::System::FinanceAccounting => "finance_accounting",
+        source::System::WorkforceManagement => "workforce_management",
+        source::System::KnowledgeBase => "knowledge_base",
+        source::System::ProviderOrPms => "provider_or_pms",
         source::System::BusinessIntelligence => "business_intelligence",
         source::System::LaborScheduling => "labor_scheduling",
         source::System::Timeclock => "timeclock",
@@ -3641,6 +4073,9 @@ fn brief_action_kind_code(kind: manager_daily_brief::BriefActionKind) -> &'stati
         manager_daily_brief::BriefActionKind::InvestigateSourceDataQualityIssue => {
             "investigate_source_data_quality_issue"
         }
+        manager_daily_brief::BriefActionKind::ReviewCapacityLaborRecommendation => {
+            "review_capacity_labor_recommendation"
+        }
     }
 }
 
@@ -3680,6 +4115,9 @@ fn removed_manual_work_code(work: manager_daily_brief::RemovedManualWork) -> &'s
         manager_daily_brief::RemovedManualWork::DataQualityExceptionTriage => {
             "data_quality_exception_triage"
         }
+        manager_daily_brief::RemovedManualWork::ServiceCapacityLaborPlanning => {
+            "service_capacity_labor_planning"
+        }
     }
 }
 
@@ -3693,6 +4131,9 @@ fn source_fact_kind_code(kind: manager_daily_brief::SourceFactKind) -> &'static 
             "retention_follow_up_eligibility"
         }
         manager_daily_brief::SourceFactKind::SourceDataQualityIssue => "source_data_quality_issue",
+        manager_daily_brief::SourceFactKind::CapacityLaborRecommendation => {
+            "capacity_labor_recommendation"
+        }
     }
 }
 

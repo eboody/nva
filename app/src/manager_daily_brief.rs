@@ -232,6 +232,8 @@ pub enum RemovedManualWork {
     RetentionFollowUpQueuePrioritization,
     /// Selects data quality exception triage for the manager brief decision model so the app can choose a review, evidence, or draft path without taking live action.
     DataQualityExceptionTriage,
+    /// Selects service capacity labor planning for reviewable staffing/capacity recommendations without mutating schedules.
+    ServiceCapacityLaborPlanning,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -245,6 +247,8 @@ pub enum SourceFactKind {
     RetentionFollowUpEligibility,
     /// Selects source data quality issue for the manager brief decision model so the app can choose a review, evidence, or draft path without taking live action.
     SourceDataQualityIssue,
+    /// Selects capacity labor recommendation for the manager brief decision model so staffing/capacity evidence stays reviewed and source-cited.
+    CapacityLaborRecommendation,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
@@ -289,6 +293,8 @@ pub enum BriefActionKind {
     ApproveRetentionFollowUpDraft,
     /// Selects investigate source data quality issue for the manager brief decision model so the app can choose a review, evidence, or draft path without taking live action.
     InvestigateSourceDataQualityIssue,
+    /// Selects review capacity labor recommendation for the manager brief decision model without schedule mutation authority.
+    ReviewCapacityLaborRecommendation,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -417,6 +423,7 @@ pub struct BriefAction {
     rationale: ActionRationale,
     source_facts: Vec<SourceFact>,
     labor_impact: LaborImpactEstimate,
+    capacity_labor_recommendation: Option<operations::capacity::OptimizationRecommendation>,
     #[builder(default)]
     required_review_gates: Vec<policy::ReviewGate>,
 }
@@ -460,6 +467,13 @@ impl BriefAction {
     /// Returns the labor impact evidence available to manager daily brief review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn labor_impact(&self) -> &LaborImpactEstimate {
         &self.labor_impact
+    }
+
+    /// Returns the relationship-checked capacity/labor recommendation when this action came from service capacity evidence.
+    pub const fn capacity_labor_recommendation(
+        &self,
+    ) -> Option<&operations::capacity::OptimizationRecommendation> {
+        self.capacity_labor_recommendation.as_ref()
     }
 
     /// Returns the required review gates evidence available to manager daily brief review while leaving provider, customer, payment, and schedule systems unchanged.
@@ -540,6 +554,8 @@ pub struct Request {
     checkout_packets: Vec<ScopedCheckoutPacket>,
     #[builder(default)]
     retention_packets: Vec<ScopedRetentionPacket>,
+    #[builder(default)]
+    capacity_labor_recommendations: Vec<operations::capacity::OptimizationRecommendation>,
 }
 
 impl Request {
@@ -576,6 +592,13 @@ impl Request {
     /// Returns the retention packets evidence available to manager daily brief review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn retention_packets(&self) -> &[ScopedRetentionPacket] {
         &self.retention_packets
+    }
+
+    /// Returns source-grounded capacity/labor recommendations already validated by domain relationship checks.
+    pub fn capacity_labor_recommendations(
+        &self,
+    ) -> &[operations::capacity::OptimizationRecommendation] {
+        &self.capacity_labor_recommendations
     }
 }
 
@@ -880,6 +903,7 @@ impl Workflow {
     pub fn evaluate(request: Request) -> Packet {
         let mut actions = Vec::new();
         actions.extend(service_demand_actions(&request));
+        actions.extend(capacity_labor_recommendation_actions(&request));
         actions.extend(checkout_exception_actions(&request));
         actions.extend(retention_actions(&request));
 
@@ -903,6 +927,55 @@ impl Workflow {
             after_minutes,
         }
     }
+}
+
+fn capacity_labor_recommendation_actions(request: &Request) -> Vec<BriefAction> {
+    request
+        .capacity_labor_recommendations
+        .iter()
+        .filter(|recommendation| {
+            scoped_packet_matches_request_scope(
+                recommendation.demand().location_id(),
+                request.operating_day,
+                request,
+            )
+        })
+        .map(|recommendation| {
+            let source_record_refs = recommendation
+                .source_evidence()
+                .iter()
+                .map(source::RecordRef::from_provenance)
+                .collect::<Vec<_>>();
+            let expected_delta = recommendation.expected_labor_delta_minutes().get().unsigned_abs();
+            let before_minutes = expected_delta.saturating_sub(22).clamp(1, u32::from(u16::MAX));
+            let before_minutes = u16::try_from(before_minutes).expect("clamped to u16");
+
+            BriefAction::builder()
+                .id(ActionId::try_new(format!(
+                    "capacity-labor-{:?}-{:?}",
+                    recommendation.demand().service(),
+                    recommendation.coverage().role()
+                ))
+                .expect("formatted capacity labor action ids are non-empty"))
+                .kind(BriefActionKind::ReviewCapacityLaborRecommendation)
+                .priority(BriefActionPriority::High)
+                .owner_persona(ManagerBriefPersona::GeneralManager)
+                .removed_manual_work(RemovedManualWork::ServiceCapacityLaborPlanning)
+                .rationale(ActionRationale::try_new("Manager receives a source-cited capacity/labor recommendation with alternatives and feasibility already checked, while the agent remains unable to mutate the schedule.").expect("static rationale is valid"))
+                .source_facts(vec![SourceFact::builder()
+                    .kind(SourceFactKind::CapacityLaborRecommendation)
+                    .summary(BriefSummary::try_new("Capacity, forecast demand, and scheduled coverage produced a feasible manager-reviewed labor recommendation.").expect("static brief summary is valid"))
+                    .source_record_refs(source_record_refs)
+                    .build()])
+                .labor_impact(LaborImpactEstimate::new(
+                    LaborMinutes::try_new(before_minutes).expect("derived nonzero minutes are valid"),
+                    LaborMinutes::try_new(18).expect("static minutes are valid"),
+                ))
+                .capacity_labor_recommendation(recommendation.clone())
+                .required_review_gates(vec![recommendation.review_gate()])
+                .build()
+        })
+        .collect()
 }
 
 fn service_demand_actions(request: &Request) -> Vec<BriefAction> {

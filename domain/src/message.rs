@@ -28,6 +28,8 @@ pub enum Channel {
     Email,
     /// SMS channel, subject to texting consent, quiet-hour, and approval rules.
     Sms,
+    /// Phone callback, live-call, or call-center communication channel.
+    Phone,
     /// Staff note from a call or voicemail, not an automated outbound send.
     PhoneNote,
     /// Customer portal channel controlled by portal delivery and consent settings.

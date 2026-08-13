@@ -166,3 +166,21 @@ fn mocked_gingr_payloads_remain_source_evidence_not_product_truth() {
         serde_json::Value::String("Manager Daily Report — synthetic 2026-06-29".to_owned())
     );
 }
+
+#[test]
+fn agent_trace_contract_has_explicit_schema_version_and_redacted_debug() {
+    let envelope = trace::mock_gingr_manager_daily_report_trace();
+
+    assert_eq!(envelope.schema_version(), trace::TraceSchemaVersion::V0);
+
+    let serialized = serde_json::to_value(&envelope).expect("trace fixture serializes");
+    assert_eq!(
+        serialized["schema_version"],
+        "information_lifespan_trace.v0"
+    );
+
+    let debug = format!("{envelope:?}");
+    assert!(debug.contains("source_payloads_count: 3"));
+    assert!(!debug.contains("Ate breakfast"));
+    assert!(!debug.contains("fixture://mock-gingr/care-notes/9001001-feeding.json"));
+}

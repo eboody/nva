@@ -63,6 +63,28 @@ macro_rules! deserialize_via_try_new {
 pub enum System {
     /// Gingr reservation and pet-care operating system.
     Gingr,
+    /// Telephony or call-center system carrying missed calls, voicemails, and call outcomes.
+    Telephony,
+    /// SMS provider carrying inbound/outbound text evidence and opt-out events.
+    SmsProvider,
+    /// Email inbox or transactional-email provider.
+    Email,
+    /// Web chat or website-assistant transcript source.
+    WebChat,
+    /// Website lead/intake form source.
+    WebsiteForms,
+    /// Marketing automation or campaign platform.
+    MarketingAutomation,
+    /// CRM/customer profile source.
+    Crm,
+    /// Finance/accounting source for site revenue, discounts, refunds, and costs.
+    FinanceAccounting,
+    /// HRIS, scheduling, or timekeeping source for labor evidence.
+    WorkforceManagement,
+    /// Document/SOP/vendor knowledge base.
+    KnowledgeBase,
+    /// Existing pet-resort operating system or PMS evidence.
+    ProviderOrPms,
     /// Reporting or BI data source.
     BusinessIntelligence,
     /// Labor scheduling source for staffing plans.

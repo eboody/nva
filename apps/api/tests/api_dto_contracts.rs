@@ -70,6 +70,10 @@ async fn request_json_on(
 fn assert_product_owned_runtime_dto_contract(payload: &serde_json::Value, workflow: &str) {
     assert_eq!(payload["api_contract"]["owner"], "pet_resort_api");
     assert_eq!(payload["api_contract"]["boundary"], "api_runtime_dto");
+    assert_eq!(
+        payload["api_contract"]["schema_version"],
+        "pet_resort_api.runtime.v0"
+    );
     assert_eq!(payload["api_contract"]["workflow"], workflow);
     assert_eq!(
         payload["api_contract"]["provider_payload_passthrough"],
@@ -374,6 +378,68 @@ async fn ops_metrics_summary_counts_safe_local_state_without_prometheus_overbuil
             json!("worker_lease_age")
         ]
     );
+}
+
+#[tokio::test]
+async fn inquiry_intake_idempotency_replay_reuses_exact_source_event_and_rejects_payload_drift() {
+    let app = http::router_with_state(http::VaccineDocumentState::default());
+    let first_payload = json!({
+        "source_event_key": "web-inquiry-idempotency-boundary-1",
+        "location_id": "00c0ffee-0000-0000-0000-000000000001",
+        "customer": {"full_name": "Replay Boundary", "email": "replay@example.test", "phone": null},
+        "pet": {"name": "Miso", "species": "dog"},
+        "service": "boarding",
+        "requested_dates": {"start": "2026-07-01", "end": "2026-07-04"},
+        "message": "Need boarding details."
+    });
+
+    let (created_status, _, created) = request_json_on(
+        app.clone(),
+        axum_http::Method::POST,
+        "/inquiries",
+        Some(first_payload.clone()),
+        None,
+    )
+    .await;
+    assert_eq!(created_status, axum_http::StatusCode::CREATED);
+    assert_product_owned_runtime_dto_contract(&created, "inquiry_intake");
+
+    let (replay_status, _, replay) = request_json_on(
+        app.clone(),
+        axum_http::Method::POST,
+        "/inquiries",
+        Some(first_payload),
+        None,
+    )
+    .await;
+    assert_eq!(replay_status, axum_http::StatusCode::OK);
+    assert_eq!(
+        replay["replay"]["classification"],
+        "duplicate_idempotent_replay"
+    );
+
+    let (drift_status, _, drift) = request_json_on(
+        app,
+        axum_http::Method::POST,
+        "/inquiries",
+        Some(json!({
+            "source_event_key": "web-inquiry-idempotency-boundary-1",
+            "location_id": "00c0ffee-0000-0000-0000-000000000001",
+            "customer": {"full_name": "Replay Boundary", "email": "replay@example.test", "phone": null},
+            "pet": {"name": "Miso", "species": "dog"},
+            "service": "grooming",
+            "requested_dates": {"start": "2026-07-01", "end": "2026-07-04"},
+            "message": "Changed payload under the same source key."
+        })),
+        None,
+    )
+    .await;
+    assert_eq!(drift_status, axum_http::StatusCode::CONFLICT);
+    assert_product_owned_runtime_dto_contract(&drift, "inquiry_intake_rejected");
+    assert_eq!(drift["classification"], "idempotency_payload_drift");
+    assert_eq!(drift["accepted"], false);
+    assert_eq!(drift["live_send_allowed"], false);
+    assert_eq!(drift["provider_write_allowed"], false);
 }
 
 #[tokio::test]

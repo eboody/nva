@@ -7,6 +7,7 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -23,6 +24,14 @@ impl CorrelationId {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Versioned public/agent schema tag for the trace envelope.
+pub enum TraceSchemaVersion {
+    /// Initial information-lifespan trace contract used by the local Manager Daily Report demo.
+    #[serde(rename = "information_lifespan_trace.v0")]
+    V0,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -491,9 +500,10 @@ impl FinalArtifact {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 /// Canonical reusable information-lifespan trace envelope.
 pub struct TraceEnvelope {
+    schema_version: TraceSchemaVersion,
     correlation_id: CorrelationId,
     source_system: SourceSystem,
     synthetic_data_only: bool,
@@ -510,6 +520,11 @@ pub struct TraceEnvelope {
 }
 
 impl TraceEnvelope {
+    /// Public/agent schema version that makes the durable trace payload contract explicit.
+    pub const fn schema_version(&self) -> TraceSchemaVersion {
+        self.schema_version
+    }
+
     /// Correlation id linking the source, DB, processor, network, and artifact panels.
     pub const fn correlation_id(&self) -> &CorrelationId {
         &self.correlation_id
@@ -576,6 +591,33 @@ impl TraceEnvelope {
     }
 }
 
+impl fmt::Debug for TraceEnvelope {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TraceEnvelope")
+            .field("schema_version", &self.schema_version)
+            .field("correlation_id", &self.correlation_id)
+            .field("source_system", &self.source_system)
+            .field("synthetic_data_only", &self.synthetic_data_only)
+            .field(
+                "provider_payloads_are_source_evidence_only",
+                &self.provider_payloads_are_source_evidence_only,
+            )
+            .field("live_side_effects_allowed", &self.live_side_effects_allowed)
+            .field("source_payloads_count", &self.source_payloads.len())
+            .field("stages_count", &self.stages.len())
+            .field("log_proof_entries_count", &self.log_proof_entries.len())
+            .field("db_proof_entries_count", &self.db_proof_entries.len())
+            .field(
+                "network_proof_entries_count",
+                &self.network_proof_entries.len(),
+            )
+            .field("calculations_count", &self.calculations.len())
+            .field("safety_gates_count", &self.safety_gates.len())
+            .field("final_artifact", &self.final_artifact)
+            .finish()
+    }
+}
+
 /// Builds the deterministic synthetic trace fixture used by Piece 1 and later replay cards.
 pub fn mock_gingr_manager_daily_report_trace() -> TraceEnvelope {
     let source_payloads = vec![
@@ -629,6 +671,7 @@ pub fn mock_gingr_manager_daily_report_trace() -> TraceEnvelope {
     ];
 
     TraceEnvelope {
+        schema_version: TraceSchemaVersion::V0,
         correlation_id: CorrelationId::new("info-lifespan-demo-2026-06-29"),
         source_system: SourceSystem::MockGingrReadOnlyFixture,
         synthetic_data_only: true,

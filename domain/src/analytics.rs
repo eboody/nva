@@ -5,7 +5,742 @@
 //! projection, and nonblocking findings stay attached so manager briefs and labor-cost
 //! dashboards can explain their evidence instead of inventing operational truth.
 
+use chrono::{DateTime, Utc};
+use nutype::nutype;
 use serde::{Deserialize, Serialize};
+
+use crate::operations::labor;
+use crate::{entities, money, policy, source};
+
+/// Source-backed financial facts and review-gated site finance insights.
+///
+/// Canonical owner for finance concepts previously introduced by `strategic_ai_ops::financial`.
+/// Insights cannot mutate price, discount, refund, payment, or accounting state.
+pub mod finance {
+    use super::*;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+    /// Reporting period for one site.
+    pub struct SitePeriod {
+        location_id: entities::LocationId,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+    }
+
+    impl SitePeriod {
+        /// Starts a manual builder that validates start/end order.
+        pub const fn builder() -> SitePeriodBuilder {
+            SitePeriodBuilder::new()
+        }
+    }
+
+    impl<'de> Deserialize<'de> for SitePeriod {
+        fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            #[derive(Deserialize)]
+            struct RawSitePeriod {
+                location_id: entities::LocationId,
+                start: DateTime<Utc>,
+                end: DateTime<Utc>,
+            }
+
+            let raw = RawSitePeriod::deserialize(deserializer)?;
+            Self::builder()
+                .location_id(raw.location_id)
+                .start(raw.start)
+                .end(raw.end)
+                .build()
+                .map_err(serde::de::Error::custom)
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, Default)]
+    /// Builder for a site financial reporting period.
+    pub struct SitePeriodBuilder {
+        location_id: Option<entities::LocationId>,
+        start: Option<DateTime<Utc>>,
+        end: Option<DateTime<Utc>>,
+    }
+
+    impl SitePeriodBuilder {
+        /// Creates an empty builder.
+        pub const fn new() -> Self {
+            Self {
+                location_id: None,
+                start: None,
+                end: None,
+            }
+        }
+
+        /// Sets location id.
+        pub const fn location_id(mut self, value: entities::LocationId) -> Self {
+            self.location_id = Some(value);
+            self
+        }
+
+        /// Sets period start.
+        pub const fn start(mut self, value: DateTime<Utc>) -> Self {
+            self.start = Some(value);
+            self
+        }
+
+        /// Sets period end.
+        pub const fn end(mut self, value: DateTime<Utc>) -> Self {
+            self.end = Some(value);
+            self
+        }
+
+        /// Builds a period if all required values exist and end follows start.
+        pub fn build(self) -> std::result::Result<SitePeriod, Error> {
+            let location_id = self.location_id.ok_or(Error::MissingLocation)?;
+            let start = self.start.ok_or(Error::MissingStart)?;
+            let end = self.end.ok_or(Error::MissingEnd)?;
+            if end <= start {
+                return Err(Error::EndMustFollowStart);
+            }
+            Ok(SitePeriod {
+                location_id,
+                start,
+                end,
+            })
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+    /// Source-backed site/service financial fact.
+    pub struct RevenueFact {
+        period: SitePeriod,
+        service: entities::ServiceKind,
+        gross_revenue: money::Money,
+        discount: money::Money,
+        refund: money::Money,
+        labor_cost: money::Money,
+        source_system: source::System,
+    }
+
+    impl RevenueFact {
+        /// Net revenue after discounts and refunds, with checked currency-aware arithmetic.
+        pub fn net_revenue(&self) -> money::Result<money::Money> {
+            self.gross_revenue
+                .checked_sub(self.discount.clone())?
+                .checked_sub(self.refund.clone())
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    /// Site financial insight kind.
+    pub enum InsightKind {
+        /// Discount leakage appears elevated.
+        DiscountLeakage,
+        /// Refund rate appears elevated.
+        RefundRateVariance,
+        /// Labor percent appears elevated.
+        LaborCostVariance,
+        /// Add-on attach rate opportunity.
+        AddOnAttachRateOpportunity,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    /// Review-gated financial recommendation.
+    pub enum Recommendation {
+        /// Review discount policy or approvals.
+        ReviewDiscountPolicy,
+        /// Review labor plan.
+        ReviewLaborPlan,
+        /// Review add-on attach process.
+        ReviewAddOnWorkflow,
+        /// Investigate source/accounting variance.
+        InvestigateVariance,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+    /// Review-gated site financial insight.
+    pub struct Insight {
+        fact: RevenueFact,
+        kind: InsightKind,
+        expected_impact: money::Money,
+        recommendation: Recommendation,
+        review_gate: policy::ReviewGate,
+    }
+
+    impl Insight {
+        /// Creates a financial insight only when the recommendation remains behind manager review.
+        pub fn try_new(
+            fact: RevenueFact,
+            kind: InsightKind,
+            expected_impact: money::Money,
+            recommendation: Recommendation,
+            review_gate: policy::ReviewGate,
+        ) -> std::result::Result<Self, Error> {
+            if review_gate != policy::ReviewGate::ManagerApproval {
+                return Err(Error::ManagerReviewRequired);
+            }
+            Ok(Self {
+                fact,
+                kind,
+                expected_impact,
+                recommendation,
+                review_gate,
+            })
+        }
+
+        /// Starts an insight builder that validates the manager-review gate at build time.
+        pub const fn builder() -> InsightBuilder {
+            InsightBuilder::new()
+        }
+
+        /// Net revenue on the underlying fact.
+        pub fn net_revenue(&self) -> money::Result<money::Money> {
+            self.fact.net_revenue()
+        }
+
+        /// Financial insight cannot directly mutate price, discount, payment, or accounting state.
+        pub const fn blocks_financial_mutation(&self) -> bool {
+            true
+        }
+    }
+
+    impl<'de> Deserialize<'de> for Insight {
+        fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            #[derive(Deserialize)]
+            struct RawInsight {
+                fact: RevenueFact,
+                kind: InsightKind,
+                expected_impact: money::Money,
+                recommendation: Recommendation,
+                review_gate: policy::ReviewGate,
+            }
+
+            let raw = RawInsight::deserialize(deserializer)?;
+            Self::try_new(
+                raw.fact,
+                raw.kind,
+                raw.expected_impact,
+                raw.recommendation,
+                raw.review_gate,
+            )
+            .map_err(serde::de::Error::custom)
+        }
+    }
+
+    #[derive(Debug, Clone, Default)]
+    /// Builder for a review-gated site financial insight.
+    pub struct InsightBuilder {
+        fact: Option<RevenueFact>,
+        kind: Option<InsightKind>,
+        expected_impact: Option<money::Money>,
+        recommendation: Option<Recommendation>,
+        review_gate: Option<policy::ReviewGate>,
+    }
+
+    impl InsightBuilder {
+        /// Creates an empty builder.
+        pub const fn new() -> Self {
+            Self {
+                fact: None,
+                kind: None,
+                expected_impact: None,
+                recommendation: None,
+                review_gate: None,
+            }
+        }
+
+        /// Sets the financial fact.
+        pub fn fact(mut self, value: RevenueFact) -> Self {
+            self.fact = Some(value);
+            self
+        }
+
+        /// Sets the insight kind.
+        pub const fn kind(mut self, value: InsightKind) -> Self {
+            self.kind = Some(value);
+            self
+        }
+
+        /// Sets the expected impact.
+        pub fn expected_impact(mut self, value: money::Money) -> Self {
+            self.expected_impact = Some(value);
+            self
+        }
+
+        /// Sets the recommendation.
+        pub const fn recommendation(mut self, value: Recommendation) -> Self {
+            self.recommendation = Some(value);
+            self
+        }
+
+        /// Sets the review gate.
+        pub const fn review_gate(mut self, value: policy::ReviewGate) -> Self {
+            self.review_gate = Some(value);
+            self
+        }
+
+        /// Builds the insight if every required field is present and manager-reviewed.
+        pub fn build(self) -> std::result::Result<Insight, Error> {
+            Insight::try_new(
+                self.fact.ok_or(Error::MissingFact)?,
+                self.kind.ok_or(Error::MissingKind)?,
+                self.expected_impact.ok_or(Error::MissingExpectedImpact)?,
+                self.recommendation.ok_or(Error::MissingRecommendation)?,
+                self.review_gate.ok_or(Error::MissingReviewGate)?,
+            )
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+    /// Site-period validation failure.
+    pub enum Error {
+        #[error("financial site period requires a location")]
+        /// Location id missing.
+        MissingLocation,
+        #[error("financial site period requires a start")]
+        /// Start missing.
+        MissingStart,
+        #[error("financial site period requires an end")]
+        /// End missing.
+        MissingEnd,
+        #[error("financial site period end must follow start")]
+        /// End did not follow start.
+        EndMustFollowStart,
+        #[error("financial insight requires manager review")]
+        /// Financial recommendations cannot use customer-message or other non-manager gates.
+        ManagerReviewRequired,
+        #[error("financial insight requires a fact")]
+        /// Fact missing from financial insight builder.
+        MissingFact,
+        #[error("financial insight requires a kind")]
+        /// Kind missing from financial insight builder.
+        MissingKind,
+        #[error("financial insight requires expected impact")]
+        /// Expected impact missing from financial insight builder.
+        MissingExpectedImpact,
+        #[error("financial insight requires a recommendation")]
+        /// Recommendation missing from financial insight builder.
+        MissingRecommendation,
+        #[error("financial insight requires a review gate")]
+        /// Review gate missing from financial insight builder.
+        MissingReviewGate,
+    }
+}
+
+/// Outcome attribution records used before making labor, revenue, or conversion value claims.
+///
+/// Canonical owner for outcome concepts previously introduced by `strategic_ai_ops::outcome`.
+/// Value claims require reviewed-action attribution and source evidence.
+pub mod outcome {
+    use super::*;
+
+    #[nutype(
+        sanitize(trim),
+        validate(not_empty, len_char_max = 160),
+        derive(
+            Debug,
+            Clone,
+            PartialEq,
+            Eq,
+            PartialOrd,
+            Ord,
+            Hash,
+            Serialize,
+            Deserialize
+        )
+    )]
+    /// Outcome record id.
+    pub struct Id(String);
+
+    #[nutype(
+        sanitize(trim),
+        validate(not_empty, len_char_max = 160),
+        derive(
+            Debug,
+            Clone,
+            PartialEq,
+            Eq,
+            PartialOrd,
+            Ord,
+            Hash,
+            Serialize,
+            Deserialize
+        )
+    )]
+    /// Reviewed recommendation identifier linked to an observed outcome.
+    pub struct RecommendationRef(String);
+
+    #[nutype(
+        sanitize(trim),
+        validate(not_empty, len_char_max = 160),
+        derive(
+            Debug,
+            Clone,
+            PartialEq,
+            Eq,
+            PartialOrd,
+            Ord,
+            Hash,
+            Serialize,
+            Deserialize
+        )
+    )]
+    /// Source or review evidence identifier used for outcome attribution.
+    pub struct EvidenceRef(String);
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    /// Strategic AI-ops workstream.
+    pub enum Workstream {
+        /// Real-time lead response.
+        LeadResponse,
+        /// Capacity/labor optimization.
+        CapacityLabor,
+        /// Knowledge assistant.
+        KnowledgeAssistant,
+        /// Retention.
+        Retention,
+        /// Site financial insights.
+        FinancialInsights,
+        /// CRM note intelligence.
+        CrmIntelligence,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    /// Value metric tracked by an outcome.
+    pub enum Metric {
+        /// Booking converted.
+        BookingConverted,
+        /// Labor minutes saved.
+        LaborMinutesSaved,
+        /// Utilization basis points improved.
+        UtilizationBasisPoints,
+        /// Revenue improved using canonical currency-aware money.
+        Revenue,
+        /// Revenue cents improved.
+        RevenueCents,
+        /// Customer retained.
+        CustomerRetained,
+        /// Handle time reduced.
+        HandleTimeMinutesReduced,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    /// Metric value representation retained for legacy bridge compatibility.
+    pub enum MetricValue {
+        /// Count value.
+        Count(i64),
+        /// Positive labor-minute value.
+        LaborMinutes(labor::Minutes),
+        /// Money value with explicit currency.
+        Revenue(money::Money),
+        /// Basis-points value.
+        UtilizationBasisPoints(money::BasisPoints),
+        /// Legacy minutes value retained for bridge compatibility.
+        Minutes(i64),
+        /// Legacy cents value retained for bridge compatibility.
+        Cents(i64),
+        /// Legacy basis-points value retained for bridge compatibility.
+        BasisPoints(i64),
+    }
+
+    impl MetricValue {
+        /// Builds a labor-minutes-saved metric value.
+        pub const fn labor_minutes_saved(value: labor::Minutes) -> Self {
+            Self::LaborMinutes(value)
+        }
+
+        /// Builds a currency-aware revenue metric value.
+        pub fn revenue(value: money::Money) -> Self {
+            Self::Revenue(value)
+        }
+
+        /// Builds a utilization metric value in validated basis points.
+        pub const fn utilization_basis_points(value: money::BasisPoints) -> Self {
+            Self::UtilizationBasisPoints(value)
+        }
+
+        /// Returns whether this value carries the unit required by the metric.
+        pub const fn matches_metric(&self, metric: Metric) -> bool {
+            matches!(
+                (metric, self),
+                (
+                    Metric::BookingConverted | Metric::CustomerRetained,
+                    Self::Count(_)
+                ) | (Metric::LaborMinutesSaved, Self::LaborMinutes(_))
+                    | (Metric::LaborMinutesSaved, Self::Minutes(_))
+                    | (Metric::HandleTimeMinutesReduced, Self::LaborMinutes(_))
+                    | (Metric::HandleTimeMinutesReduced, Self::Minutes(_))
+                    | (Metric::Revenue, Self::Revenue(_))
+                    | (Metric::RevenueCents, Self::Revenue(_))
+                    | (Metric::RevenueCents, Self::Cents(_))
+                    | (
+                        Metric::UtilizationBasisPoints,
+                        Self::UtilizationBasisPoints(_)
+                    )
+                    | (Metric::UtilizationBasisPoints, Self::BasisPoints(_))
+            )
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    /// Before/after values whose variants own the metric-compatible unit.
+    pub enum MeasuredChange {
+        /// Booking conversion count change.
+        BookingConverted {
+            /// Conversion count before the reviewed action.
+            before: i64,
+            /// Conversion count after the reviewed action.
+            after: i64,
+        },
+        /// Labor-minutes-saved change.
+        LaborMinutesSaved {
+            /// Labor minutes before the reviewed action.
+            before: labor::Minutes,
+            /// Labor minutes after the reviewed action.
+            after: labor::Minutes,
+        },
+        /// Utilization basis-points change.
+        UtilizationBasisPoints {
+            /// Utilization basis points before the reviewed action.
+            before: money::BasisPoints,
+            /// Utilization basis points after the reviewed action.
+            after: money::BasisPoints,
+        },
+        /// Revenue change using canonical currency-aware money.
+        Revenue {
+            /// Revenue before the reviewed action.
+            before: money::Money,
+            /// Revenue after the reviewed action.
+            after: money::Money,
+        },
+        /// Customer retention count change.
+        CustomerRetained {
+            /// Retained-customer count before the reviewed action.
+            before: i64,
+            /// Retained-customer count after the reviewed action.
+            after: i64,
+        },
+        /// Handle-time reduction change.
+        HandleTimeMinutesReduced {
+            /// Handle minutes before the reviewed action.
+            before: labor::Minutes,
+            /// Handle minutes after the reviewed action.
+            after: labor::Minutes,
+        },
+    }
+
+    impl MeasuredChange {
+        /// Builds a booking-conversion count change.
+        pub const fn booking_converted(before: i64, after: i64) -> Self {
+            Self::BookingConverted { before, after }
+        }
+
+        /// Builds a currency-aware revenue change.
+        pub fn revenue(before: money::Money, after: money::Money) -> Self {
+            Self::Revenue { before, after }
+        }
+
+        /// Metric carried by this measured change.
+        pub const fn metric(&self) -> Metric {
+            match self {
+                Self::BookingConverted { .. } => Metric::BookingConverted,
+                Self::LaborMinutesSaved { .. } => Metric::LaborMinutesSaved,
+                Self::UtilizationBasisPoints { .. } => Metric::UtilizationBasisPoints,
+                Self::Revenue { .. } => Metric::Revenue,
+                Self::CustomerRetained { .. } => Metric::CustomerRetained,
+                Self::HandleTimeMinutesReduced { .. } => Metric::HandleTimeMinutesReduced,
+            }
+        }
+
+        /// Returns whether before/after values share required relationship-level context.
+        pub fn relationship_context_is_consistent(&self) -> bool {
+            match self {
+                Self::Revenue { before, after } => before.currency() == after.currency(),
+                _ => true,
+            }
+        }
+
+        fn try_from_metric_values(
+            metric: Metric,
+            before_value: MetricValue,
+            after_value: MetricValue,
+        ) -> Result<Self> {
+            match (metric, before_value, after_value) {
+                (
+                    Metric::BookingConverted,
+                    MetricValue::Count(before),
+                    MetricValue::Count(after),
+                ) => Ok(Self::BookingConverted { before, after }),
+                (
+                    Metric::CustomerRetained,
+                    MetricValue::Count(before),
+                    MetricValue::Count(after),
+                ) => Ok(Self::CustomerRetained { before, after }),
+                (
+                    Metric::LaborMinutesSaved,
+                    MetricValue::LaborMinutes(before),
+                    MetricValue::LaborMinutes(after),
+                ) => Ok(Self::LaborMinutesSaved { before, after }),
+                (
+                    Metric::HandleTimeMinutesReduced,
+                    MetricValue::LaborMinutes(before),
+                    MetricValue::LaborMinutes(after),
+                ) => Ok(Self::HandleTimeMinutesReduced { before, after }),
+                (
+                    Metric::UtilizationBasisPoints,
+                    MetricValue::UtilizationBasisPoints(before),
+                    MetricValue::UtilizationBasisPoints(after),
+                ) => Ok(Self::UtilizationBasisPoints { before, after }),
+                (Metric::Revenue, MetricValue::Revenue(before), MetricValue::Revenue(after))
+                | (
+                    Metric::RevenueCents,
+                    MetricValue::Revenue(before),
+                    MetricValue::Revenue(after),
+                ) => Ok(Self::Revenue { before, after }),
+                _ => Err(Error::MetricValueUnitMismatch),
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    /// Legacy attribution strength for compatibility constructors.
+    pub enum Attribution {
+        /// Human-reviewed action can support value claims.
+        ReviewedAction,
+        /// Correlated with recommendation but not enough for strong claims.
+        CorrelatedOnly,
+        /// Source was wrong, so no value claim is allowed.
+        WrongSource,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    /// Evidence bundle that explains attribution sufficiency.
+    pub enum AttributionEvidence {
+        /// Human-reviewed action and supporting evidence can support value claims.
+        ReviewedAction {
+            /// Reviewed recommendation or action identifier.
+            recommendation_ref: RecommendationRef,
+            /// Source/review evidence identifier.
+            evidence_ref: EvidenceRef,
+        },
+        /// Correlated evidence is visible but not sufficient for strong claims.
+        CorrelatedOnly {
+            /// Correlation evidence identifier.
+            evidence_ref: EvidenceRef,
+        },
+        /// Wrong-source evidence prevents claims.
+        WrongSource {
+            /// Wrong-source evidence identifier.
+            evidence_ref: EvidenceRef,
+        },
+    }
+
+    impl AttributionEvidence {
+        /// Builds strong attribution from a reviewed recommendation/action and evidence reference.
+        pub const fn reviewed_action(
+            recommendation_ref: RecommendationRef,
+            evidence_ref: EvidenceRef,
+        ) -> Self {
+            Self::ReviewedAction {
+                recommendation_ref,
+                evidence_ref,
+            }
+        }
+
+        /// Builds weak correlated attribution that cannot support a value claim.
+        pub const fn correlated_only(evidence_ref: EvidenceRef) -> Self {
+            Self::CorrelatedOnly { evidence_ref }
+        }
+
+        /// Returns whether the evidence suffices for a measured value claim.
+        pub const fn can_support_value_claim(&self) -> bool {
+            matches!(self, Self::ReviewedAction { .. })
+        }
+
+        fn from_legacy(attribution: Attribution) -> Self {
+            let evidence_ref = EvidenceRef::try_new("legacy-outcome-attribution")
+                .expect("static legacy outcome evidence ref is valid");
+            match attribution {
+                Attribution::ReviewedAction => Self::ReviewedAction {
+                    recommendation_ref: RecommendationRef::try_new("legacy-reviewed-action")
+                        .expect("static legacy recommendation ref is valid"),
+                    evidence_ref,
+                },
+                Attribution::CorrelatedOnly => Self::CorrelatedOnly { evidence_ref },
+                Attribution::WrongSource => Self::WrongSource { evidence_ref },
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+    /// Source-backed outcome record for business-value claims.
+    pub struct Record {
+        id: Id,
+        workstream: Workstream,
+        location_id: entities::LocationId,
+        change: MeasuredChange,
+        attribution: AttributionEvidence,
+        source: source::System,
+        recorded_at: DateTime<Utc>,
+    }
+
+    impl Record {
+        /// Creates an outcome record only when both metric values match the declared metric unit.
+        #[allow(clippy::too_many_arguments)]
+        pub fn try_new(
+            id: Id,
+            workstream: Workstream,
+            location_id: entities::LocationId,
+            metric: Metric,
+            before_value: MetricValue,
+            after_value: MetricValue,
+            attribution: Attribution,
+            source: source::System,
+            recorded_at: DateTime<Utc>,
+        ) -> Result<Self> {
+            if !before_value.matches_metric(metric) || !after_value.matches_metric(metric) {
+                return Err(Error::MetricValueUnitMismatch);
+            }
+            Ok(Self {
+                id,
+                workstream,
+                location_id,
+                change: MeasuredChange::try_from_metric_values(metric, before_value, after_value)?,
+                attribution: AttributionEvidence::from_legacy(attribution),
+                source,
+                recorded_at,
+            })
+        }
+
+        /// Workstream this outcome belongs to.
+        pub const fn workstream(&self) -> Workstream {
+            self.workstream
+        }
+
+        /// Metric measured by this outcome's before/after change.
+        pub const fn metric(&self) -> Metric {
+            self.change.metric()
+        }
+
+        /// Returns whether this outcome can support a value claim.
+        pub fn can_support_value_claim(&self) -> bool {
+            self.attribution.can_support_value_claim()
+                && self.change.relationship_context_is_consistent()
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+    /// Outcome validation failures.
+    pub enum Error {
+        #[error("outcome metric value units must match the declared metric")]
+        /// Before/after values carried units incompatible with the metric.
+        MetricValueUnitMismatch,
+    }
+
+    /// Result type returned by outcome constructors.
+    pub type Result<T> = std::result::Result<T, Error>;
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 /// Version tag for a deterministic analytics projection.
@@ -209,7 +944,7 @@ pub mod service_demand {
         }
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
     /// Nonzero count of work units for a service line on an operating day.
     pub struct DemandUnits(u32);
 
@@ -225,6 +960,16 @@ pub mod service_demand {
         /// Returns the nonzero work-unit count for reports, storage rows, and adapter payloads.
         pub const fn get(self) -> u32 {
             self.0
+        }
+    }
+
+    impl<'de> Deserialize<'de> for DemandUnits {
+        fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            let value = u32::deserialize(deserializer)?;
+            Self::try_new(value).map_err(serde::de::Error::custom)
         }
     }
 

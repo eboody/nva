@@ -319,6 +319,112 @@ fn retention_outcome_capture_records_staff_evidence_without_live_provider_mutati
     );
 }
 
+#[test]
+fn rejected_expired_and_operations_only_crm_evidence_cannot_drive_marketing_drafts() {
+    for (review_status, expected_reason) in [
+        (
+            crm_retention::EvidenceReviewStatus::Rejected,
+            crm_retention::IneligibilityReason::NoAcceptedMarketingEvidence,
+        ),
+        (
+            crm_retention::EvidenceReviewStatus::Expired,
+            crm_retention::IneligibilityReason::NoAcceptedMarketingEvidence,
+        ),
+        (
+            crm_retention::EvidenceReviewStatus::OperationsOnly,
+            crm_retention::IneligibilityReason::NoAcceptedMarketingEvidence,
+        ),
+    ] {
+        let packet = crm_retention::Workflow::evaluate(
+            crm_retention::Request::builder()
+                .reservation_id(reservation_id())
+                .customer_id(customer_id())
+                .checkout_packet(checkout_packet())
+                .contact_permission(email_contact_permission())
+                .opportunities(vec![crm_segment_opportunity(review_status)])
+                .build(),
+        );
+
+        assert_eq!(
+            packet.eligibility(),
+            crm_retention::FollowUpEligibility::Ineligible {
+                reason: expected_reason
+            }
+        );
+        assert!(packet.review_packet().marketable_opportunities().is_empty());
+        assert!(
+            !packet
+                .safe_agent_actions()
+                .contains(&crm_retention::SafeAgentAction::DraftCustomerFollowUpForReview)
+        );
+        assert!(
+            packet
+                .safe_agent_actions()
+                .contains(&crm_retention::SafeAgentAction::CreateInternalStaffReviewTask)
+        );
+        assert_eq!(
+            packet.review_packet().draft_follow_up().review_state(),
+            message::ReviewState::Suppressed
+        );
+    }
+}
+
+#[test]
+fn accepted_crm_segment_evidence_can_personalize_review_only_follow_up_and_trace_outcome() {
+    let packet = crm_retention::Workflow::evaluate(
+        crm_retention::Request::builder()
+            .reservation_id(reservation_id())
+            .customer_id(customer_id())
+            .checkout_packet(checkout_packet())
+            .contact_permission(email_contact_permission())
+            .opportunities(vec![crm_segment_opportunity(
+                crm_retention::EvidenceReviewStatus::Accepted,
+            )])
+            .build(),
+    );
+
+    assert_eq!(
+        packet.eligibility(),
+        crm_retention::FollowUpEligibility::Eligible {
+            reason: crm_retention::EligibilityReason::SourceGroundedRetentionOpportunity
+        }
+    );
+    assert_eq!(packet.review_packet().marketable_opportunities().len(), 1);
+    assert_eq!(
+        packet.review_packet().marketable_opportunities()[0]
+            .evidence()
+            .review_status(),
+        crm_retention::EvidenceReviewStatus::Accepted
+    );
+    assert!(
+        packet
+            .source_record_refs()
+            .contains(&source::RecordRef::from_provenance(
+                &crm_segment_provenance()
+            ))
+    );
+
+    let outcome = crm_retention::OutcomeRecord::builder()
+        .reservation_id(reservation_id())
+        .customer_id(customer_id())
+        .recorded_by(staff_actor())
+        .recorded_at(DateTime::<Utc>::UNIX_EPOCH)
+        .outcome(crm_retention::FollowUpOutcome::Converted {
+            conversion: crm_retention::ConversionKind::ResortServiceBooked,
+        })
+        .source_provenance(crm_segment_provenance())
+        .evidence(vec![crm_segment_evidence(
+            crm_retention::EvidenceReviewStatus::Accepted,
+        )])
+        .build();
+
+    assert!(outcome.matches_reviewed_packet(&packet));
+    assert_eq!(
+        outcome.reviewed_outcome_classification_for(&packet),
+        crm_retention::ReviewedOutcomeClassification::RecoveredBooking
+    );
+}
+
 fn checkout_packet() -> checkout_completion::Packet {
     let request = checkout_completion::Request::builder()
         .reservation_id(reservation_id())
@@ -387,6 +493,48 @@ fn grooming_rebook_evidence() -> crm_retention::OpportunityEvidence {
             .unwrap(),
         )
         .provenance(grooming_provenance())
+        .build()
+}
+
+fn crm_segment_opportunity(
+    review_status: crm_retention::EvidenceReviewStatus,
+) -> crm_retention::RetentionOpportunity {
+    crm_retention::RetentionOpportunity::builder()
+        .kind(crm_retention::OpportunityKind::NextBoardingStay)
+        .reason(crm_retention::OpportunityReason::CustomerRequestedFutureService)
+        .evidence(crm_segment_evidence(review_status))
+        .build()
+}
+
+fn crm_segment_evidence(
+    review_status: crm_retention::EvidenceReviewStatus,
+) -> crm_retention::OpportunityEvidence {
+    crm_retention::OpportunityEvidence::builder()
+        .reason_code(crm_retention::SourceGroundedReasonCode::CustomerAskedAboutFutureStay)
+        .summary(
+            crm_retention::EvidenceSummary::try_new(
+                "Accepted CRM segment says the owner asked for a summer boarding reminder.",
+            )
+            .unwrap(),
+        )
+        .provenance(crm_segment_provenance())
+        .review_status(review_status)
+        .build()
+}
+
+fn crm_segment_provenance() -> source::Provenance {
+    source::Provenance::builder()
+        .system(source::System::Crm)
+        .endpoint(source::Endpoint::try_new("CRM /segments/retention-candidates").unwrap())
+        .record_id(source::record::Id::try_new("crm-segment-retention-42").unwrap())
+        .extraction_batch(source::ExtractionBatchId::try_new("retention-batch-local").unwrap())
+        .pulled_at(source::Timestamp::try_new("2026-06-17T00:00:00Z").unwrap())
+        .request_scope(source::RequestScope::try_new("local-retention-follow-up-contract").unwrap())
+        .schema_version(source::SchemaVersion::try_new("crm-v0-readonly").unwrap())
+        .payload_hash(source::PayloadHash::try_new("sha256:crmretentionfixture").unwrap())
+        .raw_payload_ref(
+            source::RawPayloadRef::try_new("fixtures/crm/retention-segment.json").unwrap(),
+        )
         .build()
 }
 

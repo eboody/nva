@@ -87,6 +87,116 @@ fn manager_daily_brief_contract_builds_source_grounded_actions_with_labor_delta(
 }
 
 #[test]
+fn manager_daily_brief_turns_capacity_labor_recommendation_into_reviewed_source_cited_action_and_outcome_trace()
+ {
+    let recommendation = capacity_labor_recommendation(
+        entities::ServiceKind::Boarding,
+        operations::labor::Role::FrontDesk,
+        312,
+        240,
+        72,
+    );
+    let request = manager_daily_brief::Request::builder()
+        .location_id(location_id())
+        .operating_day(operating_day())
+        .prepared_for(manager_daily_brief::ManagerBriefPersona::GeneralManager)
+        .demand_attention_threshold(manager_daily_brief::DemandThresholdUnits::try_new(10).unwrap())
+        .capacity_labor_recommendations(vec![recommendation.clone()])
+        .build();
+
+    let packet = manager_daily_brief::Workflow::evaluate(request);
+    let action = packet
+        .actions()
+        .iter()
+        .find(|action| {
+            action.kind() == manager_daily_brief::BriefActionKind::ReviewCapacityLaborRecommendation
+        })
+        .expect("capacity labor recommendation appears in the brief");
+
+    assert!(action.is_source_grounded());
+    assert_eq!(
+        action.removed_manual_work(),
+        manager_daily_brief::RemovedManualWork::ServiceCapacityLaborPlanning
+    );
+    assert!(action.source_facts().iter().any(|fact| {
+        fact.kind() == manager_daily_brief::SourceFactKind::CapacityLaborRecommendation
+            && fact.source_record_refs().len() == 2
+    }));
+    assert_eq!(
+        action.required_review_gates(),
+        &[policy::ReviewGate::ManagerApproval]
+    );
+    assert_eq!(
+        action
+            .capacity_labor_recommendation()
+            .expect("action retains relationship-checked recommendation")
+            .expected_labor_delta_minutes()
+            .get(),
+        recommendation.expected_labor_delta_minutes().get()
+    );
+    assert!(
+        packet
+            .blocked_actions()
+            .contains(&manager_daily_brief::BlockedAction::ChangeStaffSchedule)
+    );
+
+    let outcome = manager_daily_brief::OutcomeRecord::builder()
+        .action_id(action.id().clone())
+        .recorded_by(entities::ActorRef::Manager {
+            manager_id: entities::ManagerId::try_new("gm-capacity-review").unwrap(),
+        })
+        .outcome(manager_daily_brief::FeedbackOutcome::Completed)
+        .before_minutes(action.labor_impact().before_minutes())
+        .actual_minutes(manager_daily_brief::LaborMinutes::try_new(18).unwrap())
+        .manager_feedback(manager_daily_brief::ManagerFeedback::try_new(
+            "Reviewed capacity/labor evidence and adjusted the internal plan manually; no schedule mutation came from the agent.",
+        ).unwrap())
+        .source_record_refs(
+            action
+                .source_facts()
+                .iter()
+                .flat_map(|fact| fact.source_record_refs().iter().cloned())
+                .collect::<Vec<_>>(),
+        )
+        .build();
+
+    assert_eq!(
+        outcome.labor_savings_claim_for_action(action),
+        manager_daily_brief::LaborSavingsClaim::Supported { minutes: 32 }
+    );
+    assert!(outcome.records_feedback_without_external_mutation());
+}
+
+#[test]
+fn capacity_labor_recommendations_fail_closed_before_manager_brief_when_inputs_are_incompatible() {
+    let bucket = capacity_bucket();
+    let demand = capacity_demand_for(entities::ServiceKind::Boarding, bucket, 26, 12);
+    let coverage = scheduled_coverage_for(operations::labor::Role::Groomer, bucket, 240);
+
+    let error = operations::capacity::OptimizationRecommendation::builder()
+        .objective(operations::capacity::OptimizationObjective::ReduceFrontDeskBottleneck)
+        .demand(demand)
+        .coverage(coverage)
+        .source_evidence(vec![capacity_provenance(
+            "capacity-demand-boarding-2026-06-17",
+            source::System::BusinessIntelligence,
+        )])
+        .solver_status(operations::capacity::SolverStatus::Feasible)
+        .alternatives(vec![
+            operations::capacity::RecommendedAction::ManagerReviewOnly,
+        ])
+        .action(operations::capacity::RecommendedAction::add_role_coverage(
+            operations::labor::Role::FrontDesk,
+            operations::labor::Minutes::try_new(72).unwrap(),
+        ))
+        .review_gate(policy::ReviewGate::ManagerApproval)
+        .build()
+        .expect_err("role-mismatched capacity recommendations must fail before brief generation");
+
+    assert_eq!(error, operations::capacity::Error::RoleMismatch);
+}
+
+#[test]
 fn manager_daily_brief_contract_preserves_review_boundaries_and_data_quality_visibility() {
     let request = manager_daily_brief::Request::builder()
         .location_id(location_id())
@@ -627,6 +737,113 @@ fn retention_opportunity() -> crm_retention::RetentionOpportunity {
                 )
                 .provenance(source_provenance())
                 .build(),
+        )
+        .build()
+}
+
+fn capacity_labor_recommendation(
+    service: entities::ServiceKind,
+    role: operations::labor::Role,
+    required_minutes: u32,
+    scheduled_minutes: u16,
+    add_minutes: u16,
+) -> operations::capacity::OptimizationRecommendation {
+    let bucket = capacity_bucket();
+    operations::capacity::OptimizationRecommendation::builder()
+        .objective(operations::capacity::OptimizationObjective::ReduceFrontDeskBottleneck)
+        .demand(capacity_demand_for(
+            service,
+            bucket,
+            required_minutes / 12,
+            12,
+        ))
+        .coverage(scheduled_coverage_for(role, bucket, scheduled_minutes))
+        .source_evidence(vec![
+            capacity_provenance(
+                "capacity-demand-boarding-2026-06-17",
+                source::System::BusinessIntelligence,
+            ),
+            capacity_provenance(
+                "labor-coverage-front-desk-2026-06-17",
+                source::System::LaborScheduling,
+            ),
+        ])
+        .solver_status(operations::capacity::SolverStatus::Feasible)
+        .alternatives(vec![
+            operations::capacity::RecommendedAction::ManagerReviewOnly,
+            operations::capacity::RecommendedAction::reassign_coverage(
+                operations::labor::Role::KennelTechnician,
+                role,
+                operations::labor::Minutes::try_new(add_minutes).unwrap(),
+            ),
+        ])
+        .action(operations::capacity::RecommendedAction::add_role_coverage(
+            role,
+            operations::labor::Minutes::try_new(add_minutes).unwrap(),
+        ))
+        .review_gate(policy::ReviewGate::ManagerApproval)
+        .build()
+        .unwrap()
+}
+
+fn capacity_demand_for(
+    service: entities::ServiceKind,
+    bucket: operations::time_bucket::Window,
+    quantity: u32,
+    labor_minutes_per_unit: u16,
+) -> operations::capacity::DemandUnit {
+    operations::capacity::DemandUnit::builder()
+        .location_id(location_id())
+        .service(service)
+        .bucket(bucket)
+        .quantity(operations::capacity::Quantity::try_new(quantity).unwrap())
+        .labor_minutes_per_unit(
+            operations::labor::Minutes::try_new(labor_minutes_per_unit).unwrap(),
+        )
+        .constraints(vec![
+            operations::capacity::Constraint::CheckInCheckoutBottleneck,
+        ])
+        .build()
+}
+
+fn scheduled_coverage_for(
+    role: operations::labor::Role,
+    bucket: operations::time_bucket::Window,
+    scheduled_minutes: u16,
+) -> operations::labor::ScheduledCoverage {
+    operations::labor::ScheduledCoverage::builder()
+        .location_id(location_id())
+        .bucket(bucket)
+        .role(role)
+        .scheduled_people(operations::labor::PeopleCount::try_new(1).unwrap())
+        .scheduled_minutes(operations::labor::Minutes::try_new(scheduled_minutes).unwrap())
+        .loaded_cost(domain::money::Money::usd(7_200).unwrap())
+        .build()
+}
+
+fn capacity_bucket() -> operations::time_bucket::Window {
+    operations::time_bucket::Window::new(
+        DateTime::<Utc>::UNIX_EPOCH,
+        DateTime::<Utc>::UNIX_EPOCH + chrono::Duration::hours(4),
+    )
+    .unwrap()
+}
+
+fn capacity_provenance(record_id: &str, system: source::System) -> source::Provenance {
+    source::Provenance::builder()
+        .system(system)
+        .endpoint(source::Endpoint::try_new("capacity-labor-forecast").unwrap())
+        .record_id(source::record::Id::try_new(record_id).unwrap())
+        .extraction_batch(
+            source::ExtractionBatchId::try_new("manager-brief-capacity-batch").unwrap(),
+        )
+        .pulled_at(source::Timestamp::try_new("2026-06-17T06:00:00Z").unwrap())
+        .request_scope(source::RequestScope::try_new("manager-daily-brief-capacity-labor").unwrap())
+        .schema_version(source::SchemaVersion::try_new("capacity-labor-v1").unwrap())
+        .payload_hash(source::PayloadHash::try_new(format!("sha256:{record_id}")).unwrap())
+        .raw_payload_ref(
+            source::RawPayloadRef::try_new(format!("fixtures/capacity-labor/{record_id}.json"))
+                .unwrap(),
         )
         .build()
 }

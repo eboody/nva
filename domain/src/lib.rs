@@ -12,6 +12,8 @@
 //! persistence, runtime exposure, and tests are linked from
 //! `docs/entity-atlas/contract-crosswalk/{surface-inventory,source-provider-flows,workflow-packets,storage-persistence,runtime-exposure}.md`.
 
+/// Access, role, visibility, and allowed-use contracts for scoped operational facts.
+pub mod access;
 /// Agent prompt and packet contracts for review-gated operating workflows.
 pub mod agent;
 /// Analytics contracts for labor, revenue, occupancy, and exception reporting.
@@ -22,6 +24,8 @@ pub mod audit;
 pub mod boarding;
 /// Care-profile contracts for feeding, medication, handling, and pet-safety notes.
 pub mod care;
+/// Channel/purpose consent contracts for reviewed customer communication and internal use.
+pub mod consent;
 /// Customer identity/contact value contracts for portal and messaging workflows.
 pub mod customer;
 /// Manager daily-briefing contracts for occupancy, staffing, risk, and action summaries.
@@ -36,6 +40,8 @@ pub mod document;
 pub mod entities;
 /// Grooming contracts for appointments, services, estimates, rebooking, and history.
 pub mod grooming;
+/// Identity matching contracts for source-to-domain customer, pet, and household reconciliation.
+pub mod identity;
 /// Incident contracts for safety events, evidence, escalation, and follow-up.
 pub mod incident;
 /// Lead intake and follow-up contracts for prospective customer conversion workflows.
@@ -66,7 +72,12 @@ pub mod retail;
 pub mod source;
 /// Staff contracts for scheduling, roles, training, and shift/labor context.
 pub mod staff;
-/// Strategic AI-operations contracts for lead response, CRM intelligence, optimization, GPT context, financial insight, and outcomes.
+/// Deprecated compatibility facade for strategic AI-operations contracts.
+///
+/// New code should import the canonical owner modules directly. This facade deliberately contains
+/// only compatibility re-exports so it cannot remain the semantic owner of lead response, customer
+/// intelligence, labor/capacity, assistant/knowledge, finance, or outcome concepts.
+#[path = "strategic_ai_ops_bridge.rs"]
 pub mod strategic_ai_ops;
 /// Temperament contracts for group-play safety and behavior review evidence.
 pub mod temperament;

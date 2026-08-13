@@ -39,6 +39,10 @@ pub mod information_lifespan;
 /// Local deterministic fixtures that exercise agent and tool gates.
 pub mod local_smoke;
 pub mod manager_daily_brief;
+/// Permissioned knowledge retrieval workflow that cites authorized fixture evidence or escalates.
+pub mod permissioned_knowledge;
+/// Source-backed site finance recommendation and outcome workflow.
+pub mod site_finance;
 pub mod tools;
 
 /// Common app rules for shells that need agent specs and tool catalogs.

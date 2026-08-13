@@ -85,13 +85,37 @@ pub enum CheckoutException {
     BalanceOrRefundReviewRequired,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 /// Deposit amount, status, refund window, and payment reference for a reservation.
 pub struct Deposit {
     amount: Money,
     refundable_until: Option<DateTime<Utc>>,
     status: DepositStatus,
     payment_reference: Option<Reference>,
+}
+
+#[derive(Deserialize)]
+struct RawDeposit {
+    amount: Money,
+    refundable_until: Option<DateTime<Utc>>,
+    status: DepositStatus,
+    payment_reference: Option<Reference>,
+}
+
+impl<'de> Deserialize<'de> for Deposit {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let raw = RawDeposit::deserialize(deserializer)?;
+        Self::try_from_persisted(
+            raw.amount,
+            raw.refundable_until,
+            raw.status,
+            raw.payment_reference,
+        )
+        .map_err(serde::de::Error::custom)
+    }
 }
 
 impl Deposit {
@@ -151,6 +175,36 @@ impl Deposit {
     /// Returns the deposit payment reference recorded for payment review and reconciliation.
     pub const fn payment_reference(&self) -> Option<&Reference> {
         self.payment_reference.as_ref()
+    }
+
+    /// Promotes a persisted deposit row after checking cross-field lifecycle invariants.
+    pub fn try_from_persisted(
+        amount: Money,
+        refundable_until: Option<DateTime<Utc>>,
+        status: DepositStatus,
+        payment_reference: Option<Reference>,
+    ) -> Result<Self> {
+        match status {
+            DepositStatus::Paid | DepositStatus::Refunded if payment_reference.is_none() => {
+                return Err(Error::PaidDepositMissingReference);
+            }
+            DepositStatus::Required
+            | DepositStatus::Failed
+            | DepositStatus::NotRequired
+            | DepositStatus::WaivedByManager
+                if payment_reference.is_some() =>
+            {
+                return Err(Error::UnpaidDepositHasReference);
+            }
+            _ => {}
+        }
+
+        Ok(Self {
+            amount,
+            refundable_until,
+            status,
+            payment_reference,
+        })
     }
 
     /// Reports whether this deposit still requires collection from the customer.

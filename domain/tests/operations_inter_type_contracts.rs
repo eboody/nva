@@ -62,6 +62,20 @@ fn service_demand_fact_carries_operating_day_key_without_labor_or_capacity_schem
 }
 
 #[test]
+fn service_demand_units_reject_zero_at_constructor_and_serde_boundaries() {
+    assert!(analytics::service_demand::DemandUnits::try_new(0).is_err());
+    assert!(serde_json::from_str::<analytics::service_demand::DemandUnits>("0").is_err());
+    assert!(serde_json::from_str::<analytics::service_demand::DemandUnits>("4294967296").is_err());
+
+    let demand_units = analytics::service_demand::DemandUnits::try_new(3).unwrap();
+    assert_eq!(serde_json::to_string(&demand_units).unwrap(), "3");
+    assert_eq!(
+        serde_json::from_str::<analytics::service_demand::DemandUnits>("3").unwrap(),
+        demand_units
+    );
+}
+
+#[test]
 fn service_demand_fact_preserves_quality_issues_without_turning_source_location_into_truth() {
     let key = operations::operating_day::Key::new(
         location_id(),
