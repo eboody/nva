@@ -39,29 +39,31 @@ fn documents_and_vaccine_records_preserve_evidence_review_and_audit_lineage() {
         .pii_redaction_status(document::PiiRedactionStatus::Pending)
         .verification_status(document::Status::AwaitingReview)
         .audit_refs(vec![audit_id])
-        .build();
+        .build()
+        .unwrap();
 
     assert_eq!(
-        document.original_file.filename.clone().into_inner(),
+        document.original_file().filename.clone().into_inner(),
         "rabies.pdf"
     );
     assert!(document.requires_human_review_before_use());
-    assert_eq!(document.audit_refs, vec![audit_id]);
+    assert_eq!(document.audit_refs(), &[audit_id]);
 
     let vaccine = entities::VaccineRecord::builder()
         .id(entities::VaccineRecordId(uuid::Uuid::nil()))
         .pet_id(entities::PetId(uuid::Uuid::nil()))
         .vaccine_name(policy::VaccineName::try_new("  Rabies  ").unwrap())
-        .source_document_id(document.id)
+        .source_document_id(document.id())
         .status(vaccine::Status::PendingReview)
         .effective_on(chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap())
         .expires_on(chrono::NaiveDate::from_ymd_opt(2027, 1, 1).unwrap())
         .review_gate(policy::ReviewGate::MedicalDocumentReview)
         .audit_refs(vec![audit_id])
-        .build();
+        .build()
+        .unwrap();
 
     assert!(vaccine.requires_human_review_before_compliance());
-    assert_eq!(vaccine.vaccine_name.into_inner(), "Rabies");
+    assert_eq!(vaccine.vaccine_name().clone().into_inner(), "Rabies");
 }
 
 #[test]
@@ -101,24 +103,26 @@ fn notes_incidents_messages_and_approvals_have_invariant_lifecycle_enums() {
         )
         .required_review_gates(vec![policy::ReviewGate::ManagerApproval])
         .audit_refs(vec![audit::EventId(uuid::Uuid::nil())])
-        .build();
+        .build()
+        .unwrap();
     assert!(incident.requires_manager_attention());
 
     let message = entities::Message::builder()
         .id(entities::MessageId(uuid::Uuid::nil()))
-        .subject(entities::MessageSubject::Incident(incident.id))
+        .subject(entities::MessageSubject::Incident(incident.id()))
         .direction(message::Direction::OutboundDraft)
         .channel(message::Channel::Email)
         .status(message::Status::ApprovalRequested)
         .body_ref(message::BodyRef::try_new("message-body/evidence-1").unwrap())
         .approval_gate(policy::ReviewGate::CustomerMessageApproval)
         .audit_refs(vec![audit::EventId(uuid::Uuid::nil())])
-        .build();
+        .build()
+        .unwrap();
     assert!(message.requires_approval_before_send());
 
     let approval = entities::approval::Record::builder()
         .id(entities::approval::Id(uuid::Uuid::nil()))
-        .target(entities::approval::Target::Message(message.id))
+        .target(entities::approval::Target::Message(message.id()))
         .gate(policy::ReviewGate::CustomerMessageApproval)
         .lifecycle(entities::approval::Lifecycle::ApprovalRequested)
         .requested_by(entities::ActorRef::Agent {
@@ -126,7 +130,8 @@ fn notes_incidents_messages_and_approvals_have_invariant_lifecycle_enums() {
         })
         .requested_at(chrono::DateTime::<chrono::Utc>::UNIX_EPOCH)
         .audit_refs(vec![audit::EventId(uuid::Uuid::nil())])
-        .build();
+        .build()
+        .unwrap();
     assert!(!approval.is_applicable());
 }
 
@@ -151,7 +156,8 @@ fn terminal_approval_decisions_carry_actor_and_decision_time() {
             workflow: domain::agent::Name::try_new("deposit-exception").unwrap(),
         })
         .requested_at(decided_at)
-        .build();
+        .build()
+        .unwrap();
 
     assert_eq!(approved.status(), entities::approval::Status::Approved);
     assert!(approved.is_terminal_decision());
@@ -165,22 +171,22 @@ fn terminal_approval_decisions_carry_actor_and_decision_time() {
 #[test]
 fn audit_subjects_and_actions_represent_required_write_paths() {
     let actions = [
-        entities::audit::Action::DocumentReceived,
-        entities::audit::Action::VaccineRecordReviewRequested,
-        entities::audit::Action::IncidentStatusChanged,
-        entities::audit::Action::MessageApprovalRequested,
-        entities::audit::Action::ApprovalDecisionRecorded,
-        entities::audit::Action::WorkflowEventRecorded,
+        audit::Action::DocumentReceived,
+        audit::Action::VaccineRecordReviewRequested,
+        audit::Action::IncidentStatusChanged,
+        audit::Action::MessageApprovalRequested,
+        audit::Action::ApprovalDecisionRecorded,
+        audit::Action::WorkflowEventRecorded,
     ];
 
-    assert!(actions.contains(&entities::audit::Action::WorkflowEventRecorded));
+    assert!(actions.contains(&audit::Action::WorkflowEventRecorded));
     assert_eq!(
-        entities::audit::Subject::Message(entities::MessageId(uuid::Uuid::nil())),
-        entities::audit::Subject::Message(entities::MessageId(uuid::Uuid::nil()))
+        audit::Subject::Message(entities::MessageId(uuid::Uuid::nil())),
+        audit::Subject::Message(entities::MessageId(uuid::Uuid::nil()))
     );
     assert_eq!(
-        entities::audit::Subject::Approval(entities::approval::Id(uuid::Uuid::nil())),
-        entities::audit::Subject::Approval(entities::approval::Id(uuid::Uuid::nil()))
+        audit::Subject::Approval(entities::approval::Id(uuid::Uuid::nil())),
+        audit::Subject::Approval(entities::approval::Id(uuid::Uuid::nil()))
     );
 }
 

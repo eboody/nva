@@ -158,10 +158,16 @@ async fn readiness_endpoint_reports_present_runtime_env_as_configured_but_unveri
 
 #[tokio::test]
 async fn site_finance_agent_context_exposes_review_audit_and_nonclaimable_weak_attribution() {
-    let response = http::router()
+    let response = http::router_with_test_auth_state(http::VaccineDocumentState::default())
         .oneshot(
             axum_http::request::Builder::new()
                 .uri("/agent/context/site-finance")
+                .header("x-test-auth-actor-id", "general-manager-17")
+                .header("x-test-auth-role", "general_manager")
+                .header(
+                    "x-test-auth-location-id",
+                    "00c0ffee-0000-0000-0000-000000000001",
+                )
                 .body(Body::empty())
                 .expect("request builds"),
         )
@@ -198,17 +204,20 @@ async fn site_finance_agent_context_exposes_review_audit_and_nonclaimable_weak_a
 
 #[tokio::test]
 async fn inquiry_submission_creates_review_gated_intake_record() {
-    let app = http::router_with_state(http::VaccineDocumentState::default());
+    let app = http::router_with_test_auth_state(http::VaccineDocumentState::default());
     let response = app
         .oneshot(
             axum_http::request::Builder::new()
                 .method(axum_http::Method::POST)
                 .uri("/inquiries")
+                .header("x-test-auth-actor-id", "front-desk-lead-17")
+                .header("x-test-auth-role", "front_desk_lead")
+                .header("x-test-auth-location-id", "00c0ffee-0000-0000-0000-000000000001")
                 .header(axum_http::header::CONTENT_TYPE, "application/json")
                 .body(Body::from(
                     json!({
                         "source_event_key": "contract-inquiry-001",
-                        "location_id": "location_local",
+                        "location_id": "00c0ffee-0000-0000-0000-000000000001",
                         "customer": {
                             "full_name": "Avery Chen",
                             "email": "avery@example.test",
@@ -262,18 +271,24 @@ async fn inquiry_submission_creates_review_gated_intake_record() {
 
 #[tokio::test]
 async fn inquiry_intake_records_are_visible_to_staff_review_queue() {
-    let app = http::router_with_state(http::VaccineDocumentState::default());
+    let app = http::router_with_test_auth_state(http::VaccineDocumentState::default());
     let submit_response = app
         .clone()
         .oneshot(
             axum_http::request::Builder::new()
                 .method(axum_http::Method::POST)
                 .uri("/inquiries")
+                .header("x-test-auth-actor-id", "front-desk-lead-17")
+                .header("x-test-auth-role", "front_desk_lead")
+                .header(
+                    "x-test-auth-location-id",
+                    "00c0ffee-0000-0000-0000-000000000001",
+                )
                 .header(axum_http::header::CONTENT_TYPE, "application/json")
                 .body(Body::from(
                     json!({
                         "source_event_key": "contract-inquiry-002",
-                        "location_id": "location_local",
+                        "location_id": "00c0ffee-0000-0000-0000-000000000001",
                         "customer": {"full_name": "Riley Patel", "email": "riley@example.test"},
                         "pet": {"name": "Juniper", "species": "dog"},
                         "service": "day_play",
@@ -291,6 +306,12 @@ async fn inquiry_intake_records_are_visible_to_staff_review_queue() {
         .oneshot(
             axum_http::request::Builder::new()
                 .uri("/staff/inquiries")
+                .header("x-test-auth-actor-id", "front-desk-lead-17")
+                .header("x-test-auth-role", "front_desk_lead")
+                .header(
+                    "x-test-auth-location-id",
+                    "00c0ffee-0000-0000-0000-000000000001",
+                )
                 .body(Body::empty())
                 .expect("request builds"),
         )
@@ -324,14 +345,14 @@ async fn inquiry_intake_records_are_visible_to_staff_review_queue() {
 
 #[tokio::test]
 async fn lead_response_fixture_walks_source_to_reviewed_outcome_without_live_side_effects() {
-    let app = http::router_with_state(http::VaccineDocumentState::default());
+    let app = http::router_with_test_auth_state(http::VaccineDocumentState::default());
     let fixture = json!({
         "source_event_key": "gingr-lead-response-fixture-001",
         "source_system": "mock_gingr_readonly_fixture",
         "provider_model_path": "gingr::webhook::LeadInquirySubmitted",
         "raw_payload_ref": "fixture://mock-gingr/leads/lead-response-001.json",
         "received_at": "2026-07-03T14:00:00Z",
-        "location_id": "location_local",
+        "location_id": "00c0ffee-0000-0000-0000-000000000001",
         "customer": {
             "full_name": "Avery Chen",
             "email": "avery@example.test",
@@ -363,6 +384,12 @@ async fn lead_response_fixture_walks_source_to_reviewed_outcome_without_live_sid
             axum_http::request::Builder::new()
                 .method(axum_http::Method::POST)
                 .uri("/inquiries")
+                .header("x-test-auth-actor-id", "front-desk-lead-17")
+                .header("x-test-auth-role", "front_desk_lead")
+                .header(
+                    "x-test-auth-location-id",
+                    "00c0ffee-0000-0000-0000-000000000001",
+                )
                 .header(axum_http::header::CONTENT_TYPE, "application/json")
                 .body(Body::from(fixture.to_string()))
                 .expect("request builds"),
@@ -438,6 +465,12 @@ async fn lead_response_fixture_walks_source_to_reviewed_outcome_without_live_sid
             axum_http::request::Builder::new()
                 .method(axum_http::Method::POST)
                 .uri("/inquiries")
+                .header("x-test-auth-actor-id", "front-desk-lead-17")
+                .header("x-test-auth-role", "front_desk_lead")
+                .header(
+                    "x-test-auth-location-id",
+                    "00c0ffee-0000-0000-0000-000000000001",
+                )
                 .header(axum_http::header::CONTENT_TYPE, "application/json")
                 .body(Body::from(fixture.to_string()))
                 .expect("request builds"),
@@ -462,6 +495,12 @@ async fn lead_response_fixture_walks_source_to_reviewed_outcome_without_live_sid
         .oneshot(
             axum_http::request::Builder::new()
                 .uri("/staff/inquiries")
+                .header("x-test-auth-actor-id", "front-desk-lead-17")
+                .header("x-test-auth-role", "front_desk_lead")
+                .header(
+                    "x-test-auth-location-id",
+                    "00c0ffee-0000-0000-0000-000000000001",
+                )
                 .body(Body::empty())
                 .expect("request builds"),
         )
@@ -479,12 +518,15 @@ async fn lead_response_fixture_walks_source_to_reviewed_outcome_without_live_sid
 
 #[tokio::test]
 async fn lead_response_fixture_classifies_invalid_and_out_of_order_events() {
-    let app = http::router_with_state(http::VaccineDocumentState::default());
+    let app = http::router_with_test_auth_state(http::VaccineDocumentState::default());
     let response = app
         .oneshot(
             axum_http::request::Builder::new()
                 .method(axum_http::Method::POST)
                 .uri("/inquiries")
+                .header("x-test-auth-actor-id", "front-desk-lead-17")
+                .header("x-test-auth-role", "front_desk_lead")
+                .header("x-test-auth-location-id", "00c0ffee-0000-0000-0000-000000000001")
                 .header(axum_http::header::CONTENT_TYPE, "application/json")
                 .body(Body::from(
                     json!({
@@ -493,7 +535,7 @@ async fn lead_response_fixture_classifies_invalid_and_out_of_order_events() {
                         "provider_model_path": "gingr::webhook::LeadInquirySubmitted",
                         "raw_payload_ref": "fixture://mock-gingr/leads/lead-response-invalid-001.json",
                         "received_at": "2026-07-03T14:00:00Z",
-                        "location_id": "location_local",
+                        "location_id": "00c0ffee-0000-0000-0000-000000000001",
                         "customer": {"full_name": "Avery Chen", "email": "avery@example.test"},
                         "pet": {"name": "Miso", "species": "dog"},
                         "service": "boarding",
@@ -528,12 +570,18 @@ async fn lead_response_fixture_classifies_invalid_and_out_of_order_events() {
 
 #[tokio::test]
 async fn request_trace_echoes_safe_request_and_correlation_ids_without_payload_logging() {
-    let response = http::router()
+    let response = http::router_with_test_auth_state(http::VaccineDocumentState::default())
         .oneshot(
             axum_http::request::Builder::new()
                 .uri("/agent/context/data-quality-hygiene?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17")
                 .header("x-request-id", "ops-readiness-req-001")
                 .header("x-correlation-id", "ops-readiness-corr-001")
+                .header("x-test-auth-actor-id", "general-manager-17")
+                .header("x-test-auth-role", "general_manager")
+                .header(
+                    "x-test-auth-location-id",
+                    "00c0ffee-0000-0000-0000-000000000001",
+                )
                 .body(Body::empty())
                 .expect("request builds"),
         )
@@ -576,10 +624,13 @@ async fn request_trace_echoes_safe_request_and_correlation_ids_without_payload_l
 
 #[tokio::test]
 async fn permissioned_knowledge_context_returns_cited_redacted_packet_after_authorization() {
-    let response = http::router()
+    let response = http::router_with_test_auth_state(http::VaccineDocumentState::default())
         .oneshot(
             axum_http::request::Builder::new()
                 .uri("/agent/context/permissioned-knowledge?location_id=00000000-0000-0000-0000-000000000170&service=boarding&role=front_desk&section=check-in.required-documents")
+                .header("x-test-auth-actor-id", "front-desk-lead-17")
+                .header("x-test-auth-role", "front_desk_lead")
+                .header("x-test-auth-location-id", "00000000-0000-0000-0000-000000000170")
                 .body(Body::empty())
                 .expect("request builds"),
         )
@@ -618,10 +669,13 @@ async fn permissioned_knowledge_context_returns_cited_redacted_packet_after_auth
 
 #[tokio::test]
 async fn permissioned_knowledge_context_escalates_scope_mismatch_before_content_enters_context() {
-    let response = http::router()
+    let response = http::router_with_test_auth_state(http::VaccineDocumentState::default())
         .oneshot(
             axum_http::request::Builder::new()
                 .uri("/agent/context/permissioned-knowledge?location_id=00000000-0000-0000-0000-000000000171&service=boarding&role=front_desk&section=check-in.required-documents")
+                .header("x-test-auth-actor-id", "front-desk-lead-17")
+                .header("x-test-auth-role", "front_desk_lead")
+                .header("x-test-auth-location-id", "00000000-0000-0000-0000-000000000171")
                 .body(Body::empty())
                 .expect("request builds"),
         )
@@ -652,10 +706,16 @@ async fn permissioned_knowledge_context_escalates_scope_mismatch_before_content_
 
 #[tokio::test]
 async fn metrics_summary_separates_local_proof_from_production_observability_gaps() {
-    let response = http::router()
+    let response = http::router_with_test_auth_state(http::VaccineDocumentState::default())
         .oneshot(
             axum_http::request::Builder::new()
                 .uri("/ops/metrics/summary")
+                .header("x-test-auth-actor-id", "general-manager-17")
+                .header("x-test-auth-role", "general_manager")
+                .header(
+                    "x-test-auth-location-id",
+                    "00c0ffee-0000-0000-0000-000000000001",
+                )
                 .body(Body::empty())
                 .expect("request builds"),
         )

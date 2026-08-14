@@ -223,11 +223,11 @@ impl DataQualityHygieneWorkerProof {
             outbox_candidate_id: records
                 .outbox_candidate
                 .as_ref()
-                .map(|candidate| candidate.id.clone()),
+                .map(|candidate| candidate.id().to_owned()),
             outbox_topic: records
                 .outbox_candidate
                 .as_ref()
-                .map(|candidate| candidate.topic.clone()),
+                .map(|candidate| candidate.topic().to_owned()),
             has_reviewed_outcome: Self::has_reviewed_internal_handoff(records),
             audit_event_count: records.audit_events.len(),
         }
@@ -249,16 +249,16 @@ impl DataQualityHygieneWorkerProof {
             && records.review_packet.gate == ReviewGateCode::ManagerApproval
             && records.approval_record.status == "approved"
             && records.approval_record.gate == ReviewGateCode::ManagerApproval
-            && candidate.review_gate == ReviewGateCode::ManagerApproval
-            && candidate.status == OutboxStatusCode::Pending
-            && candidate.topic == "internal.data_quality_hygiene.reviewed_handoff"
+            && candidate.review_gate() == ReviewGateCode::ManagerApproval
+            && candidate.status() == OutboxStatusCode::Pending
+            && candidate.topic() == "internal.data_quality_hygiene.reviewed_handoff"
             && candidate
-                .payload
+                .payload()
                 .get("internal_handoff_only")
                 .and_then(serde_json::Value::as_bool)
                 == Some(true)
             && candidate
-                .payload
+                .payload()
                 .get("live_delivery_allowed")
                 .and_then(serde_json::Value::as_bool)
                 == Some(false)

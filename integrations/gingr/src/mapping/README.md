@@ -46,11 +46,13 @@ The provider source remains visible because each candidate retains the provider 
 | Provider field labels | `gingr::mapping::ProviderField` | [`mod.rs`](./mod.rs) | Names provider fields used in missing/invalid mapping errors. |
 | Mapping error | `gingr::mapping::Error` | [`mod.rs`](./mod.rs) | Reports missing required provider fields and invalid promoted domain values. |
 | Customer contact candidate | `gingr::mapping::customer::ContactCandidate` | [`customer.rs`](./customer.rs) | Holds provider owner id plus validated customer/contact values. |
-| Customer mapping function | `gingr::mapping::customer::contact_candidate` | [`customer.rs`](./customer.rs) | Promotes `gingr::response::OwnerRecord` into a contact candidate. |
+| Source-backed promotion | `gingr::mapping::Promoted` | [`mod.rs`](./mod.rs) | Atomically binds a validated candidate to its `domain::source::RecordRef`, complete provenance, and verified mapping version. |
+| Mapping version | `gingr::mapping::Version` | [`mod.rs`](./mod.rs) | Names the verified customer, pet, or retail mapping contract without implying unsupported grooming/training mappings. |
+| Customer mapping function | `gingr::mapping::customer::contact_candidate` | [`customer.rs`](./customer.rs) | Requires matching Gingr provenance and promotes `gingr::response::OwnerRecord` into a source-backed contact candidate. |
 | Pet name candidate | `gingr::mapping::pet::NameCandidate` | [`pet.rs`](./pet.rs) | Holds provider animal id plus validated pet name. |
-| Pet mapping function | `gingr::mapping::pet::name_candidate` | [`pet.rs`](./pet.rs) | Promotes `gingr::response::AnimalRecord` into a pet-name candidate. |
+| Pet mapping function | `gingr::mapping::pet::name_candidate` | [`pet.rs`](./pet.rs) | Requires matching Gingr provenance and promotes `gingr::response::AnimalRecord` into a source-backed pet-name candidate. |
 | Retail product candidate | `gingr::mapping::retail::ProductCandidate` | [`retail.rs`](./retail.rs) | Holds provider item id plus validated retail product, name, and offering status. |
-| Retail mapping function | `gingr::mapping::retail::product_candidate` | [`retail.rs`](./retail.rs) | Promotes `gingr::dto::retail::Item` into retail domain candidate values. |
+| Retail mapping function | `gingr::mapping::retail::product_candidate` | [`retail.rs`](./retail.rs) | Requires matching Gingr provenance and promotes `gingr::dto::retail::Item` into source-backed retail candidate values. |
 | Owner source record | `gingr::response::OwnerRecord` | [`../response.rs`](../response.rs) | Provider-shaped owner record used by customer mapping. |
 | Animal source record | `gingr::response::AnimalRecord` | [`../response.rs`](../response.rs) | Provider-shaped animal record used by pet mapping. |
 | Retail source DTO | `gingr::dto::retail::Item` | [`../dto/retail.rs`](../dto/retail.rs) | Provider-shaped retail item record used by retail mapping. |

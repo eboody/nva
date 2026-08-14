@@ -16,4 +16,5 @@ uuid.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
+trybuild.workspace = true
 uuid = { workspace = true, features = ["v4"] }

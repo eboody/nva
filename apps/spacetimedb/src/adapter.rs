@@ -104,16 +104,31 @@ impl AuditLogAdapter {
 
 impl hygiene::AuditLog for AuditLogAdapter {
     fn append_audit_record(&mut self, record: hygiene::AuditRecord) {
-        let actor = codec::actor_ref_label(record.actor());
+        let actor = codec::actor_ref_column(record.actor());
         self.rows.push(HygieneAuditEventRow {
             id: 0,
             action_id: record.action_id().as_ref().to_owned(),
-            actor_id: actor.clone(),
+            actor_id: actor_id_for(&actor),
             actor,
-            blocked_actions: format!("{:?}", record.blocked_actions()),
+            blocked_actions: record
+                .blocked_actions()
+                .iter()
+                .copied()
+                .map(codec::blocked_action_column)
+                .collect(),
             created_at: 0,
             schema_version: codec::REVIEW_QUEUE_SCHEMA_VERSION,
         });
+    }
+}
+
+fn actor_id_for(actor: &crate::storage::review_queue::ActorRefColumn) -> String {
+    match actor {
+        crate::storage::review_queue::ActorRefColumn::Customer(id)
+        | crate::storage::review_queue::ActorRefColumn::Staff(id)
+        | crate::storage::review_queue::ActorRefColumn::Manager(id)
+        | crate::storage::review_queue::ActorRefColumn::Agent(id) => id.clone(),
+        crate::storage::review_queue::ActorRefColumn::System => "system".to_owned(),
     }
 }
 
@@ -154,7 +169,8 @@ impl hygiene::BlockedActionLog for BlockedActionLogAdapter {
             action_id: record.action_id().as_ref().to_owned(),
             actor_id: record.actor_id().as_ref().to_owned(),
             location_id: self.location_id_for_action(record.action_id()),
-            attempted_side_effect: "record_reviewed_outcome".to_owned(),
+            attempted_side_effect:
+                crate::storage::review_queue::BlockedActionColumn::RecordReviewedOutcome,
             reason: codec::blocked_reason_column(record.reason()),
             created_at: 0,
             schema_version: codec::REVIEW_QUEUE_SCHEMA_VERSION,

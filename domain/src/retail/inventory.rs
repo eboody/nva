@@ -106,7 +106,7 @@ pub struct Stock {
     pub reorder_at: UnitCount,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 /// Validated inventory position that guarantees reserved units do not exceed on-hand units.
 pub struct Position {
     /// Location whose shelves or retail stockroom own this inventory count.
@@ -160,6 +160,15 @@ impl Position {
     /// Reports whether available inventory has fallen to the reorder threshold.
     pub const fn is_at_or_below_reorder_threshold(&self) -> bool {
         self.available_units().get() <= self.reorder_at.get()
+    }
+}
+
+impl<'de> Deserialize<'de> for Position {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Self::record(Stock::deserialize(deserializer)?).map_err(serde::de::Error::custom)
     }
 }
 

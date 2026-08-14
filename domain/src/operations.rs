@@ -821,7 +821,7 @@ pub mod operating_day {
 pub mod operating_window {
     use super::*;
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
     /// Local resort operating-date window for capacity, labor, and manager-brief reporting.
     pub struct Local {
         location_id: LocationId,
@@ -870,6 +870,25 @@ pub mod operating_window {
         }
     }
 
+    impl<'de> Deserialize<'de> for Local {
+        fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            #[derive(Deserialize)]
+            struct RawLocal {
+                location_id: LocationId,
+                timezone: location::Timezone,
+                start_date: NaiveDate,
+                end_date: NaiveDate,
+            }
+
+            let raw = RawLocal::deserialize(deserializer)?;
+            Self::new(raw.location_id, raw.timezone, raw.start_date, raw.end_date)
+                .map_err(serde::de::Error::custom)
+        }
+    }
+
     #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
     /// Local operating-window validation failures.
     pub enum Error {
@@ -907,7 +926,7 @@ pub mod operating_window {
 pub mod reporting_period {
     use super::*;
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
     /// Financial and attribution period with explicit local-date or UTC-instant semantics.
     pub enum Period {
         /// Local operating-date period for resort manager and finance reporting.
@@ -965,6 +984,43 @@ pub mod reporting_period {
                 start,
                 end,
             })
+        }
+    }
+
+    impl<'de> Deserialize<'de> for Period {
+        fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            #[derive(Deserialize)]
+            enum RawPeriod {
+                LocalOperatingDates {
+                    location_id: LocationId,
+                    timezone: location::Timezone,
+                    start_date: NaiveDate,
+                    end_date: NaiveDate,
+                },
+                UtcInstants {
+                    location_id: LocationId,
+                    start: DateTime<Utc>,
+                    end: DateTime<Utc>,
+                },
+            }
+
+            match RawPeriod::deserialize(deserializer)? {
+                RawPeriod::LocalOperatingDates {
+                    location_id,
+                    timezone,
+                    start_date,
+                    end_date,
+                } => Self::local_operating_dates(location_id, timezone, start_date, end_date),
+                RawPeriod::UtcInstants {
+                    location_id,
+                    start,
+                    end,
+                } => Self::utc_instants(location_id, start, end),
+            }
+            .map_err(serde::de::Error::custom)
         }
     }
 

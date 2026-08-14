@@ -1,0 +1,519 @@
+{
+  "schema_version": "semantic-modeling-audit-manifest.v1",
+  "plan": "docs/plans/2026-08-13-semantic-modeling-perfection.md",
+  "purpose": "Executable traceability manifest from every semantic-modeling audit finding to a focused current acceptance contract or explicitly named future acceptance scaffold. The final closeout card must update each future_acceptance_scaffold to current_acceptance when its owning implementation card lands.",
+  "findings": [
+    {
+      "id": "construction_serde_bypass",
+      "work_program_items": [
+        1,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        18,
+        19
+      ],
+      "invariant": "Ordinary Rust construction, generated builders, and Serde rehydration must enforce the same aggregate relationships; public field products must not manufacture impossible reservations, messages, workflow events, documents, vaccine records, incidents, approvals, staff tasks, or invariant-bearing scalar values.",
+      "current_contract_tests": [
+        {
+          "crate": "domain",
+          "path": "domain/tests/lifecycle_rehydration_contracts.rs",
+          "test": "persisted_reservation_rejects_invalid_periods_and_contradictory_deposit_hard_stops",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "domain",
+          "path": "domain/tests/lifecycle_rehydration_contracts.rs",
+          "test": "persisted_message_rejects_delivered_drafts_and_queue_states_without_review_gate",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "domain",
+          "path": "domain/tests/lifecycle_rehydration_contracts.rs",
+          "test": "persisted_workflow_event_rejects_event_type_subject_mismatches",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "domain",
+          "path": "domain/tests/constructor_equivalent_serde.rs",
+          "test": "operating_period_serde_rejects_every_interval_rejected_by_constructors",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "domain",
+          "path": "domain/tests/cardinality_identity_contracts.rs",
+          "test": "recurring_attendance_weekdays_are_a_non_empty_duplicate_free_set",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "domain",
+          "path": "domain/tests/cardinality_identity_contracts.rs",
+          "test": "capacity_snapshot_has_one_authoritative_segment_per_accommodation",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "domain",
+          "path": "domain/tests/cardinality_identity_contracts.rs",
+          "test": "accommodation_alternatives_are_non_empty_unique_and_ordered_by_preference",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "domain",
+          "path": "domain/tests/aggregate_privacy_contracts.rs",
+          "test": "reservation_aggregate_fields_cannot_be_bypassed_with_struct_literals",
+          "covers": "current_acceptance"
+        }
+      ],
+      "successor_implications": [
+        {
+          "work_program_item": 6,
+          "implication": "Close Reservation public construction and add compile-fail field privacy coverage."
+        },
+        {
+          "work_program_item": 7,
+          "implication": "Close Message lifecycle construction and distinguish approval evidence from queue authority."
+        },
+        {
+          "work_program_item": 8,
+          "implication": "Close WorkflowEvent and WorkflowOutcome relationship construction."
+        },
+        {
+          "work_program_item": 9,
+          "implication": "Close Document, VaccineRecord, Incident, ApprovalRecord, and StaffTask aggregate construction."
+        },
+        {
+          "work_program_item": 10,
+          "implication": "Audit every invariant-bearing Deserialize implementation against equivalent constructors."
+        },
+        {
+          "work_program_item": 11,
+          "implication": "Replace lossy collections and untyped rehydration errors where arbitrary products still compile."
+        },
+        {
+          "work_program_item": 18,
+          "implication": "Use trybuild only where compile-time protocol/field-privacy guarantees are real."
+        },
+        {
+          "work_program_item": 19,
+          "implication": "Move mixed ownership from omnibus entity surfaces into canonical semantic modules."
+        }
+      ]
+    },
+    {
+      "id": "approval_authority",
+      "work_program_items": [
+        1,
+        4,
+        5,
+        7,
+        13,
+        18,
+        20
+      ],
+      "invariant": "Completion, value attribution, and review lifecycle evidence are not executable approval authority. Only explicit approval evidence may create approved review rows, outbox candidates, or authority-bearing capabilities.",
+      "current_contract_tests": [
+        {
+          "crate": "storage",
+          "path": "storage/tests/approval_outbox_infrastructure.rs",
+          "test": "approval_outbox_projection_keeps_unapproved_or_deferred_work_out_of_outbox",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "storage",
+          "path": "storage/tests/approval_outbox_infrastructure.rs",
+          "test": "site_finance_persistence_records_reuse_approval_outbox_spine_without_payment_authority",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "app",
+          "path": "app/tests/site_finance_workflow_contracts.rs",
+          "test": "value_claim_support_does_not_imply_workflow_approval_or_payment_authority",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "app",
+          "path": "app/tests/capability_protocol_compile_fail.rs",
+          "test": "executable_authority_and_outbox_records_enforce_compile_time_protocols",
+          "covers": "current_acceptance"
+        }
+      ],
+      "successor_implications": [
+        {
+          "work_program_item": 4,
+          "implication": "Replace completion booleans with evidence-bearing review disposition values."
+        },
+        {
+          "work_program_item": 5,
+          "implication": "Keep finance/value attribution evidence independent from approval/completion state."
+        },
+        {
+          "work_program_item": 7,
+          "implication": "Separate historical message approval evidence from executable queue authority."
+        },
+        {
+          "work_program_item": 13,
+          "implication": "Move repository/outbox authority into app-owned workflow ports rather than API shell shortcuts."
+        },
+        {
+          "work_program_item": 18,
+          "implication": "Introduce opaque, target-bound authority capabilities only after explicit approvals."
+        },
+        {
+          "work_program_item": 20,
+          "implication": "Review every projection for accidental authority from booleans or status strings."
+        }
+      ]
+    },
+    {
+      "id": "repeated_vaccine_decisions",
+      "work_program_items": [
+        1,
+        3,
+        9,
+        17,
+        20
+      ],
+      "invariant": "A vaccine review packet accepts exactly one coherent approve/reject decision; repeated, conflicting, or unknown packet decisions are typed conflicts that do not panic or silently overwrite document, vaccine, eligibility, approval, or audit state.",
+      "current_contract_tests": [
+        {
+          "crate": "pet-resort-api",
+          "path": "apps/api/tests/vaccine_review_regression_contract.rs",
+          "test": "vaccine_review_packet_rejects_repeated_or_conflicting_decisions_without_overwriting_eligibility",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "pet-resort-api",
+          "path": "apps/api/tests/vaccine_review_regression_contract.rs",
+          "test": "unknown_vaccine_review_packet_returns_typed_not_found_error_instead_of_panic",
+          "covers": "current_acceptance"
+        }
+      ],
+      "successor_implications": [
+        {
+          "work_program_item": 3,
+          "implication": "Replace the current approve boolean path with a typed vaccine review decision protocol and conflict errors."
+        },
+        {
+          "work_program_item": 9,
+          "implication": "Make VaccineRecord and ApprovalRecord construction enforce temporal/review coherence."
+        },
+        {
+          "work_program_item": 17,
+          "implication": "Map repeated/unknown review packet failures into the unified public error envelope."
+        },
+        {
+          "work_program_item": 20,
+          "implication": "Security review must prove no panic path remains for malformed review packet ids."
+        }
+      ]
+    },
+    {
+      "id": "http_trusted_actor_boundary",
+      "work_program_items": [
+        1,
+        2,
+        3,
+        13,
+        17,
+        20
+      ],
+      "invariant": "Mutating HTTP routes must derive actor identity, role, and location from trusted runtime context; request-body actor ids are claims for cross-checking, never authorization grants.",
+      "current_contract_tests": [
+        {
+          "crate": "pet-resort-api",
+          "path": "apps/api/tests/http_trusted_actor_boundary_contract.rs",
+          "test": "mutating_routes_reject_missing_trusted_actor_context_even_when_body_names_staff_actor",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "pet-resort-api",
+          "path": "apps/api/tests/http_trusted_actor_boundary_contract.rs",
+          "test": "trusted_actor_context_must_match_body_actor_claim_before_review_mutation",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "pet-resort-api",
+          "path": "apps/api/tests/health_contract.rs",
+          "test": "permissioned_knowledge_context_returns_cited_redacted_packet_after_authorization",
+          "covers": "current_acceptance"
+        }
+      ],
+      "successor_implications": [
+        {
+          "work_program_item": 2,
+          "implication": "Introduce app-owned authenticated actor context and route authorization seam."
+        },
+        {
+          "work_program_item": 3,
+          "implication": "Vaccine review decisions must consume trusted actor context, not body-only staff ids."
+        },
+        {
+          "work_program_item": 13,
+          "implication": "API shell stays routing/conversion only; app ports own authorization and mutation."
+        },
+        {
+          "work_program_item": 17,
+          "implication": "Authentication and authorization failures use the canonical safe public error envelope."
+        },
+        {
+          "work_program_item": 20,
+          "implication": "Independent security review must check all mutating routes, not only vaccine review."
+        }
+      ]
+    },
+    {
+      "id": "public_contract_identity",
+      "work_program_items": [
+        1,
+        12,
+        13,
+        17,
+        20
+      ],
+      "invariant": "Public HTTP contracts are NVA-owned versioned DTOs with stable identity; handlers must not leak provider DTOs, duplicated ad hoc metadata, known-schema untyped Value blobs, or boolean protocol metadata where semantic modes are known.",
+      "current_contract_tests": [
+        {
+          "crate": "pet-resort-api",
+          "path": "apps/api/tests/owned_api_openapi_contract.rs",
+          "test": "checked_openapi_artifact_names_owned_v0_operations_and_safe_schemas",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "pet-resort-api",
+          "path": "apps/api/tests/read_model_endpoint_contract.rs",
+          "test": "read_model_routes_keep_fallback_safe_and_label_configured_storage_truthfully",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "app",
+          "path": "app/tests/workflow_repository_authority.rs",
+          "test": "workflow_repository_authority_is_owned_by_the_application_layer",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "app",
+          "path": "app/tests/workflow_repository_authority.rs",
+          "test": "api_shell_contains_no_repository_traits_or_postgres_queries",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "pet-resort-api",
+          "path": "apps/api/tests/public_contract_identity_regression.rs",
+          "test": "v0_contract_metadata_round_trips_with_semantic_protocol_modes",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "pet-resort-api",
+          "path": "apps/api/tests/public_contract_identity_regression.rs",
+          "test": "v0_source_record_ref_round_trips_without_an_untyped_value_boundary",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "pet-resort-api",
+          "path": "apps/api/tests/public_contract_identity_regression.rs",
+          "test": "canonical_public_contract_contains_no_known_schema_json_value_fields",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "pet-resort-api",
+          "path": "apps/api/tests/public_contract_identity_regression.rs",
+          "test": "v0_data_quality_context_round_trips_through_the_canonical_public_dto",
+          "covers": "current_acceptance"
+        }
+      ],
+      "successor_implications": [
+        {
+          "work_program_item": 12,
+          "implication": "Adopt apps/api::public_contract DTOs directly in handlers and snapshot their serialized shapes."
+        },
+        {
+          "work_program_item": 13,
+          "implication": "Remove storage record vocabulary from handler bodies where app ports exist."
+        },
+        {
+          "work_program_item": 17,
+          "implication": "Use one public error envelope for all route families."
+        },
+        {
+          "work_program_item": 20,
+          "implication": "Review public DTO identity against provider DTO quarantine."
+        }
+      ]
+    },
+    {
+      "id": "spacetimedb_lossiness",
+      "work_program_items": [
+        1,
+        2,
+        13,
+        14,
+        16,
+        17,
+        20
+      ],
+      "invariant": "SpacetimeDB reducers and read models project typed, versioned storage rows and codecs; they must not encode approval gates, source refs, outcomes, actor identity, or blocked actions as booleans, debug strings, comma-joined lists, or lossy labels that cannot round-trip.",
+      "current_contract_tests": [
+        {
+          "crate": "nva-spacetimedb",
+          "path": "apps/spacetimedb/src/realtime_queue_tests.rs",
+          "test": "split_actor_role_and_scope_rows_promote_into_app_authorization_policy",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "nva-spacetimedb",
+          "path": "apps/spacetimedb/src/realtime_queue_tests.rs",
+          "test": "app_service_blocked_capture_rows_keep_review_location_for_public_notices",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "nva-spacetimedb",
+          "path": "apps/spacetimedb/src/realtime_queue_tests.rs",
+          "test": "blocked_action_rows_round_trip_typed_blocked_action_reasons_without_debug_formatting",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "nva-spacetimedb",
+          "path": "apps/spacetimedb/src/realtime_queue_tests.rs",
+          "test": "review_queue_rows_round_trip_source_refs_review_gate_and_status_without_boolean_lossiness",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "nva-spacetimedb",
+          "path": "apps/spacetimedb/src/realtime_queue_tests.rs",
+          "test": "actor_and_outcome_codecs_round_trip_every_supported_variant",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "nva-spacetimedb",
+          "path": "apps/spacetimedb/src/realtime_queue_tests.rs",
+          "test": "queue_transitions_reject_out_of_order_mutation_and_preserve_legal_sequence",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "nva-spacetimedb",
+          "path": "apps/spacetimedb/src/realtime_queue_tests.rs",
+          "test": "terminal_dispositions_only_authorize_semantically_matching_outcomes",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "nva-spacetimedb",
+          "path": "apps/spacetimedb/src/realtime_queue_tests.rs",
+          "test": "rejected_or_deferred_decisions_cannot_be_captured_as_completed",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "nva-spacetimedb",
+          "path": "apps/spacetimedb/src/realtime_queue_tests.rs",
+          "test": "only_claim_owner_can_recommend_or_dispose_claimed_work",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "nva-spacetimedb",
+          "path": "apps/spacetimedb/src/realtime_queue_tests.rs",
+          "test": "approved_decision_cannot_be_captured_as_deferred",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "nva-spacetimedb",
+          "path": "apps/spacetimedb/src/realtime_queue_tests.rs",
+          "test": "blocked_side_effect_attempt_cannot_overwrite_recorded_outcome",
+          "covers": "current_acceptance"
+        }
+      ],
+      "successor_implications": [
+        {
+          "work_program_item": 2,
+          "implication": "SpacetimeDB actor rows remain trusted context inputs, not body claims."
+        },
+        {
+          "work_program_item": 13,
+          "implication": "Reducers call app-owned ports rather than becoming domain/application owners."
+        },
+        {
+          "work_program_item": 14,
+          "implication": "Resolved by typed review-gate/source/actor/outcome/blocked-action columns, exhaustive codec tests, and checked claim/recommendation/disposition/manager/capture transitions."
+        },
+        {
+          "work_program_item": 16,
+          "implication": "Persist fallible typed conversions for ids, refs, timestamps, statuses, and JSON payload versions."
+        },
+        {
+          "work_program_item": 17,
+          "implication": "Reducer failures map to typed safe errors."
+        },
+        {
+          "work_program_item": 20,
+          "implication": "Cross-layer review must inspect realtime projection fidelity."
+        }
+      ]
+    },
+    {
+      "id": "provenance_attachment",
+      "work_program_items": [
+        1,
+        10,
+        13,
+        15,
+        16,
+        20,
+        21
+      ],
+      "invariant": "Every promoted provider/storage fact attaches source provenance, mapping version, and adapter boundary evidence before app/domain use; provider DTOs remain quarantined and never become product truth by shape alone.",
+      "current_contract_tests": [
+        {
+          "crate": "app",
+          "path": "app/tests/data_quality_hygiene_workflow_contracts.rs",
+          "test": "data_quality_hygiene_context_builds_source_grounded_internal_actions_with_labor_delta",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "pet-resort-api",
+          "path": "apps/api/tests/data_quality_hygiene_agent_contract.rs",
+          "test": "data_quality_hygiene_outcome_capture_records_labor_evidence_without_provider_writes",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "gingr",
+          "path": "integrations/gingr/tests/provider_promotion_provenance_contracts.rs",
+          "test": "customer_pet_and_retail_promotions_require_source_backed_mapping_version_before_domain_use",
+          "covers": "current_acceptance"
+        },
+        {
+          "crate": "storage",
+          "path": "storage/tests/typed_persistence_boundary.rs",
+          "test": "source_refs_and_versioned_payloads_reject_invalid_relationships",
+          "covers": "current_acceptance"
+        }
+      ],
+      "successor_implications": [
+        {
+          "work_program_item": 10,
+          "implication": "Serde promotion tests must distinguish raw DTO/row types from validated domain values."
+        },
+        {
+          "work_program_item": 13,
+          "implication": "App ports receive source-backed values rather than raw API/storage records."
+        },
+        {
+          "work_program_item": 15,
+          "implication": "Implement explicit source-backed promotion values for Gingr customer, pet, and retail mappings."
+        },
+        {
+          "work_program_item": 16,
+          "implication": "Resolved by private Postgres rows plus explicit fallible promotion for source refs, versions, IDs, timestamps/periods, money/currency, idempotency keys, workflow/topic codes, and relationship-checked JSON payloads."
+        },
+        {
+          "work_program_item": 20,
+          "implication": "Independent review must classify remaining provider promotion gaps by fixture availability."
+        },
+        {
+          "work_program_item": 21,
+          "implication": "Final closeout must prove every manifest entry resolved, superseded, or explicitly inapplicable."
+        }
+      ]
+    }
+  ]
+}

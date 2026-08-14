@@ -44,6 +44,8 @@ pub mod permissioned_knowledge;
 /// Source-backed site finance recommendation and outcome workflow.
 pub mod site_finance;
 pub mod tools;
+/// Application-owned workflow repository and read-model ports used by runtime adapters.
+pub mod workflow_repository;
 
 /// Common app rules for shells that need agent specs and tool catalogs.
 pub mod prelude {

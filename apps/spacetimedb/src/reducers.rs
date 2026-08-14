@@ -22,9 +22,11 @@ use crate::{
     },
     runtime::HygieneCaptureRuntime,
     storage::review_queue::{
-        BlockedActionAttemptRow, BlockedActionReasonColumn, DataQualityIssueRow,
-        FeedbackOutcomeColumn, ResolutionStatusColumn, ReviewQueueItemRow, ReviewQueueStatusColumn,
-        WorkflowEventRow, WorkflowOutcomeRow, codec,
+        BlockedActionAttemptRow, BlockedActionColumn, BlockedActionReasonColumn,
+        DataQualityIssueRow, FeedbackOutcomeColumn, ManagerOutcomeColumn, RecommendationColumn,
+        ResolutionStatusColumn, ReviewGateColumn, ReviewQueueItemRow, SourceRecordRefColumn,
+        SourceSystemColumn, StaffDispositionColumn, WorkflowEventRow, WorkflowOutcomeRow, codec,
+        transition,
     },
     tables::{
         ActorKindColumn, HygieneAuditEventRow, LocationScopeRow, ReviewerRoleColumn,
@@ -33,6 +35,16 @@ use crate::{
         staff_actor, workflow_event, workflow_outcome,
     },
 };
+
+pub(crate) const fn fixture_seed_authorized(is_internal: bool) -> bool {
+    is_internal
+}
+
+fn require_internal_fixture_seed(ctx: &ReducerContext) -> Result<(), String> {
+    fixture_seed_authorized(ctx.sender_auth().is_internal())
+        .then_some(())
+        .ok_or_else(|| "demo fixture seeding is restricted to internal database calls".to_owned())
+}
 
 /// Seeds a demo staff/manager actor plus role and location scope rows.
 #[spacetimedb::reducer]
@@ -45,6 +57,7 @@ pub fn seed_demo_actor(
     review_role: ReviewerRoleColumn,
     location_id: String,
 ) -> Result<(), String> {
+    require_internal_fixture_seed(ctx)?;
     let actor = StaffActorRow {
         actor_id: actor_id.clone(),
         identity,
@@ -76,12 +89,16 @@ pub fn seed_demo_issue(
     location_id: String,
     source_ref_id: String,
     summary: String,
-    requires_manager_approval: bool,
+    required_review_gates: Vec<ReviewGateColumn>,
 ) -> Result<(), String> {
+    require_internal_fixture_seed(ctx)?;
     ctx.db.data_quality_issue().insert(DataQualityIssueRow {
         issue_ref: issue_ref.clone(),
         location_id: location_id.clone(),
-        source_ref_id: source_ref_id.clone(),
+        source_ref: SourceRecordRefColumn {
+            system: SourceSystemColumn::ManualImport,
+            record_id: source_ref_id.clone(),
+        },
         summary: summary.clone(),
         created_at: 0,
         schema_version: codec::REVIEW_QUEUE_SCHEMA_VERSION,
@@ -91,15 +108,18 @@ pub fn seed_demo_issue(
         location_id,
         actor_id: None,
         claimed_by_actor_id: None,
-        status: codec::initial_status(requires_manager_approval),
-        source_ref_id: Some(source_ref_id),
+        status: codec::initial_status(),
+        source_ref: Some(SourceRecordRefColumn {
+            system: SourceSystemColumn::ManualImport,
+            record_id: source_ref_id,
+        }),
         issue_ref,
-        recommendation: Some(summary),
+        recommendation: None,
         staff_disposition: None,
         manager_outcome: None,
         created_at: 0,
         updated_at: 0,
-        requires_manager_approval,
+        required_review_gates,
         schema_version: codec::REVIEW_QUEUE_SCHEMA_VERSION,
     };
     upsert_review_queue_item(ctx, row.clone());
@@ -116,8 +136,7 @@ pub fn claim_review_item(ctx: &ReducerContext, action_id: String) -> Result<(), 
     if actor_authorized_for_queue_work(ctx, &actor_id, &row)?.is_none() {
         return Ok(());
     }
-    row.claimed_by_actor_id = Some(actor_id.as_ref().to_owned());
-    row.status = ReviewQueueStatusColumn::ClaimedByStaff;
+    transition::claim(&mut row, actor_id.as_ref().to_owned()).map_err(transition_error)?;
     row.updated_at = row.updated_at.saturating_add(1);
     upsert_review_queue_item(ctx, row.clone());
     append_workflow_event(
@@ -136,14 +155,15 @@ pub fn claim_review_item(ctx: &ReducerContext, action_id: String) -> Result<(), 
 pub fn attach_recommendation(
     ctx: &ReducerContext,
     action_id: String,
-    recommendation: String,
+    recommendation: RecommendationColumn,
 ) -> Result<(), String> {
     let mut row = review_queue_row(ctx, &action_id)?;
     let actor_id = actor_id_for_sender(ctx)?;
     if actor_authorized_for_queue_work(ctx, &actor_id, &row)?.is_none() {
         return Ok(());
     }
-    row.recommendation = Some(recommendation);
+    transition::attach_recommendation(&mut row, actor_id.as_ref(), recommendation)
+        .map_err(transition_error)?;
     row.updated_at = row.updated_at.saturating_add(1);
     upsert_review_queue_item(ctx, row.clone());
     append_workflow_event(
@@ -162,19 +182,15 @@ pub fn attach_recommendation(
 pub fn record_staff_disposition(
     ctx: &ReducerContext,
     action_id: String,
-    disposition: String,
+    disposition: StaffDispositionColumn,
 ) -> Result<(), String> {
     let mut row = review_queue_row(ctx, &action_id)?;
     let actor_id = actor_id_for_sender(ctx)?;
     if actor_authorized_for_queue_work(ctx, &actor_id, &row)?.is_none() {
         return Ok(());
     }
-    row.staff_disposition = Some(disposition);
-    row.status = if row.requires_manager_approval {
-        ReviewQueueStatusColumn::PendingManagerApproval
-    } else {
-        ReviewQueueStatusColumn::OutcomeRecorded
-    };
+    transition::record_staff_disposition(&mut row, actor_id.as_ref(), disposition)
+        .map_err(transition_error)?;
     row.updated_at = row.updated_at.saturating_add(1);
     upsert_review_queue_item(ctx, row.clone());
     append_workflow_event(
@@ -193,21 +209,20 @@ pub fn record_staff_disposition(
 pub fn record_manager_outcome(
     ctx: &ReducerContext,
     action_id: String,
-    manager_outcome: String,
+    manager_outcome: ManagerOutcomeColumn,
 ) -> Result<(), String> {
     let mut row = review_queue_row(ctx, &action_id)?;
     let actor_id = actor_id_for_sender(ctx)?;
     let Some(actor) = actor_authorized_for_row(ctx, &actor_id, &row)? else {
         return Ok(());
     };
-    row.manager_outcome = Some(manager_outcome.clone());
-    row.status = ReviewQueueStatusColumn::ManagerApproved;
+    transition::record_manager_outcome(&mut row, manager_outcome).map_err(transition_error)?;
     row.updated_at = row.updated_at.saturating_add(1);
     upsert_review_queue_item(ctx, row.clone());
     ctx.db.workflow_outcome().insert(WorkflowOutcomeRow {
         action_id: action_id.clone(),
         actor_id: actor_id.as_ref().to_owned(),
-        outcome_label: manager_outcome,
+        outcome: manager_outcome,
         created_at: row.updated_at,
         schema_version: codec::REVIEW_QUEUE_SCHEMA_VERSION,
     });
@@ -215,8 +230,11 @@ pub fn record_manager_outcome(
         id: 0,
         action_id: action_id.clone(),
         actor_id: actor_id.as_ref().to_owned(),
-        actor: codec::actor_ref_label(actor.actor()),
-        blocked_actions: "live_customer_provider_side_effects_blocked".to_owned(),
+        actor: codec::actor_ref_column(actor.actor()),
+        blocked_actions: vec![
+            BlockedActionColumn::SendCustomerMessage,
+            BlockedActionColumn::MutateProviderOrPmsRecord,
+        ],
         created_at: row.updated_at,
         schema_version: codec::REVIEW_QUEUE_SCHEMA_VERSION,
     });
@@ -236,10 +254,13 @@ pub fn record_manager_outcome(
 pub fn attempt_blocked_side_effect(
     ctx: &ReducerContext,
     action_id: String,
-    attempted_side_effect: String,
+    attempted_side_effect: BlockedActionColumn,
 ) -> Result<(), String> {
     let mut row = review_queue_row(ctx, &action_id)?;
     let actor_id = actor_id_for_sender(ctx)?;
+    if actor_authorized_for_queue_work(ctx, &actor_id, &row)?.is_none() {
+        return Ok(());
+    }
     let blocked = BlockedActionAttemptRow {
         id: 0,
         action_id: action_id.clone(),
@@ -250,12 +271,11 @@ pub fn attempt_blocked_side_effect(
         created_at: row.updated_at.saturating_add(1),
         schema_version: codec::REVIEW_QUEUE_SCHEMA_VERSION,
     };
-    ctx.db.blocked_action_attempt().insert(blocked.clone());
+    let blocked = ctx.db.blocked_action_attempt().insert(blocked);
     ctx.db
         .blocked_action_notice()
-        .try_insert(codec::blocked_action_notice(&blocked))
-        .ok();
-    row.status = ReviewQueueStatusColumn::Blocked;
+        .insert(codec::blocked_action_notice(&blocked));
+    transition::block_unsafe_side_effect(&mut row).map_err(transition_error)?;
     row.updated_at = blocked.created_at;
     upsert_review_queue_item(ctx, row.clone());
     append_workflow_event(
@@ -281,29 +301,22 @@ pub fn record_reviewed_hygiene_outcome(
     outcome: FeedbackOutcomeColumn,
     before_minutes: u32,
     actual_minutes: u32,
-    source_record_id: String,
-    issue_ref: String,
     reviewed_resolution_status: Option<ResolutionStatusColumn>,
 ) -> Result<(), String> {
     let actor_id = actor_id_for_sender(ctx)?;
-    let Some(actor) =
-        actor_authorized_for_row(ctx, &actor_id, &review_queue_row(ctx, &action_id)?)?
-    else {
+    let mut row = review_queue_row(ctx, &action_id)?;
+    let Some(actor) = actor_authorized_for_row(ctx, &actor_id, &row)? else {
         return Ok(());
     };
+    let (source_record_ref, issue_ref) = reviewed_outcome_provenance(&row)?;
     let mut outcome_builder = hygiene::OutcomeRecord::builder()
         .action_id(hygiene::ActionId::try_new(action_id.clone()).map_err(|err| err.to_string())?)
         .recorded_by(actor.actor().clone())
         .outcome(codec::feedback_outcome(outcome))
         .before_minutes(codec::labor_minutes(before_minutes)?)
         .actual_minutes(codec::labor_minutes(actual_minutes)?)
-        .source_record_refs(vec![source::RecordRef::new(
-            source::System::ManualImport,
-            source::record::Id::try_new(source_record_id).map_err(|err| err.to_string())?,
-        )])
-        .issue_refs(vec![
-            hygiene::IssueRef::try_new(issue_ref).map_err(|err| err.to_string())?,
-        ]);
+        .source_record_refs(vec![source_record_ref])
+        .issue_refs(vec![issue_ref]);
     if let Some(status) = reviewed_resolution_status {
         outcome_builder =
             outcome_builder.reviewed_resolution_status(codec::resolution_status(status));
@@ -315,14 +328,28 @@ pub fn record_reviewed_hygiene_outcome(
     if runtime.record_reviewed_outcome(ctx, request).is_err() {
         return Ok(());
     }
-    if let Ok(mut row) = review_queue_row(ctx, &action_id) {
-        row.status = ReviewQueueStatusColumn::OutcomeRecorded;
-        row.updated_at = row.updated_at.saturating_add(1);
-        upsert_review_queue_item(ctx, row.clone());
-        project_queue_item(ctx, &row);
-    }
+    transition::capture_outcome(&mut row, outcome).map_err(transition_error)?;
+    row.updated_at = row.updated_at.saturating_add(1);
+    upsert_review_queue_item(ctx, row.clone());
+    project_queue_item(ctx, &row);
     project_latest_outcome_cards(ctx);
     Ok(())
+}
+
+pub(crate) fn reviewed_outcome_provenance(
+    row: &ReviewQueueItemRow,
+) -> Result<(source::RecordRef, hygiene::IssueRef), String> {
+    let source_ref = row
+        .source_ref
+        .as_ref()
+        .ok_or_else(|| "review queue item has no source provenance".to_owned())?;
+    let source_record_ref = source::RecordRef::new(
+        codec::source_system(source_ref.system),
+        source::record::Id::try_new(source_ref.record_id.clone()).map_err(|err| err.to_string())?,
+    );
+    let issue_ref =
+        hygiene::IssueRef::try_new(row.issue_ref.clone()).map_err(|err| err.to_string())?;
+    Ok((source_record_ref, issue_ref))
 }
 
 fn actor_id_for_sender(ctx: &ReducerContext) -> Result<hygiene::ActorId, String> {
@@ -390,8 +417,10 @@ fn actor_authorized_for_row_action(
             row,
             actor_id.as_ref(),
             match action {
-                QueueAuthorizationAction::WorkItem => "unauthorized_queue_work",
-                QueueAuthorizationAction::RecordOutcome => "unauthorized_outcome_capture",
+                QueueAuthorizationAction::WorkItem => BlockedActionColumn::UnauthorizedQueueWork,
+                QueueAuthorizationAction::RecordOutcome => {
+                    BlockedActionColumn::RecordReviewedOutcome
+                }
             },
             BlockedActionReasonColumn::ActorLacksReviewGate,
         );
@@ -406,6 +435,10 @@ fn review_queue_row(ctx: &ReducerContext, action_id: &str) -> Result<ReviewQueue
         .action_id()
         .find(action_id.to_owned())
         .ok_or_else(|| "review queue item not found".to_owned())
+}
+
+fn transition_error(error: transition::Error) -> String {
+    format!("review queue transition rejected: {error}")
 }
 
 fn upsert_staff_actor(ctx: &ReducerContext, row: StaffActorRow) {
@@ -469,7 +502,7 @@ fn record_blocked_attempt(
     ctx: &ReducerContext,
     row: &ReviewQueueItemRow,
     actor_id: &str,
-    attempted_side_effect: &str,
+    attempted_side_effect: BlockedActionColumn,
     reason: BlockedActionReasonColumn,
 ) {
     let blocked = BlockedActionAttemptRow {
@@ -477,16 +510,15 @@ fn record_blocked_attempt(
         action_id: row.action_id.clone(),
         actor_id: actor_id.to_owned(),
         location_id: row.location_id.clone(),
-        attempted_side_effect: attempted_side_effect.to_owned(),
+        attempted_side_effect,
         reason,
         created_at: row.updated_at.saturating_add(1),
         schema_version: codec::REVIEW_QUEUE_SCHEMA_VERSION,
     };
-    ctx.db.blocked_action_attempt().insert(blocked.clone());
+    let blocked = ctx.db.blocked_action_attempt().insert(blocked);
     ctx.db
         .blocked_action_notice()
-        .try_insert(codec::blocked_action_notice(&blocked))
-        .ok();
+        .insert(codec::blocked_action_notice(&blocked));
 }
 
 fn append_workflow_event(

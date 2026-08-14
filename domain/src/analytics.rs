@@ -742,7 +742,7 @@ pub mod outcome {
     pub type Result<T> = std::result::Result<T, Error>;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 /// Version tag for a deterministic analytics projection.
 ///
 /// This is the read-model side of the source-fact → validated-domain → workflow chain:
@@ -762,13 +762,22 @@ impl ProjectionVersion {
     }
 }
 
+impl<'de> Deserialize<'de> for ProjectionVersion {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Self::try_new(String::deserialize(deserializer)?).map_err(serde::de::Error::custom)
+    }
+}
+
 /// Projected stay facts for reservation records that passed source validation.
 pub mod stay {
     use serde::{Deserialize, Serialize};
 
     use crate::{analytics, data_quality, source};
 
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
     /// Stable analytics id for a projected stay fact, distinct from provider record ids.
     pub struct Id(String);
 
@@ -784,6 +793,15 @@ pub mod stay {
         }
     }
 
+    impl<'de> Deserialize<'de> for Id {
+        fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            Self::try_new(String::deserialize(deserializer)?).map_err(serde::de::Error::custom)
+        }
+    }
+
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
     /// Whether a stay projection is clean, reviewable, or blocked by source hygiene.
     pub enum DataQualityStatus {
@@ -795,7 +813,7 @@ pub mod stay {
         BlockingIssues,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
     /// Projected stay fact used by analytics, manager briefs, and labor planning.
     pub struct Fact {
         id: Id,
@@ -927,7 +945,7 @@ pub mod service_demand {
 
     use crate::{analytics, data_quality, operations, source};
 
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
     /// Provider or source identifier retained as the stable join key.
     pub struct Id(String);
 
@@ -941,6 +959,15 @@ pub mod service_demand {
         /// Returns the provider or domain identifier as a string slice.
         pub fn as_str(&self) -> &str {
             &self.0
+        }
+    }
+
+    impl<'de> Deserialize<'de> for Id {
+        fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            Self::try_new(String::deserialize(deserializer)?).map_err(serde::de::Error::custom)
         }
     }
 
@@ -973,7 +1000,7 @@ pub mod service_demand {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
     /// Source-backed service-demand fact for labor planning and exception reporting.
     pub struct Fact {
         id: Id,
@@ -1057,6 +1084,34 @@ pub mod service_demand {
         /// Returns nonblocking hygiene findings that explain why demand evidence may need manager review.
         pub fn data_quality_issues(&self) -> &[data_quality::Issue] {
             &self.data_quality_issues
+        }
+    }
+
+    impl<'de> Deserialize<'de> for Fact {
+        fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            #[derive(Deserialize)]
+            struct RawFact {
+                id: Id,
+                operating_day: operations::operating_day::Key,
+                demand_units: DemandUnits,
+                source_record_refs: Vec<source::RecordRef>,
+                projection_version: analytics::ProjectionVersion,
+                data_quality_issues: Vec<data_quality::Issue>,
+            }
+
+            let raw = RawFact::deserialize(deserializer)?;
+            Self::try_new(
+                raw.id,
+                raw.operating_day,
+                raw.demand_units,
+                raw.source_record_refs,
+                raw.projection_version,
+                raw.data_quality_issues,
+            )
+            .map_err(serde::de::Error::custom)
         }
     }
 

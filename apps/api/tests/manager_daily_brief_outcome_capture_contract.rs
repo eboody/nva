@@ -8,12 +8,24 @@ async fn post_outcome(
     action_id: &str,
     body: serde_json::Value,
 ) -> (axum_http::StatusCode, serde_json::Value) {
-    let response = http::router()
+    let actor_id = body["actor"]["id"].as_str().map(str::to_owned);
+    let mut builder = axum_http::request::Builder::new()
+        .method(axum_http::Method::POST)
+        .uri(format!("/manager-daily-brief/actions/{action_id}/outcome"))
+        .header(axum_http::header::CONTENT_TYPE, "application/json");
+    if let Some(actor_id) = actor_id {
+        builder = builder
+            .header("x-test-auth-actor-id", actor_id)
+            .header("x-test-auth-role", "front_desk_lead")
+            .header(
+                "x-test-auth-location-id",
+                "00c0ffee-0000-0000-0000-000000000001",
+            );
+    }
+
+    let response = http::router_with_test_auth_state(http::VaccineDocumentState::default())
         .oneshot(
-            axum_http::request::Builder::new()
-                .method(axum_http::Method::POST)
-                .uri(format!("/manager-daily-brief/actions/{action_id}/outcome"))
-                .header(axum_http::header::CONTENT_TYPE, "application/json")
+            builder
                 .body(Body::from(body.to_string()))
                 .expect("request builds"),
         )
@@ -33,12 +45,18 @@ async fn post_outcome(
 }
 
 async fn get_manager_daily_brief_context() -> serde_json::Value {
-    let response = http::router()
+    let response = http::router_with_test_auth_state(http::VaccineDocumentState::default())
         .oneshot(
             axum_http::request::Builder::new()
                 .method(axum_http::Method::GET)
                 .uri(
                     "/agent/context/manager-daily-brief?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",
+                )
+                .header("x-test-auth-actor-id", "general-manager-17")
+                .header("x-test-auth-role", "general_manager")
+                .header(
+                    "x-test-auth-location-id",
+                    "00c0ffee-0000-0000-0000-000000000001",
                 )
                 .body(Body::empty())
                 .expect("request builds"),
@@ -107,8 +125,10 @@ fn outcome_body() -> serde_json::Value {
 async fn manager_daily_brief_outcome_capture_persists_staff_feedback_as_labor_savings_evidence() {
     let action = manager_daily_brief_action_by_kind("resolve_checkout_exception").await;
     let action_id = action["id"].as_str().expect("action id");
+    let mut body = outcome_body();
+    body["source_refs"] = action["source_refs"].clone();
 
-    let (status, payload) = post_outcome(action_id, outcome_body()).await;
+    let (status, payload) = post_outcome(action_id, body).await;
 
     assert_eq!(status, axum_http::StatusCode::CREATED);
     assert_eq!(payload["outcome_record"]["action_id"], action_id);
@@ -117,7 +137,7 @@ async fn manager_daily_brief_outcome_capture_persists_staff_feedback_as_labor_sa
     assert_eq!(payload["outcome_record"]["actual_minutes"], 12);
     assert_eq!(
         payload["outcome_record"]["source_refs"],
-        json!([source_ref()])
+        action["source_refs"]
     );
     assert_eq!(
         payload["outcome_record"]["actor"]["persona"],
@@ -161,6 +181,23 @@ async fn manager_daily_brief_outcome_capture_persists_staff_feedback_as_labor_sa
             .as_array()
             .unwrap()
             .contains(&json!("send_customer_message"))
+    );
+}
+
+#[tokio::test]
+async fn manager_daily_brief_outcome_capture_rejects_provenance_not_bound_to_the_action() {
+    let action = manager_daily_brief_action_by_kind("resolve_checkout_exception").await;
+    let action_id = action["id"].as_str().expect("action id");
+    let mut body = outcome_body();
+    body["source_refs"][0]["record_id"] = json!("borrowed-record-999");
+
+    let (status, payload) = post_outcome(action_id, body).await;
+
+    assert_eq!(status, axum_http::StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(payload["outcome_persisted"], false);
+    assert_eq!(
+        payload["reasons"],
+        json!(["source_refs_do_not_match_action"])
     );
 }
 

@@ -45,13 +45,20 @@ pub struct CustomerId(pub Uuid);
 /// Stable identifier for a pet whose care, temperament, vaccine, and reservation facts drive safety decisions.
 pub struct PetId(pub Uuid);
 
+impl std::fmt::Display for PetId {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(formatter)
+    }
+}
+
 /// Reservation-facing source vocabulary embedded in core entity records.
 pub mod reservation {
     use serde::{Deserialize, Serialize};
+    use std::collections::BTreeSet;
     use std::fmt;
     use uuid::Uuid;
 
-    use super::PortalProvider;
+    use super::{PetId, PortalProvider};
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
     /// Provider or source identifier retained as the stable join key.
@@ -60,6 +67,115 @@ pub mod reservation {
     impl fmt::Display for Id {
         fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
             self.0.fmt(formatter)
+        }
+    }
+
+    /// Reservation aggregate construction and rehydration failures.
+    #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+    pub enum Error {
+        /// Builder did not receive the stable reservation id required for workflow/storage joins.
+        #[error("reservation id is required")]
+        IdRequired,
+        /// Builder did not receive the owning location id required for policy and labor routing.
+        #[error("reservation location id is required")]
+        LocationIdRequired,
+        /// Builder did not receive the customer id required to own the pet party.
+        #[error("reservation customer id is required")]
+        CustomerIdRequired,
+        /// Builder did not receive the requested service line.
+        #[error("reservation service is required")]
+        ServiceRequired,
+        /// Builder did not receive the normalized reservation status.
+        #[error("reservation status is required")]
+        StatusRequired,
+        /// Builder did not receive the stay start instant.
+        #[error("reservation start instant is required")]
+        StartsAtRequired,
+        /// Builder did not receive the stay end instant.
+        #[error("reservation end instant is required")]
+        EndsAtRequired,
+        /// Builder did not receive the source channel for reservation evidence.
+        #[error("reservation source is required")]
+        SourceRequired,
+        /// Stay interval ended at or before its start instant.
+        #[error("reservation end must be after start")]
+        StayIntervalMustEndAfterStart,
+        /// Reservation party omitted every pet, which would make booking/care ownership meaningless.
+        #[error("reservation requires at least one pet")]
+        PetPartyRequired,
+        /// Same pet appeared more than once in the reservation party.
+        #[error("reservation pet party contains duplicate pet {pet_id}")]
+        DuplicatePet {
+            /// Pet id duplicated in the reservation party.
+            pet_id: PetId,
+        },
+        /// Deposit-required hard stop was attached even though the deposit no longer needs collection.
+        #[error("deposit-required hard stop requires a collectible deposit")]
+        DepositRequiredHardStopNeedsCollectibleDeposit,
+        /// Terminal reservations cannot keep active staff hard stops attached.
+        #[error("terminal reservation status must not carry active hard stops")]
+        TerminalReservationCannotCarryActiveHardStops,
+    }
+
+    /// Result alias for reservation aggregate construction and rehydration.
+    pub type Result<T> = std::result::Result<T, Error>;
+
+    /// Checked, non-empty, duplicate-free pet party for a reservation.
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+    pub struct PetParty(Vec<PetId>);
+
+    impl PetParty {
+        /// Validates the reservation party contains at least one distinct pet.
+        pub fn try_new(pet_ids: Vec<PetId>) -> Result<Self> {
+            if pet_ids.is_empty() {
+                return Err(Error::PetPartyRequired);
+            }
+            let mut seen = BTreeSet::new();
+            for pet_id in &pet_ids {
+                if !seen.insert(*pet_id) {
+                    return Err(Error::DuplicatePet { pet_id: *pet_id });
+                }
+            }
+            Ok(Self(pet_ids))
+        }
+
+        /// Returns the ordered pet ids participating in the reservation.
+        pub fn as_slice(&self) -> &[PetId] {
+            &self.0
+        }
+
+        pub(super) fn into_vec(self) -> Vec<PetId> {
+            self.0
+        }
+    }
+
+    /// Checked reservation stay interval whose end is strictly after its start.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+    pub struct StayInterval {
+        starts_at: chrono::DateTime<chrono::Utc>,
+        ends_at: chrono::DateTime<chrono::Utc>,
+    }
+
+    impl StayInterval {
+        /// Validates that a reservation stay ends after it starts.
+        pub fn try_new(
+            starts_at: chrono::DateTime<chrono::Utc>,
+            ends_at: chrono::DateTime<chrono::Utc>,
+        ) -> Result<Self> {
+            if ends_at <= starts_at {
+                return Err(Error::StayIntervalMustEndAfterStart);
+            }
+            Ok(Self { starts_at, ends_at })
+        }
+
+        /// Reservation start instant.
+        pub fn starts_at(&self) -> chrono::DateTime<chrono::Utc> {
+            self.starts_at
+        }
+
+        /// Reservation end instant.
+        pub fn ends_at(&self) -> chrono::DateTime<chrono::Utc> {
+            self.ends_at
         }
     }
 
@@ -354,38 +470,34 @@ pub struct MedicationInstruction {
     pub review_requirement: care::MedicationReviewRequirement,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Builder)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 /// Reservation record tying customer, pet, service, status, deposit, add-ons, and safety stops together.
 pub struct Reservation {
     /// Id retained from source records for staff review, safety gates, and workflow joins.
-    pub id: reservation::Id,
+    id: reservation::Id,
     /// Location id retained from source records for staff review, safety gates, and workflow joins.
-    pub location_id: LocationId,
+    location_id: LocationId,
     /// Customer id retained from source records for staff review, safety gates, and workflow joins.
-    pub customer_id: CustomerId,
+    customer_id: CustomerId,
     /// Pet ids retained from source records for staff review, safety gates, and workflow joins.
-    pub pet_ids: Vec<PetId>,
+    pet_party: reservation::PetParty,
     /// Requested service that drives scheduling and labor estimates.
-    pub service: ServiceKind,
+    service: ServiceKind,
     /// Status retained from source records for staff review, safety gates, and workflow joins.
-    pub status: reservation::Status,
+    status: reservation::Status,
     /// Starts at retained from source records for staff review, safety gates, and workflow joins.
-    pub starts_at: DateTime<Utc>,
+    stay_interval: reservation::StayInterval,
     /// Ends at retained from source records for staff review, safety gates, and workflow joins.
-    pub ends_at: DateTime<Utc>,
-    /// Deposit retained from source records for staff review, safety gates, and workflow joins.
-    pub deposit: Option<Deposit>,
+    deposit: Option<Deposit>,
     /// Source retained from source records for staff review, safety gates, and workflow joins.
-    pub source: reservation::Source,
-    #[builder(default)]
+    source: reservation::Source,
     /// Requested add ons retained from source records for staff review, safety gates, and workflow joins.
-    pub requested_add_ons: Vec<AddOn>,
-    #[builder(default)]
+    requested_add_ons: Vec<AddOn>,
     /// Hard stops retained from source records for staff review, safety gates, and workflow joins.
-    pub hard_stops: Vec<HardStop>,
+    hard_stops: Vec<HardStop>,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct RawReservation {
     id: reservation::Id,
     location_id: LocationId,
@@ -403,6 +515,29 @@ struct RawReservation {
     hard_stops: Vec<HardStop>,
 }
 
+impl Serialize for Reservation {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        RawReservation {
+            id: self.id,
+            location_id: self.location_id,
+            customer_id: self.customer_id,
+            pet_ids: self.pet_party.clone().into_vec(),
+            service: self.service.clone(),
+            status: self.status.clone(),
+            starts_at: self.starts_at(),
+            ends_at: self.ends_at(),
+            deposit: self.deposit.clone(),
+            source: self.source.clone(),
+            requested_add_ons: self.requested_add_ons.clone(),
+            hard_stops: self.hard_stops.clone(),
+        }
+        .serialize(serializer)
+    }
+}
+
 impl<'de> Deserialize<'de> for Reservation {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -414,20 +549,16 @@ impl<'de> Deserialize<'de> for Reservation {
 }
 
 impl Reservation {
-    fn try_from_persisted(raw: RawReservation) -> std::result::Result<Self, &'static str> {
-        if raw.ends_at <= raw.starts_at {
-            return Err("reservation end must be after start");
-        }
-        if raw.pet_ids.is_empty() {
-            return Err("reservation requires at least one pet");
-        }
+    fn try_from_persisted(raw: RawReservation) -> reservation::Result<Self> {
+        let stay_interval = reservation::StayInterval::try_new(raw.starts_at, raw.ends_at)?;
+        let pet_party = reservation::PetParty::try_new(raw.pet_ids)?;
         if raw.hard_stops.contains(&HardStop::DepositRequired)
             && !raw
                 .deposit
                 .as_ref()
                 .is_some_and(payment::Deposit::requires_collection)
         {
-            return Err("deposit-required hard stop requires a collectible deposit");
+            return Err(reservation::Error::DepositRequiredHardStopNeedsCollectibleDeposit);
         }
         if matches!(
             raw.status,
@@ -436,22 +567,222 @@ impl Reservation {
                 | reservation::Status::CheckedOut
         ) && !raw.hard_stops.is_empty()
         {
-            return Err("terminal reservation status must not carry active hard stops");
+            return Err(reservation::Error::TerminalReservationCannotCarryActiveHardStops);
         }
 
         Ok(Self {
             id: raw.id,
             location_id: raw.location_id,
             customer_id: raw.customer_id,
-            pet_ids: raw.pet_ids,
+            pet_party,
             service: raw.service,
             status: raw.status,
-            starts_at: raw.starts_at,
-            ends_at: raw.ends_at,
+            stay_interval,
             deposit: raw.deposit,
             source: raw.source,
             requested_add_ons: raw.requested_add_ons,
             hard_stops: raw.hard_stops,
+        })
+    }
+
+    /// Starts a checked reservation aggregate builder.
+    pub fn builder() -> ReservationBuilder {
+        ReservationBuilder::default()
+    }
+
+    /// Reservation identifier used by workflow, storage, and review joins.
+    pub fn id(&self) -> reservation::Id {
+        self.id
+    }
+
+    /// Location that owns this reservation workflow.
+    pub fn location_id(&self) -> LocationId {
+        self.location_id
+    }
+
+    /// Customer/account responsible for the reservation party.
+    pub fn customer_id(&self) -> CustomerId {
+        self.customer_id
+    }
+
+    /// Ordered, duplicate-free pet party.
+    pub fn pet_ids(&self) -> &[PetId] {
+        self.pet_party.as_slice()
+    }
+
+    /// Requested service line for labor planning and policy review.
+    pub fn service(&self) -> &ServiceKind {
+        &self.service
+    }
+
+    /// Current normalized reservation status.
+    pub fn status(&self) -> &reservation::Status {
+        &self.status
+    }
+
+    /// Checked reservation stay interval.
+    pub fn stay_interval(&self) -> reservation::StayInterval {
+        self.stay_interval
+    }
+
+    /// Reservation start instant.
+    pub fn starts_at(&self) -> DateTime<Utc> {
+        self.stay_interval.starts_at()
+    }
+
+    /// Reservation end instant.
+    pub fn ends_at(&self) -> DateTime<Utc> {
+        self.stay_interval.ends_at()
+    }
+
+    /// Deposit evidence attached to this reservation, if any.
+    pub fn deposit(&self) -> Option<&Deposit> {
+        self.deposit.as_ref()
+    }
+
+    /// Source channel for the reservation evidence.
+    pub fn source(&self) -> &reservation::Source {
+        &self.source
+    }
+
+    /// Requested add-ons that affect labor or care planning.
+    pub fn requested_add_ons(&self) -> &[AddOn] {
+        &self.requested_add_ons
+    }
+
+    /// Active hard stops requiring staff, manager, or policy review.
+    pub fn hard_stops(&self) -> &[HardStop] {
+        &self.hard_stops
+    }
+}
+
+/// Builder for checked reservation aggregates.
+#[derive(Debug, Clone, Default)]
+pub struct ReservationBuilder {
+    id: Option<reservation::Id>,
+    location_id: Option<LocationId>,
+    customer_id: Option<CustomerId>,
+    pet_ids: Vec<PetId>,
+    service: Option<ServiceKind>,
+    status: Option<reservation::Status>,
+    starts_at: Option<DateTime<Utc>>,
+    ends_at: Option<DateTime<Utc>>,
+    deposit: Option<Deposit>,
+    source: Option<reservation::Source>,
+    requested_add_ons: Vec<AddOn>,
+    hard_stops: Vec<HardStop>,
+}
+
+impl ReservationBuilder {
+    /// Sets the reservation id.
+    pub fn id(mut self, id: reservation::Id) -> Self {
+        self.id = Some(id);
+        self
+    }
+
+    /// Sets the owning location.
+    pub fn location_id(mut self, location_id: LocationId) -> Self {
+        self.location_id = Some(location_id);
+        self
+    }
+
+    /// Sets the responsible customer.
+    pub fn customer_id(mut self, customer_id: CustomerId) -> Self {
+        self.customer_id = Some(customer_id);
+        self
+    }
+
+    /// Adds one pet to the reservation party.
+    pub fn pet_id(mut self, pet_id: PetId) -> Self {
+        self.pet_ids.push(pet_id);
+        self
+    }
+
+    /// Replaces the reservation pet party.
+    pub fn pet_ids(mut self, pet_ids: Vec<PetId>) -> Self {
+        self.pet_ids = pet_ids;
+        self
+    }
+
+    /// Sets the requested service line.
+    pub fn service(mut self, service: ServiceKind) -> Self {
+        self.service = Some(service);
+        self
+    }
+
+    /// Sets the reservation status.
+    pub fn status(mut self, status: reservation::Status) -> Self {
+        self.status = Some(status);
+        self
+    }
+
+    /// Sets the reservation start instant.
+    pub fn starts_at(mut self, starts_at: DateTime<Utc>) -> Self {
+        self.starts_at = Some(starts_at);
+        self
+    }
+
+    /// Sets the reservation end instant.
+    pub fn ends_at(mut self, ends_at: DateTime<Utc>) -> Self {
+        self.ends_at = Some(ends_at);
+        self
+    }
+
+    /// Sets deposit evidence for this reservation.
+    pub fn deposit(mut self, deposit: Deposit) -> Self {
+        self.deposit = Some(deposit);
+        self
+    }
+
+    /// Sets the source channel for the reservation evidence.
+    pub fn source(mut self, source: reservation::Source) -> Self {
+        self.source = Some(source);
+        self
+    }
+
+    /// Adds one requested add-on.
+    pub fn requested_add_on(mut self, requested_add_on: AddOn) -> Self {
+        self.requested_add_ons.push(requested_add_on);
+        self
+    }
+
+    /// Replaces requested add-ons.
+    pub fn requested_add_ons(mut self, requested_add_ons: Vec<AddOn>) -> Self {
+        self.requested_add_ons = requested_add_ons;
+        self
+    }
+
+    /// Adds one active hard stop.
+    pub fn hard_stop(mut self, hard_stop: HardStop) -> Self {
+        self.hard_stops.push(hard_stop);
+        self
+    }
+
+    /// Replaces active hard stops.
+    pub fn hard_stops(mut self, hard_stops: Vec<HardStop>) -> Self {
+        self.hard_stops = hard_stops;
+        self
+    }
+
+    /// Builds a reservation only after all aggregate invariants pass.
+    pub fn build(self) -> reservation::Result<Reservation> {
+        Reservation::try_from_persisted(RawReservation {
+            id: self.id.ok_or(reservation::Error::IdRequired)?,
+            location_id: self
+                .location_id
+                .ok_or(reservation::Error::LocationIdRequired)?,
+            customer_id: self
+                .customer_id
+                .ok_or(reservation::Error::CustomerIdRequired)?,
+            pet_ids: self.pet_ids,
+            service: self.service.ok_or(reservation::Error::ServiceRequired)?,
+            status: self.status.ok_or(reservation::Error::StatusRequired)?,
+            starts_at: self.starts_at.ok_or(reservation::Error::StartsAtRequired)?,
+            ends_at: self.ends_at.ok_or(reservation::Error::EndsAtRequired)?,
+            deposit: self.deposit,
+            source: self.source.ok_or(reservation::Error::SourceRequired)?,
+            requested_add_ons: self.requested_add_ons,
+            hard_stops: self.hard_stops,
         })
     }
 }
@@ -606,9 +937,8 @@ pub struct MessageId(pub Uuid);
 
 /// Approval record vocabulary for review-gated automation outcomes.
 pub mod approval {
-    use bon::Builder;
     use chrono::{DateTime, Utc};
-    use serde::{Deserialize, Serialize};
+    use serde::{Deserialize, Deserializer, Serialize};
     use uuid::Uuid;
 
     use super::{
@@ -619,27 +949,143 @@ pub mod approval {
     /// Provider or source identifier retained as the stable join key.
     pub struct Id(pub Uuid);
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+    /// Approval aggregate construction and rehydration failures.
+    #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+    pub enum Error {
+        #[error("approval id is required")]
+        /// Represents the `IdRequired` semantic case.
+        IdRequired,
+        #[error("approval target is required")]
+        /// Represents the `TargetRequired` semantic case.
+        TargetRequired,
+        #[error("approval review gate is required")]
+        /// Represents the `GateRequired` semantic case.
+        GateRequired,
+        #[error("approval lifecycle is required")]
+        /// Represents the `LifecycleRequired` semantic case.
+        LifecycleRequired,
+        #[error("approval requester is required")]
+        /// Represents the `RequestedByRequired` semantic case.
+        RequestedByRequired,
+        #[error("approval request time is required")]
+        /// Represents the `RequestedAtRequired` semantic case.
+        RequestedAtRequired,
+        #[error("approval decision time cannot precede request time")]
+        /// Represents the `DecisionTimePrecedesRequest` semantic case.
+        DecisionTimePrecedesRequest,
+        #[error("approval review gate does not match approval target")]
+        /// Represents the `GateTargetMismatch` semantic case.
+        GateTargetMismatch,
+    }
+
+    /// Result alias for approval aggregate construction and rehydration.
+    pub type Result<T> = std::result::Result<T, Error>;
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
     /// Approval record showing who decided, what target was reviewed, and what lifecycle state resulted.
     pub struct Record {
         /// Id retained from source records for staff review, safety gates, and workflow joins.
-        pub id: Id,
+        id: Id,
         /// Target retained from source records for staff review, safety gates, and workflow joins.
-        pub target: Target,
+        target: Target,
         /// Gate retained from source records for staff review, safety gates, and workflow joins.
-        pub gate: policy::ReviewGate,
+        gate: policy::ReviewGate,
         /// Lifecycle retained from source records for staff review, safety gates, and workflow joins.
-        pub lifecycle: Lifecycle,
+        lifecycle: Lifecycle,
         /// Requested by retained from source records for staff review, safety gates, and workflow joins.
-        pub requested_by: ActorRef,
+        requested_by: ActorRef,
         /// Requested at retained from source records for staff review, safety gates, and workflow joins.
-        pub requested_at: DateTime<Utc>,
-        #[builder(default)]
+        requested_at: DateTime<Utc>,
         /// Audit refs retained from source records for staff review, safety gates, and workflow joins.
-        pub audit_refs: Vec<crate::audit::EventId>,
+        audit_refs: Vec<crate::audit::EventId>,
+    }
+
+    #[derive(Serialize, Deserialize)]
+    struct RawRecord {
+        id: Id,
+        target: Target,
+        gate: policy::ReviewGate,
+        lifecycle: Lifecycle,
+        requested_by: ActorRef,
+        requested_at: DateTime<Utc>,
+        #[serde(default)]
+        audit_refs: Vec<crate::audit::EventId>,
+    }
+
+    impl RawRecord {
+        fn try_into_record(self) -> Result<Record> {
+            validate_gate_target(&self.gate, &self.target)?;
+            if self
+                .lifecycle
+                .decision_actor_and_time()
+                .is_some_and(|(_, decided_at)| decided_at < self.requested_at)
+            {
+                return Err(Error::DecisionTimePrecedesRequest);
+            }
+            Ok(Record {
+                id: self.id,
+                target: self.target,
+                gate: self.gate,
+                lifecycle: self.lifecycle,
+                requested_by: self.requested_by,
+                requested_at: self.requested_at,
+                audit_refs: self.audit_refs,
+            })
+        }
+    }
+
+    impl<'de> Deserialize<'de> for Record {
+        fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            RawRecord::deserialize(deserializer)?
+                .try_into_record()
+                .map_err(serde::de::Error::custom)
+        }
     }
 
     impl Record {
+        /// Starts a checked approval aggregate builder.
+        pub fn builder() -> RecordBuilder {
+            RecordBuilder::default()
+        }
+
+        /// Approval id used by audit, storage, and authority evidence.
+        pub fn id(&self) -> Id {
+            self.id
+        }
+
+        /// Review target this approval applies to.
+        pub fn target(&self) -> &Target {
+            &self.target
+        }
+
+        /// Review gate this approval applies to.
+        pub fn gate(&self) -> &policy::ReviewGate {
+            &self.gate
+        }
+
+        /// Lifecycle state carried by this approval record.
+        pub fn lifecycle(&self) -> &Lifecycle {
+            &self.lifecycle
+        }
+
+        /// Actor that requested this approval.
+        pub fn requested_by(&self) -> &ActorRef {
+            &self.requested_by
+        }
+
+        /// Timestamp when approval was requested.
+        pub fn requested_at(&self) -> DateTime<Utc> {
+            self.requested_at
+        }
+
+        /// Audit refs attached to this approval.
+        pub fn audit_refs(&self) -> &[crate::audit::EventId] {
+            &self.audit_refs
+        }
+
         /// Returns the normalized operational status represented by this record.
         pub fn status(&self) -> Status {
             self.lifecycle.status()
@@ -658,6 +1104,97 @@ pub mod approval {
         /// Returns the accountable actor and timestamp when the review reached a terminal decision.
         pub fn decision_actor_and_time(&self) -> Option<(&ActorRef, DateTime<Utc>)> {
             self.lifecycle.decision_actor_and_time()
+        }
+    }
+
+    /// Builder for checked approval aggregates.
+    #[derive(Debug, Clone, Default)]
+    pub struct RecordBuilder {
+        id: Option<Id>,
+        target: Option<Target>,
+        gate: Option<policy::ReviewGate>,
+        lifecycle: Option<Lifecycle>,
+        requested_by: Option<ActorRef>,
+        requested_at: Option<DateTime<Utc>>,
+        audit_refs: Vec<crate::audit::EventId>,
+    }
+
+    impl RecordBuilder {
+        /// Returns the aggregate id.
+        pub fn id(mut self, id: Id) -> Self {
+            self.id = Some(id);
+            self
+        }
+        /// Returns the aggregate target.
+        pub fn target(mut self, target: Target) -> Self {
+            self.target = Some(target);
+            self
+        }
+        /// Returns the aggregate gate.
+        pub fn gate(mut self, gate: policy::ReviewGate) -> Self {
+            self.gate = Some(gate);
+            self
+        }
+        /// Returns the aggregate lifecycle.
+        pub fn lifecycle(mut self, lifecycle: Lifecycle) -> Self {
+            self.lifecycle = Some(lifecycle);
+            self
+        }
+        /// Returns the aggregate requested by.
+        pub fn requested_by(mut self, requested_by: ActorRef) -> Self {
+            self.requested_by = Some(requested_by);
+            self
+        }
+        /// Returns the aggregate requested at.
+        pub fn requested_at(mut self, requested_at: DateTime<Utc>) -> Self {
+            self.requested_at = Some(requested_at);
+            self
+        }
+        /// Returns the aggregate audit refs.
+        pub fn audit_refs(mut self, audit_refs: Vec<crate::audit::EventId>) -> Self {
+            self.audit_refs = audit_refs;
+            self
+        }
+        /// Validates the accumulated fields and builds the aggregate.
+        pub fn build(self) -> Result<Record> {
+            RawRecord {
+                id: self.id.ok_or(Error::IdRequired)?,
+                target: self.target.ok_or(Error::TargetRequired)?,
+                gate: self.gate.ok_or(Error::GateRequired)?,
+                lifecycle: self.lifecycle.ok_or(Error::LifecycleRequired)?,
+                requested_by: self.requested_by.ok_or(Error::RequestedByRequired)?,
+                requested_at: self.requested_at.ok_or(Error::RequestedAtRequired)?,
+                audit_refs: self.audit_refs,
+            }
+            .try_into_record()
+        }
+    }
+
+    fn validate_gate_target(gate: &policy::ReviewGate, target: &Target) -> Result<()> {
+        let legal = matches!(
+            (gate, target),
+            (
+                policy::ReviewGate::CustomerMessageApproval,
+                Target::Message(_)
+            ) | (
+                policy::ReviewGate::MedicalDocumentReview,
+                Target::Document(_)
+            ) | (
+                policy::ReviewGate::MedicalDocumentReview,
+                Target::VaccineRecord(_)
+            ) | (policy::ReviewGate::ManagerApproval, Target::Reservation(_))
+                | (policy::ReviewGate::ManagerApproval, Target::Incident(_))
+                | (
+                    policy::ReviewGate::RefundOrDepositException,
+                    Target::Reservation(_)
+                )
+                | (policy::ReviewGate::BehaviorReview, Target::Reservation(_))
+                | (policy::ReviewGate::BehaviorReview, Target::Incident(_))
+        );
+        if legal {
+            Ok(())
+        } else {
+            Err(Error::GateTargetMismatch)
         }
     }
 
@@ -750,40 +1287,191 @@ pub mod approval {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+/// Document aggregate construction and rehydration failures.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum DocumentError {
+    #[error("document id is required")]
+    /// Represents the `IdRequired` semantic case.
+    IdRequired,
+    #[error("document location id is required")]
+    /// Represents the `LocationIdRequired` semantic case.
+    LocationIdRequired,
+    #[error("document subject is required")]
+    /// Represents the `SubjectRequired` semantic case.
+    SubjectRequired,
+    #[error("document classification is required")]
+    /// Represents the `ClassificationRequired` semantic case.
+    ClassificationRequired,
+    #[error("document source is required")]
+    /// Represents the `SourceRequired` semantic case.
+    SourceRequired,
+    #[error("document uploader is required")]
+    /// Represents the `UploadedByActorRequired` semantic case.
+    UploadedByActorRequired,
+    #[error("document upload time is required")]
+    /// Represents the `UploadedAtRequired` semantic case.
+    UploadedAtRequired,
+    #[error("document original file evidence is required")]
+    /// Represents the `OriginalFileRequired` semantic case.
+    OriginalFileRequired,
+    #[error("document storage reference is required")]
+    /// Represents the `StorageRefRequired` semantic case.
+    StorageRefRequired,
+    #[error("document virus scan status is required")]
+    /// Represents the `VirusScanStatusRequired` semantic case.
+    VirusScanStatusRequired,
+    #[error("document PII redaction status is required")]
+    /// Represents the `PiiRedactionStatusRequired` semantic case.
+    PiiRedactionStatusRequired,
+    #[error("document verification status is required")]
+    /// Represents the `VerificationStatusRequired` semantic case.
+    VerificationStatusRequired,
+    #[error("verified document requires passed virus scan")]
+    /// Represents the `VerifiedRequiresPassedVirusScan` semantic case.
+    VerifiedRequiresPassedVirusScan,
+    #[error("verified document requires safe PII redaction status")]
+    /// Represents the `VerifiedRequiresSafePiiRedactionStatus` semantic case.
+    VerifiedRequiresSafePiiRedactionStatus,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 /// Document record tying storage, classification, source, scan, redaction, and review status together.
 pub struct Document {
-    /// Id retained from source records for staff review, safety gates, and workflow joins.
-    pub id: DocumentId,
-    /// Location id retained from source records for staff review, safety gates, and workflow joins.
-    pub location_id: LocationId,
-    /// Subject retained from source records for staff review, safety gates, and workflow joins.
-    pub subject: DocumentSubject,
-    /// Classification retained from source records for staff review, safety gates, and workflow joins.
-    pub classification: document::Classification,
-    /// Source retained from source records for staff review, safety gates, and workflow joins.
-    pub source: document::Source,
-    /// Uploaded by actor retained from source records for staff review, safety gates, and workflow joins.
-    pub uploaded_by_actor: ActorRef,
-    /// Uploaded at retained from source records for staff review, safety gates, and workflow joins.
-    pub uploaded_at: DateTime<Utc>,
-    /// Original file retained from source records for staff review, safety gates, and workflow joins.
-    pub original_file: document::OriginalFile,
-    /// Storage ref retained from source records for staff review, safety gates, and workflow joins.
-    pub storage_ref: document::StorageRef,
-    /// Virus scan status retained from source records for staff review, safety gates, and workflow joins.
-    pub virus_scan_status: document::VirusScanStatus,
-    /// Pii redaction status retained from source records for staff review, safety gates, and workflow joins.
-    pub pii_redaction_status: document::PiiRedactionStatus,
-    /// Verification status retained from source records for staff review, safety gates, and workflow joins.
-    pub verification_status: document::Status,
-    #[builder(default)]
-    /// Audit refs retained from source records for staff review, safety gates, and workflow joins.
-    pub audit_refs: Vec<crate::audit::EventId>,
+    id: DocumentId,
+    location_id: LocationId,
+    subject: DocumentSubject,
+    classification: document::Classification,
+    source: document::Source,
+    uploaded_by_actor: ActorRef,
+    uploaded_at: DateTime<Utc>,
+    original_file: document::OriginalFile,
+    storage_ref: document::StorageRef,
+    virus_scan_status: document::VirusScanStatus,
+    pii_redaction_status: document::PiiRedactionStatus,
+    verification_status: document::Status,
+    audit_refs: Vec<crate::audit::EventId>,
+}
+
+#[derive(Deserialize)]
+struct RawDocument {
+    id: DocumentId,
+    location_id: LocationId,
+    subject: DocumentSubject,
+    classification: document::Classification,
+    source: document::Source,
+    uploaded_by_actor: ActorRef,
+    uploaded_at: DateTime<Utc>,
+    original_file: document::OriginalFile,
+    storage_ref: document::StorageRef,
+    virus_scan_status: document::VirusScanStatus,
+    pii_redaction_status: document::PiiRedactionStatus,
+    verification_status: document::Status,
+    #[serde(default)]
+    audit_refs: Vec<crate::audit::EventId>,
+}
+
+impl RawDocument {
+    fn try_into_document(self) -> std::result::Result<Document, DocumentError> {
+        if matches!(self.verification_status, document::Status::Verified)
+            && self.virus_scan_status != document::VirusScanStatus::Passed
+        {
+            return Err(DocumentError::VerifiedRequiresPassedVirusScan);
+        }
+        if matches!(self.verification_status, document::Status::Verified)
+            && !matches!(
+                self.pii_redaction_status,
+                document::PiiRedactionStatus::NotRequired | document::PiiRedactionStatus::Redacted
+            )
+        {
+            return Err(DocumentError::VerifiedRequiresSafePiiRedactionStatus);
+        }
+        Ok(Document {
+            id: self.id,
+            location_id: self.location_id,
+            subject: self.subject,
+            classification: self.classification,
+            source: self.source,
+            uploaded_by_actor: self.uploaded_by_actor,
+            uploaded_at: self.uploaded_at,
+            original_file: self.original_file,
+            storage_ref: self.storage_ref,
+            virus_scan_status: self.virus_scan_status,
+            pii_redaction_status: self.pii_redaction_status,
+            verification_status: self.verification_status,
+            audit_refs: self.audit_refs,
+        })
+    }
+}
+
+impl<'de> Deserialize<'de> for Document {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        RawDocument::deserialize(deserializer)?
+            .try_into_document()
+            .map_err(serde::de::Error::custom)
+    }
 }
 
 impl Document {
-    /// Reports whether the document must be reviewed before agents or staff treat it as usable evidence.
+    /// Starts checked construction of the aggregate.
+    pub fn builder() -> DocumentBuilder {
+        DocumentBuilder::default()
+    }
+    /// Returns the aggregate id.
+    pub fn id(&self) -> DocumentId {
+        self.id
+    }
+    /// Returns the aggregate location id.
+    pub fn location_id(&self) -> LocationId {
+        self.location_id
+    }
+    /// Returns the aggregate subject.
+    pub fn subject(&self) -> &DocumentSubject {
+        &self.subject
+    }
+    /// Returns the aggregate classification.
+    pub fn classification(&self) -> document::Classification {
+        self.classification
+    }
+    /// Returns the aggregate source.
+    pub fn source(&self) -> document::Source {
+        self.source
+    }
+    /// Returns the aggregate uploaded by actor.
+    pub fn uploaded_by_actor(&self) -> &ActorRef {
+        &self.uploaded_by_actor
+    }
+    /// Returns the aggregate uploaded at.
+    pub fn uploaded_at(&self) -> DateTime<Utc> {
+        self.uploaded_at
+    }
+    /// Returns the aggregate original file.
+    pub fn original_file(&self) -> &document::OriginalFile {
+        &self.original_file
+    }
+    /// Returns the aggregate storage ref.
+    pub fn storage_ref(&self) -> &document::StorageRef {
+        &self.storage_ref
+    }
+    /// Returns the aggregate virus scan status.
+    pub fn virus_scan_status(&self) -> document::VirusScanStatus {
+        self.virus_scan_status
+    }
+    /// Returns the aggregate pii redaction status.
+    pub fn pii_redaction_status(&self) -> document::PiiRedactionStatus {
+        self.pii_redaction_status
+    }
+    /// Returns the aggregate verification status.
+    pub fn verification_status(&self) -> document::Status {
+        self.verification_status
+    }
+    /// Returns the aggregate audit refs.
+    pub fn audit_refs(&self) -> &[crate::audit::EventId] {
+        &self.audit_refs
+    }
+    /// Returns the aggregate requires human review before use.
     pub fn requires_human_review_before_use(&self) -> bool {
         matches!(
             self.verification_status,
@@ -793,6 +1481,122 @@ impl Document {
                 | document::Status::AwaitingReview
                 | document::Status::QuarantinedRejected
         ) || !matches!(self.virus_scan_status, document::VirusScanStatus::Passed)
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+/// Relationship-checked document builder used at this boundary.
+pub struct DocumentBuilder {
+    id: Option<DocumentId>,
+    location_id: Option<LocationId>,
+    subject: Option<DocumentSubject>,
+    classification: Option<document::Classification>,
+    source: Option<document::Source>,
+    uploaded_by_actor: Option<ActorRef>,
+    uploaded_at: Option<DateTime<Utc>>,
+    original_file: Option<document::OriginalFile>,
+    storage_ref: Option<document::StorageRef>,
+    virus_scan_status: Option<document::VirusScanStatus>,
+    pii_redaction_status: Option<document::PiiRedactionStatus>,
+    verification_status: Option<document::Status>,
+    audit_refs: Vec<crate::audit::EventId>,
+}
+impl DocumentBuilder {
+    /// Returns the aggregate id.
+    pub fn id(mut self, value: DocumentId) -> Self {
+        self.id = Some(value);
+        self
+    }
+    /// Returns the aggregate location id.
+    pub fn location_id(mut self, value: LocationId) -> Self {
+        self.location_id = Some(value);
+        self
+    }
+    /// Returns the aggregate subject.
+    pub fn subject(mut self, value: DocumentSubject) -> Self {
+        self.subject = Some(value);
+        self
+    }
+    /// Returns the aggregate classification.
+    pub fn classification(mut self, value: document::Classification) -> Self {
+        self.classification = Some(value);
+        self
+    }
+    /// Returns the aggregate source.
+    pub fn source(mut self, value: document::Source) -> Self {
+        self.source = Some(value);
+        self
+    }
+    /// Returns the aggregate uploaded by actor.
+    pub fn uploaded_by_actor(mut self, value: ActorRef) -> Self {
+        self.uploaded_by_actor = Some(value);
+        self
+    }
+    /// Returns the aggregate uploaded at.
+    pub fn uploaded_at(mut self, value: DateTime<Utc>) -> Self {
+        self.uploaded_at = Some(value);
+        self
+    }
+    /// Returns the aggregate original file.
+    pub fn original_file(mut self, value: document::OriginalFile) -> Self {
+        self.original_file = Some(value);
+        self
+    }
+    /// Returns the aggregate storage ref.
+    pub fn storage_ref(mut self, value: document::StorageRef) -> Self {
+        self.storage_ref = Some(value);
+        self
+    }
+    /// Returns the aggregate virus scan status.
+    pub fn virus_scan_status(mut self, value: document::VirusScanStatus) -> Self {
+        self.virus_scan_status = Some(value);
+        self
+    }
+    /// Returns the aggregate pii redaction status.
+    pub fn pii_redaction_status(mut self, value: document::PiiRedactionStatus) -> Self {
+        self.pii_redaction_status = Some(value);
+        self
+    }
+    /// Returns the aggregate verification status.
+    pub fn verification_status(mut self, value: document::Status) -> Self {
+        self.verification_status = Some(value);
+        self
+    }
+    /// Returns the aggregate audit refs.
+    pub fn audit_refs(mut self, value: Vec<crate::audit::EventId>) -> Self {
+        self.audit_refs = value;
+        self
+    }
+    /// Validates the accumulated fields and builds the aggregate.
+    pub fn build(self) -> std::result::Result<Document, DocumentError> {
+        RawDocument {
+            id: self.id.ok_or(DocumentError::IdRequired)?,
+            location_id: self.location_id.ok_or(DocumentError::LocationIdRequired)?,
+            subject: self.subject.ok_or(DocumentError::SubjectRequired)?,
+            classification: self
+                .classification
+                .ok_or(DocumentError::ClassificationRequired)?,
+            source: self.source.ok_or(DocumentError::SourceRequired)?,
+            uploaded_by_actor: self
+                .uploaded_by_actor
+                .ok_or(DocumentError::UploadedByActorRequired)?,
+            uploaded_at: self.uploaded_at.ok_or(DocumentError::UploadedAtRequired)?,
+            original_file: self
+                .original_file
+                .ok_or(DocumentError::OriginalFileRequired)?,
+            storage_ref: self.storage_ref.ok_or(DocumentError::StorageRefRequired)?,
+            virus_scan_status: self
+                .virus_scan_status
+                .ok_or(DocumentError::VirusScanStatusRequired)?,
+            pii_redaction_status: self
+                .pii_redaction_status
+                .ok_or(DocumentError::PiiRedactionStatusRequired)?,
+            verification_status: self
+                .verification_status
+                .ok_or(DocumentError::VerificationStatusRequired)?,
+            audit_refs: self.audit_refs,
+        }
+        .try_into_document()
     }
 }
 
@@ -809,31 +1613,153 @@ pub enum DocumentSubject {
     Incident(IncidentId),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+/// Vaccine-record aggregate construction and rehydration failures.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum VaccineRecordError {
+    #[error("vaccine record id is required")]
+    /// Represents the `IdRequired` semantic case.
+    IdRequired,
+    #[error("vaccine record pet id is required")]
+    /// Represents the `PetIdRequired` semantic case.
+    PetIdRequired,
+    #[error("vaccine name is required")]
+    /// Represents the `VaccineNameRequired` semantic case.
+    VaccineNameRequired,
+    #[error("vaccine source document id is required")]
+    /// Represents the `SourceDocumentIdRequired` semantic case.
+    SourceDocumentIdRequired,
+    #[error("vaccine status is required")]
+    /// Represents the `StatusRequired` semantic case.
+    StatusRequired,
+    #[error("vaccine effective date is required")]
+    /// Represents the `EffectiveOnRequired` semantic case.
+    EffectiveOnRequired,
+    #[error("vaccine review gate is required")]
+    /// Represents the `ReviewGateRequired` semantic case.
+    ReviewGateRequired,
+    #[error("vaccine expiration date must be after effective date")]
+    /// Represents the `ExpirationMustBeAfterEffectiveDate` semantic case.
+    ExpirationMustBeAfterEffectiveDate,
+    #[error("expired vaccine status requires an expiration date")]
+    /// Represents the `ExpiredStatusRequiresExpirationDate` semantic case.
+    ExpiredStatusRequiresExpirationDate,
+    #[error("vaccine exception status requires manager approval review gate")]
+    /// Represents the `ExceptionStatusRequiresManagerApprovalReviewGate` semantic case.
+    ExceptionStatusRequiresManagerApprovalReviewGate,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 /// Vaccine compliance record linking pet, vaccine name, expiration, proof document, and review status.
 pub struct VaccineRecord {
-    /// Id retained from source records for staff review, safety gates, and workflow joins.
-    pub id: VaccineRecordId,
-    /// Pet receiving the grooming or care service.
-    pub pet_id: PetId,
-    /// Vaccine name retained from source records for staff review, safety gates, and workflow joins.
-    pub vaccine_name: policy::VaccineName,
-    /// Source document id retained from source records for staff review, safety gates, and workflow joins.
-    pub source_document_id: DocumentId,
-    /// Status retained from source records for staff review, safety gates, and workflow joins.
-    pub status: vaccine::Status,
-    /// Effective on retained from source records for staff review, safety gates, and workflow joins.
-    pub effective_on: NaiveDate,
-    /// Expires on retained from source records for staff review, safety gates, and workflow joins.
-    pub expires_on: Option<NaiveDate>,
-    /// Review gate retained from source records for staff review, safety gates, and workflow joins.
-    pub review_gate: policy::ReviewGate,
-    #[builder(default)]
-    /// Audit refs retained from source records for staff review, safety gates, and workflow joins.
-    pub audit_refs: Vec<crate::audit::EventId>,
+    id: VaccineRecordId,
+    pet_id: PetId,
+    vaccine_name: policy::VaccineName,
+    source_document_id: DocumentId,
+    status: vaccine::Status,
+    effective_on: NaiveDate,
+    expires_on: Option<NaiveDate>,
+    review_gate: policy::ReviewGate,
+    audit_refs: Vec<crate::audit::EventId>,
+}
+
+#[derive(Deserialize)]
+struct RawVaccineRecord {
+    id: VaccineRecordId,
+    pet_id: PetId,
+    vaccine_name: policy::VaccineName,
+    source_document_id: DocumentId,
+    status: vaccine::Status,
+    effective_on: NaiveDate,
+    expires_on: Option<NaiveDate>,
+    review_gate: policy::ReviewGate,
+    #[serde(default)]
+    audit_refs: Vec<crate::audit::EventId>,
+}
+
+impl RawVaccineRecord {
+    fn try_into_record(self) -> std::result::Result<VaccineRecord, VaccineRecordError> {
+        if self
+            .expires_on
+            .is_some_and(|expires_on| expires_on <= self.effective_on)
+        {
+            return Err(VaccineRecordError::ExpirationMustBeAfterEffectiveDate);
+        }
+        if matches!(self.status, vaccine::Status::VerifiedExpired) && self.expires_on.is_none() {
+            return Err(VaccineRecordError::ExpiredStatusRequiresExpirationDate);
+        }
+        if matches!(
+            self.status,
+            vaccine::Status::ExceptionApproved | vaccine::Status::ExceptionRequested
+        ) && self.review_gate != policy::ReviewGate::ManagerApproval
+        {
+            return Err(VaccineRecordError::ExceptionStatusRequiresManagerApprovalReviewGate);
+        }
+        Ok(VaccineRecord {
+            id: self.id,
+            pet_id: self.pet_id,
+            vaccine_name: self.vaccine_name,
+            source_document_id: self.source_document_id,
+            status: self.status,
+            effective_on: self.effective_on,
+            expires_on: self.expires_on,
+            review_gate: self.review_gate,
+            audit_refs: self.audit_refs,
+        })
+    }
+}
+
+impl<'de> Deserialize<'de> for VaccineRecord {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        RawVaccineRecord::deserialize(deserializer)?
+            .try_into_record()
+            .map_err(serde::de::Error::custom)
+    }
 }
 
 impl VaccineRecord {
+    /// Starts checked construction of the aggregate.
+    pub fn builder() -> VaccineRecordBuilder {
+        VaccineRecordBuilder::default()
+    }
+    /// Returns the aggregate id.
+    pub fn id(&self) -> VaccineRecordId {
+        self.id
+    }
+    /// Returns the aggregate pet id.
+    pub fn pet_id(&self) -> PetId {
+        self.pet_id
+    }
+    /// Returns the aggregate vaccine name.
+    pub fn vaccine_name(&self) -> &policy::VaccineName {
+        &self.vaccine_name
+    }
+    /// Returns the aggregate source document id.
+    pub fn source_document_id(&self) -> DocumentId {
+        self.source_document_id
+    }
+    /// Returns the aggregate status.
+    pub fn status(&self) -> vaccine::Status {
+        self.status
+    }
+    /// Returns the aggregate effective on.
+    pub fn effective_on(&self) -> NaiveDate {
+        self.effective_on
+    }
+    /// Returns the aggregate expires on.
+    pub fn expires_on(&self) -> Option<NaiveDate> {
+        self.expires_on
+    }
+    /// Promotes the stored review gate into the semantic application value.
+    pub fn review_gate(&self) -> policy::ReviewGate {
+        self.review_gate.clone()
+    }
+    /// Returns the aggregate audit refs.
+    pub fn audit_refs(&self) -> &[crate::audit::EventId] {
+        &self.audit_refs
+    }
     /// Reports whether vaccine proof is still unverified, rejected, or otherwise unsafe for compliance automation.
     pub fn requires_human_review_before_compliance(&self) -> bool {
         matches!(
@@ -843,6 +1769,90 @@ impl VaccineRecord {
                 | vaccine::Status::Rejected
                 | vaccine::Status::ExceptionRequested
         )
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+/// Relationship-checked vaccine record builder used at this boundary.
+pub struct VaccineRecordBuilder {
+    id: Option<VaccineRecordId>,
+    pet_id: Option<PetId>,
+    vaccine_name: Option<policy::VaccineName>,
+    source_document_id: Option<DocumentId>,
+    status: Option<vaccine::Status>,
+    effective_on: Option<NaiveDate>,
+    expires_on: Option<NaiveDate>,
+    review_gate: Option<policy::ReviewGate>,
+    audit_refs: Vec<crate::audit::EventId>,
+}
+impl VaccineRecordBuilder {
+    /// Returns the aggregate id.
+    pub fn id(mut self, value: VaccineRecordId) -> Self {
+        self.id = Some(value);
+        self
+    }
+    /// Returns the aggregate pet id.
+    pub fn pet_id(mut self, value: PetId) -> Self {
+        self.pet_id = Some(value);
+        self
+    }
+    /// Returns the aggregate vaccine name.
+    pub fn vaccine_name(mut self, value: policy::VaccineName) -> Self {
+        self.vaccine_name = Some(value);
+        self
+    }
+    /// Returns the aggregate source document id.
+    pub fn source_document_id(mut self, value: DocumentId) -> Self {
+        self.source_document_id = Some(value);
+        self
+    }
+    /// Returns the aggregate status.
+    pub fn status(mut self, value: vaccine::Status) -> Self {
+        self.status = Some(value);
+        self
+    }
+    /// Returns the aggregate effective on.
+    pub fn effective_on(mut self, value: NaiveDate) -> Self {
+        self.effective_on = Some(value);
+        self
+    }
+    /// Returns the aggregate expires on.
+    pub fn expires_on(mut self, value: NaiveDate) -> Self {
+        self.expires_on = Some(value);
+        self
+    }
+    /// Promotes the stored review gate into the semantic application value.
+    pub fn review_gate(mut self, value: policy::ReviewGate) -> Self {
+        self.review_gate = Some(value);
+        self
+    }
+    /// Returns the aggregate audit refs.
+    pub fn audit_refs(mut self, value: Vec<crate::audit::EventId>) -> Self {
+        self.audit_refs = value;
+        self
+    }
+    /// Validates the accumulated fields and builds the aggregate.
+    pub fn build(self) -> std::result::Result<VaccineRecord, VaccineRecordError> {
+        RawVaccineRecord {
+            id: self.id.ok_or(VaccineRecordError::IdRequired)?,
+            pet_id: self.pet_id.ok_or(VaccineRecordError::PetIdRequired)?,
+            vaccine_name: self
+                .vaccine_name
+                .ok_or(VaccineRecordError::VaccineNameRequired)?,
+            source_document_id: self
+                .source_document_id
+                .ok_or(VaccineRecordError::SourceDocumentIdRequired)?,
+            status: self.status.ok_or(VaccineRecordError::StatusRequired)?,
+            effective_on: self
+                .effective_on
+                .ok_or(VaccineRecordError::EffectiveOnRequired)?,
+            expires_on: self.expires_on,
+            review_gate: self
+                .review_gate
+                .ok_or(VaccineRecordError::ReviewGateRequired)?,
+            audit_refs: self.audit_refs,
+        }
+        .try_into_record()
     }
 }
 
@@ -879,36 +1889,173 @@ impl CareNote {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+/// Incident aggregate construction and rehydration failures.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum IncidentError {
+    #[error("incident id is required")]
+    /// Represents the `IdRequired` semantic case.
+    IdRequired,
+    #[error("incident location id is required")]
+    /// Represents the `LocationIdRequired` semantic case.
+    LocationIdRequired,
+    #[error("incident primary subject is required")]
+    /// Represents the `PrimarySubjectRequired` semantic case.
+    PrimarySubjectRequired,
+    #[error("incident category is required")]
+    /// Represents the `CategoryRequired` semantic case.
+    CategoryRequired,
+    #[error("incident severity is required")]
+    /// Represents the `SeverityRequired` semantic case.
+    SeverityRequired,
+    #[error("incident status is required")]
+    /// Represents the `StatusRequired` semantic case.
+    StatusRequired,
+    #[error("incident reporter is required")]
+    /// Represents the `ReportedByRequired` semantic case.
+    ReportedByRequired,
+    #[error("incident report time is required")]
+    /// Represents the `ReportedAtRequired` semantic case.
+    ReportedAtRequired,
+    #[error("incident summary is required")]
+    /// Represents the `SummaryRequired` semantic case.
+    SummaryRequired,
+    #[error("incident requires manager approval review gate")]
+    /// Represents the `IncidentRequiresManagerApprovalReviewGate` semantic case.
+    IncidentRequiresManagerApprovalReviewGate,
+    #[error("customer-message incident requires customer message approval review gate")]
+    /// Represents the `CustomerMessageIncidentRequiresCustomerMessageApprovalReviewGate` semantic case.
+    CustomerMessageIncidentRequiresCustomerMessageApprovalReviewGate,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 /// Incident record used for manager attention, safety follow-up, customer messaging, and audit evidence.
 pub struct Incident {
-    /// Id retained from source records for staff review, safety gates, and workflow joins.
-    pub id: IncidentId,
-    /// Location id retained from source records for staff review, safety gates, and workflow joins.
-    pub location_id: LocationId,
-    /// Primary subject retained from source records for staff review, safety gates, and workflow joins.
-    pub primary_subject: IncidentSubject,
-    /// Category retained from source records for staff review, safety gates, and workflow joins.
-    pub category: incident::Category,
-    /// Severity retained from source records for staff review, safety gates, and workflow joins.
-    pub severity: incident::Severity,
-    /// Status retained from source records for staff review, safety gates, and workflow joins.
-    pub status: incident::Status,
-    /// Reported by retained from source records for staff review, safety gates, and workflow joins.
-    pub reported_by: ActorRef,
-    /// Reported at retained from source records for staff review, safety gates, and workflow joins.
-    pub reported_at: DateTime<Utc>,
-    /// Summary retained from source records for staff review, safety gates, and workflow joins.
-    pub summary: incident::Summary,
-    #[builder(default)]
-    /// Required review gates retained from source records for staff review, safety gates, and workflow joins.
-    pub required_review_gates: Vec<policy::ReviewGate>,
-    #[builder(default)]
-    /// Audit refs retained from source records for staff review, safety gates, and workflow joins.
-    pub audit_refs: Vec<crate::audit::EventId>,
+    id: IncidentId,
+    location_id: LocationId,
+    primary_subject: IncidentSubject,
+    category: incident::Category,
+    severity: incident::Severity,
+    status: incident::Status,
+    reported_by: ActorRef,
+    reported_at: DateTime<Utc>,
+    summary: incident::Summary,
+    required_review_gates: Vec<policy::ReviewGate>,
+    audit_refs: Vec<crate::audit::EventId>,
+}
+
+#[derive(Deserialize)]
+struct RawIncident {
+    id: IncidentId,
+    location_id: LocationId,
+    primary_subject: IncidentSubject,
+    category: incident::Category,
+    severity: incident::Severity,
+    status: incident::Status,
+    reported_by: ActorRef,
+    reported_at: DateTime<Utc>,
+    summary: incident::Summary,
+    #[serde(default)]
+    required_review_gates: Vec<policy::ReviewGate>,
+    #[serde(default)]
+    audit_refs: Vec<crate::audit::EventId>,
+}
+
+impl RawIncident {
+    fn try_into_incident(self) -> std::result::Result<Incident, IncidentError> {
+        if matches!(
+            self.severity,
+            incident::Severity::High | incident::Severity::Critical
+        ) && !self
+            .required_review_gates
+            .contains(&policy::ReviewGate::ManagerApproval)
+        {
+            return Err(IncidentError::IncidentRequiresManagerApprovalReviewGate);
+        }
+        if matches!(self.status, incident::Status::CustomerMessageReview)
+            && !self
+                .required_review_gates
+                .contains(&policy::ReviewGate::CustomerMessageApproval)
+        {
+            return Err(
+                IncidentError::CustomerMessageIncidentRequiresCustomerMessageApprovalReviewGate,
+            );
+        }
+        Ok(Incident {
+            id: self.id,
+            location_id: self.location_id,
+            primary_subject: self.primary_subject,
+            category: self.category,
+            severity: self.severity,
+            status: self.status,
+            reported_by: self.reported_by,
+            reported_at: self.reported_at,
+            summary: self.summary,
+            required_review_gates: self.required_review_gates,
+            audit_refs: self.audit_refs,
+        })
+    }
+}
+
+impl<'de> Deserialize<'de> for Incident {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        RawIncident::deserialize(deserializer)?
+            .try_into_incident()
+            .map_err(serde::de::Error::custom)
+    }
 }
 
 impl Incident {
+    /// Starts checked construction of the aggregate.
+    pub fn builder() -> IncidentBuilder {
+        IncidentBuilder::default()
+    }
+    /// Returns the aggregate id.
+    pub fn id(&self) -> IncidentId {
+        self.id
+    }
+    /// Returns the aggregate location id.
+    pub fn location_id(&self) -> LocationId {
+        self.location_id
+    }
+    /// Returns the aggregate primary subject.
+    pub fn primary_subject(&self) -> &IncidentSubject {
+        &self.primary_subject
+    }
+    /// Returns the aggregate category.
+    pub fn category(&self) -> incident::Category {
+        self.category
+    }
+    /// Returns the aggregate severity.
+    pub fn severity(&self) -> incident::Severity {
+        self.severity
+    }
+    /// Returns the aggregate status.
+    pub fn status(&self) -> incident::Status {
+        self.status
+    }
+    /// Returns the aggregate reported by.
+    pub fn reported_by(&self) -> &ActorRef {
+        &self.reported_by
+    }
+    /// Returns the aggregate reported at.
+    pub fn reported_at(&self) -> DateTime<Utc> {
+        self.reported_at
+    }
+    /// Returns the aggregate summary.
+    pub fn summary(&self) -> &incident::Summary {
+        &self.summary
+    }
+    /// Returns the aggregate required review gates.
+    pub fn required_review_gates(&self) -> &[policy::ReviewGate] {
+        &self.required_review_gates
+    }
+    /// Returns the aggregate audit refs.
+    pub fn audit_refs(&self) -> &[crate::audit::EventId] {
+        &self.audit_refs
+    }
     /// Reports whether the incident is still active enough to require manager attention.
     pub fn requires_manager_attention(&self) -> bool {
         matches!(
@@ -920,6 +2067,98 @@ impl Incident {
         ) || self
             .required_review_gates
             .contains(&policy::ReviewGate::ManagerApproval)
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+/// Relationship-checked incident builder used at this boundary.
+pub struct IncidentBuilder {
+    id: Option<IncidentId>,
+    location_id: Option<LocationId>,
+    primary_subject: Option<IncidentSubject>,
+    category: Option<incident::Category>,
+    severity: Option<incident::Severity>,
+    status: Option<incident::Status>,
+    reported_by: Option<ActorRef>,
+    reported_at: Option<DateTime<Utc>>,
+    summary: Option<incident::Summary>,
+    required_review_gates: Vec<policy::ReviewGate>,
+    audit_refs: Vec<crate::audit::EventId>,
+}
+impl IncidentBuilder {
+    /// Returns the aggregate id.
+    pub fn id(mut self, value: IncidentId) -> Self {
+        self.id = Some(value);
+        self
+    }
+    /// Returns the aggregate location id.
+    pub fn location_id(mut self, value: LocationId) -> Self {
+        self.location_id = Some(value);
+        self
+    }
+    /// Returns the aggregate primary subject.
+    pub fn primary_subject(mut self, value: IncidentSubject) -> Self {
+        self.primary_subject = Some(value);
+        self
+    }
+    /// Returns the aggregate category.
+    pub fn category(mut self, value: incident::Category) -> Self {
+        self.category = Some(value);
+        self
+    }
+    /// Returns the aggregate severity.
+    pub fn severity(mut self, value: incident::Severity) -> Self {
+        self.severity = Some(value);
+        self
+    }
+    /// Returns the aggregate status.
+    pub fn status(mut self, value: incident::Status) -> Self {
+        self.status = Some(value);
+        self
+    }
+    /// Returns the aggregate reported by.
+    pub fn reported_by(mut self, value: ActorRef) -> Self {
+        self.reported_by = Some(value);
+        self
+    }
+    /// Returns the aggregate reported at.
+    pub fn reported_at(mut self, value: DateTime<Utc>) -> Self {
+        self.reported_at = Some(value);
+        self
+    }
+    /// Returns the aggregate summary.
+    pub fn summary(mut self, value: incident::Summary) -> Self {
+        self.summary = Some(value);
+        self
+    }
+    /// Returns the aggregate required review gates.
+    pub fn required_review_gates(mut self, value: Vec<policy::ReviewGate>) -> Self {
+        self.required_review_gates = value;
+        self
+    }
+    /// Returns the aggregate audit refs.
+    pub fn audit_refs(mut self, value: Vec<crate::audit::EventId>) -> Self {
+        self.audit_refs = value;
+        self
+    }
+    /// Validates the accumulated fields and builds the aggregate.
+    pub fn build(self) -> std::result::Result<Incident, IncidentError> {
+        RawIncident {
+            id: self.id.ok_or(IncidentError::IdRequired)?,
+            location_id: self.location_id.ok_or(IncidentError::LocationIdRequired)?,
+            primary_subject: self
+                .primary_subject
+                .ok_or(IncidentError::PrimarySubjectRequired)?,
+            category: self.category.ok_or(IncidentError::CategoryRequired)?,
+            severity: self.severity.ok_or(IncidentError::SeverityRequired)?,
+            status: self.status.ok_or(IncidentError::StatusRequired)?,
+            reported_by: self.reported_by.ok_or(IncidentError::ReportedByRequired)?,
+            reported_at: self.reported_at.ok_or(IncidentError::ReportedAtRequired)?,
+            summary: self.summary.ok_or(IncidentError::SummaryRequired)?,
+            required_review_gates: self.required_review_gates,
+            audit_refs: self.audit_refs,
+        }
+        .try_into_incident()
     }
 }
 
@@ -936,29 +2175,339 @@ pub enum IncidentSubject {
     Location(LocationId),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Builder)]
+/// Message aggregate vocabulary and checked lifecycle evidence.
+pub mod message_record {
+    use chrono::{DateTime, Utc};
+    use serde::{Deserialize, Serialize};
+
+    use super::{ActorRef, MessageId, approval, message, policy};
+
+    /// Message aggregate construction and lifecycle-promotion failures.
+    #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+    pub enum Error {
+        #[error("message id is required")]
+        /// Represents the `IdRequired` semantic case.
+        IdRequired,
+        #[error("message subject is required")]
+        /// Represents the `SubjectRequired` semantic case.
+        SubjectRequired,
+        #[error("message direction is required")]
+        /// Represents the `DirectionRequired` semantic case.
+        DirectionRequired,
+        #[error("message channel is required")]
+        /// Represents the `ChannelRequired` semantic case.
+        ChannelRequired,
+        #[error("message status is required")]
+        /// Represents the `StatusRequired` semantic case.
+        StatusRequired,
+        #[error("message body reference is required")]
+        /// Represents the `BodyRefRequired` semantic case.
+        BodyRefRequired,
+        #[error("outbound draft cannot carry queued, attempted, or delivered status")]
+        /// Represents the `DraftCannotCarryDeliveryStatus` semantic case.
+        DraftCannotCarryDeliveryStatus,
+        #[error("queued or approved outbound message requires approval decision evidence")]
+        /// Represents the `QueuedOrApprovedOutboundRequiresApprovalEvidence` semantic case.
+        QueuedOrApprovedOutboundRequiresApprovalEvidence,
+        #[error("inbound messages cannot carry outbound delivery lifecycle status")]
+        /// Represents the `InboundCannotCarryOutboundDeliveryStatus` semantic case.
+        InboundCannotCarryOutboundDeliveryStatus,
+        #[error("outbound sent message requires attempted, delivered, or failed status")]
+        /// Represents the `SentRequiresAttemptedDeliveredOrFailedStatus` semantic case.
+        SentRequiresAttemptedDeliveredOrFailedStatus,
+        #[error(
+            "message approval evidence must be an approved decision for the requested message and gate"
+        )]
+        /// Represents the `ApprovalEvidenceMismatch` semantic case.
+        ApprovalEvidenceMismatch,
+        #[error("message queue capability does not satisfy the draft approval gate")]
+        /// Represents the `QueueCapabilityGateMismatch` semantic case.
+        QueueCapabilityGateMismatch,
+        #[error("message queue capability is bound to a different message")]
+        /// Represents the `QueueCapabilityTargetMismatch` semantic case.
+        QueueCapabilityTargetMismatch,
+        #[error("only approval-requested outbound drafts can be queued")]
+        /// Represents the `OnlyApprovalRequestedDraftsCanBeQueued` semantic case.
+        OnlyApprovalRequestedDraftsCanBeQueued,
+    }
+
+    /// Result alias for message aggregate construction and lifecycle promotion.
+    pub type Result<T> = std::result::Result<T, Error>;
+
+    /// Serializable historical approval evidence for a message lifecycle.
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct ApprovalEvidence {
+        /// Approval decision id when the evidence came from an owned approval record.
+        approval_id: Option<approval::Id>,
+        /// Exact message target approved by the owned decision.
+        message_id: MessageId,
+        /// Review gate that approved or historically guarded this message lifecycle.
+        gate: policy::ReviewGate,
+        /// Actor that approved queueing when known from the approval record.
+        decided_by: Option<ActorRef>,
+        /// Decision time when known from the approval record.
+        decided_at: Option<DateTime<Utc>>,
+    }
+
+    impl ApprovalEvidence {
+        /// Promotes an approved review record into serializable message approval evidence.
+        pub fn try_from_approval(
+            approval: &approval::Record,
+            message_id: MessageId,
+            gate: policy::ReviewGate,
+        ) -> Result<Self> {
+            if approval.target() != &approval::Target::Message(message_id)
+                || approval.gate() != &gate
+            {
+                return Err(Error::ApprovalEvidenceMismatch);
+            }
+            let approval::Lifecycle::Approved {
+                decided_by,
+                decided_at,
+            } = approval.lifecycle()
+            else {
+                return Err(Error::ApprovalEvidenceMismatch);
+            };
+            Ok(Self {
+                approval_id: Some(approval.id()),
+                message_id,
+                gate,
+                decided_by: Some(decided_by.clone()),
+                decided_at: Some(*decided_at),
+            })
+        }
+
+        pub(super) const fn is_owned_decision(&self) -> bool {
+            self.approval_id.is_some() && self.decided_by.is_some() && self.decided_at.is_some()
+        }
+
+        /// Approval record id retained as historical evidence, when available.
+        pub const fn approval_id(&self) -> Option<approval::Id> {
+            self.approval_id
+        }
+
+        /// Exact message target retained from the approval decision.
+        pub const fn message_id(&self) -> MessageId {
+            self.message_id
+        }
+
+        /// Review gate retained as historical evidence.
+        pub fn gate(&self) -> &policy::ReviewGate {
+            &self.gate
+        }
+    }
+
+    /// Opaque, target-bound, non-serializable authority to admit one approved message to a queue.
+    #[derive(Debug)]
+    pub struct QueueAuthorization {
+        pub(super) message_id: MessageId,
+        pub(super) evidence: ApprovalEvidence,
+    }
+
+    /// Promotes an owned approval decision into separate historical evidence and one-shot authority.
+    pub fn authorize_queue(
+        approval: &approval::Record,
+        message_id: MessageId,
+        gate: policy::ReviewGate,
+    ) -> Result<(ApprovalEvidence, QueueAuthorization)> {
+        let evidence = ApprovalEvidence::try_from_approval(approval, message_id, gate)?;
+        let authorization = QueueAuthorization {
+            message_id,
+            evidence: evidence.clone(),
+        };
+        Ok((evidence, authorization))
+    }
+
+    /// Checked message lifecycle; variants carry exactly the evidence legal for their phase.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum Lifecycle {
+        /// Inbound source message with no outbound approval or queue authority.
+        InboundReceived,
+        /// Outbound draft or review-requested draft that has not entered the queue.
+        OutboundDraft {
+            /// Draft-side status, limited to statuses that cannot imply send authority.
+            status: message::Status,
+            /// Review gate requested for this draft, if any.
+            approval_gate: Option<policy::ReviewGate>,
+        },
+        /// Outbound message admitted to the queue by approval evidence and queue capability.
+        OutboundQueued {
+            /// Queue-side status before provider delivery evidence exists.
+            status: message::Status,
+            /// Historical approval evidence that justified queue admission.
+            approval_evidence: ApprovalEvidence,
+        },
+        /// Outbound delivery path with approval evidence and attempt/result status.
+        OutboundSent {
+            /// Attempt/result status.
+            status: message::Status,
+            /// Historical approval evidence that justified the outbound send path.
+            approval_evidence: ApprovalEvidence,
+        },
+    }
+
+    impl Lifecycle {
+        pub(super) fn try_new(
+            direction: message::Direction,
+            status: message::Status,
+            approval_gate: Option<policy::ReviewGate>,
+        ) -> Result<Self> {
+            match direction {
+                message::Direction::InboundReceived => {
+                    if matches!(
+                        status,
+                        message::Status::ApprovedToQueue
+                            | message::Status::Queued
+                            | message::Status::SendAttempted
+                            | message::Status::Delivered
+                    ) {
+                        return Err(Error::InboundCannotCarryOutboundDeliveryStatus);
+                    }
+                    Ok(Self::InboundReceived)
+                }
+                message::Direction::OutboundDraft => {
+                    if !matches!(
+                        status,
+                        message::Status::DraftCreated
+                            | message::Status::ApprovalRequested
+                            | message::Status::Suppressed
+                            | message::Status::Cancelled
+                    ) {
+                        return Err(Error::DraftCannotCarryDeliveryStatus);
+                    }
+                    Ok(Self::OutboundDraft {
+                        status,
+                        approval_gate,
+                    })
+                }
+                message::Direction::OutboundQueued | message::Direction::OutboundSent => {
+                    Err(Error::QueuedOrApprovedOutboundRequiresApprovalEvidence)
+                }
+            }
+        }
+
+        pub(super) fn try_from_persisted(
+            message_id: MessageId,
+            direction: message::Direction,
+            status: message::Status,
+            approval_gate: Option<policy::ReviewGate>,
+            approval_evidence: Option<ApprovalEvidence>,
+        ) -> Result<Self> {
+            match direction {
+                message::Direction::InboundReceived | message::Direction::OutboundDraft => {
+                    if approval_evidence.is_some() {
+                        return Err(Error::ApprovalEvidenceMismatch);
+                    }
+                    Self::try_new(direction, status, approval_gate)
+                }
+                message::Direction::OutboundQueued => {
+                    let evidence = approval_evidence
+                        .filter(ApprovalEvidence::is_owned_decision)
+                        .ok_or(Error::QueuedOrApprovedOutboundRequiresApprovalEvidence)?;
+                    if evidence.message_id() != message_id
+                        || approval_gate.as_ref() != Some(evidence.gate())
+                    {
+                        return Err(Error::ApprovalEvidenceMismatch);
+                    }
+                    if !matches!(
+                        status,
+                        message::Status::ApprovedToQueue | message::Status::Queued
+                    ) {
+                        return Err(Error::DraftCannotCarryDeliveryStatus);
+                    }
+                    Ok(Self::OutboundQueued {
+                        status,
+                        approval_evidence: evidence,
+                    })
+                }
+                message::Direction::OutboundSent => {
+                    let evidence = approval_evidence
+                        .filter(ApprovalEvidence::is_owned_decision)
+                        .ok_or(Error::QueuedOrApprovedOutboundRequiresApprovalEvidence)?;
+                    if evidence.message_id() != message_id
+                        || approval_gate.as_ref() != Some(evidence.gate())
+                    {
+                        return Err(Error::ApprovalEvidenceMismatch);
+                    }
+                    if !matches!(
+                        status,
+                        message::Status::SendAttempted
+                            | message::Status::Delivered
+                            | message::Status::Failed
+                    ) {
+                        return Err(Error::SentRequiresAttemptedDeliveredOrFailedStatus);
+                    }
+                    Ok(Self::OutboundSent {
+                        status,
+                        approval_evidence: evidence,
+                    })
+                }
+            }
+        }
+
+        pub(super) fn direction(&self) -> message::Direction {
+            match self {
+                Self::InboundReceived => message::Direction::InboundReceived,
+                Self::OutboundDraft { .. } => message::Direction::OutboundDraft,
+                Self::OutboundQueued { .. } => message::Direction::OutboundQueued,
+                Self::OutboundSent { .. } => message::Direction::OutboundSent,
+            }
+        }
+
+        pub(super) fn status(&self) -> message::Status {
+            match self {
+                Self::InboundReceived => message::Status::DraftCreated,
+                Self::OutboundDraft { status, .. }
+                | Self::OutboundQueued { status, .. }
+                | Self::OutboundSent { status, .. } => *status,
+            }
+        }
+
+        pub(super) fn approval_gate(&self) -> Option<policy::ReviewGate> {
+            match self {
+                Self::InboundReceived => None,
+                Self::OutboundDraft { approval_gate, .. } => approval_gate.clone(),
+                Self::OutboundQueued {
+                    approval_evidence, ..
+                }
+                | Self::OutboundSent {
+                    approval_evidence, ..
+                } => Some(approval_evidence.gate.clone()),
+            }
+        }
+
+        pub(super) fn approval_evidence(&self) -> Option<ApprovalEvidence> {
+            match self {
+                Self::OutboundQueued {
+                    approval_evidence, ..
+                }
+                | Self::OutboundSent {
+                    approval_evidence, ..
+                } => Some(approval_evidence.clone()),
+                Self::InboundReceived | Self::OutboundDraft { .. } => None,
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 /// Customer/internal message record that tracks subject, channel, draft/reference body, approval, and delivery state.
 pub struct Message {
     /// Id retained from source records for staff review, safety gates, and workflow joins.
-    pub id: MessageId,
+    id: MessageId,
     /// Subject retained from source records for staff review, safety gates, and workflow joins.
-    pub subject: MessageSubject,
-    /// Direction retained from source records for staff review, safety gates, and workflow joins.
-    pub direction: message::Direction,
+    subject: MessageSubject,
     /// Channel retained from source records for staff review, safety gates, and workflow joins.
-    pub channel: message::Channel,
-    /// Status retained from source records for staff review, safety gates, and workflow joins.
-    pub status: message::Status,
+    channel: message::Channel,
     /// Body ref retained from source records for staff review, safety gates, and workflow joins.
-    pub body_ref: message::BodyRef,
-    /// Approval gate retained from source records for staff review, safety gates, and workflow joins.
-    pub approval_gate: Option<policy::ReviewGate>,
-    #[builder(default)]
+    body_ref: message::BodyRef,
+    /// Checked lifecycle evidence that replaces independent direction/status/gate products.
+    lifecycle: message_record::Lifecycle,
     /// Audit refs retained from source records for staff review, safety gates, and workflow joins.
-    pub audit_refs: Vec<crate::audit::EventId>,
+    audit_refs: Vec<crate::audit::EventId>,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct RawMessage {
     id: MessageId,
     subject: MessageSubject,
@@ -967,8 +2516,30 @@ struct RawMessage {
     status: message::Status,
     body_ref: message::BodyRef,
     approval_gate: Option<policy::ReviewGate>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    approval_evidence: Option<message_record::ApprovalEvidence>,
     #[serde(default)]
     audit_refs: Vec<crate::audit::EventId>,
+}
+
+impl Serialize for Message {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        RawMessage {
+            id: self.id,
+            subject: self.subject.clone(),
+            direction: self.direction(),
+            channel: self.channel,
+            status: self.status(),
+            body_ref: self.body_ref.clone(),
+            approval_gate: self.approval_gate(),
+            approval_evidence: self.lifecycle.approval_evidence(),
+            audit_refs: self.audit_refs.clone(),
+        }
+        .serialize(serializer)
+    }
 }
 
 impl<'de> Deserialize<'de> for Message {
@@ -982,67 +2553,202 @@ impl<'de> Deserialize<'de> for Message {
 }
 
 impl Message {
-    fn try_from_persisted(raw: RawMessage) -> std::result::Result<Self, &'static str> {
-        if matches!(raw.direction, message::Direction::OutboundDraft)
-            && !matches!(
-                raw.status,
-                message::Status::DraftCreated
-                    | message::Status::ApprovalRequested
-                    | message::Status::Suppressed
-                    | message::Status::Cancelled
-            )
-        {
-            return Err("outbound draft cannot carry queued, attempted, or delivered status");
-        }
-        if matches!(
+    fn try_from_persisted(raw: RawMessage) -> message_record::Result<Self> {
+        let lifecycle = message_record::Lifecycle::try_from_persisted(
+            raw.id,
+            raw.direction,
             raw.status,
-            message::Status::ApprovedToQueue
-                | message::Status::Queued
-                | message::Status::SendAttempted
-                | message::Status::Delivered
-        ) && raw.approval_gate.is_none()
-        {
-            return Err("queued or approved outbound message requires approval gate evidence");
-        }
-        if matches!(raw.direction, message::Direction::InboundReceived)
-            && matches!(
-                raw.status,
-                message::Status::ApprovedToQueue
-                    | message::Status::Queued
-                    | message::Status::SendAttempted
-                    | message::Status::Delivered
-            )
-        {
-            return Err("inbound messages cannot carry outbound delivery lifecycle status");
-        }
-        if matches!(raw.direction, message::Direction::OutboundSent)
-            && !matches!(
-                raw.status,
-                message::Status::SendAttempted
-                    | message::Status::Delivered
-                    | message::Status::Failed
-            )
-        {
-            return Err("outbound sent message requires attempted, delivered, or failed status");
-        }
-
+            raw.approval_gate,
+            raw.approval_evidence,
+        )?;
         Ok(Self {
             id: raw.id,
             subject: raw.subject,
-            direction: raw.direction,
             channel: raw.channel,
-            status: raw.status,
             body_ref: raw.body_ref,
-            approval_gate: raw.approval_gate,
+            lifecycle,
             audit_refs: raw.audit_refs,
         })
     }
 
+    /// Starts a checked message aggregate builder for compatibility with existing call sites.
+    pub fn builder() -> MessageBuilder {
+        MessageBuilder::default()
+    }
+
+    /// Constructs an approval-requested outbound draft without exposing an invalid lifecycle product.
+    pub fn approval_requested_outbound_draft(
+        id: MessageId,
+        subject: MessageSubject,
+        channel: message::Channel,
+        body_ref: message::BodyRef,
+        approval_gate: policy::ReviewGate,
+    ) -> Self {
+        Self {
+            id,
+            subject,
+            channel,
+            body_ref,
+            lifecycle: message_record::Lifecycle::OutboundDraft {
+                status: message::Status::ApprovalRequested,
+                approval_gate: Some(approval_gate),
+            },
+            audit_refs: Vec::new(),
+        }
+    }
+
+    /// Promotes an approved draft into the queue lifecycle using opaque executable authority.
+    pub fn queue_with(
+        mut self,
+        authorization: message_record::QueueAuthorization,
+    ) -> message_record::Result<Self> {
+        let message_record::Lifecycle::OutboundDraft {
+            status: message::Status::ApprovalRequested,
+            approval_gate: Some(required_gate),
+        } = self.lifecycle
+        else {
+            return Err(message_record::Error::OnlyApprovalRequestedDraftsCanBeQueued);
+        };
+        if authorization.message_id != self.id {
+            return Err(message_record::Error::QueueCapabilityTargetMismatch);
+        }
+        if authorization.evidence.gate() != &required_gate {
+            return Err(message_record::Error::QueueCapabilityGateMismatch);
+        }
+        self.lifecycle = message_record::Lifecycle::OutboundQueued {
+            status: message::Status::Queued,
+            approval_evidence: authorization.evidence,
+        };
+        Ok(self)
+    }
+
+    /// Message identifier used by workflow, storage, and review joins.
+    pub fn id(&self) -> MessageId {
+        self.id
+    }
+
+    /// Subject this message refers to.
+    pub fn subject(&self) -> &MessageSubject {
+        &self.subject
+    }
+
+    /// Direction derived from the checked lifecycle variant.
+    pub fn direction(&self) -> message::Direction {
+        self.lifecycle.direction()
+    }
+
+    /// Delivery/review status derived from the checked lifecycle variant.
+    pub fn status(&self) -> message::Status {
+        self.lifecycle.status()
+    }
+
+    /// Channel selected for this message.
+    pub fn channel(&self) -> message::Channel {
+        self.channel
+    }
+
+    /// Body reference containing draft/source evidence.
+    pub fn body_ref(&self) -> &message::BodyRef {
+        &self.body_ref
+    }
+
+    /// Serializable review gate evidence attached to lifecycle variants that require it.
+    pub fn approval_gate(&self) -> Option<policy::ReviewGate> {
+        self.lifecycle.approval_gate()
+    }
+
+    /// Audit refs attached to this message.
+    pub fn audit_refs(&self) -> &[crate::audit::EventId] {
+        &self.audit_refs
+    }
+
     /// Reports whether the message is still a draft or awaiting approval before any outbound send.
     pub fn requires_approval_before_send(&self) -> bool {
-        self.approval_gate.is_some()
-            || matches!(self.status, message::Status::ApprovalRequested)
-            || matches!(self.direction, message::Direction::OutboundDraft)
+        self.approval_gate().is_some()
+            || matches!(self.status(), message::Status::ApprovalRequested)
+            || matches!(self.direction(), message::Direction::OutboundDraft)
+    }
+}
+
+/// Builder for checked message aggregates.
+#[derive(Debug, Clone, Default)]
+pub struct MessageBuilder {
+    id: Option<MessageId>,
+    subject: Option<MessageSubject>,
+    direction: Option<message::Direction>,
+    channel: Option<message::Channel>,
+    status: Option<message::Status>,
+    body_ref: Option<message::BodyRef>,
+    approval_gate: Option<policy::ReviewGate>,
+    audit_refs: Vec<crate::audit::EventId>,
+}
+
+impl MessageBuilder {
+    /// Sets the message id.
+    pub fn id(mut self, id: MessageId) -> Self {
+        self.id = Some(id);
+        self
+    }
+
+    /// Sets the message subject.
+    pub fn subject(mut self, subject: MessageSubject) -> Self {
+        self.subject = Some(subject);
+        self
+    }
+
+    /// Sets the message direction.
+    pub fn direction(mut self, direction: message::Direction) -> Self {
+        self.direction = Some(direction);
+        self
+    }
+
+    /// Sets the message channel.
+    pub fn channel(mut self, channel: message::Channel) -> Self {
+        self.channel = Some(channel);
+        self
+    }
+
+    /// Sets the lifecycle status.
+    pub fn status(mut self, status: message::Status) -> Self {
+        self.status = Some(status);
+        self
+    }
+
+    /// Sets the body reference.
+    pub fn body_ref(mut self, body_ref: message::BodyRef) -> Self {
+        self.body_ref = Some(body_ref);
+        self
+    }
+
+    /// Sets the approval gate evidence.
+    pub fn approval_gate(mut self, approval_gate: policy::ReviewGate) -> Self {
+        self.approval_gate = Some(approval_gate);
+        self
+    }
+
+    /// Replaces audit refs.
+    pub fn audit_refs(mut self, audit_refs: Vec<crate::audit::EventId>) -> Self {
+        self.audit_refs = audit_refs;
+        self
+    }
+
+    /// Builds a message only after lifecycle/evidence invariants pass.
+    pub fn build(self) -> message_record::Result<Message> {
+        Message::try_from_persisted(RawMessage {
+            id: self.id.ok_or(message_record::Error::IdRequired)?,
+            subject: self.subject.ok_or(message_record::Error::SubjectRequired)?,
+            direction: self
+                .direction
+                .ok_or(message_record::Error::DirectionRequired)?,
+            channel: self.channel.ok_or(message_record::Error::ChannelRequired)?,
+            status: self.status.ok_or(message_record::Error::StatusRequired)?,
+            body_ref: self
+                .body_ref
+                .ok_or(message_record::Error::BodyRefRequired)?,
+            approval_gate: self.approval_gate,
+            approval_evidence: None,
+            audit_refs: self.audit_refs,
+        })
     }
 }
 
@@ -1059,152 +2765,6 @@ pub enum MessageSubject {
     Incident(IncidentId),
     /// Approval decision record participating in audit history.
     Approval(approval::Id),
-}
-
-/// Audit vocabulary for source-backed event trails across automated and staff actions.
-pub mod audit {
-    use chrono::{DateTime, Utc};
-    use nutype::nutype;
-    #[allow(unused_imports)]
-    use serde::{Deserialize, Serialize};
-    use std::collections::BTreeMap;
-
-    use super::{
-        CustomerId, DocumentId, IncidentId, LocationId, MessageId, PetId, VaccineRecordId,
-        approval, care_note, reservation,
-    };
-
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Audit event capturing actor, subject, action, timestamp, and metadata evidence.
-    pub struct Event {
-        /// At retained from source records for staff review, safety gates, and workflow joins.
-        pub at: DateTime<Utc>,
-        /// Actor retained from source records for staff review, safety gates, and workflow joins.
-        pub actor: super::ActorRef,
-        /// Subject retained from source records for staff review, safety gates, and workflow joins.
-        pub subject: Subject,
-        /// Action retained from source records for staff review, safety gates, and workflow joins.
-        pub action: Action,
-        /// Metadata retained from source records for staff review, safety gates, and workflow joins.
-        pub metadata: BTreeMap<MetadataKey, MetadataValue>,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Subject that a care, document, incident, audit, or message record is about.
-    pub enum Subject {
-        /// Customer record participating in the workflow.
-        Customer(CustomerId),
-        /// Pet record participating in the workflow.
-        Pet(PetId),
-        /// Reservation record participating in the workflow.
-        Reservation(reservation::Id),
-        /// Resort location record participating in the workflow.
-        Location(LocationId),
-        /// Customer or pet document participating in review.
-        Document(DocumentId),
-        /// Vaccination document or status record under review.
-        VaccineRecord(VaccineRecordId),
-        /// Care note state or source category preserved for normalized resort records.
-        CareNote(care_note::Id),
-        /// Incident record participating in the workflow.
-        Incident(IncidentId),
-        /// Customer communication record participating in approval.
-        Message(MessageId),
-        /// Approval decision record participating in audit history.
-        Approval(approval::Id),
-        /// Workflow event state or source category preserved for normalized resort records.
-        WorkflowEvent(crate::workflow::EventId),
-        /// External system object referenced from domain history.
-        External {
-            /// Provider retained from source records for staff review, safety gates, and workflow joins.
-            provider: crate::workflow::external::Provider,
-            /// Id retained from source records for staff review, safety gates, and workflow joins.
-            id: crate::workflow::external::Id,
-        },
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Auditable action category produced by staff, source ingestion, policy, approval, or automation.
-    pub enum Action {
-        /// Customer profile updated state or source category preserved for normalized resort records.
-        CustomerProfileUpdated,
-        /// Pet profile updated state or source category preserved for normalized resort records.
-        PetProfileUpdated,
-        /// Reservation status suggested state or source category preserved for normalized resort records.
-        ReservationStatusSuggested,
-        /// Reservation status changed state or source category preserved for normalized resort records.
-        ReservationStatusChanged,
-        /// Policy decision recorded state or source category preserved for normalized resort records.
-        PolicyDecisionRecorded,
-        /// Document received state or source category preserved for normalized resort records.
-        DocumentReceived,
-        /// Vaccine record review requested state or source category preserved for normalized resort records.
-        VaccineRecordReviewRequested,
-        /// Incident status changed state or source category preserved for normalized resort records.
-        IncidentStatusChanged,
-        /// Message approval requested state or source category preserved for normalized resort records.
-        MessageApprovalRequested,
-        /// Approval decision recorded state or source category preserved for normalized resort records.
-        ApprovalDecisionRecorded,
-        /// Workflow event recorded state or source category preserved for normalized resort records.
-        WorkflowEventRecorded,
-        /// Extension point for provider-specific values not modeled directly.
-        Extension(ActionLabel),
-    }
-
-    /// Human-readable audit action label for imported or locally defined operational events.
-    #[nutype(
-        sanitize(trim),
-        validate(not_empty, len_char_max = 160),
-        derive(
-            Debug,
-            Clone,
-            PartialEq,
-            Eq,
-            PartialOrd,
-            Ord,
-            Hash,
-            Serialize,
-            Deserialize
-        )
-    )]
-    pub struct ActionLabel(String);
-
-    /// Audit metadata key used to preserve source evidence without flattening it into prose.
-    #[nutype(
-        sanitize(trim),
-        validate(not_empty, len_char_max = 80),
-        derive(
-            Debug,
-            Clone,
-            PartialEq,
-            Eq,
-            PartialOrd,
-            Ord,
-            Hash,
-            Serialize,
-            Deserialize
-        )
-    )]
-    pub struct MetadataKey(String);
-
-    /// Audit metadata value attached to an event for review, reporting, or source repair.
-    #[nutype(
-        sanitize(trim),
-        validate(not_empty, len_char_max = 500),
-        derive(
-            Debug,
-            Clone,
-            PartialEq,
-            Eq,
-            PartialOrd,
-            Ord,
-            Hash,
-            Serialize,
-            Deserialize
-        )
-    )]
-    pub struct MetadataValue(String);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

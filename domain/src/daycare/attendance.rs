@@ -21,8 +21,10 @@
 
 use super::*;
 use chrono::Datelike;
+use nonempty::NonEmpty;
+use std::collections::HashSet;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 /// Inclusive date range for recurring daycare attendance materialization.
 pub struct DateRange {
     start: NaiveDate,
@@ -39,6 +41,22 @@ impl DateRange {
     }
 }
 
+impl<'de> Deserialize<'de> for DateRange {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct RawDateRange {
+            start: NaiveDate,
+            end: NaiveDate,
+        }
+
+        let raw = RawDateRange::deserialize(deserializer)?;
+        Self::new(raw.start, raw.end).map_err(serde::de::Error::custom)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 /// Validation errors for recurring daycare attendance date ranges.
 pub enum DateRangeError {
@@ -47,15 +65,19 @@ pub enum DateRangeError {
     EndBeforeStart,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 /// Weekdays on which a recurring daycare package or reservation should materialize visits.
-pub struct Days(Vec<chrono::Weekday>);
+pub struct Days(NonEmpty<chrono::Weekday>);
 
 impl Days {
     /// Creates a non-empty weekday set for recurring daycare attendance.
     pub fn try_new(days: Vec<chrono::Weekday>) -> std::result::Result<Self, DaysError> {
-        if days.is_empty() {
-            return Err(DaysError::Empty);
+        let days = NonEmpty::from_vec(days).ok_or(DaysError::Empty)?;
+        let mut seen = HashSet::new();
+        for day in days.iter().copied() {
+            if !seen.insert(day) {
+                return Err(DaysError::Duplicate { day });
+            }
         }
         Ok(Self(days))
     }
@@ -66,12 +88,28 @@ impl Days {
     }
 }
 
+impl<'de> Deserialize<'de> for Days {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Self::try_new(Vec::<chrono::Weekday>::deserialize(deserializer)?)
+            .map_err(serde::de::Error::custom)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 /// Validation errors for recurring daycare attendance weekdays.
 pub enum DaysError {
     #[error("daycare attendance recurrence requires at least one weekday")]
     /// No weekdays were supplied, so no attendance could be materialized.
     Empty,
+    #[error("daycare attendance recurrence contains duplicate weekday {day:?}")]
+    /// A weekday appeared more than once even though recurrence membership is set-like.
+    Duplicate {
+        /// Weekday duplicated in the recurrence input.
+        day: chrono::Weekday,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

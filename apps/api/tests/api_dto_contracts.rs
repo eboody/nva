@@ -9,7 +9,7 @@ async fn request_json(
     uri: &str,
     body: Option<serde_json::Value>,
 ) -> (axum_http::StatusCode, serde_json::Value) {
-    let app = http::router_with_state(http::VaccineDocumentState::default());
+    let app = http::router_with_test_auth_state(http::VaccineDocumentState::default());
     let (status, _, payload) = request_json_on(app, method, uri, body, None).await;
     (status, payload)
 }
@@ -24,7 +24,7 @@ async fn request_json_with_headers(
     axum_http::HeaderMap,
     serde_json::Value,
 ) {
-    let app = http::router_with_state(http::VaccineDocumentState::default());
+    let app = http::router_with_test_auth_state(http::VaccineDocumentState::default());
     request_json_on(app, method, uri, body, request_id).await
 }
 
@@ -39,12 +39,31 @@ async fn request_json_on(
     axum_http::HeaderMap,
     serde_json::Value,
 ) {
+    let is_get = method == axum_http::Method::GET;
     let mut builder = axum_http::request::Builder::new().method(method).uri(uri);
+    if is_get {
+        builder = builder
+            .header("x-test-auth-actor-id", "general-manager-17")
+            .header("x-test-auth-role", "general_manager")
+            .header(
+                "x-test-auth-location-id",
+                "00c0ffee-0000-0000-0000-000000000001",
+            );
+    }
     if let Some(request_id) = request_id {
         builder = builder.header("x-request-id", request_id);
     }
     let request_body = if let Some(body) = body {
         builder = builder.header(axum_http::header::CONTENT_TYPE, "application/json");
+        if let Some((actor_id, role)) = trusted_actor_for_contract_smoke(&body) {
+            builder = builder
+                .header("x-test-auth-actor-id", actor_id)
+                .header("x-test-auth-role", role)
+                .header(
+                    "x-test-auth-location-id",
+                    "00c0ffee-0000-0000-0000-000000000001",
+                );
+        }
         Body::from(body.to_string())
     } else {
         Body::empty()
@@ -67,6 +86,24 @@ async fn request_json_on(
     (status, headers, payload)
 }
 
+fn trusted_actor_for_contract_smoke(body: &serde_json::Value) -> Option<(&str, &str)> {
+    if let Some(actor_id) = body.get("submitted_by").and_then(serde_json::Value::as_str) {
+        return Some((actor_id, "general_manager"));
+    }
+    if body.get("context_packet_id").is_some() && body.get("actions").is_some() {
+        return Some(("front-desk-lead-17", "front_desk_lead"));
+    }
+    body.get("uploaded_by_staff_id")
+        .and_then(serde_json::Value::as_str)
+        .or_else(|| {
+            body.get("actor")
+                .and_then(|actor| actor.get("id"))
+                .and_then(serde_json::Value::as_str)
+        })
+        .or_else(|| body.get("source_event_key").map(|_| "front-desk-lead-17"))
+        .map(|actor_id| (actor_id, "front_desk_lead"))
+}
+
 fn assert_product_owned_runtime_dto_contract(payload: &serde_json::Value, workflow: &str) {
     assert_eq!(payload["api_contract"]["owner"], "pet_resort_api");
     assert_eq!(payload["api_contract"]["boundary"], "api_runtime_dto");
@@ -76,13 +113,10 @@ fn assert_product_owned_runtime_dto_contract(payload: &serde_json::Value, workfl
     );
     assert_eq!(payload["api_contract"]["workflow"], workflow);
     assert_eq!(
-        payload["api_contract"]["provider_payload_passthrough"],
-        false
+        payload["api_contract"]["provider_boundary"],
+        "evidence_refs_only"
     );
-    assert_eq!(
-        payload["api_contract"]["provider_dto_boundary"],
-        "provider_evidence_only"
-    );
+    assert_eq!(payload["api_contract"]["live_side_effects"], "disabled");
 }
 
 #[tokio::test]
@@ -235,12 +269,12 @@ async fn manager_daily_brief_payload_contract_preserves_review_gates_labor_and_d
         Some(json!({
             "context_packet_id": context["audit"]["context_packet_id"],
             "correlation_id": context["audit"]["correlation_id"],
-            "submitted_by": "hermes-agent",
+            "submitted_by": "general-manager-contract",
             "actions": [{
                 "id": action["id"],
                 "kind": action["kind"],
                 "recommendation": "Review this source-grounded action before staff execution.",
-                "source_refs": action["source_facts"][0]["source_refs"],
+                "source_refs": action["source_refs"],
                 "review_gates": action["required_review_gates"],
                 "requested_side_effects": []
             }]
@@ -262,7 +296,7 @@ async fn manager_daily_brief_payload_contract_preserves_review_gates_labor_and_d
 
 #[tokio::test]
 async fn ops_metrics_summary_counts_safe_local_state_without_prometheus_overbuild() {
-    let app = http::router_with_state(http::VaccineDocumentState::default());
+    let app = http::router_with_test_auth_state(http::VaccineDocumentState::default());
 
     let (initial_status, _, initial) = request_json_on(
         app.clone(),
@@ -382,7 +416,7 @@ async fn ops_metrics_summary_counts_safe_local_state_without_prometheus_overbuil
 
 #[tokio::test]
 async fn inquiry_intake_idempotency_replay_reuses_exact_source_event_and_rejects_payload_drift() {
-    let app = http::router_with_state(http::VaccineDocumentState::default());
+    let app = http::router_with_test_auth_state(http::VaccineDocumentState::default());
     let first_payload = json!({
         "source_event_key": "web-inquiry-idempotency-boundary-1",
         "location_id": "00c0ffee-0000-0000-0000-000000000001",

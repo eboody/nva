@@ -61,7 +61,7 @@ pub struct MvpPreview {
     /// Send stub copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub send_stub: SendStub,
     /// Audit log copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
-    pub audit_log: Vec<entities::audit::Event>,
+    pub audit_log: Vec<audit::Event>,
 }
 
 /// Daily care notes prepared for staff review before they become operational updates.
@@ -346,7 +346,7 @@ pub struct SendStub {
     /// Blocked by copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
     pub blocked_by: Vec<policy::ReviewGate>,
     /// Audit action copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
-    pub audit_action: entities::audit::Action,
+    pub audit_action: audit::Action,
 }
 
 impl SendStub {
@@ -503,24 +503,27 @@ pub fn build_mvp_preview(request: MvpPreviewRequest) -> Result<MvpPreview> {
 
     let approval = entities::approval::Record::builder()
         .id(approval_id)
-        .target(entities::approval::Target::Message(message_id))
+        .target(approval_target_for(
+            &review_gate,
+            message_id,
+            subject_reservation_id(&request.event),
+        ))
         .gate(review_gate.clone())
         .lifecycle(entities::approval::Lifecycle::ApprovalRequested)
         .requested_by(entities::ActorRef::Agent {
             workflow: agent_name()?,
         })
-        .requested_at(request.event.occurred_at)
+        .requested_at(request.event.occurred_at())
         .audit_refs(vec![audit::EventId(Uuid::from_u128(
             0xDA17_0000_0000_0000_0000_0000_0000_0004,
         ))])
-        .build();
+        .build()
+        .map_err(|error| Error::InvalidDomainValue(error.to_string()))?;
 
     let send_stub = SendStub {
         mode: SendMode::ApprovalRequiredStub,
         blocked_by: vec![review_gate],
-        audit_action: entities::audit::Action::Extension(audit_action_label(
-            "message.send.blocked_stub",
-        )?),
+        audit_action: audit::Action::Extension(audit_action_label("message.send.blocked_stub")?),
     };
 
     let audit_log = audit_log(&request.event, message_id, approval_id)?;
@@ -534,6 +537,26 @@ pub fn build_mvp_preview(request: MvpPreviewRequest) -> Result<MvpPreview> {
         send_stub,
         audit_log,
     })
+}
+
+fn approval_target_for(
+    review_gate: &policy::ReviewGate,
+    message_id: entities::MessageId,
+    reservation_id: entities::reservation::Id,
+) -> entities::approval::Target {
+    match review_gate {
+        policy::ReviewGate::CustomerMessageApproval => {
+            entities::approval::Target::Message(message_id)
+        }
+        policy::ReviewGate::ManagerApproval => {
+            entities::approval::Target::Reservation(reservation_id)
+        }
+        policy::ReviewGate::MedicalDocumentReview
+        | policy::ReviewGate::BehaviorReview
+        | policy::ReviewGate::RefundOrDepositException => {
+            entities::approval::Target::Reservation(reservation_id)
+        }
+    }
 }
 
 impl agents::WorkflowAgent<daily_care_update::Input, daily_care_update::Output>
@@ -575,7 +598,7 @@ impl agents::WorkflowAgent<daily_care_update::Input, daily_care_update::Output>
 
 fn validate_request(request: &MvpPreviewRequest) -> Result<()> {
     if !matches!(
-        request.event.event_type,
+        request.event.event_type(),
         workflow::EventType::DailyNoteCreated | workflow::EventType::DailyUpdateNeeded
     ) {
         return Err(Error::UnsupportedWorkflowEvent);
@@ -585,7 +608,7 @@ fn validate_request(request: &MvpPreviewRequest) -> Result<()> {
     }
     if !request
         .event
-        .policy_context
+        .policy_context()
         .allowed_actions
         .iter()
         .any(|action| {
@@ -891,31 +914,31 @@ fn audit_log(
     event: &workflow::Event,
     message_id: entities::MessageId,
     approval_id: entities::approval::Id,
-) -> Result<Vec<entities::audit::Event>> {
+) -> Result<Vec<audit::Event>> {
     Ok(vec![
         audit_event(
-            event.occurred_at,
-            event.actor.clone(),
-            entities::audit::Subject::WorkflowEvent(event.event_id),
-            entities::audit::Action::WorkflowEventRecorded,
+            event.occurred_at(),
+            event.actor().clone(),
+            audit::Subject::WorkflowEvent(event.event_id()),
+            audit::Action::WorkflowEventRecorded,
             "daily-care-update workflow event recorded for MVP preview",
         )?,
         audit_event(
-            event.occurred_at,
+            event.occurred_at(),
             entities::ActorRef::Agent {
                 workflow: agent_name()?,
             },
-            entities::audit::Subject::Message(message_id),
-            entities::audit::Action::MessageApprovalRequested,
+            audit::Subject::Message(message_id),
+            audit::Action::MessageApprovalRequested,
             "daily care update owner-message draft created; no live send attempted",
         )?,
         audit_event(
-            event.occurred_at,
+            event.occurred_at(),
             entities::ActorRef::Agent {
                 workflow: agent_name()?,
             },
-            entities::audit::Subject::Approval(approval_id),
-            entities::audit::Action::ApprovalDecisionRecorded,
+            audit::Subject::Approval(approval_id),
+            audit::Action::ApprovalDecisionRecorded,
             "approval record opened for staff/manager review stub",
         )?,
     ])
@@ -924,16 +947,16 @@ fn audit_log(
 fn audit_event(
     at: DateTime<Utc>,
     actor: entities::ActorRef,
-    subject: entities::audit::Subject,
-    action: entities::audit::Action,
+    subject: audit::Subject,
+    action: audit::Action,
     summary: &str,
-) -> Result<entities::audit::Event> {
+) -> Result<audit::Event> {
     let mut metadata = BTreeMap::new();
     metadata.insert(
-        entities::audit::MetadataKey::try_new("summary").map_err(invalid_domain_value)?,
-        entities::audit::MetadataValue::try_new(summary).map_err(invalid_domain_value)?,
+        audit::MetadataKey::try_new("summary").map_err(invalid_domain_value)?,
+        audit::MetadataValue::try_new(summary).map_err(invalid_domain_value)?,
     );
-    Ok(entities::audit::Event {
+    Ok(audit::Event {
         at,
         actor,
         subject,
@@ -943,8 +966,8 @@ fn audit_event(
 }
 
 fn subject_reservation_id(event: &workflow::Event) -> entities::reservation::Id {
-    match event.subject {
-        workflow::Subject::Reservation(id) => id,
+    match event.subject() {
+        workflow::Subject::Reservation(id) => *id,
         _ => entities::reservation::Id(Uuid::nil()),
     }
 }
@@ -970,8 +993,8 @@ fn agent_name() -> Result<agent::Name> {
     agent::Name::try_new("daily-care-update").map_err(invalid_domain_value)
 }
 
-fn audit_action_label(label: &str) -> Result<entities::audit::ActionLabel> {
-    entities::audit::ActionLabel::try_new(label).map_err(invalid_domain_value)
+fn audit_action_label(label: &str) -> Result<audit::ActionLabel> {
+    audit::ActionLabel::try_new(label).map_err(invalid_domain_value)
 }
 
 fn flag_message(message: &str) -> Result<FlagMessage> {

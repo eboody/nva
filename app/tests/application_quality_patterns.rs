@@ -1,6 +1,23 @@
 use app::{agents, booking_triage, tools};
 use domain::{agent, entities, money, pet, policy, workflow};
 
+fn booking_triage_event() -> workflow::Event {
+    workflow::Event::try_new(
+        workflow::EventId(uuid::Uuid::nil()),
+        workflow::EventType::BookingTriageNeeded,
+        chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
+        entities::ActorRef::System,
+        entities::LocationId(uuid::Uuid::nil()),
+        workflow::Subject::Reservation(entities::reservation::Id(uuid::Uuid::nil())),
+        workflow::PolicyContext {
+            allowed_actions: vec![workflow::AllowedAction::ExtractStructuredData],
+            automation_level: policy::automation::Level::DraftOnly,
+            required_reviews: vec![policy::ReviewGate::ManagerApproval],
+        },
+    )
+    .expect("booking triage event fixture should match reservation subject")
+}
+
 #[test]
 fn booking_triage_uses_typestate_for_legal_readiness_progression() {
     let intake = booking_triage::Request::<booking_triage::Intake>::builder()
@@ -24,19 +41,7 @@ fn agent_prompt_packets_use_domain_event_contracts_from_application_boundary() {
     let packet = agents::AgentPromptPacket::builder()
         .workflow_name(agent::Name::try_new("booking-triage").unwrap())
         .goal(agent::Purpose::try_new("Prepare deterministic booking triage context.").unwrap())
-        .event(workflow::Event {
-            event_id: workflow::EventId(uuid::Uuid::nil()),
-            event_type: workflow::EventType::BookingTriageNeeded,
-            occurred_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
-            actor: entities::ActorRef::System,
-            location_id: entities::LocationId(uuid::Uuid::nil()),
-            subject: workflow::Subject::Reservation(entities::reservation::Id(uuid::Uuid::nil())),
-            policy_context: workflow::PolicyContext {
-                allowed_actions: vec![workflow::AllowedAction::ExtractStructuredData],
-                automation_level: policy::automation::Level::DraftOnly,
-                required_reviews: vec![policy::ReviewGate::ManagerApproval],
-            },
-        })
+        .event(booking_triage_event())
         .input(())
         .policies(vec![
             agent::PolicyInstruction::try_new("manager approval before customer-facing output")
@@ -219,19 +224,7 @@ fn application_prelude_consolidates_agent_and_tool_boundaries() {
     let spec: api::AgentPromptPacket<()> = api::AgentPromptPacket::builder()
         .workflow_name(agent::Name::try_new("booking-triage").unwrap())
         .goal(agent::Purpose::try_new("Evaluate deterministic booking policy.").unwrap())
-        .event(workflow::Event {
-            event_id: workflow::EventId(uuid::Uuid::nil()),
-            event_type: workflow::EventType::BookingTriageNeeded,
-            occurred_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
-            actor: entities::ActorRef::System,
-            location_id: entities::LocationId(uuid::Uuid::nil()),
-            subject: workflow::Subject::Reservation(entities::reservation::Id(uuid::Uuid::nil())),
-            policy_context: workflow::PolicyContext {
-                allowed_actions: vec![workflow::AllowedAction::ExtractStructuredData],
-                automation_level: policy::automation::Level::DraftOnly,
-                required_reviews: vec![policy::ReviewGate::ManagerApproval],
-            },
-        })
+        .event(booking_triage_event())
         .input(())
         .policies(vec![
             agent::PolicyInstruction::try_new("manager approval").unwrap(),

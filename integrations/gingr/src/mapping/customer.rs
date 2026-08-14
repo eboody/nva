@@ -1,7 +1,7 @@
 use crate::{endpoint, response};
 use domain::{customer, entities};
 
-use super::{Error, ProviderField, Result};
+use super::{Error, Promoted, ProviderField, Result, Version};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// Customer mapping candidate produced from Gingr owner contact fields.
@@ -19,7 +19,10 @@ pub struct ContactCandidate {
 }
 
 /// Extracts customer contact fields Gingr exposed for owner-to-domain mapping.
-pub fn contact_candidate(record: &response::OwnerRecord) -> Result<ContactCandidate> {
+pub fn contact_candidate(
+    record: &response::OwnerRecord,
+    provenance: domain::source::Provenance,
+) -> Result<Promoted<ContactCandidate>> {
     let full_name = record
         .display_name()
         .ok_or(Error::MissingRequiredProviderField {
@@ -56,11 +59,16 @@ pub fn contact_candidate(record: &response::OwnerRecord) -> Result<ContactCandid
         entities::ContactChannel::Portal
     };
 
-    Ok(ContactCandidate {
-        provider_owner_id: record.id,
-        full_name,
-        email,
-        mobile_phone,
-        preferred_contact,
-    })
+    Promoted::from_gingr_record(
+        ContactCandidate {
+            provider_owner_id: record.id,
+            full_name,
+            email,
+            mobile_phone,
+            preferred_contact,
+        },
+        record.id.to_string(),
+        provenance,
+        Version::CustomerContactV1,
+    )
 }

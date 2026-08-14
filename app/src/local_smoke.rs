@@ -535,7 +535,8 @@ fn build_vaccine_document(
             .virus_scan_status(document::VirusScanStatus::Passed)
             .pii_redaction_status(document::PiiRedactionStatus::NotRequired)
             .verification_status(document::Status::AwaitingReview)
-            .build(),
+            .build()
+            .map_err(invalid)?,
         record: entities::VaccineRecord::builder()
             .id(ids.vaccine_record_id)
             .pet_id(ids.pet_id)
@@ -545,7 +546,8 @@ fn build_vaccine_document(
             .effective_on(NaiveDate::from_ymd_opt(2026, 1, 1).expect("static date is valid"))
             .expires_on(NaiveDate::from_ymd_opt(2027, 1, 1).expect("static date is valid"))
             .review_gate(policy::ReviewGate::MedicalDocumentReview)
-            .build(),
+            .build()
+            .map_err(invalid)?,
     })
 }
 
@@ -597,16 +599,16 @@ fn build_daily_update_preview(
     pet_name: &pet::Name,
     occurred_at: DateTime<Utc>,
 ) -> Result<daily_update::MvpPreview> {
-    let event = workflow::Event {
-        event_id: workflow::EventId(Uuid::from_u128(0x0051_0CA1_0000_0000_0000_0000_0000_0010)),
-        event_type: workflow::EventType::DailyNoteCreated,
+    let event = workflow::Event::try_new(
+        workflow::EventId(Uuid::from_u128(0x0051_0CA1_0000_0000_0000_0000_0000_0010)),
+        workflow::EventType::DailyNoteCreated,
         occurred_at,
-        actor: entities::ActorRef::Staff {
+        entities::ActorRef::Staff {
             staff_id: entities::StaffId::try_new("local-smoke-kennel").map_err(invalid)?,
         },
-        location_id: ids.location_id,
-        subject: workflow::Subject::Reservation(ids.reservation_id),
-        policy_context: workflow::PolicyContext {
+        ids.location_id,
+        workflow::Subject::Reservation(ids.reservation_id),
+        workflow::PolicyContext {
             allowed_actions: vec![
                 workflow::AllowedAction::SummarizeCareNotes,
                 workflow::AllowedAction::DraftCustomerMessage,
@@ -614,7 +616,8 @@ fn build_daily_update_preview(
             automation_level: policy::automation::Level::DraftOnly,
             required_reviews: vec![policy::ReviewGate::CustomerMessageApproval],
         },
-    };
+    )
+    .map_err(invalid)?;
     let note = entities::CareNote::builder()
         .id(entities::care_note::Id(Uuid::from_u128(
             0x0051_0CA1_0000_0000_0000_0000_0000_0011,

@@ -36,7 +36,8 @@ fn operations_call_sites_keep_service_owner_modules_visible() {
         .source(staff::task::Source::Customer(entities::CustomerId(
             uuid::Uuid::nil(),
         )))
-        .build();
+        .build()
+        .unwrap();
 
     assert!(!task.requires_manager_attention());
 

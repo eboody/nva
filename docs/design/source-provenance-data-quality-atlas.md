@@ -448,7 +448,6 @@ workflow_links: ["vaccine-document", "daily-updates", "booking-triage", "data-qu
 source_paths:
   - "domain/src/document.rs"
   - "domain/src/audit.rs"
-  - "domain/src/entities.rs"
   - "app/src/data_quality_hygiene.rs"
   - "apps/api/src/http.rs"
 rustdoc_contracts:
@@ -500,10 +499,10 @@ Documents are adjacent to source facts, provenance, vaccine/care/incident record
 | --- | --- | --- |
 | Document domain contract | [`domain/src/document.rs`](../../domain/src/document.rs) | classifications, source routes, status states, virus scan, PII redaction, storage/hash values, blocked decisions |
 | Audit id contract | [`domain/src/audit.rs`](../../domain/src/audit.rs) | event id purpose: correlate source fact, workflow decision, review gate, and resulting action |
-| Domain entity audit records | [`domain/src/entities.rs`](../../domain/src/entities.rs) | document/audit entities and subject/action vocabulary |
+| Domain audit records | [`domain/src/audit.rs`](../../domain/src/audit.rs) | canonical event, subject, action, and validated extension-metadata vocabulary |
 | Data-quality workflow | [`app/src/data_quality_hygiene.rs`](../../app/src/data_quality_hygiene.rs) | sensitive/quarantined payload handling and blocked actions |
 | Safety citation map | [Source evidence map](../safety/source-evidence-map.md) | source evidence, review gates, and audit-friendly records |
-| Rustdoc/module paths | `domain::document::*`; `domain::audit::EventId`; `domain::entities::audit::*` | exact compiled contract once generated or published |
+| Rustdoc/module paths | `domain::document::*`; `domain::audit::{Event, EventId, Subject, Action}` | exact compiled contract once generated or published |
 
 ### Authoritative source system or human role
 

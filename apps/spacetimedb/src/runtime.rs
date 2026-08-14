@@ -90,11 +90,10 @@ impl HygieneCaptureRuntime {
             ctx.db.hygiene_audit_event().insert(row);
         }
         for row in blocked_rows {
-            ctx.db.blocked_action_attempt().insert(row.clone());
+            let row = ctx.db.blocked_action_attempt().insert(row);
             ctx.db
                 .blocked_action_notice()
-                .try_insert(codec::blocked_action_notice(&row))
-                .ok();
+                .insert(codec::blocked_action_notice(&row));
         }
 
         result

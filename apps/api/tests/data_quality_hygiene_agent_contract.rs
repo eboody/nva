@@ -8,11 +8,17 @@ async fn get_json_with_state(
     state: http::VaccineDocumentState,
     uri: &str,
 ) -> (axum_http::StatusCode, serde_json::Value) {
-    let response = http::router_with_state(state)
+    let response = http::router_with_test_auth_state(state)
         .oneshot(
             axum_http::request::Builder::new()
                 .method(axum_http::Method::GET)
                 .uri(uri)
+                .header("x-test-auth-actor-id", "general-manager-17")
+                .header("x-test-auth-role", "general_manager")
+                .header(
+                    "x-test-auth-location-id",
+                    "00c0ffee-0000-0000-0000-000000000001",
+                )
                 .body(Body::empty())
                 .expect("request builds"),
         )
@@ -36,12 +42,21 @@ async fn post_json_with_state(
     uri: &str,
     body: serde_json::Value,
 ) -> (axum_http::StatusCode, serde_json::Value) {
-    let response = http::router_with_state(state)
+    let actor_id = body["actor"]["id"].as_str().unwrap_or("front-desk-lead-17");
+    let builder = axum_http::request::Builder::new()
+        .method(axum_http::Method::POST)
+        .uri(uri)
+        .header(axum_http::header::CONTENT_TYPE, "application/json")
+        .header("x-test-auth-actor-id", actor_id)
+        .header("x-test-auth-role", "front_desk_lead")
+        .header(
+            "x-test-auth-location-id",
+            "00c0ffee-0000-0000-0000-000000000001",
+        );
+
+    let response = http::router_with_test_auth_state(state)
         .oneshot(
-            axum_http::request::Builder::new()
-                .method(axum_http::Method::POST)
-                .uri(uri)
-                .header(axum_http::header::CONTENT_TYPE, "application/json")
+            builder
                 .body(Body::from(body.to_string()))
                 .expect("request builds"),
         )
@@ -61,11 +76,17 @@ async fn post_json_with_state(
 }
 
 async fn get_json(uri: &str) -> (axum_http::StatusCode, serde_json::Value) {
-    let response = http::router()
+    let response = http::router_with_test_auth_state(http::VaccineDocumentState::default())
         .oneshot(
             axum_http::request::Builder::new()
                 .method(axum_http::Method::GET)
                 .uri(uri)
+                .header("x-test-auth-actor-id", "general-manager-17")
+                .header("x-test-auth-role", "general_manager")
+                .header(
+                    "x-test-auth-location-id",
+                    "00c0ffee-0000-0000-0000-000000000001",
+                )
                 .body(Body::empty())
                 .expect("request builds"),
         )
@@ -88,12 +109,21 @@ async fn post_json(
     uri: &str,
     body: serde_json::Value,
 ) -> (axum_http::StatusCode, serde_json::Value) {
-    let response = http::router()
+    let actor_id = body["actor"]["id"].as_str().unwrap_or("front-desk-lead-17");
+    let builder = axum_http::request::Builder::new()
+        .method(axum_http::Method::POST)
+        .uri(uri)
+        .header(axum_http::header::CONTENT_TYPE, "application/json")
+        .header("x-test-auth-actor-id", actor_id)
+        .header("x-test-auth-role", "front_desk_lead")
+        .header(
+            "x-test-auth-location-id",
+            "00c0ffee-0000-0000-0000-000000000001",
+        );
+
+    let response = http::router_with_test_auth_state(http::VaccineDocumentState::default())
         .oneshot(
-            axum_http::request::Builder::new()
-                .method(axum_http::Method::POST)
-                .uri(uri)
-                .header(axum_http::header::CONTENT_TYPE, "application/json")
+            builder
                 .body(Body::from(body.to_string()))
                 .expect("request builds"),
         )
@@ -223,6 +253,43 @@ async fn data_quality_hygiene_drafts_reject_blocked_side_effects_and_ambiguity_h
 }
 
 #[tokio::test]
+async fn data_quality_hygiene_drafts_reject_provenance_not_bound_to_the_action() {
+    let context = data_quality_context().await;
+    let action = &context["hygiene_actions"][0];
+    let body = json!({
+        "context_packet_id": context["audit"]["context_packet_id"],
+        "correlation_id": context["audit"]["correlation_id"],
+        "actions": [{
+            "action_id": action["id"],
+            "kind": action["kind"],
+            "source_refs": [{
+                "system": "unrelated",
+                "record_type": "invented_record",
+                "record_id": "invented-1",
+                "observed_at": "2026-06-17T00:00:00Z",
+                "adapter_version": "invented-adapter-v1"
+            }],
+            "issue_refs": ["invented-issue"],
+            "review_gates": action["review_gates"],
+            "requested_side_effects": [],
+            "attempted_ambiguity_resolution": false
+        }]
+    });
+
+    let (status, payload) = post_json("/agent/drafts/data-quality-hygiene", body).await;
+
+    assert_eq!(status, axum_http::StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(payload["accepted_actions"].as_array().unwrap().len(), 0);
+    assert_eq!(
+        payload["rejected_actions"][0]["reasons"],
+        json!([
+            "issue_refs_do_not_match_action",
+            "source_refs_do_not_match_action"
+        ])
+    );
+}
+
+#[tokio::test]
 async fn data_quality_hygiene_outcome_capture_records_labor_evidence_without_provider_writes() {
     let context = data_quality_context().await;
     let action = &context["hygiene_actions"][0];
@@ -266,9 +333,18 @@ async fn data_quality_hygiene_outcome_capture_records_labor_evidence_without_pro
         persisted_source_ref["record_id"],
         action_source_ref["record_id"]
     );
-    assert_eq!(persisted_source_ref["record_type"], "source_record");
-    assert!(persisted_source_ref["observed_at"].is_string());
-    assert!(persisted_source_ref["adapter_version"].is_string());
+    assert_eq!(
+        persisted_source_ref["record_type"],
+        action_source_ref["record_type"]
+    );
+    assert_eq!(
+        persisted_source_ref["observed_at"],
+        action_source_ref["observed_at"]
+    );
+    assert_eq!(
+        persisted_source_ref["adapter_version"],
+        action_source_ref["adapter_version"]
+    );
     assert_eq!(
         payload["outcome_record"]["issue_refs"],
         action["issue_refs"]
@@ -292,7 +368,7 @@ async fn data_quality_hygiene_outcome_capture_records_labor_evidence_without_pro
     );
     assert_eq!(
         payload["observability"]["what_happened"],
-        "reviewed_outcome_recorded_and_internal_outbox_candidate_created"
+        "review_pending_no_outbox_authority"
     );
     assert_eq!(
         payload["observability"]["what_was_blocked"],
@@ -361,20 +437,13 @@ async fn data_quality_hygiene_outcome_capture_records_labor_evidence_without_pro
     );
     assert_eq!(payload["storage_projection_proof"]["audit_event_count"], 2);
     assert_eq!(
-        payload["storage_projection_proof"]["outbox_candidate"]["topic"],
-        "internal.data_quality_hygiene.reviewed_handoff"
+        payload["storage_projection_proof"]["outbox_candidate"],
+        serde_json::Value::Null,
+        "a reviewed outcome is historical evidence, not manager approval or outbox authority"
     );
     assert_eq!(
-        payload["storage_projection_proof"]["outbox_candidate"]["internal_handoff_only"],
-        true
-    );
-    assert_eq!(
-        payload["storage_projection_proof"]["outbox_candidate"]["live_delivery_allowed"],
-        false
-    );
-    assert_eq!(
-        payload["storage_projection_proof"]["outbox_candidate"]["status"],
-        "pending"
+        payload["observability"]["what_happened"],
+        "review_pending_no_outbox_authority"
     );
 }
 
@@ -525,11 +594,11 @@ async fn data_quality_hygiene_outcome_summary_reports_reviewed_minutes_and_prove
     assert_eq!(status, axum_http::StatusCode::OK);
     assert_eq!(
         metrics_payload["local_runtime_counters"]["data_quality_hygiene_outbox_candidate_count"],
-        1
+        0
     );
     assert_eq!(
         metrics_payload["local_runtime_counters"]["data_quality_hygiene_review_gated_outbox_count"],
-        1
+        0
     );
     assert_eq!(
         metrics_payload["local_runtime_counters"]["production_queue_adapter"],

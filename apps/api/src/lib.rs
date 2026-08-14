@@ -14,5 +14,11 @@
 /// Axum routes that expose review-gated workflows and audit-friendly DTOs.
 pub mod http;
 
+/// Trusted deterministic actor context and app-facing mutation authorization seam.
+mod authentication;
+
+/// Typed public API failures and their single safe response conversion.
+pub mod error;
+
 /// Product-owned public DTO/schema contracts for the operations API v0 surface.
 pub mod public_contract;

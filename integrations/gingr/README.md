@@ -49,7 +49,7 @@ Non-coder glossary help: [`integrations/gingr`](../../docs/glossary-architecture
 - [`src/dto/mod.rs`](./src/dto/mod.rs) collects provider DTO modules and records documented gaps with `gingr::dto::ProviderSurface::NoDocumentedServiceDto`.
 - [`src/dto/retail.rs`](./src/dto/retail.rs) owns the documented retail item shape `gingr::dto::retail::Item` and provider id wrapper `ItemId`; unknown provider fields are retained on `Item::unknown`.
 - [`src/dto/grooming.rs`](./src/dto/grooming.rs) and [`src/dto/training.rs`](./src/dto/training.rs) currently return provider-surface gap markers for `get_services_by_type`; they do not define service DTOs that are not present in source.
-- [`src/mapping/mod.rs`](./src/mapping/mod.rs) owns mapping errors and `ProviderField` classifications for provider fields that must be present or valid before promotion.
+- [`src/mapping/mod.rs`](./src/mapping/mod.rs) owns `Promoted`, mapping `Version`, mapping errors, and `ProviderField` classifications. Verified customer, pet, and retail promotion now binds the candidate to matching `RecordRef`/provenance and a mapping version before it can leave the adapter.
 - [`src/mapping/customer.rs`](./src/mapping/customer.rs) promotes `response::OwnerRecord` into `mapping::customer::ContactCandidate` with `domain::customer::Name`, optional `domain::customer::Email`/`Phone`, and a derived `domain::entities::ContactChannel`.
 - [`src/mapping/pet.rs`](./src/mapping/pet.rs) promotes `response::AnimalRecord` into `mapping::pet::NameCandidate` with `domain::pet::Name`.
 - [`src/mapping/retail.rs`](./src/mapping/retail.rs) promotes `dto::retail::Item` into `mapping::retail::ProductCandidate` with `domain::retail::product::Name`, `domain::retail::Product`, and `domain::retail::OfferingStatus`.

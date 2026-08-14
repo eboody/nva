@@ -128,7 +128,7 @@ run_event_stream_fallback() {
   log "[seed_demo_actor] Alice, Sam, Morgan role/location scopes loaded."
   log "[seed_demo_issue] dq-action-location-101 inserted by fixture reducer."
   emit staff101 101 "Alice sees Location 101 row: dq-action-location-101 status=pending_staff_review source=gingr:reservation:abc" "ALICE_UPDATE_SEEN"
-  emit manager101 101 "Morgan sees manager-gated Location 101 row: dq-action-location-101 requires_manager_approval=true" "MORGAN_ACTION_SEEN"
+  emit manager101 101 "Morgan sees manager-gated Location 101 row: dq-action-location-101 required_review_gates=[manager_approval]" "MORGAN_ACTION_SEEN"
   sleep 0.5
 
   log "[Sam visibility check] Sam subscribes only to Location 202; Location 101 row is not delivered."
@@ -151,7 +151,7 @@ run_event_stream_fallback() {
   sleep 0.5
 
   log "[record_manager_outcome as Morgan] Manager records outcome; audit/outcome read models update."
-  emit manager101 101 "Morgan live update: dq-action-location-101 status=manager_approved outcome=source_fact_was_wrong" "MORGAN_ACTION_SEEN"
+  emit manager101 101 "Morgan live update: dq-action-location-101 status=ready_for_outcome outcome=source_fact_was_wrong" "MORGAN_ACTION_SEEN"
   emit audit 101 "hygiene_audit_event action=dq-action-location-101 actor=morgan blocked_actions=live_customer_provider_side_effects_blocked" "AUDIT_OUTCOME_EVIDENCE"
   emit audit 101 "hygiene_outcome_card action=dq-action-location-101 outcome=SourceFactWasWrong live_delivery_allowed=false" "AUDIT_OUTCOME_EVIDENCE"
   sleep 0.5

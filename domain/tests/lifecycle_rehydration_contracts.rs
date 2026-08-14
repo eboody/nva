@@ -1,5 +1,5 @@
 use chrono::{TimeZone, Utc};
-use domain::{entities, message, money, payment, policy, workflow};
+use domain::{document, entities, incident, message, money, payment, policy, vaccine, workflow};
 use uuid::Uuid;
 
 fn reservation_id(value: u128) -> entities::reservation::Id {
@@ -38,6 +38,138 @@ fn paid_deposit() -> payment::Deposit {
 }
 
 #[test]
+fn reservation_builder_uses_same_invariants_as_persisted_rehydration() {
+    assert!(
+        entities::Reservation::builder()
+            .id(reservation_id(99))
+            .location_id(location_id())
+            .customer_id(customer_id())
+            .pet_id(pet_id())
+            .service(entities::ServiceKind::Boarding)
+            .status(entities::reservation::Status::Confirmed)
+            .starts_at(starts_at())
+            .ends_at(ends_at())
+            .deposit(payment::Deposit::required(
+                money::Money::usd(5_000).unwrap(),
+            ))
+            .source(entities::reservation::Source::Portal(
+                entities::PortalProvider::Gingr,
+            ))
+            .build()
+            .is_ok()
+    );
+
+    let invalid_period = entities::Reservation::builder()
+        .id(reservation_id(100))
+        .location_id(location_id())
+        .customer_id(customer_id())
+        .pet_id(pet_id())
+        .service(entities::ServiceKind::Boarding)
+        .status(entities::reservation::Status::Confirmed)
+        .starts_at(ends_at())
+        .ends_at(starts_at())
+        .deposit(payment::Deposit::required(
+            money::Money::usd(5_000).unwrap(),
+        ))
+        .source(entities::reservation::Source::Portal(
+            entities::PortalProvider::Gingr,
+        ))
+        .build()
+        .expect_err("ordinary construction must reject impossible reservation intervals");
+    assert_eq!(
+        invalid_period,
+        entities::reservation::Error::StayIntervalMustEndAfterStart
+    );
+
+    let empty_party = entities::Reservation::builder()
+        .id(reservation_id(104))
+        .location_id(location_id())
+        .customer_id(customer_id())
+        .service(entities::ServiceKind::Boarding)
+        .status(entities::reservation::Status::Confirmed)
+        .starts_at(starts_at())
+        .ends_at(ends_at())
+        .deposit(payment::Deposit::required(
+            money::Money::usd(5_000).unwrap(),
+        ))
+        .source(entities::reservation::Source::Portal(
+            entities::PortalProvider::Gingr,
+        ))
+        .build()
+        .expect_err("ordinary construction must reject reservations without a pet party");
+    assert_eq!(empty_party, entities::reservation::Error::PetPartyRequired);
+
+    let duplicate_party = entities::Reservation::builder()
+        .id(reservation_id(105))
+        .location_id(location_id())
+        .customer_id(customer_id())
+        .pet_id(pet_id())
+        .pet_id(pet_id())
+        .service(entities::ServiceKind::Boarding)
+        .status(entities::reservation::Status::Confirmed)
+        .starts_at(starts_at())
+        .ends_at(ends_at())
+        .deposit(payment::Deposit::required(
+            money::Money::usd(5_000).unwrap(),
+        ))
+        .source(entities::reservation::Source::Portal(
+            entities::PortalProvider::Gingr,
+        ))
+        .build()
+        .expect_err("ordinary construction must reject duplicate pet participation");
+    assert_eq!(
+        duplicate_party,
+        entities::reservation::Error::DuplicatePet { pet_id: pet_id() }
+    );
+
+    let paid_deposit_stop = entities::Reservation::builder()
+        .id(reservation_id(106))
+        .location_id(location_id())
+        .customer_id(customer_id())
+        .pet_id(pet_id())
+        .service(entities::ServiceKind::Boarding)
+        .status(entities::reservation::Status::Confirmed)
+        .starts_at(starts_at())
+        .ends_at(ends_at())
+        .deposit(paid_deposit())
+        .source(entities::reservation::Source::Portal(
+            entities::PortalProvider::Gingr,
+        ))
+        .hard_stop(entities::HardStop::DepositRequired)
+        .build()
+        .expect_err(
+            "ordinary construction must reject deposit-required stops after deposit payment",
+        );
+    assert_eq!(
+        paid_deposit_stop,
+        entities::reservation::Error::DepositRequiredHardStopNeedsCollectibleDeposit
+    );
+
+    let terminal_stop = entities::Reservation::builder()
+        .id(reservation_id(107))
+        .location_id(location_id())
+        .customer_id(customer_id())
+        .pet_id(pet_id())
+        .service(entities::ServiceKind::Boarding)
+        .status(entities::reservation::Status::CheckedOut)
+        .starts_at(starts_at())
+        .ends_at(ends_at())
+        .deposit(paid_deposit())
+        .source(entities::reservation::Source::Portal(
+            entities::PortalProvider::Gingr,
+        ))
+        .hard_stop(entities::HardStop::MedicalOrMedicationReviewRequired)
+        .build()
+        .expect_err(
+            "ordinary construction must reject terminal reservations with active hard stops",
+        );
+    assert_eq!(
+        terminal_stop,
+        entities::reservation::Error::TerminalReservationCannotCarryActiveHardStops
+    );
+}
+
+#[test]
 fn persisted_deposit_rejects_paid_status_without_payment_reference() {
     let impossible = serde_json::json!({
         "amount": { "minor_units": 5000, "currency": "Usd" },
@@ -58,41 +190,34 @@ fn persisted_deposit_rejects_paid_status_without_payment_reference() {
 
 #[test]
 fn persisted_reservation_rejects_invalid_periods_and_contradictory_deposit_hard_stops() {
-    let invalid_period = entities::Reservation {
-        id: reservation_id(100),
-        location_id: location_id(),
-        customer_id: customer_id(),
-        pet_ids: vec![pet_id()],
-        service: entities::ServiceKind::Boarding,
-        status: entities::reservation::Status::Confirmed,
-        starts_at: ends_at(),
-        ends_at: starts_at(),
-        deposit: Some(payment::Deposit::required(
-            money::Money::usd(5_000).unwrap(),
-        )),
-        source: entities::reservation::Source::Portal(entities::PortalProvider::Gingr),
-        requested_add_ons: Vec::new(),
-        hard_stops: Vec::new(),
-    };
-    let json = serde_json::to_string(&invalid_period).unwrap();
-    assert!(serde_json::from_str::<entities::Reservation>(&json).is_err());
+    let invalid_period = serde_json::json!({
+        "id": reservation_id(100),
+        "location_id": location_id(),
+        "customer_id": customer_id(),
+        "pet_ids": [pet_id()],
+        "service": "Boarding",
+        "status": "Confirmed",
+        "starts_at": ends_at(),
+        "ends_at": starts_at(),
+        "deposit": payment::Deposit::required(money::Money::usd(5_000).unwrap()),
+        "source": { "Portal": "Gingr" }
+    });
+    assert!(serde_json::from_value::<entities::Reservation>(invalid_period).is_err());
 
-    let impossible_hard_stop = entities::Reservation {
-        id: reservation_id(101),
-        location_id: location_id(),
-        customer_id: customer_id(),
-        pet_ids: vec![pet_id()],
-        service: entities::ServiceKind::Boarding,
-        status: entities::reservation::Status::Confirmed,
-        starts_at: starts_at(),
-        ends_at: ends_at(),
-        deposit: Some(paid_deposit()),
-        source: entities::reservation::Source::Portal(entities::PortalProvider::Gingr),
-        requested_add_ons: Vec::new(),
-        hard_stops: vec![entities::HardStop::DepositRequired],
-    };
-    let json = serde_json::to_string(&impossible_hard_stop).unwrap();
-    let error = serde_json::from_str::<entities::Reservation>(&json)
+    let impossible_hard_stop = serde_json::json!({
+        "id": reservation_id(101),
+        "location_id": location_id(),
+        "customer_id": customer_id(),
+        "pet_ids": [pet_id()],
+        "service": "Boarding",
+        "status": "Confirmed",
+        "starts_at": starts_at(),
+        "ends_at": ends_at(),
+        "deposit": paid_deposit(),
+        "source": { "Portal": "Gingr" },
+        "hard_stops": ["DepositRequired"]
+    });
+    let error = serde_json::from_value::<entities::Reservation>(impossible_hard_stop)
         .expect_err("paid deposits cannot rehydrate with a deposit-required hard stop");
 
     assert!(
@@ -101,93 +226,122 @@ fn persisted_reservation_rejects_invalid_periods_and_contradictory_deposit_hard_
             .contains("deposit-required hard stop requires a collectible deposit")
     );
 
-    let empty_pet_relationship = entities::Reservation {
-        id: reservation_id(102),
-        location_id: location_id(),
-        customer_id: customer_id(),
-        pet_ids: Vec::new(),
-        service: entities::ServiceKind::Boarding,
-        status: entities::reservation::Status::Confirmed,
-        starts_at: starts_at(),
-        ends_at: ends_at(),
-        deposit: Some(payment::Deposit::required(
-            money::Money::usd(5_000).unwrap(),
-        )),
-        source: entities::reservation::Source::Portal(entities::PortalProvider::Gingr),
-        requested_add_ons: Vec::new(),
-        hard_stops: Vec::new(),
-    };
-    let json = serde_json::to_string(&empty_pet_relationship).unwrap();
-    assert!(serde_json::from_str::<entities::Reservation>(&json).is_err());
+    let empty_pet_relationship = serde_json::json!({
+        "id": reservation_id(102),
+        "location_id": location_id(),
+        "customer_id": customer_id(),
+        "pet_ids": [],
+        "service": "Boarding",
+        "status": "Confirmed",
+        "starts_at": starts_at(),
+        "ends_at": ends_at(),
+        "deposit": payment::Deposit::required(money::Money::usd(5_000).unwrap()),
+        "source": { "Portal": "Gingr" }
+    });
+    assert!(serde_json::from_value::<entities::Reservation>(empty_pet_relationship).is_err());
 
-    let terminal_with_active_hard_stop = entities::Reservation {
-        id: reservation_id(103),
-        location_id: location_id(),
-        customer_id: customer_id(),
-        pet_ids: vec![pet_id()],
-        service: entities::ServiceKind::Boarding,
-        status: entities::reservation::Status::CheckedOut,
-        starts_at: starts_at(),
-        ends_at: ends_at(),
-        deposit: Some(paid_deposit()),
-        source: entities::reservation::Source::Portal(entities::PortalProvider::Gingr),
-        requested_add_ons: Vec::new(),
-        hard_stops: vec![entities::HardStop::MedicalOrMedicationReviewRequired],
-    };
-    let json = serde_json::to_string(&terminal_with_active_hard_stop).unwrap();
-    assert!(serde_json::from_str::<entities::Reservation>(&json).is_err());
+    let terminal_with_active_hard_stop = serde_json::json!({
+        "id": reservation_id(103),
+        "location_id": location_id(),
+        "customer_id": customer_id(),
+        "pet_ids": [pet_id()],
+        "service": "Boarding",
+        "status": "CheckedOut",
+        "starts_at": starts_at(),
+        "ends_at": ends_at(),
+        "deposit": paid_deposit(),
+        "source": { "Portal": "Gingr" },
+        "hard_stops": ["MedicalOrMedicationReviewRequired"]
+    });
+    assert!(
+        serde_json::from_value::<entities::Reservation>(terminal_with_active_hard_stop).is_err()
+    );
 }
 
 #[test]
 fn persisted_message_rejects_delivered_drafts_and_queue_states_without_review_gate() {
-    let delivered_draft = entities::Message {
-        id: entities::MessageId(Uuid::from_u128(200)),
-        subject: entities::MessageSubject::Reservation(reservation_id(100)),
-        direction: message::Direction::OutboundDraft,
-        channel: message::Channel::Email,
-        status: message::Status::Delivered,
-        body_ref: message::BodyRef::try_new("message-body/evidence-1").unwrap(),
-        approval_gate: Some(policy::ReviewGate::CustomerMessageApproval),
-        audit_refs: Vec::new(),
-    };
-    let json = serde_json::to_string(&delivered_draft).unwrap();
-    assert!(serde_json::from_str::<entities::Message>(&json).is_err());
+    let delivered_draft = serde_json::json!({
+        "id": entities::MessageId(Uuid::from_u128(200)),
+        "subject": { "Reservation": reservation_id(100) },
+        "direction": "OutboundDraft",
+        "channel": "Email",
+        "status": "Delivered",
+        "body_ref": "message-body/evidence-1",
+        "approval_gate": "CustomerMessageApproval",
+        "audit_refs": []
+    });
+    assert!(serde_json::from_value::<entities::Message>(delivered_draft).is_err());
 
-    let approved_without_gate = entities::Message {
-        id: entities::MessageId(Uuid::from_u128(201)),
-        subject: entities::MessageSubject::Reservation(reservation_id(100)),
-        direction: message::Direction::OutboundQueued,
-        channel: message::Channel::Email,
-        status: message::Status::ApprovedToQueue,
-        body_ref: message::BodyRef::try_new("message-body/evidence-2").unwrap(),
-        approval_gate: None,
-        audit_refs: Vec::new(),
-    };
-    let json = serde_json::to_string(&approved_without_gate).unwrap();
-    let error = serde_json::from_str::<entities::Message>(&json)
+    let approved_without_gate = serde_json::json!({
+        "id": entities::MessageId(Uuid::from_u128(201)),
+        "subject": { "Reservation": reservation_id(100) },
+        "direction": "OutboundQueued",
+        "channel": "Email",
+        "status": "ApprovedToQueue",
+        "body_ref": "message-body/evidence-2",
+        "approval_gate": null,
+        "audit_refs": []
+    });
+    let error = serde_json::from_value::<entities::Message>(approved_without_gate)
         .expect_err("approved-to-queue persisted messages need review-gate evidence");
 
     assert!(
         error
             .to_string()
-            .contains("queued or approved outbound message requires approval gate evidence")
+            .contains("queued or approved outbound message requires approval decision evidence")
+    );
+
+    let queued_with_gate_but_without_decision_evidence = serde_json::json!({
+        "id": entities::MessageId(Uuid::from_u128(202)),
+        "subject": { "Reservation": reservation_id(100) },
+        "direction": "OutboundQueued",
+        "channel": "Email",
+        "status": "Queued",
+        "body_ref": "message-body/evidence-without-decision",
+        "approval_gate": "CustomerMessageApproval",
+        "audit_refs": []
+    });
+    assert!(
+        serde_json::from_value::<entities::Message>(queued_with_gate_but_without_decision_evidence)
+            .is_err(),
+        "a review-gate label alone must not manufacture historical approval evidence"
     );
 }
 
 #[test]
 fn persisted_message_rejects_sent_direction_with_draft_or_queue_status() {
-    let sent_but_still_draft = entities::Message {
-        id: entities::MessageId(Uuid::from_u128(202)),
-        subject: entities::MessageSubject::Reservation(reservation_id(100)),
-        direction: message::Direction::OutboundSent,
-        channel: message::Channel::Email,
-        status: message::Status::DraftCreated,
-        body_ref: message::BodyRef::try_new("message-body/evidence-3").unwrap(),
-        approval_gate: Some(policy::ReviewGate::CustomerMessageApproval),
-        audit_refs: Vec::new(),
-    };
-    let json = serde_json::to_string(&sent_but_still_draft).unwrap();
-    let error = serde_json::from_str::<entities::Message>(&json)
+    let message_id = entities::MessageId(Uuid::from_u128(202));
+    let approval = entities::approval::Record::builder()
+        .id(entities::approval::Id(Uuid::from_u128(205)))
+        .target(entities::approval::Target::Message(message_id))
+        .gate(policy::ReviewGate::CustomerMessageApproval)
+        .lifecycle(entities::approval::Lifecycle::Approved {
+            decided_by: actor(),
+            decided_at: starts_at(),
+        })
+        .requested_by(actor())
+        .requested_at(starts_at())
+        .build()
+        .unwrap();
+    let (_, authorization) = entities::message_record::authorize_queue(
+        &approval,
+        message_id,
+        policy::ReviewGate::CustomerMessageApproval,
+    )
+    .unwrap();
+    let queued = entities::Message::approval_requested_outbound_draft(
+        message_id,
+        entities::MessageSubject::Reservation(reservation_id(100)),
+        message::Channel::Email,
+        message::BodyRef::try_new("message-body/evidence-3").unwrap(),
+        policy::ReviewGate::CustomerMessageApproval,
+    )
+    .queue_with(authorization)
+    .unwrap();
+    let mut sent_but_still_draft = serde_json::to_value(queued).unwrap();
+    sent_but_still_draft["direction"] = serde_json::json!("OutboundSent");
+    sent_but_still_draft["status"] = serde_json::json!("DraftCreated");
+    let error = serde_json::from_value::<entities::Message>(sent_but_still_draft)
         .expect_err("sent messages cannot rehydrate as draft lifecycle states");
 
     assert!(
@@ -198,22 +352,92 @@ fn persisted_message_rejects_sent_direction_with_draft_or_queue_status() {
 }
 
 #[test]
-fn persisted_workflow_event_rejects_event_type_subject_mismatches() {
-    let mismatched = workflow::Event {
-        event_id: workflow::EventId(Uuid::from_u128(300)),
-        event_type: workflow::EventType::CheckoutCompleted,
-        occurred_at: starts_at(),
-        actor: actor(),
-        location_id: location_id(),
-        subject: workflow::Subject::Customer(customer_id()),
-        policy_context: workflow::PolicyContext {
-            allowed_actions: vec![workflow::AllowedAction::ReadEntities],
-            automation_level: policy::automation::Level::DraftOnly,
-            required_reviews: vec![policy::ReviewGate::ManagerApproval],
-        },
+fn message_queue_capability_is_opaque_and_separate_from_serializable_approval_evidence() {
+    let message_id = entities::MessageId(Uuid::from_u128(203));
+    let approval_id = entities::approval::Id(Uuid::from_u128(204));
+    let decided_by = entities::ActorRef::Manager {
+        manager_id: entities::ManagerId::try_new("manager-queue-approval").unwrap(),
     };
-    let json = serde_json::to_string(&mismatched).unwrap();
-    let error = serde_json::from_str::<workflow::Event>(&json)
+    let approval = entities::approval::Record::builder()
+        .id(approval_id)
+        .target(entities::approval::Target::Message(message_id))
+        .gate(policy::ReviewGate::CustomerMessageApproval)
+        .lifecycle(entities::approval::Lifecycle::Approved {
+            decided_by,
+            decided_at: starts_at(),
+        })
+        .requested_by(actor())
+        .requested_at(starts_at())
+        .build()
+        .unwrap();
+
+    let (evidence, authorization) = entities::message_record::authorize_queue(
+        &approval,
+        message_id,
+        policy::ReviewGate::CustomerMessageApproval,
+    )
+    .expect("approved message record should produce serializable approval evidence");
+    let evidence_json = serde_json::to_string(&evidence).unwrap();
+    assert!(evidence_json.contains("CustomerMessageApproval"));
+
+    let queued = entities::Message::approval_requested_outbound_draft(
+        message_id,
+        entities::MessageSubject::Reservation(reservation_id(100)),
+        message::Channel::Email,
+        message::BodyRef::try_new("message-body/evidence-4").unwrap(),
+        policy::ReviewGate::CustomerMessageApproval,
+    )
+    .queue_with(authorization)
+    .expect("only an opaque queue capability may move approved evidence into the queue lifecycle");
+
+    assert_eq!(queued.direction(), message::Direction::OutboundQueued);
+    assert_eq!(queued.status(), message::Status::Queued);
+    assert_eq!(
+        queued.approval_gate(),
+        Some(policy::ReviewGate::CustomerMessageApproval)
+    );
+
+    let persisted = serde_json::to_value(&queued).unwrap();
+    assert!(persisted.get("approval_gate").is_some());
+    assert_eq!(
+        persisted["approval_evidence"]["approval_id"],
+        serde_json::json!(approval_id)
+    );
+    assert!(persisted.get("queue_capability").is_none());
+    let rehydrated = serde_json::from_value::<entities::Message>(persisted).unwrap();
+    let reserialized = serde_json::to_value(rehydrated).unwrap();
+    assert_eq!(
+        reserialized["approval_evidence"]["approval_id"],
+        serde_json::json!(approval_id)
+    );
+
+    let mut transplanted = reserialized;
+    transplanted["id"] = serde_json::json!(entities::MessageId(Uuid::from_u128(999)));
+    let error = serde_json::from_value::<entities::Message>(transplanted)
+        .expect_err("approval evidence for one message cannot authorize another message");
+    let error_text = error.to_string();
+    assert!(
+        error_text.contains("message approval evidence must be an approved decision"),
+        "unexpected rehydration error: {error_text}"
+    );
+}
+
+#[test]
+fn persisted_workflow_event_rejects_event_type_subject_mismatches() {
+    let mismatched = serde_json::json!({
+        "event_id": workflow::EventId(Uuid::from_u128(300)),
+        "event_type": "CheckoutCompleted",
+        "occurred_at": starts_at(),
+        "actor": actor(),
+        "location_id": location_id(),
+        "subject": { "Customer": customer_id() },
+        "policy_context": {
+            "allowed_actions": ["ReadEntities"],
+            "automation_level": "DraftOnly",
+            "required_reviews": ["ManagerApproval"]
+        }
+    });
+    let error = serde_json::from_value::<workflow::Event>(mismatched)
         .expect_err("checkout workflow events must rehydrate only against reservation subjects");
 
     assert!(
@@ -221,4 +445,266 @@ fn persisted_workflow_event_rejects_event_type_subject_mismatches() {
             .to_string()
             .contains("workflow event subject does not match event type")
     );
+
+    let error = workflow::Event::try_new(
+        workflow::EventId(Uuid::from_u128(301)),
+        workflow::EventType::CheckoutCompleted,
+        starts_at(),
+        actor(),
+        location_id(),
+        workflow::Subject::Customer(customer_id()),
+        workflow::PolicyContext {
+            allowed_actions: vec![workflow::AllowedAction::ReadEntities],
+            automation_level: policy::automation::Level::DraftOnly,
+            required_reviews: vec![policy::ReviewGate::ManagerApproval],
+        },
+    )
+    .expect_err("ordinary event construction must share persisted subject/type validation");
+
+    assert_eq!(error, workflow::EventError::EventTypeSubjectMismatch);
+}
+
+#[test]
+fn persisted_workflow_results_reject_status_reason_output_mismatches() {
+    let needs_review_without_reason = serde_json::json!({
+        "status": "NeedsHumanReview",
+        "summary": "Vaccine proof needs manager review.",
+        "structured_output": null,
+        "recommended_actions": [],
+        "risk_flags": [],
+        "verification": ["Matched vaccine policy gate."],
+        "human_review_reason": null
+    });
+
+    let error =
+        serde_json::from_value::<workflow::Result<serde_json::Value>>(needs_review_without_reason)
+            .expect_err("review-required workflow results must carry review evidence");
+
+    assert!(
+        error
+            .to_string()
+            .contains("workflow outcome needing human review requires review reason evidence")
+    );
+
+    let completed_with_review_reason = serde_json::json!({
+        "status": "Completed",
+        "summary": "Daily care update draft prepared.",
+        "structured_output": { "draft_id": "daily-update-1" },
+        "recommended_actions": [],
+        "risk_flags": [],
+        "verification": ["Staff notes were transformed into a customer-safe draft."],
+        "human_review_reason": "manager should still inspect it"
+    });
+
+    let error =
+        serde_json::from_value::<workflow::Result<serde_json::Value>>(completed_with_review_reason)
+            .expect_err("completed workflow results must not smuggle review-stop reasons");
+
+    assert!(
+        error
+            .to_string()
+            .contains("completed workflow outcome must not carry human review reason")
+    );
+
+    let review_required_with_completed_output = serde_json::json!({
+        "status": "NeedsHumanReview",
+        "summary": "Vaccine proof needs manager review.",
+        "structured_output": { "draft_id": "must-not-survive-rehydration" },
+        "recommended_actions": [],
+        "risk_flags": [],
+        "verification": ["Matched vaccine policy gate."],
+        "human_review_reason": "manager approval is still required"
+    });
+
+    let error = serde_json::from_value::<workflow::Result<serde_json::Value>>(
+        review_required_with_completed_output,
+    )
+    .expect_err("non-completed workflow results must reject completed output evidence");
+
+    assert!(
+        error
+            .to_string()
+            .contains("non-completed workflow outcome must not carry structured output")
+    );
+}
+
+#[test]
+fn document_vaccine_incident_approval_and_task_rehydration_reject_relationship_bypasses() {
+    let unsafe_verified_document = serde_json::json!({
+        "id": entities::DocumentId(Uuid::from_u128(400)),
+        "location_id": location_id(),
+        "subject": { "Pet": pet_id() },
+        "classification": "VaccineProof",
+        "source": "CustomerUpload",
+        "uploaded_by_actor": actor(),
+        "uploaded_at": starts_at(),
+        "original_file": original_file_json(),
+        "storage_ref": storage_ref_json(),
+        "virus_scan_status": "Pending",
+        "pii_redaction_status": "Redacted",
+        "verification_status": "Verified",
+        "audit_refs": []
+    });
+    let error = serde_json::from_value::<entities::Document>(unsafe_verified_document)
+        .expect_err("verified documents must require passed scan and safe redaction evidence");
+    assert!(
+        error
+            .to_string()
+            .contains("verified document requires passed virus scan")
+    );
+
+    let vaccine_expired_without_expiration = serde_json::json!({
+        "id": entities::VaccineRecordId(Uuid::from_u128(401)),
+        "pet_id": pet_id(),
+        "vaccine_name": "Rabies",
+        "source_document_id": entities::DocumentId(Uuid::from_u128(400)),
+        "status": "VerifiedExpired",
+        "effective_on": "2026-01-01",
+        "expires_on": null,
+        "review_gate": "MedicalDocumentReview",
+        "audit_refs": []
+    });
+    let error =
+        serde_json::from_value::<entities::VaccineRecord>(vaccine_expired_without_expiration)
+            .expect_err("expired vaccine status must carry an expiration date");
+    assert!(
+        error
+            .to_string()
+            .contains("expired vaccine status requires an expiration date")
+    );
+
+    let critical_incident_without_gate = serde_json::json!({
+        "id": entities::IncidentId(Uuid::from_u128(402)),
+        "location_id": location_id(),
+        "primary_subject": { "Pet": pet_id() },
+        "category": "Medication",
+        "severity": "Critical",
+        "status": "Reported",
+        "reported_by": actor(),
+        "reported_at": starts_at(),
+        "summary": "missed medication dose",
+        "required_review_gates": [],
+        "audit_refs": []
+    });
+    let error = serde_json::from_value::<entities::Incident>(critical_incident_without_gate)
+        .expect_err("critical incidents must rehydrate with manager-review requirements");
+    assert!(
+        error
+            .to_string()
+            .contains("incident requires manager approval review gate")
+    );
+
+    let terminal_approval_before_request = serde_json::json!({
+        "id": entities::approval::Id(Uuid::from_u128(403)),
+        "target": { "Message": entities::MessageId(Uuid::from_u128(404)) },
+        "gate": "CustomerMessageApproval",
+        "lifecycle": { "Approved": { "decided_by": actor(), "decided_at": starts_at() } },
+        "requested_by": actor(),
+        "requested_at": ends_at(),
+        "audit_refs": []
+    });
+    let error =
+        serde_json::from_value::<entities::approval::Record>(terminal_approval_before_request)
+            .expect_err("terminal approvals must not decide before the request exists");
+    assert!(
+        error
+            .to_string()
+            .contains("approval decision time cannot precede request time")
+    );
+}
+
+#[test]
+fn document_vaccine_incident_approval_and_task_builders_reject_relationship_bypasses() {
+    let document_error = entities::Document::builder()
+        .id(entities::DocumentId(Uuid::from_u128(410)))
+        .location_id(location_id())
+        .subject(entities::DocumentSubject::Pet(pet_id()))
+        .classification(document::Classification::VaccineProof)
+        .source(document::Source::CustomerUpload)
+        .uploaded_by_actor(actor())
+        .uploaded_at(starts_at())
+        .original_file(
+            serde_json::from_value(original_file_json()).expect("valid original file fixture"),
+        )
+        .storage_ref(serde_json::from_value(storage_ref_json()).expect("valid storage ref fixture"))
+        .pii_redaction_status(document::PiiRedactionStatus::Redacted)
+        .virus_scan_status(document::VirusScanStatus::Pending)
+        .verification_status(document::Status::Verified)
+        .build()
+        .expect_err("ordinary document construction must enforce scan/review coherence");
+    assert!(
+        document_error
+            .to_string()
+            .contains("verified document requires passed virus scan")
+    );
+
+    let vaccine_error = entities::VaccineRecord::builder()
+        .id(entities::VaccineRecordId(Uuid::from_u128(411)))
+        .pet_id(pet_id())
+        .vaccine_name(policy::VaccineName::try_new("Rabies").unwrap())
+        .source_document_id(entities::DocumentId(Uuid::from_u128(410)))
+        .status(vaccine::Status::ExceptionApproved)
+        .effective_on(chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap())
+        .expires_on(chrono::NaiveDate::from_ymd_opt(2027, 1, 1).unwrap())
+        .review_gate(policy::ReviewGate::MedicalDocumentReview)
+        .build()
+        .expect_err("ordinary vaccine construction must enforce status/gate coherence");
+    assert!(
+        vaccine_error
+            .to_string()
+            .contains("vaccine exception status requires manager approval review gate")
+    );
+
+    let incident_error = entities::Incident::builder()
+        .id(entities::IncidentId(Uuid::from_u128(412)))
+        .location_id(location_id())
+        .primary_subject(entities::IncidentSubject::Pet(pet_id()))
+        .category(incident::Category::Medication)
+        .severity(incident::Severity::Medium)
+        .reported_by(actor())
+        .reported_at(starts_at())
+        .summary(incident::Summary::try_new("missed medication dose").unwrap())
+        .status(incident::Status::CustomerMessageReview)
+        .required_review_gates(vec![policy::ReviewGate::ManagerApproval])
+        .build()
+        .expect_err("ordinary incident construction must enforce review-gate requirements");
+    assert!(
+        incident_error
+            .to_string()
+            .contains("customer-message incident requires customer message approval review gate")
+    );
+
+    let approval_error = entities::approval::Record::builder()
+        .id(entities::approval::Id(Uuid::from_u128(413)))
+        .target(entities::approval::Target::Incident(entities::IncidentId(
+            Uuid::from_u128(414),
+        )))
+        .gate(policy::ReviewGate::CustomerMessageApproval)
+        .lifecycle(entities::approval::Lifecycle::ApprovalRequested)
+        .requested_by(actor())
+        .requested_at(starts_at())
+        .build()
+        .expect_err("ordinary approval construction must enforce target/gate agreement");
+    assert!(
+        approval_error
+            .to_string()
+            .contains("approval review gate does not match approval target")
+    );
+}
+
+fn original_file_json() -> serde_json::Value {
+    serde_json::json!({
+        "filename": "rabies.pdf",
+        "mime_type": "application/pdf",
+        "content_length": 42,
+        "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    })
+}
+
+fn storage_ref_json() -> serde_json::Value {
+    serde_json::json!({
+        "bucket": "vaccine-documents",
+        "key": "pets/moose/rabies.pdf",
+        "version": "v1"
+    })
 }

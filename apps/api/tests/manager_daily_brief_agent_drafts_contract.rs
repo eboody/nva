@@ -5,12 +5,18 @@ use serde_json::json;
 use tower::ServiceExt;
 
 async fn post_json(body: serde_json::Value) -> (axum_http::StatusCode, serde_json::Value) {
-    let response = http::router()
+    let response = http::router_with_test_auth_state(http::VaccineDocumentState::default())
         .oneshot(
             axum_http::request::Builder::new()
                 .method(axum_http::Method::POST)
                 .uri("/agent/drafts/manager-daily-brief")
                 .header(axum_http::header::CONTENT_TYPE, "application/json")
+                .header("x-test-auth-actor-id", "hermes-agent")
+                .header("x-test-auth-role", "general_manager")
+                .header(
+                    "x-test-auth-location-id",
+                    "00c0ffee-0000-0000-0000-000000000001",
+                )
                 .body(Body::from(body.to_string()))
                 .expect("request builds"),
         )
@@ -29,14 +35,23 @@ async fn post_json(body: serde_json::Value) -> (axum_http::StatusCode, serde_jso
     (status, payload)
 }
 
-fn valid_source_ref() -> serde_json::Value {
-    json!({
-        "system": "gingr",
-        "record_type": "service_demand_forecast",
-        "record_id": "demand:00c0ffee-0000-0000-0000-000000000001:2026-06-17",
-        "observed_at": "2026-06-17T12:00:00Z",
-        "adapter_version": "local-manager-daily-brief-fixture-v1"
-    })
+fn valid_source_refs() -> serde_json::Value {
+    json!([
+        {
+            "system": "gingr",
+            "record_type": "service_demand_forecast",
+            "record_id": "reservation-42",
+            "observed_at": "2026-06-17T00:00:00Z",
+            "adapter_version": "nva-local-manager-daily-brief-fixture-v1"
+        },
+        {
+            "system": "gingr",
+            "record_type": "source_data_quality_issue",
+            "record_id": "reservation-42",
+            "observed_at": "2026-06-17T00:00:00Z",
+            "adapter_version": "nva-local-manager-daily-brief-fixture-v1"
+        }
+    ])
 }
 
 fn accepted_demand_draft_body() -> serde_json::Value {
@@ -46,10 +61,10 @@ fn accepted_demand_draft_body() -> serde_json::Value {
         "submitted_by": "hermes-agent",
         "actions": [
             {
-                "id": "draft-demand-staffing-1",
+                "id": "demand-staffing-service-demand-42",
                 "kind": "review_demand_against_staffing_plan",
                 "recommendation": "Review demand against the staffing plan before morning drop-off.",
-                "source_refs": [valid_source_ref()],
+                "source_refs": valid_source_refs(),
                 "review_gates": ["manager_approval"],
                 "requested_side_effects": []
             }
@@ -103,6 +118,20 @@ async fn manager_daily_brief_agent_drafts_rejects_actions_without_source_refs() 
             .as_array()
             .unwrap()
             .contains(&json!("missing_source_refs"))
+    );
+}
+
+#[tokio::test]
+async fn manager_daily_brief_agent_drafts_reject_incomplete_source_provenance() {
+    let mut body = accepted_demand_draft_body();
+    body["actions"][0]["source_refs"][0]["adapter_version"] = json!("");
+
+    let (status, payload) = post_json(body).await;
+
+    assert_eq!(status, axum_http::StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(
+        payload["rejected_actions"][0]["reasons"],
+        json!(["incomplete_source_ref"])
     );
 }
 
@@ -186,18 +215,18 @@ async fn manager_daily_brief_agent_drafts_preserves_only_allowed_recommendations
         "submitted_by": "hermes-agent",
         "actions": [
             {
-                "id": "retention-draft-1",
-                "kind": "approve_retention_follow_up_draft",
-                "recommendation": "Review this draft-only retention follow-up for approval.",
-                "source_refs": [valid_source_ref()],
-                "review_gates": ["customer_message_approval"],
+                "id": "demand-staffing-service-demand-42",
+                "kind": "review_demand_against_staffing_plan",
+                "recommendation": "Review demand against the staffing plan before morning drop-off.",
+                "source_refs": valid_source_refs(),
+                "review_gates": ["manager_approval"],
                 "requested_side_effects": []
             },
             {
                 "id": "schedule-change-1",
                 "kind": "autonomously_rewrite_schedule",
                 "recommendation": "Move two staff members without manager approval.",
-                "source_refs": [valid_source_ref()],
+                "source_refs": valid_source_refs(),
                 "review_gates": ["manager_approval"],
                 "requested_side_effects": ["change_staff_schedule"]
             }
@@ -211,7 +240,7 @@ async fn manager_daily_brief_agent_drafts_preserves_only_allowed_recommendations
     assert_eq!(payload["accepted_actions"].as_array().unwrap().len(), 1);
     assert_eq!(
         payload["accepted_actions"][0]["kind"],
-        "approve_retention_follow_up_draft"
+        "review_demand_against_staffing_plan"
     );
     assert_eq!(payload["rejected_actions"].as_array().unwrap().len(), 1);
 }

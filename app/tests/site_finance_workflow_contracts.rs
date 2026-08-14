@@ -32,6 +32,18 @@ fn source_backed_site_finance_recommendation_reaches_review_action_and_claimable
 }
 
 #[test]
+fn value_claim_support_does_not_imply_workflow_approval_or_payment_authority() {
+    let slice = site_finance::fixture_site_period_projection().expect("fixture builds");
+
+    assert!(slice.strong_outcome().can_support_value_claim());
+    assert_eq!(
+        slice.recommendation().required_review_gate(),
+        policy::ReviewGate::ManagerApproval
+    );
+    assert!(!slice.action().allows_financial_mutation());
+}
+
+#[test]
 fn site_finance_projection_rejects_mismatched_site_period_currency_and_underflow() {
     let mut request = site_finance_request();
     request.benchmark_period = site_period(other_location_id()).unwrap();

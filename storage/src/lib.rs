@@ -33,6 +33,10 @@
 //! which source/Rustdoc/test links prove the projection boundary.
 
 pub mod operations;
+/// Fallible promotion from private raw SQL rows into validated persistence values.
+pub mod persistence;
 pub mod service_line;
+/// Concrete persistence adapters for application-owned repository ports.
+pub mod workflow_repository;
 
 pub use operations::{CodecError, RecordKind, Result};

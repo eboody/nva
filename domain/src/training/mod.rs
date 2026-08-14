@@ -731,7 +731,7 @@ pub mod availability {
 pub mod progress {
     use super::*;
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
     /// Non-empty trainer/source evidence list for progress reports.
     ///
     /// Requiring evidence at construction time prevents draft automation from creating
@@ -765,6 +765,16 @@ pub mod progress {
         /// Returns the evidence list for serialization or boundary adapters that already accepted the invariant.
         pub fn into_vec(self) -> Vec<ProgressEvidence> {
             self.0.into()
+        }
+    }
+
+    impl<'de> Deserialize<'de> for EvidenceSet {
+        fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            Self::try_new(Vec::<ProgressEvidence>::deserialize(deserializer)?)
+                .map_err(serde::de::Error::custom)
         }
     }
 
@@ -914,7 +924,7 @@ pub mod outcome {
         pub milestones: Vec<curriculum::milestone::Id>,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
     /// Outcome claim whose achieved/readiness status cannot exist without supporting evidence.
     pub struct Claim {
         /// Outcome used by staff to prepare training assignment, package, progress, or parent-summary review.
@@ -950,7 +960,17 @@ pub mod outcome {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    impl<'de> Deserialize<'de> for Claim {
+        fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            Self::from_evidence(ClaimEvidence::deserialize(deserializer)?)
+                .map_err(serde::de::Error::custom)
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
     /// Non-empty outcome-claim list for documentation packets.
     ///
     /// Requiring at least one claim at construction time prevents empty graduation/readiness
@@ -984,6 +1004,16 @@ pub mod outcome {
         /// Returns the claim list for serialization or boundary adapters that already accepted the invariant.
         pub fn into_vec(self) -> Vec<Claim> {
             self.0.into()
+        }
+    }
+
+    impl<'de> Deserialize<'de> for Claims {
+        fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            Self::try_new(Vec::<Claim>::deserialize(deserializer)?)
+                .map_err(serde::de::Error::custom)
         }
     }
 
@@ -1355,7 +1385,7 @@ pub mod package {
         BlockedAction::MutateProviderRecord,
     ];
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
     /// Source-backed training package/session opportunity for staff reconciliation or re-enrollment review.
     pub struct Opportunity {
         package_id: Id,
@@ -1427,6 +1457,30 @@ pub mod package {
                 before_minutes: self.estimated_minutes,
                 actual_minutes,
             }
+        }
+    }
+
+    impl<'de> Deserialize<'de> for Opportunity {
+        fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            #[derive(Deserialize)]
+            struct RawOpportunity {
+                package_id: Id,
+                source_record_refs: Vec<crate::source::RecordRef>,
+                usage_decision: UsageDecision,
+                estimated_minutes: EstimatedLaborMinutes,
+            }
+
+            let raw = RawOpportunity::deserialize(deserializer)?;
+            Self::from_usage_decision(
+                raw.package_id,
+                raw.source_record_refs,
+                raw.usage_decision,
+                raw.estimated_minutes,
+            )
+            .map_err(serde::de::Error::custom)
         }
     }
 

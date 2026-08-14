@@ -1,7 +1,7 @@
 use crate::dto;
 use domain::retail;
 
-use super::{Error, ProviderField, Result};
+use super::{Error, Promoted, ProviderField, Result, Version};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// Retail mapping candidate produced from Gingr item DTO fields.
@@ -17,7 +17,10 @@ pub struct ProductCandidate {
 }
 
 /// Extracts retail fields Gingr exposed for product matching and merchandising.
-pub fn product_candidate(item: &dto::retail::Item) -> Result<ProductCandidate> {
+pub fn product_candidate(
+    item: &dto::retail::Item,
+    provenance: domain::source::Provenance,
+) -> Result<Promoted<ProductCandidate>> {
     let name = item
         .name
         .as_deref()
@@ -55,12 +58,17 @@ pub fn product_candidate(item: &dto::retail::Item) -> Result<ProductCandidate> {
         retail::OfferingStatus::Inactive
     };
 
-    Ok(ProductCandidate {
-        provider_item_id: item.id,
-        name,
-        product: retail::Product::new(sku, category),
-        status,
-    })
+    Promoted::from_gingr_record(
+        ProductCandidate {
+            provider_item_id: item.id,
+            name,
+            product: retail::Product::new(sku, category),
+            status,
+        },
+        item.id.get().to_string(),
+        provenance,
+        Version::RetailProductV1,
+    )
 }
 
 fn promote_category(value: &str) -> Result<retail::product::Category> {

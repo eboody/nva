@@ -414,7 +414,7 @@ pub mod intelligence {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
     /// Proof that a current segment membership may be used for a declared marketing action.
     pub struct MarketingUsePermission {
         customer_id: entities::CustomerId,

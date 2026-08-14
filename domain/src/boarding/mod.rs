@@ -180,7 +180,7 @@ impl CapacityPlan {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 /// Check-in or check-out window that constrains front-desk staffing and guest promises.
 pub struct ServiceWindow {
     start: HourOfDay,
@@ -205,6 +205,22 @@ impl ServiceWindow {
     /// Returns the exclusive end hour after which this service window is closed.
     pub const fn end(&self) -> HourOfDay {
         self.end
+    }
+}
+
+impl<'de> Deserialize<'de> for ServiceWindow {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct RawServiceWindow {
+            start: HourOfDay,
+            end: HourOfDay,
+        }
+
+        let raw = RawServiceWindow::deserialize(deserializer)?;
+        Self::new(raw.start, raw.end).map_err(serde::de::Error::custom)
     }
 }
 

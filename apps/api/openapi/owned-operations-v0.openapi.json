@@ -24,38 +24,34 @@
         "required": [
           "owner",
           "boundary",
-          "version",
+          "schema_version",
           "workflow",
-          "provider_payload_passthrough",
-          "live_side_effects_allowed"
+          "provider_boundary",
+          "live_side_effects"
         ],
         "properties": {
           "owner": {
             "type": "string",
-            "const": "nva_pet_resorts_operations"
+            "const": "pet_resort_api"
           },
           "boundary": {
             "type": "string",
-            "const": "owned_operations_api_v0"
+            "const": "api_runtime_dto"
           },
-          "version": {
+          "schema_version": {
             "type": "string",
-            "const": "0.1.0"
+            "const": "pet_resort_api.runtime.v0"
           },
           "workflow": {
             "type": "string"
           },
-          "provider_payload_passthrough": {
-            "type": "boolean",
-            "const": false
-          },
-          "provider_dto_boundary": {
+          "provider_boundary": {
             "type": "string",
-            "const": "provider_evidence_refs_only"
+            "const": "evidence_refs_only"
           },
-          "live_side_effects_allowed": {
-            "type": "boolean",
-            "const": false
+          "live_side_effects": {
+            "type": "string",
+            "const": "disabled"
           }
         }
       },
@@ -342,7 +338,7 @@
         "required": [
           "error",
           "request_id",
-          "live_side_effects_allowed"
+          "live_side_effects"
         ],
         "properties": {
           "error": {
@@ -394,9 +390,9 @@
               "null"
             ]
           },
-          "live_side_effects_allowed": {
-            "type": "boolean",
-            "const": false
+          "live_side_effects": {
+            "type": "string",
+            "const": "disabled"
           }
         }
       },
@@ -1499,6 +1495,26 @@
               }
             }
           },
+          "401": {
+            "description": "Trusted runtime authentication is required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated actor is not authorized for this mutation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation failed",
             "content": {
@@ -1509,12 +1525,22 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "StaffSessionCookie": []
+          }
+        ]
       }
     },
     "/v0/data-quality-hygiene/actions/{action_id}/outcome": {
       "post": {
         "operationId": "captureDataQualityHygieneOutcome",
+        "security": [
+          {
+            "StaffSessionCookie": []
+          }
+        ],
         "parameters": [
           {
             "name": "action_id",
@@ -1541,6 +1567,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DataQualityHygieneOutcomeCaptureResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Trusted runtime authentication is required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated actor is not authorized for this mutation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
                 }
               }
             }

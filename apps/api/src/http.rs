@@ -7,15 +7,22 @@
 //! audit/correlation evidence, labor/outcome fields, and disabled live-side-effect
 //! status until a future approved adapter crosses the customer/provider boundary.
 
-use crate::public_contract;
+use crate::{
+    authentication,
+    error::{AuthenticationFailure, AuthorizationFailure, ErrorContext, ErrorKind, PublicApiError},
+    public_contract,
+};
+use app::workflow_repository::OutcomeRepository as _;
+use app::workflow_repository::Repository as _;
+use app::workflow_repository::source_quality_backlog::Repository as _;
 use app::{
     checkout_completion, crm_retention, data_quality_hygiene, information_lifespan,
-    manager_daily_brief, site_finance,
+    manager_daily_brief, site_finance, workflow_repository,
 };
 use axum::{
     Json, Router,
-    body::Body,
-    extract::{Extension, MatchedPath, Path, Query, State},
+    body::{Body, to_bytes},
+    extract::{Extension, FromRequestParts, MatchedPath, Path, Query, State},
     http::{HeaderName, HeaderValue, Request, Response, StatusCode},
     middleware::{self, Next},
     response::IntoResponse,
@@ -30,7 +37,7 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, env, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
-use tokio_postgres::{NoTls, Row};
+
 use tower_http::trace::TraceLayer;
 use tracing::{Level, Span};
 use uuid::Uuid;
@@ -64,80 +71,39 @@ struct VaccineDocumentStore {
     review_packets: BTreeMap<Uuid, ReviewPacket>,
     approvals: BTreeMap<Uuid, ApprovalRecord>,
     eligibility: BTreeMap<Uuid, PetEligibility>,
-    manager_daily_brief_outcomes: Vec<storage::operations::ManagerDailyBriefOutcomeRecord>,
-    data_quality_hygiene_outcomes: Vec<storage::operations::DataQualityHygieneOutcomeRecord>,
+    manager_daily_brief_outcomes: storage::workflow_repository::InMemoryOutcomes<
+        storage::operations::ManagerDailyBriefOutcomeRecord,
+    >,
+    data_quality_hygiene_outcomes: storage::workflow_repository::InMemoryOutcomes<
+        storage::operations::DataQualityHygieneOutcomeRecord,
+    >,
     data_quality_hygiene_persistence_records:
         Vec<storage::operations::DataQualityHygieneLocalPersistenceRecords>,
     inquiry_intake_records: Vec<InquiryIntakeRecord>,
     audit_events: Vec<AuditEvent>,
 }
 
-/// Repository seam between the local API shell and future durable workflow storage.
-///
-/// The active implementation is the deterministic in-memory store below. A future
-/// SQLx/Postgres adapter should implement this same boundary for workflow events,
-/// review packets, audit events, outcome records, and document projections rather
-/// than rewriting HTTP handlers or relaxing review gates. This trait deliberately
-/// does not establish a live database connection or claim production data exists.
-trait WorkflowRepository {
-    fn runtime_counters(&self) -> WorkflowRepositoryCounters;
-    fn manager_daily_brief_outcomes(
-        &self,
-    ) -> &[storage::operations::ManagerDailyBriefOutcomeRecord];
-    fn data_quality_hygiene_outcomes(
-        &self,
-    ) -> &[storage::operations::DataQualityHygieneOutcomeRecord];
-    fn record_inquiry_intake(&mut self, record: InquiryIntakeRecord);
-    fn inquiry_by_source_event_key(&self, source_event_key: &str) -> Option<InquiryIntakeRecord>;
-    fn inquiry_staff_queue(&self) -> Vec<InquiryIntakeRecord>;
-    fn record_manager_daily_brief_outcome(
-        &mut self,
-        record: storage::operations::ManagerDailyBriefOutcomeRecord,
-    ) -> usize;
-    fn record_data_quality_hygiene_outcome(
-        &mut self,
-        record: storage::operations::DataQualityHygieneOutcomeRecord,
-    ) -> usize;
-    fn data_quality_hygiene_outcome_records(
-        &self,
-    ) -> Vec<storage::operations::DataQualityHygieneOutcomeRecord>;
-    fn record_data_quality_hygiene_persistence_records(
-        &mut self,
-        records: storage::operations::DataQualityHygieneLocalPersistenceRecords,
-    ) -> usize;
-}
-
-#[derive(Debug, Clone, Copy)]
-struct WorkflowRepositoryCounters {
-    inquiry_count: usize,
-    review_packet_count: usize,
-    audit_event_count: usize,
-    outcome_count: usize,
-    data_quality_hygiene_outbox_candidate_count: usize,
-    data_quality_hygiene_review_gated_outbox_count: usize,
-}
-
-impl WorkflowRepository for VaccineDocumentStore {
-    fn runtime_counters(&self) -> WorkflowRepositoryCounters {
-        WorkflowRepositoryCounters {
+impl workflow_repository::Repository for VaccineDocumentStore {
+    fn runtime_counters(&self) -> workflow_repository::RuntimeCounters {
+        workflow_repository::RuntimeCounters {
             inquiry_count: self.inquiry_intake_records.len(),
             review_packet_count: self.review_packets.len(),
             audit_event_count: self.audit_events.len(),
-            outcome_count: self.manager_daily_brief_outcomes.len()
-                + self.data_quality_hygiene_outcomes.len(),
-            data_quality_hygiene_outbox_candidate_count: self
+            outcome_count: self.manager_daily_brief_outcomes.outcomes().len()
+                + self.data_quality_hygiene_outcomes.outcomes().len(),
+            internal_outbox_candidate_count: self
                 .data_quality_hygiene_persistence_records
                 .iter()
                 .filter(|records| records.outbox_candidate.is_some())
                 .count(),
-            data_quality_hygiene_review_gated_outbox_count: self
+            review_gated_internal_outbox_count: self
                 .data_quality_hygiene_persistence_records
                 .iter()
                 .filter(|records| {
                     records.outbox_candidate.as_ref().is_some_and(|candidate| {
-                        candidate.status == storage::operations::OutboxStatusCode::Pending
+                        candidate.status() == storage::operations::OutboxStatusCode::Pending
                             && candidate
-                                .payload
+                                .payload()
                                 .get("live_delivery_allowed")
                                 .and_then(Value::as_bool)
                                 == Some(false)
@@ -146,68 +112,11 @@ impl WorkflowRepository for VaccineDocumentStore {
                 .count(),
         }
     }
-
-    fn manager_daily_brief_outcomes(
-        &self,
-    ) -> &[storage::operations::ManagerDailyBriefOutcomeRecord] {
-        &self.manager_daily_brief_outcomes
-    }
-
-    fn data_quality_hygiene_outcomes(
-        &self,
-    ) -> &[storage::operations::DataQualityHygieneOutcomeRecord] {
-        &self.data_quality_hygiene_outcomes
-    }
-
-    fn record_inquiry_intake(&mut self, record: InquiryIntakeRecord) {
-        self.inquiry_intake_records.push(record);
-    }
-
-    fn inquiry_by_source_event_key(&self, source_event_key: &str) -> Option<InquiryIntakeRecord> {
-        self.inquiry_intake_records
-            .iter()
-            .find(|record| record.event.source_event_key == source_event_key)
-            .cloned()
-    }
-
-    fn inquiry_staff_queue(&self) -> Vec<InquiryIntakeRecord> {
-        self.inquiry_intake_records.clone()
-    }
-
-    fn record_manager_daily_brief_outcome(
-        &mut self,
-        record: storage::operations::ManagerDailyBriefOutcomeRecord,
-    ) -> usize {
-        self.manager_daily_brief_outcomes.push(record);
-        self.manager_daily_brief_outcomes.len()
-    }
-
-    fn record_data_quality_hygiene_outcome(
-        &mut self,
-        record: storage::operations::DataQualityHygieneOutcomeRecord,
-    ) -> usize {
-        self.data_quality_hygiene_outcomes.push(record);
-        self.data_quality_hygiene_outcomes.len()
-    }
-
-    fn data_quality_hygiene_outcome_records(
-        &self,
-    ) -> Vec<storage::operations::DataQualityHygieneOutcomeRecord> {
-        self.data_quality_hygiene_outcomes.clone()
-    }
-
-    fn record_data_quality_hygiene_persistence_records(
-        &mut self,
-        records: storage::operations::DataQualityHygieneLocalPersistenceRecords,
-    ) -> usize {
-        self.data_quality_hygiene_persistence_records.push(records);
-        self.data_quality_hygiene_persistence_records.len()
-    }
 }
 
 #[derive(Debug, Serialize)]
 struct HealthPayload {
-    api_contract: ApiDtoContract,
+    api_contract: public_contract::ApiContractMetadata,
     service: &'static str,
     status: &'static str,
     live_side_effects: &'static str,
@@ -215,7 +124,7 @@ struct HealthPayload {
 
 #[derive(Debug, Serialize)]
 struct ReadinessPayload {
-    api_contract: ApiDtoContract,
+    api_contract: public_contract::ApiContractMetadata,
     service: &'static str,
     database: &'static str,
     object_storage: &'static str,
@@ -267,34 +176,11 @@ struct ReadModelDatabasePayload {
 
 #[derive(Debug, Serialize)]
 struct SourceQualityBacklogPayload {
-    api_contract: ApiDtoContract,
+    api_contract: public_contract::ApiContractMetadata,
     read_model: ReadModelDescriptorPayload,
     data_posture: ReadModelDataPosturePayload,
     database: ReadModelDatabasePayload,
-    records: Vec<SourceQualityBacklogRecordPayload>,
-}
-
-#[derive(Debug, Serialize)]
-struct SourceQualityBacklogRecordPayload {
-    issue_ref: String,
-    location_id: Option<String>,
-    tenant_id: Option<String>,
-    affected_entity_kind: String,
-    affected_entity_id: String,
-    field_path: String,
-    issue_kind: String,
-    severity: String,
-    freshness: String,
-    sensitivity: String,
-    workflow_blocking: String,
-    owner_persona: String,
-    review_gate: String,
-    resolution_status: String,
-    source_refs: Value,
-    workflow_event_id: Option<String>,
-    latest_outcome_id: Option<String>,
-    projection_version: String,
-    caveats: Vec<String>,
+    records: Vec<workflow_repository::source_quality_backlog::Item>,
 }
 
 fn workflow_repository_readiness_payload() -> WorkflowRepositoryReadinessPayload {
@@ -333,7 +219,7 @@ fn object_storage_readiness_status() -> &'static str {
 
 #[derive(Debug, Serialize)]
 struct OpsMetricsSummaryPayload {
-    api_contract: ApiDtoContract,
+    api_contract: public_contract::ApiContractMetadata,
     api_request_metrics: ApiRequestMetricsPayload,
     product_labor_metrics: ProductLaborMetricsPayload,
     local_runtime_counters: LocalRuntimeCountersPayload,
@@ -392,30 +278,8 @@ struct ObservabilityGapPayload {
     dashboard_or_alerting: &'static str,
 }
 
-/// Product-owned API/runtime DTO contract marker serialized with workflow payloads.
-///
-/// This is deliberately not a provider DTO. It labels responses as NVA/Pet Resort
-/// API contracts that may include provider source references, while forbidding raw
-/// provider payload pass-through at the staff workflow boundary.
-#[derive(Debug, Clone, Serialize)]
-struct ApiDtoContract {
-    owner: &'static str,
-    boundary: &'static str,
-    schema_version: &'static str,
-    workflow: &'static str,
-    provider_payload_passthrough: bool,
-    provider_dto_boundary: &'static str,
-}
-
-fn api_dto_contract(workflow: &'static str) -> ApiDtoContract {
-    ApiDtoContract {
-        owner: "pet_resort_api",
-        boundary: "api_runtime_dto",
-        schema_version: "pet_resort_api.runtime.v0",
-        workflow,
-        provider_payload_passthrough: false,
-        provider_dto_boundary: "provider_evidence_only",
-    }
+fn api_dto_contract(workflow: &'static str) -> public_contract::ApiContractMetadata {
+    public_contract::ApiContractMetadata::operations_v0(workflow)
 }
 
 fn api_dto_contract_payload(workflow: &'static str) -> Value {
@@ -436,6 +300,132 @@ struct VaccineDocumentUploadRequest {
 struct VaccineReviewDecisionRequest {
     reviewed_by_staff_id: String,
     reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum VaccineReviewDecision {
+    Approve,
+    Reject,
+}
+
+impl VaccineReviewDecision {
+    fn status_code(self) -> &'static str {
+        match self {
+            Self::Approve => "approved",
+            Self::Reject => "rejected",
+        }
+    }
+
+    fn document_verification_status(self) -> &'static str {
+        match self {
+            Self::Approve => "verified",
+            Self::Reject => "rejected",
+        }
+    }
+
+    fn vaccine_record_status(self) -> &'static str {
+        match self {
+            Self::Approve => "verified_current",
+            Self::Reject => "rejected",
+        }
+    }
+
+    fn eligibility(self, pet_id: Uuid, vaccine_record_id: Uuid) -> PetEligibility {
+        PetEligibility {
+            pet_id,
+            rabies_current: matches!(self, Self::Approve),
+            source_vaccine_record_id: Some(vaccine_record_id),
+            status: match self {
+                Self::Approve => "eligible_from_approved_vaccine_document",
+                Self::Reject => "ineligible_after_rejected_vaccine_document",
+            },
+        }
+    }
+
+    fn from_decided_status(status: &str) -> Option<Self> {
+        match status {
+            "approved" => Some(Self::Approve),
+            "rejected" => Some(Self::Reject),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone)]
+struct VaccineReviewDecisionEvidence {
+    reviewed_by_staff_id: String,
+    decided_at: String,
+    reason: Option<String>,
+}
+
+#[derive(Debug)]
+enum VaccineReviewDecisionRejection {
+    PacketNotFound {
+        review_packet_id: Uuid,
+    },
+    PacketAlreadyDecided {
+        review_packet_id: Uuid,
+        existing: VaccineReviewDecision,
+        attempted: VaccineReviewDecision,
+    },
+    BrokenWorkflowState {
+        review_packet_id: Uuid,
+        code: &'static str,
+    },
+}
+
+fn authorization_error_payload(
+    rejection: authentication::Rejection,
+    workflow: &'static str,
+    persisted_field: &'static str,
+) -> Value {
+    let mut payload = json!({
+        "api_contract": api_dto_contract_payload(workflow),
+        "accepted": false,
+    });
+    payload[persisted_field] = Value::Bool(false);
+    merge_error_envelope(
+        payload,
+        PublicApiError::new(rejection.into(), ErrorContext::new("missing_request_id")),
+    )
+}
+
+impl authentication::Rejection {
+    fn status_code(self) -> StatusCode {
+        PublicApiError::new(self.into(), ErrorContext::new("missing_request_id")).status_code()
+    }
+}
+
+struct Authenticated(authentication::Context);
+
+impl<S> FromRequestParts<S> for Authenticated
+where
+    S: Send + Sync,
+{
+    type Rejection = axum::response::Response;
+
+    async fn from_request_parts(
+        parts: &mut axum::http::request::Parts,
+        _state: &S,
+    ) -> Result<Self, Self::Rejection> {
+        let context = parts
+            .extensions
+            .get::<authentication::Context>()
+            .cloned()
+            .unwrap_or_else(authentication::Context::missing);
+        authentication::authenticate(&context).map_err(|rejection| {
+            (
+                rejection.status_code(),
+                Json(authorization_error_payload(
+                    rejection,
+                    "authenticated_request",
+                    "outcome_persisted",
+                )),
+            )
+                .into_response()
+        })?;
+        Ok(Self(context))
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -493,7 +483,7 @@ struct InquirySimulatedConversionRequest {
 
 #[derive(Debug, Clone, Serialize)]
 struct InquiryIntakeRecord {
-    api_contract: ApiDtoContract,
+    api_contract: public_contract::ApiContractMetadata,
     event: InquiryEvent,
     #[serde(skip_serializing_if = "Option::is_none")]
     provenance: Option<Value>,
@@ -575,13 +565,13 @@ struct InquiryAuditEvent {
 
 #[derive(Debug, Serialize)]
 struct InquiryStaffQueuePayload {
-    api_contract: ApiDtoContract,
+    api_contract: public_contract::ApiContractMetadata,
     records: Vec<InquiryIntakeRecord>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 struct VaccineDocumentWorkflowPayload {
-    api_contract: ApiDtoContract,
+    api_contract: public_contract::ApiContractMetadata,
     document: DocumentRecord,
     extraction: VaccineExtractionRecord,
     vaccine_record: VaccineRecord,
@@ -732,16 +722,16 @@ fn safe_request_id(value: &str) -> bool {
 fn workflow_observability_payload(
     correlation_id: &str,
     request_trace: &RequestTraceEvidence,
-) -> Value {
-    json!({
-        "correlation_id": correlation_id,
-        "request_id": request_trace.request_id(),
-        "request_correlation_id": request_trace.request_correlation_id(),
-        "route_status_trace": "enabled",
-        "safe_error_class": "not_applicable",
-        "payload_logging": "disabled",
-        "sensitive_payload_logging": null
-    })
+) -> public_contract::WorkflowObservability {
+    public_contract::WorkflowObservability {
+        correlation_id: correlation_id.to_owned(),
+        request_id: request_trace.request_id().to_owned(),
+        request_correlation_id: request_trace.request_correlation_id().to_owned(),
+        route_status_trace: "enabled".to_owned(),
+        safe_error_class: "not_applicable".to_owned(),
+        payload_logging: "disabled".to_owned(),
+        sensitive_payload_logging: None,
+    }
 }
 
 async fn attach_request_trace(mut request: Request<Body>, next: Next) -> Response<Body> {
@@ -783,6 +773,32 @@ pub fn router() -> Router {
 /// persist projections, but live side effects remain blocked unless a future runtime
 /// adapter adds explicit approval and provider gates.
 pub fn router_with_state(state: VaccineDocumentState) -> Router {
+    router_with_authentication(state, AuthenticationSource::Production)
+}
+
+/// Builds a deterministic test harness router whose synthetic actor headers are
+/// promoted only when callers explicitly select this entrypoint.
+///
+/// Production entrypoints never call this helper; keeping it available in normal
+/// library builds lets black-box integration tests exercise authentication without
+/// Cargo feature unification changing whether the test suite compiles.
+#[doc(hidden)]
+#[cfg(debug_assertions)]
+pub fn router_with_test_auth_state(state: VaccineDocumentState) -> Router {
+    router_with_authentication(state, AuthenticationSource::SyntheticTestHeaders)
+}
+
+#[derive(Clone, Copy)]
+enum AuthenticationSource {
+    Production,
+    #[cfg(debug_assertions)]
+    SyntheticTestHeaders,
+}
+
+fn router_with_authentication(
+    state: VaccineDocumentState,
+    authentication_source: AuthenticationSource,
+) -> Router {
     Router::new()
         .route("/healthz", get(healthz))
         .route("/v0/healthz", get(healthz))
@@ -920,7 +936,134 @@ pub fn router_with_state(state: VaccineDocumentState) -> Router {
                 })
                 .on_response(record_api_response_metrics),
         )
+        .layer(middleware::from_fn(normalize_public_api_errors))
+        .layer(middleware::from_fn_with_state(
+            authentication_source,
+            attach_authenticated_actor,
+        ))
         .layer(middleware::from_fn(attach_request_trace))
+}
+
+async fn attach_authenticated_actor(
+    State(source): State<AuthenticationSource>,
+    mut request: Request<Body>,
+    next: Next,
+) -> Response<Body> {
+    let context = match source {
+        AuthenticationSource::Production => authentication::Context::missing(),
+        #[cfg(debug_assertions)]
+        AuthenticationSource::SyntheticTestHeaders => {
+            authentication::Context::from_test_headers(request.headers())
+        }
+    };
+    request.extensions_mut().insert(context);
+    next.run(request).await
+}
+
+async fn normalize_public_api_errors(request: Request<Body>, next: Next) -> Response<Body> {
+    let context = request
+        .extensions()
+        .get::<RequestTraceEvidence>()
+        .map(|trace| {
+            ErrorContext::new(trace.request_id())
+                .with_correlation_id(trace.request_correlation_id())
+        })
+        .unwrap_or_else(|| ErrorContext::new("missing_request_id"));
+    let response = next.run(request).await;
+    let status = response.status();
+    if !status.is_client_error() && !status.is_server_error() {
+        return response;
+    }
+
+    let (parts, body) = response.into_parts();
+    let bytes = match to_bytes(body, 1024 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => {
+            return PublicApiError::new(ErrorKind::Internal, context).into_response();
+        }
+    };
+    let payload = serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null);
+    if payload["error"]["safe_error_class"].is_string()
+        && payload["request_id"].is_string()
+        && payload["live_side_effects"].is_string()
+    {
+        return Response::from_parts(parts, Body::from(bytes));
+    }
+
+    let mut error = PublicApiError::new(error_kind_for_response(status, &payload), context);
+    if let Some(public_code) = payload["error"]["code"].as_str() {
+        error = error.with_public_code(public_code);
+    }
+    let merged = merge_error_envelope(payload, error);
+    (status, Json(merged)).into_response()
+}
+
+fn merge_error_envelope(mut payload: Value, error: PublicApiError) -> Value {
+    let envelope =
+        serde_json::to_value(error.envelope()).expect("public error envelope always serializes");
+    let Value::Object(envelope_fields) = envelope else {
+        unreachable!("public error envelope serializes as an object")
+    };
+    let Value::Object(payload_fields) = &mut payload else {
+        return Value::Object(envelope_fields);
+    };
+    payload_fields.extend(envelope_fields);
+    payload
+}
+
+fn error_kind_for_response(status: StatusCode, payload: &Value) -> ErrorKind {
+    match status {
+        StatusCode::UNAUTHORIZED => {
+            ErrorKind::Authentication(AuthenticationFailure::MissingTrustedActorContext)
+        }
+        StatusCode::FORBIDDEN => {
+            ErrorKind::Authorization(AuthorizationFailure::ActorRoleNotAuthorized)
+        }
+        StatusCode::CONFLICT
+            if payload["classification"] == "idempotency_payload_drift"
+                || payload["error"]["code"] == "idempotency_payload_drift" =>
+        {
+            ErrorKind::IdempotencyConflict
+        }
+        StatusCode::CONFLICT => ErrorKind::ReviewConflict,
+        StatusCode::UNPROCESSABLE_ENTITY if response_reports_source_ambiguity(payload) => {
+            ErrorKind::SourceAmbiguity
+        }
+        StatusCode::UNPROCESSABLE_ENTITY | StatusCode::BAD_REQUEST => ErrorKind::Validation {
+            details: validation_details(payload),
+        },
+        StatusCode::NOT_FOUND => ErrorKind::NotFound {
+            details: Vec::new(),
+        },
+        StatusCode::SERVICE_UNAVAILABLE | StatusCode::BAD_GATEWAY | StatusCode::GATEWAY_TIMEOUT => {
+            ErrorKind::Unavailable
+        }
+        _ => ErrorKind::Internal,
+    }
+}
+
+fn response_reports_source_ambiguity(payload: &Value) -> bool {
+    payload
+        .get("reasons")
+        .and_then(Value::as_array)
+        .is_some_and(|reasons| {
+            reasons.iter().any(|reason| {
+                reason
+                    .as_str()
+                    .is_some_and(|reason| reason.contains("source") || reason.contains("issue_ref"))
+            })
+        })
+}
+
+fn validation_details(payload: &Value) -> Vec<public_contract::ErrorDetail> {
+    payload
+        .get("reasons")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .map(|reason| public_contract::ErrorDetail::field("request".to_owned(), reason.to_owned()))
+        .collect()
 }
 
 fn record_api_response_metrics(response: &Response<Body>, latency: Duration, span: &Span) {
@@ -952,7 +1095,7 @@ fn safe_error_class_for_status(status: StatusCode) -> &'static str {
     }
 }
 
-async fn owned_operations_not_found(request: Request<Body>) -> (StatusCode, Json<Value>) {
+async fn owned_operations_not_found(request: Request<Body>) -> axum::response::Response {
     let request_id = request
         .extensions()
         .get::<RequestTraceEvidence>()
@@ -961,17 +1104,41 @@ async fn owned_operations_not_found(request: Request<Body>) -> (StatusCode, Json
         .to_owned();
     let path = request.uri().path().to_owned();
 
-    (
-        StatusCode::NOT_FOUND,
-        Json(json!(public_contract::ErrorEnvelope::not_found(
-            request_id, path
-        ))),
+    PublicApiError::new(
+        ErrorKind::NotFound {
+            details: vec![public_contract::ErrorDetail::field("path".to_owned(), path)],
+        },
+        ErrorContext::new(request_id),
     )
+    .into_response()
 }
 
 async fn source_quality_backlog(
-    Extension(_request_trace): Extension<RequestTraceEvidence>,
-) -> (StatusCode, Json<SourceQualityBacklogPayload>) {
+    Authenticated(authentication): Authenticated,
+    Extension(request_trace): Extension<RequestTraceEvidence>,
+) -> axum::response::Response {
+    let location_id = match authentication::actor_location_id(&authentication) {
+        Ok(location_id) => location_id,
+        Err(rejection) => {
+            return PublicApiError::new(
+                rejection.into(),
+                ErrorContext::new(request_trace.request_id()),
+            )
+            .into_response();
+        }
+    };
+    if let Err(rejection) = authentication::authorize_read(
+        &authentication,
+        authentication::Read::SourceQualityBacklog,
+        Some(location_id),
+        None,
+    ) {
+        return PublicApiError::new(
+            rejection.into(),
+            ErrorContext::new(request_trace.request_id()),
+        )
+        .into_response();
+    }
     let Some(database_url) = configured_database_url() else {
         return (
             StatusCode::SERVICE_UNAVAILABLE,
@@ -983,10 +1150,15 @@ async fn source_quality_backlog(
                 },
                 Vec::new(),
             )),
-        );
+        )
+            .into_response();
     };
 
-    match query_source_quality_backlog(&database_url).await {
+    let repository = storage::workflow_repository::PostgresSourceQualityBacklog::new(database_url);
+    match repository
+        .prioritized_items_for_location(entities::LocationId(location_id))
+        .await
+    {
         Ok(records) => (
             StatusCode::OK,
             Json(source_quality_backlog_payload(
@@ -997,24 +1169,26 @@ async fn source_quality_backlog(
                 },
                 records,
             )),
-        ),
-        Err(error) => (
+        )
+            .into_response(),
+        Err(_error) => (
             StatusCode::SERVICE_UNAVAILABLE,
             Json(source_quality_backlog_payload(
                 ReadModelDatabasePayload {
                     status: "query_failed",
                     adapter: "tokio_postgres",
-                    error: Some(safe_database_error(&error)),
+                    error: Some("postgres read-model query failed; details redacted".to_owned()),
                 },
                 Vec::new(),
             )),
-        ),
+        )
+            .into_response(),
     }
 }
 
 fn source_quality_backlog_payload(
     database: ReadModelDatabasePayload,
-    records: Vec<SourceQualityBacklogRecordPayload>,
+    records: Vec<workflow_repository::source_quality_backlog::Item>,
 ) -> SourceQualityBacklogPayload {
     SourceQualityBacklogPayload {
         api_contract: api_dto_contract("source_quality_backlog_read_model"),
@@ -1035,80 +1209,6 @@ fn source_quality_backlog_payload(
     }
 }
 
-async fn query_source_quality_backlog(
-    database_url: &str,
-) -> Result<Vec<SourceQualityBacklogRecordPayload>, tokio_postgres::Error> {
-    let (client, connection) = tokio_postgres::connect(database_url, NoTls).await?;
-    tokio::spawn(async move {
-        if let Err(error) = connection.await {
-            tracing::warn!(safe_error_class = "database_connection", %error, "postgres read-model connection ended");
-        }
-    });
-
-    let rows = client
-        .query(
-            "SELECT issue_ref,
-                    location_id::text AS location_id,
-                    tenant_id,
-                    affected_entity_kind,
-                    affected_entity_id,
-                    field_path,
-                    issue_kind,
-                    severity,
-                    freshness,
-                    sensitivity,
-                    workflow_blocking,
-                    owner_persona,
-                    review_gate,
-                    resolution_status,
-                    source_refs,
-                    workflow_event_id::text AS workflow_event_id,
-                    latest_outcome_id::text AS latest_outcome_id,
-                    projection_version,
-                    caveats
-             FROM source_quality_backlog
-             ORDER BY CASE severity
-                    WHEN 'critical' THEN 1
-                    WHEN 'high' THEN 2
-                    WHEN 'medium' THEN 3
-                    ELSE 4
-                END,
-                issue_ref
-             LIMIT 50",
-            &[],
-        )
-        .await?;
-
-    Ok(rows
-        .iter()
-        .map(source_quality_backlog_record_from_row)
-        .collect())
-}
-
-fn source_quality_backlog_record_from_row(row: &Row) -> SourceQualityBacklogRecordPayload {
-    SourceQualityBacklogRecordPayload {
-        issue_ref: row.get("issue_ref"),
-        location_id: row.get("location_id"),
-        tenant_id: row.get("tenant_id"),
-        affected_entity_kind: row.get("affected_entity_kind"),
-        affected_entity_id: row.get("affected_entity_id"),
-        field_path: row.get("field_path"),
-        issue_kind: row.get("issue_kind"),
-        severity: row.get("severity"),
-        freshness: row.get("freshness"),
-        sensitivity: row.get("sensitivity"),
-        workflow_blocking: row.get("workflow_blocking"),
-        owner_persona: row.get("owner_persona"),
-        review_gate: row.get("review_gate"),
-        resolution_status: row.get("resolution_status"),
-        source_refs: row.get("source_refs"),
-        workflow_event_id: row.get("workflow_event_id"),
-        latest_outcome_id: row.get("latest_outcome_id"),
-        projection_version: row.get("projection_version"),
-        caveats: row.get("caveats"),
-    }
-}
-
 fn configured_database_url() -> Option<String> {
     env::var("DATABASE_URL")
         .ok()
@@ -1125,18 +1225,26 @@ fn minio_env_configured() -> bool {
         .is_some_and(|value| !value.trim().is_empty())
 }
 
-fn safe_database_error(error: &tokio_postgres::Error) -> String {
-    let message = error.to_string();
-    if message.to_ascii_lowercase().contains("password") {
-        "postgres read-model query failed; details redacted".to_owned()
-    } else {
-        message
-    }
-}
-
 async fn run_information_lifespan_demo(
+    Authenticated(authentication): Authenticated,
     Extension(request_trace): Extension<RequestTraceEvidence>,
-) -> (StatusCode, Json<Value>) {
+) -> axum::response::Response {
+    if let Err(rejection) = authentication::authorize_source_ingest(
+        &authentication,
+        authentication::Mutation::InformationLifespanDemo,
+        local_data_quality_hygiene_location_id().0,
+    ) {
+        return (
+            rejection.status_code(),
+            Json(authorization_error_payload(
+                rejection,
+                "information_lifespan_demo_run",
+                "run_persisted",
+            )),
+        )
+            .into_response();
+    }
+
     let trace = information_lifespan::mock_gingr_manager_daily_report_trace();
     let correlation_id = trace.correlation_id().as_str().to_owned();
     let processor_proof = information_lifespan_processor_proof().await;
@@ -1158,12 +1266,26 @@ async fn run_information_lifespan_demo(
             processor_proof,
         )),
     )
+        .into_response()
 }
 
 async fn replay_information_lifespan_report(
+    Authenticated(authentication): Authenticated,
     Path(correlation_id): Path<String>,
     Extension(request_trace): Extension<RequestTraceEvidence>,
-) -> (StatusCode, Json<Value>) {
+) -> axum::response::Response {
+    if let Err(rejection) = authentication::authorize_read(
+        &authentication,
+        authentication::Read::InformationLifespanReport,
+        Some(local_data_quality_hygiene_location_id().0),
+        None,
+    ) {
+        return PublicApiError::new(
+            rejection.into(),
+            ErrorContext::new(request_trace.request_id()),
+        )
+        .into_response();
+    }
     let trace = information_lifespan::mock_gingr_manager_daily_report_trace();
     if correlation_id != trace.correlation_id().as_str() {
         return (
@@ -1178,7 +1300,8 @@ async fn replay_information_lifespan_report(
                 "synthetic_data_only": true,
                 "live_side_effects_allowed": false
             })),
-        );
+        )
+            .into_response();
     }
 
     let processor_proof = information_lifespan_processor_proof().await;
@@ -1191,6 +1314,7 @@ async fn replay_information_lifespan_report(
             processor_proof,
         )),
     )
+        .into_response()
 }
 
 async fn information_lifespan_processor_proof() -> Value {
@@ -1323,12 +1447,26 @@ async fn readyz() -> Json<ReadinessPayload> {
 
 async fn ops_metrics_summary(
     State(state): State<VaccineDocumentState>,
-) -> Json<OpsMetricsSummaryPayload> {
+    Authenticated(authentication): Authenticated,
+    Extension(request_trace): Extension<RequestTraceEvidence>,
+) -> axum::response::Response {
+    if let Err(rejection) = authentication::authorize_read(
+        &authentication,
+        authentication::Read::OperationalMetrics,
+        Some(local_data_quality_hygiene_location_id().0),
+        None,
+    ) {
+        return PublicApiError::new(
+            rejection.into(),
+            ErrorContext::new(request_trace.request_id()),
+        )
+        .into_response();
+    }
     let store = state.store.lock().await;
     let manager_daily_brief =
-        manager_daily_brief_labor_rollup(store.manager_daily_brief_outcomes());
+        manager_daily_brief_labor_rollup(store.manager_daily_brief_outcomes.outcomes());
     let data_quality_hygiene =
-        data_quality_hygiene_labor_rollup(store.data_quality_hygiene_outcomes());
+        data_quality_hygiene_labor_rollup(store.data_quality_hygiene_outcomes.outcomes());
     let counters = store.runtime_counters();
 
     Json(OpsMetricsSummaryPayload {
@@ -1349,10 +1487,9 @@ async fn ops_metrics_summary(
             review_packet_count: counters.review_packet_count,
             audit_event_count: counters.audit_event_count,
             outcome_count: counters.outcome_count,
-            data_quality_hygiene_outbox_candidate_count: counters
-                .data_quality_hygiene_outbox_candidate_count,
+            data_quality_hygiene_outbox_candidate_count: counters.internal_outbox_candidate_count,
             data_quality_hygiene_review_gated_outbox_count: counters
-                .data_quality_hygiene_review_gated_outbox_count,
+                .review_gated_internal_outbox_count,
             production_queue_adapter: "not_configured",
         },
         safety: MetricsSafetyPayload {
@@ -1376,6 +1513,7 @@ async fn ops_metrics_summary(
             "worker_lease_age",
         ],
     })
+    .into_response()
 }
 
 fn manager_daily_brief_labor_rollup(
@@ -1466,10 +1604,24 @@ fn invalid_inquiry_payload(classification: &'static str, source_event_key: &str)
 
 async fn submit_inquiry(
     State(state): State<VaccineDocumentState>,
+    Authenticated(authentication): Authenticated,
     Json(request): Json<InquirySubmissionRequest>,
 ) -> axum::response::Response {
+    if let Err(rejection) = authentication::authorize_source_ingest(
+        &authentication,
+        authentication::Mutation::InquiryIntake,
+        Uuid::parse_str(&request.location_id).unwrap_or(Uuid::nil()),
+    ) {
+        return PublicApiError::new(rejection.into(), ErrorContext::new("missing_request_id"))
+            .into_response();
+    }
     let mut store = state.store.lock().await;
-    if let Some(mut record) = store.inquiry_by_source_event_key(&request.source_event_key) {
+    if let Some(mut record) = store
+        .inquiry_intake_records
+        .iter()
+        .find(|record| record.event.source_event_key == request.source_event_key)
+        .cloned()
+    {
         if !inquiry_payload_matches_record(&request, &record) {
             return (
                 StatusCode::CONFLICT,
@@ -1491,7 +1643,7 @@ async fn submit_inquiry(
         return (StatusCode::UNPROCESSABLE_ENTITY, Json(error_payload)).into_response();
     }
     let record = build_inquiry_intake_record(request);
-    store.record_inquiry_intake(record.clone());
+    store.inquiry_intake_records.push(record.clone());
     (StatusCode::CREATED, Json(record)).into_response()
 }
 
@@ -1520,12 +1672,30 @@ fn inquiry_payload_matches_record(
 
 async fn staff_inquiries(
     State(state): State<VaccineDocumentState>,
-) -> Json<InquiryStaffQueuePayload> {
+    Authenticated(authentication): Authenticated,
+) -> axum::response::Response {
+    if let Err(rejection) = authentication::authorize_read(
+        &authentication,
+        authentication::Read::StaffInquiries,
+        None,
+        None,
+    ) {
+        return PublicApiError::new(rejection.into(), ErrorContext::new("missing_request_id"))
+            .into_response();
+    }
+    let location_id = authentication::actor_location_id(&authentication)
+        .expect("authenticated read authorization resolved an actor");
     let store = state.store.lock().await;
     Json(InquiryStaffQueuePayload {
         api_contract: api_dto_contract("inquiry_staff_queue"),
-        records: store.inquiry_staff_queue(),
+        records: store
+            .inquiry_intake_records
+            .iter()
+            .filter(|record| record.event.location_id == location_id.to_string())
+            .cloned()
+            .collect(),
     })
+    .into_response()
 }
 
 #[derive(Debug, Deserialize)]
@@ -1548,7 +1718,7 @@ struct ManagerDailyBriefSubmittedAction {
     kind: String,
     recommendation: String,
     #[serde(default)]
-    source_refs: Vec<Value>,
+    source_refs: Vec<public_contract::SourceRecordRef>,
     #[serde(default)]
     review_gates: Vec<String>,
     #[serde(default)]
@@ -1562,7 +1732,7 @@ struct ManagerDailyBriefOutcomeCaptureRequest {
     actor: ManagerDailyBriefOutcomeActorRequest,
     feedback: String,
     #[serde(default)]
-    source_refs: Vec<storage::operations::StoredSourceRecordRef>,
+    source_refs: Vec<public_contract::SourceRecordRef>,
     timestamp: String,
     audit: ManagerDailyBriefOutcomeAuditRequest,
     reporting: ManagerDailyBriefOutcomeReportingRequest,
@@ -1602,36 +1772,13 @@ struct PermissionedKnowledgeAgentContextQuery {
 }
 
 #[derive(Debug, Deserialize)]
-struct DataQualityHygieneAgentDraftSubmissionRequest {
-    context_packet_id: String,
-    correlation_id: String,
-    actions: Vec<DataQualityHygieneSubmittedAction>,
-}
-
-#[derive(Debug, Deserialize)]
-struct DataQualityHygieneSubmittedAction {
-    action_id: String,
-    kind: String,
-    #[serde(default)]
-    source_refs: Vec<Value>,
-    #[serde(default)]
-    issue_refs: Vec<String>,
-    #[serde(default)]
-    review_gates: Vec<String>,
-    #[serde(default)]
-    requested_side_effects: Vec<String>,
-    #[serde(default)]
-    attempted_ambiguity_resolution: bool,
-}
-
-#[derive(Debug, Deserialize)]
 struct DataQualityHygieneOutcomeCaptureRequest {
     outcome: storage::operations::DataQualityHygieneOutcomeCode,
     actual_minutes: u16,
     actor: DataQualityHygieneOutcomeActorRequest,
     feedback: String,
     #[serde(default)]
-    source_refs: Vec<Value>,
+    source_refs: Vec<public_contract::SourceRecordRef>,
     #[serde(default)]
     issue_refs: Vec<String>,
     resolution_status_after_review: storage::operations::DataQualityResolutionStatusCode,
@@ -1661,9 +1808,28 @@ struct DataQualityHygieneOutcomeSummaryQuery {
 
 async fn capture_manager_daily_brief_action_outcome(
     State(state): State<VaccineDocumentState>,
+    Authenticated(authentication): Authenticated,
     Path(action_id): Path<String>,
     Json(request): Json<ManagerDailyBriefOutcomeCaptureRequest>,
 ) -> (StatusCode, Json<Value>) {
+    if let Err(rejection) = authentication::authorize_actor(
+        &authentication,
+        authentication::Mutation::ManagerDailyBriefOutcome,
+        &request.actor.id,
+    )
+    .and_then(|()| {
+        authentication::authorize_persona_claim(&authentication, &request.actor.persona.to_string())
+    }) {
+        return (
+            rejection.status_code(),
+            Json(authorization_error_payload(
+                rejection,
+                "manager_daily_brief_outcome",
+                "outcome_persisted",
+            )),
+        );
+    }
+
     let reasons = request
         .requested_side_effects
         .iter()
@@ -1726,6 +1892,17 @@ async fn capture_manager_daily_brief_action_outcome(
         );
     };
 
+    if let Err(rejection) = authentication::authorize_location(&authentication, location_id.0) {
+        return (
+            rejection.status_code(),
+            Json(authorization_error_payload(
+                rejection,
+                "manager_daily_brief_outcome",
+                "outcome_persisted",
+            )),
+        );
+    }
+
     let packet = local_manager_daily_brief_packet(location_id, operating_day);
     let Some(action) = packet
         .actions()
@@ -1744,6 +1921,20 @@ async fn capture_manager_daily_brief_action_outcome(
         );
     };
 
+    let expected_source_refs = manager_daily_brief_action_source_refs(action, operating_day);
+    if request.source_refs != expected_source_refs {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({
+                "accepted": false,
+                "outcome_persisted": false,
+                "reasons": ["source_refs_do_not_match_action"],
+                "live_side_effects_allowed": false,
+                "blocked_actions": manager_daily_brief_blocked_action_codes()
+            })),
+        );
+    }
+
     let before_minutes = storage::operations::StoredManagerDailyBriefLaborMinutes::try_new(
         action.labor_impact().before_minutes().get(),
     )
@@ -1757,7 +1948,12 @@ async fn capture_manager_daily_brief_action_outcome(
         .actor_id(request.actor.id)
         .actor_persona(request.actor.persona)
         .feedback(request.feedback)
-        .source_refs(request.source_refs)
+        .source_refs(
+            expected_source_refs
+                .iter()
+                .map(stored_source_record_ref_from_payload)
+                .collect(),
+        )
         .recorded_at(request.timestamp)
         .correlation_id(request.audit.correlation_id)
         .location_id(location_id.0.to_string())
@@ -1769,7 +1965,7 @@ async fn capture_manager_daily_brief_action_outcome(
     let reporting_group = record.reporting_group();
     let persisted_outcome_count = {
         let mut store = state.store.lock().await;
-        store.record_manager_daily_brief_outcome(record.clone())
+        store.manager_daily_brief_outcomes.record(record.clone())
     };
 
     (
@@ -1816,13 +2012,32 @@ async fn capture_manager_daily_brief_action_outcome(
 }
 
 async fn submit_manager_daily_brief_agent_draft(
+    Authenticated(authentication): Authenticated,
     Json(request): Json<ManagerDailyBriefAgentDraftSubmissionRequest>,
-) -> (StatusCode, Json<Value>) {
+) -> axum::response::Response {
+    if let Err(rejection) = authentication::authorize(
+        &authentication,
+        authentication::Mutation::ManagerDailyBriefDraft,
+        &request.submitted_by,
+        local_data_quality_hygiene_location_id().0,
+    ) {
+        return (
+            rejection.status_code(),
+            Json(authorization_error_payload(
+                rejection,
+                "manager_daily_brief_agent_draft",
+                "draft_accepted",
+            )),
+        )
+            .into_response();
+    }
+
     let mut accepted_actions = Vec::new();
     let mut rejected_actions = Vec::new();
+    let packet = manager_daily_brief_packet_from_context_id(&request.context_packet_id);
 
     for action in &request.actions {
-        let reasons = validate_manager_daily_brief_submitted_action(action);
+        let reasons = validate_manager_daily_brief_submitted_action(action, packet.as_ref());
         if reasons.is_empty() {
             accepted_actions.push(json!({
                 "id": action.id,
@@ -1876,28 +2091,60 @@ async fn submit_manager_daily_brief_agent_draft(
             }
         })),
     )
+        .into_response()
 }
 
 async fn data_quality_hygiene_agent_context(
+    Authenticated(authentication): Authenticated,
     Extension(request_trace): Extension<RequestTraceEvidence>,
     Query(query): Query<DataQualityHygieneAgentContextQuery>,
-) -> Json<Value> {
+) -> axum::response::Response {
+    if let Err(rejection) = authentication::authorize_read(
+        &authentication,
+        authentication::Read::OperationalContext,
+        Some(query.location_id),
+        None,
+    ) {
+        return PublicApiError::new(
+            rejection.into(),
+            ErrorContext::new(request_trace.request_id()),
+        )
+        .into_response();
+    }
     let location_id = entities::LocationId(query.location_id);
     let operating_day = operations::operating_day::Date::try_new(query.operating_day)
         .expect("operating day date is always valid after query parsing");
     let packet = local_data_quality_hygiene_packet(location_id, operating_day);
 
-    Json(data_quality_hygiene_packet_payload(&packet, &request_trace))
+    Json(data_quality_hygiene_packet_payload(&packet, &request_trace)).into_response()
 }
 
 async fn permissioned_knowledge_agent_context(
+    Authenticated(authentication): Authenticated,
     Extension(request_trace): Extension<RequestTraceEvidence>,
     Query(query): Query<PermissionedKnowledgeAgentContextQuery>,
-) -> Json<Value> {
+) -> axum::response::Response {
+    if let Err(rejection) = authentication::authorize_read(
+        &authentication,
+        authentication::Read::PermissionedKnowledge,
+        Some(query.location_id),
+        Some(&query.role),
+    ) {
+        return PublicApiError::new(rejection.into(), ErrorContext::new("missing_request_id"))
+            .into_response();
+    }
     let service = permissioned_knowledge_service(&query.service);
-    let role = permissioned_knowledge_role(&query.role);
+    let trusted_role = authentication::actor_role_claim(&authentication)
+        .expect("authenticated read authorization resolved an actor role");
+    let role = permissioned_knowledge_role(trusted_role);
     let context = agent::assistant::ActorContext::builder()
-        .actor_id(access::ActorId::try_new("fixture-knowledge-actor").unwrap())
+        .actor_id(
+            access::ActorId::try_new(
+                authentication::actor_id(&authentication)
+                    .expect("authenticated read authorization resolved an actor id"),
+            )
+            .expect("trusted actor ids satisfy actor-context validation"),
+        )
         .role(role)
         .title(access::Title::try_new("Fixture Knowledge Actor").unwrap())
         .location_id(entities::LocationId(query.location_id))
@@ -1959,11 +2206,25 @@ async fn permissioned_knowledge_agent_context(
         },
         "observability": workflow_observability_payload(&correlation_id, &request_trace)
     }))
+    .into_response()
 }
 
 async fn site_finance_agent_context(
+    Authenticated(authentication): Authenticated,
     Extension(request_trace): Extension<RequestTraceEvidence>,
-) -> (StatusCode, Json<Value>) {
+) -> axum::response::Response {
+    if let Err(rejection) = authentication::authorize_read(
+        &authentication,
+        authentication::Read::SiteFinance,
+        Some(local_data_quality_hygiene_location_id().0),
+        None,
+    ) {
+        return PublicApiError::new(
+            rejection.into(),
+            ErrorContext::new(request_trace.request_id()),
+        )
+        .into_response();
+    }
     let slice = match site_finance::fixture_site_period_projection() {
         Ok(slice) => slice,
         Err(error) => {
@@ -1975,7 +2236,8 @@ async fn site_finance_agent_context(
                     "error": error.to_string(),
                     "live_side_effects_allowed": false
                 })),
-            );
+            )
+                .into_response();
         }
     };
     let review_packet_id = serde_json::to_value(slice.action().review_packet_id())
@@ -2026,6 +2288,7 @@ async fn site_finance_agent_context(
             "observability": workflow_observability_payload(correlation_id, &request_trace)
         })),
     )
+        .into_response()
 }
 
 fn permissioned_knowledge_service(raw: &str) -> entities::ServiceKind {
@@ -2047,8 +2310,24 @@ fn permissioned_knowledge_role(raw: &str) -> access::ActorRole {
 }
 
 async fn submit_data_quality_hygiene_agent_draft(
-    Json(request): Json<DataQualityHygieneAgentDraftSubmissionRequest>,
+    Authenticated(authentication): Authenticated,
+    Json(request): Json<public_contract::DataQualityHygieneDraftSubmissionRequest>,
 ) -> (StatusCode, Json<Value>) {
+    if let Err(rejection) = authentication::authorize_source_ingest(
+        &authentication,
+        authentication::Mutation::DataQualityHygieneDraft,
+        local_data_quality_hygiene_location_id().0,
+    ) {
+        return (
+            rejection.status_code(),
+            Json(authorization_error_payload(
+                rejection,
+                "data_quality_hygiene_agent_draft",
+                "draft_accepted",
+            )),
+        );
+    }
+
     let packet = local_data_quality_hygiene_packet(
         local_data_quality_hygiene_location_id(),
         local_data_quality_hygiene_operating_day(),
@@ -2114,9 +2393,29 @@ async fn submit_data_quality_hygiene_agent_draft(
 
 async fn capture_data_quality_hygiene_action_outcome(
     State(state): State<VaccineDocumentState>,
+    Authenticated(authentication): Authenticated,
     Path(action_id): Path<String>,
     Json(request): Json<DataQualityHygieneOutcomeCaptureRequest>,
 ) -> (StatusCode, Json<Value>) {
+    if let Err(rejection) = authentication::authorize(
+        &authentication,
+        authentication::Mutation::DataQualityHygieneOutcome,
+        &request.actor.id,
+        local_data_quality_hygiene_location_id().0,
+    )
+    .and_then(|()| {
+        authentication::authorize_persona_claim(&authentication, &request.actor.persona.to_string())
+    }) {
+        return (
+            rejection.status_code(),
+            Json(authorization_error_payload(
+                rejection,
+                "data_quality_hygiene_outcome",
+                "outcome_persisted",
+            )),
+        );
+    }
+
     let reasons = request
         .requested_side_effects
         .iter()
@@ -2198,6 +2497,33 @@ async fn capture_data_quality_hygiene_action_outcome(
         );
     };
 
+    let expected_source_refs = data_quality_hygiene_action_source_refs(&packet, action);
+    let expected_issue_refs = action
+        .issue_refs()
+        .iter()
+        .map(|issue_ref| issue_ref.as_str().to_owned())
+        .collect::<Vec<_>>();
+    let mut provenance_reasons = Vec::new();
+    if request.source_refs != expected_source_refs {
+        provenance_reasons.push("source_refs_do_not_match_action");
+    }
+    if request.issue_refs != expected_issue_refs {
+        provenance_reasons.push("issue_refs_do_not_match_action");
+    }
+    provenance_reasons.sort_unstable();
+    if !provenance_reasons.is_empty() {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({
+                "accepted": false,
+                "outcome_persisted": false,
+                "reasons": provenance_reasons,
+                "live_side_effects_allowed": false,
+                "blocked_actions": data_quality_hygiene_blocked_action_codes()
+            })),
+        );
+    }
+
     let before_minutes = storage::operations::StoredDataQualityHygieneLaborMinutes::try_new(
         action.labor_impact().before_minutes().get(),
     )
@@ -2242,9 +2568,11 @@ async fn capture_data_quality_hygiene_action_outcome(
     );
     let (persisted_outcome_count, persisted_projection_count) = {
         let mut store = state.store.lock().await;
-        let persisted_outcome_count = store.record_data_quality_hygiene_outcome(record.clone());
-        let persisted_projection_count =
-            store.record_data_quality_hygiene_persistence_records(local_persistence_records);
+        let persisted_outcome_count = store.data_quality_hygiene_outcomes.record(record.clone());
+        store
+            .data_quality_hygiene_persistence_records
+            .push(local_persistence_records);
+        let persisted_projection_count = store.data_quality_hygiene_persistence_records.len();
         (persisted_outcome_count, persisted_projection_count)
     };
 
@@ -2299,13 +2627,27 @@ async fn capture_data_quality_hygiene_action_outcome(
 
 async fn data_quality_hygiene_outcome_summary(
     State(state): State<VaccineDocumentState>,
+    Authenticated(authentication): Authenticated,
+    Extension(request_trace): Extension<RequestTraceEvidence>,
     Query(query): Query<DataQualityHygieneOutcomeSummaryQuery>,
-) -> Json<Value> {
+) -> axum::response::Response {
+    if let Err(rejection) = authentication::authorize_read(
+        &authentication,
+        authentication::Read::OperationalContext,
+        Some(query.location_id),
+        None,
+    ) {
+        return PublicApiError::new(
+            rejection.into(),
+            ErrorContext::new(request_trace.request_id()),
+        )
+        .into_response();
+    }
     let location_id = query.location_id.to_string();
     let operating_day = query.operating_day.to_string();
     let records = {
         let store = state.store.lock().await;
-        store.data_quality_hygiene_outcome_records()
+        store.data_quality_hygiene_outcomes.outcomes().to_vec()
     };
     let summary = storage::operations::DataQualityHygieneOutcomeSummary::from_records(
         &records,
@@ -2324,6 +2666,7 @@ async fn data_quality_hygiene_outcome_summary(
             "policy_owner": "deterministic_app"
         }
     }))
+    .into_response()
 }
 
 fn data_quality_hygiene_lineage_ids(
@@ -2372,12 +2715,17 @@ fn data_quality_hygiene_outcome_observability_payload(
     correlation_id: &str,
     records: &storage::operations::DataQualityHygieneLocalPersistenceRecords,
 ) -> Value {
+    let outbox_state = if records.outbox_candidate.is_some() {
+        "approved_internal_outbox_candidate_created"
+    } else {
+        "review_pending_no_outbox_authority"
+    };
     json!({
         "correlation_id": correlation_id,
         "workflow_event_id": records.workflow_event.id,
         "review_packet_id": records.review_packet.id,
-        "outbox_candidate_id": records.outbox_candidate.as_ref().map(|candidate| candidate.id.as_str()),
-        "what_happened": "reviewed_outcome_recorded_and_internal_outbox_candidate_created",
+        "outbox_candidate_id": records.outbox_candidate.as_ref().map(|candidate| candidate.id()),
+        "what_happened": outbox_state,
         "what_was_blocked": ["provider_writes", "customer_sends", "payments", "schedule_changes"],
         "production_next_step": "durable_worker_leasing_retry_dead_letter_metrics_and_approved_adapter_execution",
         "observability_scope": "single_local_workflow_response_only"
@@ -2389,12 +2737,12 @@ fn data_quality_hygiene_storage_projection_proof(
 ) -> Value {
     let outbox_candidate = records.outbox_candidate.as_ref().map(|candidate| {
         json!({
-            "id": candidate.id,
-            "topic": candidate.topic,
-            "status": candidate.status,
-            "review_gate": candidate.review_gate,
-            "internal_handoff_only": candidate.payload["internal_handoff_only"].as_bool().unwrap_or(false),
-            "live_delivery_allowed": candidate.payload["live_delivery_allowed"].as_bool().unwrap_or(false)
+            "id": candidate.id(),
+            "topic": candidate.topic(),
+            "status": candidate.status(),
+            "review_gate": candidate.review_gate(),
+            "internal_handoff_only": candidate.payload()["internal_handoff_only"].as_bool().unwrap_or(false),
+            "live_delivery_allowed": candidate.payload()["live_delivery_allowed"].as_bool().unwrap_or(false)
         })
     });
 
@@ -2412,6 +2760,7 @@ fn data_quality_hygiene_storage_projection_proof(
 
 fn validate_manager_daily_brief_submitted_action(
     action: &ManagerDailyBriefSubmittedAction,
+    packet: Option<&manager_daily_brief::Packet>,
 ) -> Vec<String> {
     let mut reasons = Vec::new();
 
@@ -2420,8 +2769,47 @@ fn validate_manager_daily_brief_submitted_action(
         return reasons;
     };
 
+    let source_refs_are_complete = !action.source_refs.is_empty()
+        && action.source_refs.iter().all(|source_ref| {
+            [
+                &source_ref.system,
+                &source_ref.record_type,
+                &source_ref.record_id,
+                &source_ref.observed_at,
+                &source_ref.adapter_version,
+            ]
+            .iter()
+            .all(|field| !field.trim().is_empty())
+        });
     if action.source_refs.is_empty() {
         reasons.push("missing_source_refs".to_owned());
+    } else if !source_refs_are_complete {
+        reasons.push("incomplete_source_ref".to_owned());
+    }
+
+    if source_refs_are_complete {
+        match packet {
+            Some(packet) => {
+                let matching_action = packet.actions().iter().find(|packet_action| {
+                    brief_action_kind_code(packet_action.kind()) == action.kind
+                        && packet_action.id().clone().into_inner() == action.id
+                });
+                match matching_action {
+                    Some(packet_action)
+                        if action.source_refs
+                            != manager_daily_brief_action_source_refs(
+                                packet_action,
+                                packet.operating_day(),
+                            ) =>
+                    {
+                        reasons.push("source_refs_do_not_match_action".to_owned());
+                    }
+                    None => reasons.push("action_not_present_in_context_packet".to_owned()),
+                    Some(_) => {}
+                }
+            }
+            None => reasons.push("invalid_context_packet_id".to_owned()),
+        }
     }
 
     if !action
@@ -2482,6 +2870,19 @@ fn manager_daily_brief_reporting_scope(
         entities::LocationId(location_id),
         operations::operating_day::Date::try_new(operating_day).ok()?,
     ))
+}
+
+fn manager_daily_brief_packet_from_context_id(
+    context_packet_id: &str,
+) -> Option<manager_daily_brief::Packet> {
+    let scope = context_packet_id.strip_prefix("manager-daily-brief-context:")?;
+    let (location_id, operating_day) = scope.rsplit_once(':')?;
+    let location_id = entities::LocationId(Uuid::parse_str(location_id).ok()?);
+    let operating_day = operations::operating_day::Date::try_new(
+        NaiveDate::parse_from_str(operating_day, "%Y-%m-%d").ok()?,
+    )
+    .ok()?;
+    Some(local_manager_daily_brief_packet(location_id, operating_day))
 }
 
 fn local_manager_daily_brief_packet(
@@ -2555,9 +2956,22 @@ fn stored_manager_daily_brief_persona(
 }
 
 async fn manager_daily_brief_agent_context(
+    Authenticated(authentication): Authenticated,
     Extension(request_trace): Extension<RequestTraceEvidence>,
     Query(query): Query<ManagerDailyBriefAgentContextQuery>,
-) -> Json<Value> {
+) -> axum::response::Response {
+    if let Err(rejection) = authentication::authorize_read(
+        &authentication,
+        authentication::Read::OperationalContext,
+        Some(query.location_id),
+        None,
+    ) {
+        return PublicApiError::new(
+            rejection.into(),
+            ErrorContext::new(request_trace.request_id()),
+        )
+        .into_response();
+    }
     let location_id = entities::LocationId(query.location_id);
     let operating_day = operations::operating_day::Date::try_new(query.operating_day)
         .expect("operating day date is always valid after query parsing");
@@ -2639,7 +3053,11 @@ async fn manager_daily_brief_agent_context(
         "service_demand_facts": service_demand_facts.iter().map(service_demand_fact_payload).collect::<Vec<_>>(),
         "checkout_completion_exceptions": checkout_packets.iter().filter_map(checkout_exception_payload).collect::<Vec<_>>(),
         "crm_retention_opportunities": retention_packets.iter().filter_map(retention_opportunity_payload).collect::<Vec<_>>(),
-        "manager_brief_actions": packet.actions().iter().map(manager_brief_action_payload).collect::<Vec<_>>(),
+        "manager_brief_actions": packet
+            .actions()
+            .iter()
+            .map(|action| manager_brief_action_payload(action, packet.operating_day()))
+            .collect::<Vec<_>>(),
         "data_quality_issues": data_quality_issues,
         "source_refs": source_refs,
         "allowed_agent_actions": packet.safe_agent_actions().iter().map(safe_agent_action_code).collect::<Vec<_>>(),
@@ -2655,12 +3073,31 @@ async fn manager_daily_brief_agent_context(
         },
         "observability": workflow_observability_payload(&correlation_id, &request_trace)
     }))
+    .into_response()
 }
 
 async fn upload_vaccine_document(
     State(state): State<VaccineDocumentState>,
+    Authenticated(authentication): Authenticated,
     Json(request): Json<VaccineDocumentUploadRequest>,
-) -> (StatusCode, Json<VaccineDocumentWorkflowPayload>) {
+) -> axum::response::Response {
+    if let Err(rejection) = authentication::authorize(
+        &authentication,
+        authentication::Mutation::VaccineDocumentUpload,
+        &request.uploaded_by_staff_id,
+        local_manager_daily_brief_location_id().0,
+    ) {
+        return (
+            rejection.status_code(),
+            Json(authorization_error_payload(
+                rejection,
+                "vaccine_document_review",
+                "accepted",
+            )),
+        )
+            .into_response();
+    }
+
     let mut store = state.store.lock().await;
     let document_id = Uuid::new_v4();
     let extraction_id = Uuid::new_v4();
@@ -2750,106 +3187,269 @@ async fn upload_vaccine_document(
     ));
 
     let payload = store.payload(document_id, vaccine_record_id, review_packet_id, None);
-    (StatusCode::CREATED, Json(payload))
+    (StatusCode::CREATED, Json(payload)).into_response()
 }
 
 async fn approve_vaccine_document(
     State(state): State<VaccineDocumentState>,
+    Authenticated(authentication): Authenticated,
     Path(review_packet_id): Path<Uuid>,
     Json(request): Json<VaccineReviewDecisionRequest>,
-) -> (StatusCode, Json<VaccineDocumentWorkflowPayload>) {
-    decide_vaccine_document(state, review_packet_id, request, true).await
+) -> axum::response::Response {
+    decide_vaccine_document(
+        state,
+        authentication,
+        review_packet_id,
+        request,
+        VaccineReviewDecision::Approve,
+    )
+    .await
 }
 
 async fn reject_vaccine_document(
     State(state): State<VaccineDocumentState>,
+    Authenticated(authentication): Authenticated,
     Path(review_packet_id): Path<Uuid>,
     Json(request): Json<VaccineReviewDecisionRequest>,
-) -> (StatusCode, Json<VaccineDocumentWorkflowPayload>) {
-    decide_vaccine_document(state, review_packet_id, request, false).await
+) -> axum::response::Response {
+    decide_vaccine_document(
+        state,
+        authentication,
+        review_packet_id,
+        request,
+        VaccineReviewDecision::Reject,
+    )
+    .await
 }
 
 async fn decide_vaccine_document(
     state: VaccineDocumentState,
+    authentication: authentication::Context,
     review_packet_id: Uuid,
     request: VaccineReviewDecisionRequest,
-    approved: bool,
-) -> (StatusCode, Json<VaccineDocumentWorkflowPayload>) {
-    let mut store = state.store.lock().await;
-    let packet = store
-        .review_packets
-        .get_mut(&review_packet_id)
-        .expect("review packet exists");
-    packet.status = if approved { "approved" } else { "rejected" };
-    let document_id = packet.document_id;
-    let vaccine_record_id = packet.vaccine_record_id;
+    decision: VaccineReviewDecision,
+) -> axum::response::Response {
+    if let Err(rejection) = authentication::authorize(
+        &authentication,
+        authentication::Mutation::VaccineReviewDecision,
+        &request.reviewed_by_staff_id,
+        local_manager_daily_brief_location_id().0,
+    ) {
+        return (
+            rejection.status_code(),
+            Json(authorization_error_payload(
+                rejection,
+                "vaccine_document_review",
+                "accepted",
+            )),
+        )
+            .into_response();
+    }
 
-    let document = store
-        .documents
-        .get_mut(&document_id)
-        .expect("document exists for packet");
-    document.verification_status = if approved { "verified" } else { "rejected" };
-
-    let vaccine_record = store
-        .vaccine_records
-        .get_mut(&vaccine_record_id)
-        .expect("vaccine exists for packet");
-    vaccine_record.status = if approved {
-        "verified_current"
-    } else {
-        "rejected"
-    };
-    let pet_id = vaccine_record.pet_id;
-
-    let eligibility = PetEligibility {
-        pet_id,
-        rabies_current: approved,
-        source_vaccine_record_id: Some(vaccine_record_id),
-        status: if approved {
-            "eligible_from_approved_vaccine_document"
-        } else {
-            "ineligible_after_rejected_vaccine_document"
-        },
-    };
-    store.eligibility.insert(pet_id, eligibility);
-
-    let approval = ApprovalRecord {
-        id: Uuid::new_v4(),
-        review_packet_id,
-        target_document_id: document_id,
-        target_vaccine_record_id: vaccine_record_id,
-        gate: "medical_document_review",
-        status: if approved { "approved" } else { "rejected" },
-        decided_by_staff_id: request.reviewed_by_staff_id.clone(),
+    let evidence = VaccineReviewDecisionEvidence {
+        reviewed_by_staff_id: request.reviewed_by_staff_id,
         decided_at: Utc::now().to_rfc3339(),
         reason: request.reason,
     };
-    store.approvals.insert(approval.id, approval.clone());
-    store.audit_events.push(audit(
-        "approval.decision.recorded",
-        &request.reviewed_by_staff_id,
-        "approval",
-        approval.id,
-        [("status", approval.status.to_owned())],
-    ));
-    store.audit_events.push(audit(
-        "pet.eligibility.updated",
-        &request.reviewed_by_staff_id,
-        "pet",
-        pet_id,
-        [("rabies_current", approved.to_string())],
-    ));
+    let mut store = state.store.lock().await;
+    match store.apply_vaccine_review_decision(review_packet_id, decision, evidence) {
+        Ok(payload) => (StatusCode::OK, Json(payload)).into_response(),
+        Err(rejection) => vaccine_review_decision_error_response(&store, rejection),
+    }
+}
 
-    let payload = store.payload(
-        document_id,
-        vaccine_record_id,
-        review_packet_id,
-        Some(approval),
-    );
-    (StatusCode::OK, Json(payload))
+fn vaccine_review_decision_error_response(
+    store: &VaccineDocumentStore,
+    rejection: VaccineReviewDecisionRejection,
+) -> axum::response::Response {
+    match rejection {
+        VaccineReviewDecisionRejection::PacketNotFound { review_packet_id } => (
+            StatusCode::NOT_FOUND,
+            Json(json!({
+                "api_contract": api_dto_contract_payload("vaccine_document_review"),
+                "accepted": false,
+                "error": {
+                    "code": "vaccine_review_packet_not_found",
+                    "message": "The vaccine review packet is unknown to this application-owned workflow store."
+                },
+                "review_packet_id": review_packet_id
+            })),
+        )
+            .into_response(),
+        VaccineReviewDecisionRejection::PacketAlreadyDecided {
+            review_packet_id,
+            existing,
+            attempted,
+        } => {
+            let payload = store.payload_for_review_conflict(review_packet_id, existing, attempted);
+            (StatusCode::CONFLICT, Json(payload)).into_response()
+        }
+        VaccineReviewDecisionRejection::BrokenWorkflowState {
+            review_packet_id,
+            code,
+        } => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({
+                "api_contract": api_dto_contract_payload("vaccine_document_review"),
+                "accepted": false,
+                "error": {
+                    "code": code,
+                    "message": "The vaccine review packet cannot transition because its correlated workflow records are incomplete."
+                },
+                "review_packet_id": review_packet_id
+            })),
+        )
+            .into_response(),
+    }
 }
 
 impl VaccineDocumentStore {
+    fn apply_vaccine_review_decision(
+        &mut self,
+        review_packet_id: Uuid,
+        decision: VaccineReviewDecision,
+        evidence: VaccineReviewDecisionEvidence,
+    ) -> Result<VaccineDocumentWorkflowPayload, VaccineReviewDecisionRejection> {
+        let packet = self
+            .review_packets
+            .get(&review_packet_id)
+            .cloned()
+            .ok_or(VaccineReviewDecisionRejection::PacketNotFound { review_packet_id })?;
+
+        if let Some(existing) = VaccineReviewDecision::from_decided_status(packet.status) {
+            return Err(VaccineReviewDecisionRejection::PacketAlreadyDecided {
+                review_packet_id,
+                existing,
+                attempted: decision,
+            });
+        }
+
+        let document_id = packet.document_id;
+        let vaccine_record_id = packet.vaccine_record_id;
+        let pet_id = self
+            .vaccine_records
+            .get(&vaccine_record_id)
+            .map(|record| record.pet_id)
+            .ok_or(VaccineReviewDecisionRejection::BrokenWorkflowState {
+                review_packet_id,
+                code: "vaccine_review_record_not_found",
+            })?;
+        self.documents.get(&document_id).ok_or(
+            VaccineReviewDecisionRejection::BrokenWorkflowState {
+                review_packet_id,
+                code: "vaccine_review_document_not_found",
+            },
+        )?;
+        self.extractions.get(&document_id).ok_or(
+            VaccineReviewDecisionRejection::BrokenWorkflowState {
+                review_packet_id,
+                code: "vaccine_review_extraction_not_found",
+            },
+        )?;
+        self.eligibility.get(&pet_id).ok_or(
+            VaccineReviewDecisionRejection::BrokenWorkflowState {
+                review_packet_id,
+                code: "vaccine_review_eligibility_not_found",
+            },
+        )?;
+
+        self.review_packets
+            .get_mut(&review_packet_id)
+            .ok_or(VaccineReviewDecisionRejection::PacketNotFound { review_packet_id })?
+            .status = decision.status_code();
+        self.documents
+            .get_mut(&document_id)
+            .ok_or(VaccineReviewDecisionRejection::BrokenWorkflowState {
+                review_packet_id,
+                code: "vaccine_review_document_not_found",
+            })?
+            .verification_status = decision.document_verification_status();
+        self.vaccine_records
+            .get_mut(&vaccine_record_id)
+            .ok_or(VaccineReviewDecisionRejection::BrokenWorkflowState {
+                review_packet_id,
+                code: "vaccine_review_record_not_found",
+            })?
+            .status = decision.vaccine_record_status();
+        let eligibility = decision.eligibility(pet_id, vaccine_record_id);
+        self.eligibility.insert(pet_id, eligibility);
+
+        let approval = ApprovalRecord {
+            id: Uuid::new_v4(),
+            review_packet_id,
+            target_document_id: document_id,
+            target_vaccine_record_id: vaccine_record_id,
+            gate: "medical_document_review",
+            status: decision.status_code(),
+            decided_by_staff_id: evidence.reviewed_by_staff_id.clone(),
+            decided_at: evidence.decided_at,
+            reason: evidence.reason,
+        };
+        self.approvals.insert(approval.id, approval.clone());
+        self.audit_events.push(audit(
+            "approval.decision.recorded",
+            &evidence.reviewed_by_staff_id,
+            "approval",
+            approval.id,
+            [("status", approval.status.to_owned())],
+        ));
+        self.audit_events.push(audit(
+            "pet.eligibility.updated",
+            &evidence.reviewed_by_staff_id,
+            "pet",
+            pet_id,
+            [(
+                "rabies_current",
+                matches!(decision, VaccineReviewDecision::Approve).to_string(),
+            )],
+        ));
+
+        Ok(self.payload(
+            document_id,
+            vaccine_record_id,
+            review_packet_id,
+            Some(approval),
+        ))
+    }
+
+    fn payload_for_review_conflict(
+        &self,
+        review_packet_id: Uuid,
+        existing: VaccineReviewDecision,
+        attempted: VaccineReviewDecision,
+    ) -> Value {
+        let Some(packet) = self.review_packets.get(&review_packet_id) else {
+            return json!({
+                "api_contract": api_dto_contract_payload("vaccine_document_review"),
+                "accepted": false,
+                "error": {"code": "vaccine_review_packet_not_found"},
+                "review_packet_id": review_packet_id
+            });
+        };
+        let workflow = self.payload(
+            packet.document_id,
+            packet.vaccine_record_id,
+            review_packet_id,
+            None,
+        );
+        json!({
+            "api_contract": api_dto_contract_payload("vaccine_document_review"),
+            "accepted": false,
+            "error": {
+                "code": "vaccine_review_packet_already_decided",
+                "message": "A vaccine review packet accepts exactly one approve or reject decision."
+            },
+            "review_packet_id": review_packet_id,
+            "existing_decision": existing.status_code(),
+            "attempted_decision": attempted.status_code(),
+            "document": workflow.document,
+            "vaccine_record": workflow.vaccine_record,
+            "review_packet": workflow.review_packet,
+            "eligibility": workflow.eligibility,
+            "approval": workflow.approval
+        })
+    }
+
     fn payload(
         &self,
         document_id: Uuid,
@@ -3265,7 +3865,10 @@ fn retention_opportunity_payload(
     }))
 }
 
-fn manager_brief_action_payload(action: &manager_daily_brief::BriefAction) -> Value {
+fn manager_brief_action_payload(
+    action: &manager_daily_brief::BriefAction,
+    operating_day: operations::operating_day::Date,
+) -> Value {
     json!({
         "id": action.id().clone().into_inner(),
         "kind": brief_action_kind_code(action.kind()),
@@ -3273,6 +3876,7 @@ fn manager_brief_action_payload(action: &manager_daily_brief::BriefAction) -> Va
         "owner_persona": manager_brief_persona_code(action.owner_persona()),
         "removed_manual_work": removed_manual_work_code(action.removed_manual_work()),
         "source_facts": action.source_facts().iter().map(source_fact_payload).collect::<Vec<_>>(),
+        "source_refs": manager_daily_brief_action_source_refs(action, operating_day),
         "required_review_gates": action.required_review_gates().iter().map(review_gate_code).collect::<Vec<_>>(),
         "labor_impact": {
             "before_minutes": action.labor_impact().before_minutes().get(),
@@ -3299,6 +3903,19 @@ fn data_quality_issue_payload(issue: &data_quality::Issue) -> Value {
     })
 }
 
+fn data_quality_issue_contract(issue: &data_quality::Issue) -> public_contract::DataQualityIssue {
+    public_contract::DataQualityIssue {
+        kind: data_quality_kind_code(&issue.kind()).to_owned(),
+        severity: data_quality_severity_code(issue.severity()).to_owned(),
+        workflow_blocking: issue.workflow_blocking(),
+        detail: None,
+        source_refs: vec![source_record_ref_contract(
+            issue.source_record_ref(),
+            issue.provenance(),
+        )],
+    }
+}
+
 fn missing_context_issue_payload(kind: &'static str, detail: &'static str) -> Value {
     json!({
         "kind": kind,
@@ -3314,6 +3931,43 @@ fn source_record_ref_payload(record_ref: &source::RecordRef) -> Value {
         "system": source_system_code(record_ref.system()),
         "record_id": record_ref.record_id().as_str()
     })
+}
+
+fn source_record_ref_contract(
+    record_ref: &source::RecordRef,
+    provenance: &source::Provenance,
+) -> public_contract::SourceRecordRef {
+    public_contract::SourceRecordRef {
+        system: source_system_code(record_ref.system()).to_owned(),
+        record_type: provenance.endpoint().as_str().to_owned(),
+        record_id: record_ref.record_id().as_str().to_owned(),
+        observed_at: provenance.pulled_at().get().to_rfc3339(),
+        adapter_version: provenance.schema_version().as_str().to_owned(),
+    }
+}
+
+fn manager_daily_brief_action_source_refs(
+    action: &manager_daily_brief::BriefAction,
+    operating_day: operations::operating_day::Date,
+) -> Vec<public_contract::SourceRecordRef> {
+    let mut source_refs = action
+        .source_facts()
+        .iter()
+        .flat_map(|fact| {
+            fact.source_record_refs().iter().map(move |record_ref| {
+                public_contract::SourceRecordRef {
+                    system: source_system_code(record_ref.system()).to_owned(),
+                    record_type: source_fact_kind_code(fact.kind()).to_owned(),
+                    record_id: record_ref.record_id().as_str().to_owned(),
+                    observed_at: format!("{}T00:00:00Z", operating_day.get()),
+                    adapter_version: "nva-local-manager-daily-brief-fixture-v1".to_owned(),
+                }
+            })
+        })
+        .collect::<Vec<_>>();
+    source_refs.sort();
+    source_refs.dedup();
+    source_refs
 }
 
 fn local_data_quality_hygiene_packet(
@@ -3390,70 +4044,133 @@ fn local_data_quality_hygiene_candidates() -> Vec<data_quality_hygiene::Candidat
 fn data_quality_hygiene_packet_payload(
     packet: &data_quality_hygiene::Packet,
     request_trace: &RequestTraceEvidence,
-) -> Value {
+) -> public_contract::DataQualityHygieneContextResponse {
     let correlation_id = packet.correlation_id().as_str();
-    json!({
-        "api_contract": api_dto_contract_payload("data_quality_hygiene"),
-        "workflow": {
-            "name": packet.workflow(),
-            "version": packet.schema_version()
+    public_contract::DataQualityHygieneContextResponse {
+        api_contract: api_dto_contract("data_quality_hygiene"),
+        workflow: public_contract::WorkflowDescriptor {
+            name: packet.workflow().to_owned(),
+            version: packet.schema_version().to_owned(),
         },
-        "location_id": packet.location_id().0,
-        "operating_day": packet.operating_day().get().to_string(),
-        "prepared_for": data_quality_hygiene_persona_code(packet.prepared_for()),
-        "candidates": packet.candidates().iter().map(data_quality_hygiene_candidate_payload).collect::<Vec<_>>(),
-        "hygiene_actions": packet.actions().iter().map(data_quality_hygiene_action_payload).collect::<Vec<_>>(),
-        "allowed_agent_actions": packet.safe_agent_actions().iter().map(|action| data_quality_hygiene_safe_action_code(*action)).collect::<Vec<_>>(),
-        "blocked_actions": packet.blocked_actions().iter().map(|action| data_quality_hygiene_blocked_action_code(*action)).collect::<Vec<_>>(),
-        "labor_savings_estimate": {
-            "before_minutes": packet.before_minutes().get(),
-            "after_minutes": packet.after_minutes().get(),
-            "estimated_minutes_saved": packet.minutes_saved()
+        location_id: packet.location_id().0.to_string(),
+        operating_day: packet.operating_day().get().to_string(),
+        prepared_for: data_quality_hygiene_persona_code(packet.prepared_for()).to_owned(),
+        candidates: packet
+            .candidates()
+            .iter()
+            .map(data_quality_hygiene_candidate_payload)
+            .collect(),
+        hygiene_actions: packet
+            .actions()
+            .iter()
+            .map(|action| data_quality_hygiene_action_payload(packet, action))
+            .collect(),
+        allowed_agent_actions: packet
+            .safe_agent_actions()
+            .iter()
+            .map(|action| data_quality_hygiene_safe_action_code(*action).to_owned())
+            .collect(),
+        blocked_actions: packet
+            .blocked_actions()
+            .iter()
+            .map(|action| data_quality_hygiene_blocked_action_code(*action).to_owned())
+            .collect(),
+        labor_savings_estimate: public_contract::LaborSavingsEstimate {
+            before_minutes: packet.before_minutes().get(),
+            after_minutes: packet.after_minutes().get(),
+            estimated_minutes_saved: packet.minutes_saved(),
         },
-        "live_side_effects_allowed": false,
-        "audit": {
-            "context_packet_id": packet.context_packet_id().as_str(),
-            "correlation_id": correlation_id,
-            "runtime": "agent.data-quality-hygiene.fake_deterministic"
+        live_side_effects_allowed: false,
+        audit: public_contract::WorkflowAudit {
+            context_packet_id: packet.context_packet_id().as_str().to_owned(),
+            correlation_id: correlation_id.to_owned(),
+            runtime: "agent.data-quality-hygiene.fake_deterministic".to_owned(),
         },
-        "observability": workflow_observability_payload(correlation_id, request_trace)
-    })
+        observability: workflow_observability_payload(correlation_id, request_trace),
+    }
 }
 
-fn data_quality_hygiene_candidate_payload(candidate: &data_quality_hygiene::Candidate) -> Value {
-    json!({
-        "id": candidate.id().as_str(),
-        "kind": data_quality_hygiene_candidate_kind_code(candidate.kind()),
-        "issue": data_quality_issue_payload(candidate.issue()),
-        "source_refs": candidate.source_record_refs().iter().map(source_record_ref_payload).collect::<Vec<_>>(),
-        "source_freshness": data_quality_hygiene_source_freshness_code(candidate.source_freshness()),
-        "sensitivity": data_quality_hygiene_sensitivity_code(candidate.sensitivity())
-    })
+fn data_quality_hygiene_candidate_payload(
+    candidate: &data_quality_hygiene::Candidate,
+) -> public_contract::DataQualityCandidate {
+    public_contract::DataQualityCandidate {
+        id: candidate.id().as_str().to_owned(),
+        kind: data_quality_hygiene_candidate_kind_code(candidate.kind()).to_owned(),
+        issue: data_quality_issue_contract(candidate.issue()),
+        source_refs: candidate
+            .source_record_refs()
+            .iter()
+            .map(|record_ref| {
+                source_record_ref_contract(record_ref, candidate.issue().provenance())
+            })
+            .collect(),
+        source_freshness: data_quality_hygiene_source_freshness_code(candidate.source_freshness())
+            .to_owned(),
+        sensitivity: data_quality_hygiene_sensitivity_code(candidate.sensitivity()).to_owned(),
+    }
 }
 
-fn data_quality_hygiene_action_payload(action: &data_quality_hygiene::Action) -> Value {
-    json!({
-        "id": action.id().as_str(),
-        "kind": data_quality_hygiene_action_kind_code(action.kind()),
-        "priority": data_quality_hygiene_action_priority_code(action.priority()),
-        "owner_persona": data_quality_hygiene_persona_code(action.owner_persona()),
-        "removed_manual_work": data_quality_hygiene_removed_manual_work_code(action.removed_manual_work()),
-        "rationale": action.rationale(),
-        "source_refs": action.source_record_refs().iter().map(source_record_ref_payload).collect::<Vec<_>>(),
-        "issue_refs": action.issue_refs().iter().map(|issue_ref| issue_ref.as_str()).collect::<Vec<_>>(),
-        "review_gates": action.required_review_gates().iter().map(review_gate_code).collect::<Vec<_>>(),
-        "labor_impact": {
-            "before_minutes": action.labor_impact().before_minutes().get(),
-            "after_minutes": action.labor_impact().after_minutes().get(),
-            "estimated_minutes_saved": action.labor_impact().minutes_saved()
+fn data_quality_hygiene_action_source_refs(
+    packet: &data_quality_hygiene::Packet,
+    action: &data_quality_hygiene::Action,
+) -> Vec<public_contract::SourceRecordRef> {
+    let mut source_refs = action
+        .issue_refs()
+        .iter()
+        .filter_map(|issue_ref| {
+            packet
+                .candidates()
+                .iter()
+                .find(|candidate| candidate.id() == issue_ref)
+        })
+        .flat_map(|candidate| {
+            candidate.source_record_refs().iter().map(|record_ref| {
+                source_record_ref_contract(record_ref, candidate.issue().provenance())
+            })
+        })
+        .collect::<Vec<_>>();
+    source_refs.sort();
+    source_refs.dedup();
+    source_refs
+}
+
+fn data_quality_hygiene_action_payload(
+    packet: &data_quality_hygiene::Packet,
+    action: &data_quality_hygiene::Action,
+) -> public_contract::DataQualityAction {
+    public_contract::DataQualityAction {
+        id: action.id().as_str().to_owned(),
+        kind: data_quality_hygiene_action_kind_code(action.kind()).to_owned(),
+        priority: data_quality_hygiene_action_priority_code(action.priority()).to_owned(),
+        owner_persona: data_quality_hygiene_persona_code(action.owner_persona()).to_owned(),
+        removed_manual_work: data_quality_hygiene_removed_manual_work_code(
+            action.removed_manual_work(),
+        )
+        .to_owned(),
+        rationale: action.rationale().clone().into_inner(),
+        source_refs: data_quality_hygiene_action_source_refs(packet, action),
+        issue_refs: action
+            .issue_refs()
+            .iter()
+            .map(|issue_ref| issue_ref.as_str().to_owned())
+            .collect(),
+        review_gates: action
+            .required_review_gates()
+            .iter()
+            .map(|gate| review_gate_code(gate).to_owned())
+            .collect(),
+        labor_impact: public_contract::LaborSavingsEstimate {
+            before_minutes: action.labor_impact().before_minutes().get(),
+            after_minutes: action.labor_impact().after_minutes().get(),
+            estimated_minutes_saved: action.labor_impact().minutes_saved(),
         },
-        "live_side_effects_allowed": false
-    })
+        live_side_effects_allowed: false,
+    }
 }
 
 fn validate_data_quality_hygiene_submitted_action(
     packet: &data_quality_hygiene::Packet,
-    action: &DataQualityHygieneSubmittedAction,
+    action: &public_contract::DataQualityHygieneSubmittedAction,
 ) -> Vec<String> {
     let mut reasons = Vec::new();
     if action.source_refs.is_empty() {
@@ -3476,6 +4193,19 @@ fn validate_data_quality_hygiene_submitted_action(
     });
     match matching_action {
         Some(packet_action) => {
+            let expected_source_refs =
+                data_quality_hygiene_action_source_refs(packet, packet_action);
+            let expected_issue_refs = packet_action
+                .issue_refs()
+                .iter()
+                .map(|issue_ref| issue_ref.as_str().to_owned())
+                .collect::<Vec<_>>();
+            if action.source_refs != expected_source_refs {
+                reasons.push("source_refs_do_not_match_action".to_owned());
+            }
+            if action.issue_refs != expected_issue_refs {
+                reasons.push("issue_refs_do_not_match_action".to_owned());
+            }
             let required_gates = packet_action
                 .required_review_gates()
                 .iter()
@@ -3516,44 +4246,14 @@ fn data_quality_hygiene_blocked_action_codes() -> Vec<&'static str> {
 }
 
 fn stored_source_record_ref_from_payload(
-    value: &Value,
+    value: &public_contract::SourceRecordRef,
 ) -> storage::operations::StoredSourceRecordRef {
     storage::operations::StoredSourceRecordRef::builder()
-        .system(
-            value
-                .get("system")
-                .and_then(Value::as_str)
-                .unwrap_or("unknown")
-                .to_owned(),
-        )
-        .record_type(
-            value
-                .get("record_type")
-                .and_then(Value::as_str)
-                .unwrap_or("source_record")
-                .to_owned(),
-        )
-        .record_id(
-            value
-                .get("record_id")
-                .and_then(Value::as_str)
-                .unwrap_or("unknown")
-                .to_owned(),
-        )
-        .observed_at(
-            value
-                .get("observed_at")
-                .and_then(Value::as_str)
-                .unwrap_or("2026-06-17T00:00:00Z")
-                .to_owned(),
-        )
-        .adapter_version(
-            value
-                .get("adapter_version")
-                .and_then(Value::as_str)
-                .unwrap_or("gingr-v0-readonly")
-                .to_owned(),
-        )
+        .system(value.system.clone())
+        .record_type(value.record_type.clone())
+        .record_id(value.record_id.clone())
+        .observed_at(value.observed_at.clone())
+        .adapter_version(value.adapter_version.clone())
         .build()
 }
 

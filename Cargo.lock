@@ -89,6 +89,7 @@ dependencies = [
  "serde",
  "serde_json",
  "statum",
+ "storage",
  "strum",
  "thiserror 2.0.18",
  "trybuild",
@@ -608,6 +609,7 @@ dependencies = [
  "serde_json",
  "strum",
  "thiserror 2.0.18",
+ "trybuild",
  "uuid",
 ]
 
@@ -1371,7 +1373,6 @@ dependencies = [
  "sha2 0.10.9",
  "storage",
  "tokio",
- "tokio-postgres",
  "tower",
  "tower-http",
  "tracing",
@@ -1981,13 +1982,19 @@ dependencies = [
 name = "storage"
 version = "0.1.0"
 dependencies = [
+ "app",
+ "async-trait",
  "bon",
+ "chrono",
  "derive_more 2.1.1",
  "domain",
  "serde",
  "serde_json",
  "strum",
  "thiserror 2.0.18",
+ "tokio",
+ "tokio-postgres",
+ "tracing",
  "uuid",
 ]
 

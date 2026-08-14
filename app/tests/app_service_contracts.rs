@@ -9,7 +9,7 @@ struct FakeReservationContext {
 
 impl booking_triage::reservation::Repository for FakeReservationContext {
     fn get(&self, id: entities::reservation::Id) -> Option<entities::Reservation> {
-        (self.reservation.id == id).then(|| self.reservation.clone())
+        (self.reservation.id() == id).then(|| self.reservation.clone())
     }
 }
 
@@ -22,7 +22,7 @@ fn reservation_with_hard_stops(hard_stops: Vec<entities::HardStop>) -> entities:
         .service(entities::ServiceKind::Boarding)
         .status(entities::reservation::Status::Requested)
         .starts_at(chrono::DateTime::<chrono::Utc>::UNIX_EPOCH)
-        .ends_at(chrono::DateTime::<chrono::Utc>::UNIX_EPOCH)
+        .ends_at(chrono::DateTime::<chrono::Utc>::from_timestamp(60, 0).unwrap())
         .deposit(payment::Deposit::paid(
             domain::money::Money::new(
                 domain::money::MinorUnits::try_new(2_500).unwrap(),
@@ -33,6 +33,7 @@ fn reservation_with_hard_stops(hard_stops: Vec<entities::HardStop>) -> entities:
         .source(entities::reservation::Source::WebsiteForm)
         .hard_stops(hard_stops)
         .build()
+        .unwrap()
 }
 
 #[test]
@@ -45,7 +46,7 @@ fn booking_triage_service_uses_app_repository_port_and_blocks_missing_vaccine_bo
         reservation: reservation.clone(),
     });
 
-    let packet = service.evaluate(reservation.id).unwrap();
+    let packet = service.evaluate(reservation.id()).unwrap();
 
     assert_eq!(
         packet.suggested_status(),
@@ -77,7 +78,7 @@ fn booking_triage_service_routes_special_care_to_review_packet_without_confirmat
         reservation: reservation.clone(),
     });
 
-    let packet = service.evaluate(reservation.id).unwrap();
+    let packet = service.evaluate(reservation.id()).unwrap();
 
     assert_eq!(
         packet.deterministic_result().staff_decision_boundary(),
@@ -103,15 +104,27 @@ fn booking_triage_service_treats_paid_deposit_and_no_hard_stops_as_staff_ready()
         domain::money::Currency::Usd,
     );
     let mut reservation = reservation_with_hard_stops(Vec::new());
-    reservation.deposit = Some(payment::Deposit::paid(
-        amount,
-        payment::Reference::try_new("gingr-payment-123").unwrap(),
-    ));
+    reservation = entities::Reservation::builder()
+        .id(reservation.id())
+        .location_id(reservation.location_id())
+        .customer_id(reservation.customer_id())
+        .pet_ids(reservation.pet_ids().to_vec())
+        .service(reservation.service().clone())
+        .status(reservation.status().clone())
+        .starts_at(reservation.starts_at())
+        .ends_at(reservation.ends_at())
+        .deposit(payment::Deposit::paid(
+            amount,
+            payment::Reference::try_new("gingr-payment-123").unwrap(),
+        ))
+        .source(reservation.source().clone())
+        .build()
+        .unwrap();
     let service = booking_triage::Service::new(FakeReservationContext {
         reservation: reservation.clone(),
     });
 
-    let packet = service.evaluate(reservation.id).unwrap();
+    let packet = service.evaluate(reservation.id()).unwrap();
 
     assert_eq!(
         packet.suggested_status(),
@@ -150,14 +163,25 @@ fn booking_triage_service_keeps_repository_misses_as_safe_app_errors() {
 #[test]
 fn booking_triage_service_maps_care_profile_review_pressure_to_care_team_gate() {
     let mut reservation = reservation_with_hard_stops(Vec::new());
-    reservation
-        .hard_stops
-        .push(entities::HardStop::MedicalOrMedicationReviewRequired);
+    reservation = entities::Reservation::builder()
+        .id(reservation.id())
+        .location_id(reservation.location_id())
+        .customer_id(reservation.customer_id())
+        .pet_ids(reservation.pet_ids().to_vec())
+        .service(reservation.service().clone())
+        .status(reservation.status().clone())
+        .starts_at(reservation.starts_at())
+        .ends_at(reservation.ends_at())
+        .deposit(reservation.deposit().cloned().unwrap())
+        .source(reservation.source().clone())
+        .hard_stop(entities::HardStop::MedicalOrMedicationReviewRequired)
+        .build()
+        .unwrap();
     let service = booking_triage::Service::new(FakeReservationContext {
         reservation: reservation.clone(),
     });
 
-    let packet = service.evaluate(reservation.id).unwrap();
+    let packet = service.evaluate(reservation.id()).unwrap();
 
     assert!(
         packet

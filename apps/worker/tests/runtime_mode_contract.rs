@@ -140,14 +140,18 @@ fn unapproved_or_non_internal_handoff_projection_is_not_reviewed_outcome() {
     let mut records = reviewed_data_quality_hygiene_projection();
     let candidate = records
         .outbox_candidate
-        .as_mut()
+        .as_ref()
         .expect("demo outbox candidate");
-    candidate.topic = "customer.sms.send".to_owned();
-    candidate.payload = serde_json::json!({
+    let mut candidate_json = serde_json::to_value(candidate).expect("serialize fixture candidate");
+    candidate_json["topic"] = serde_json::json!("customer.sms.send");
+    candidate_json["payload"] = serde_json::json!({
         "internal_handoff_only": false,
         "live_delivery_allowed": true
     });
-    candidate.status = OutboxStatusCode::Published;
+    candidate_json["status"] = serde_json::json!(OutboxStatusCode::Published);
+    records.outbox_candidate = Some(
+        serde_json::from_value(candidate_json).expect("rehydrate tampered persistence fixture"),
+    );
 
     let proof = config.process_data_quality_hygiene_projection(&records);
 
@@ -277,20 +281,23 @@ fn reviewed_data_quality_hygiene_projection()
                 recorded_at: recorded_at.clone(),
             },
         ],
-        outbox_candidate: Some(OutboxRecord {
-            id: "dqh-outbox:demo-1".to_owned(),
-            idempotency_key: "dqh-demo-1:internal-reviewed-handoff".to_owned(),
-            approval_record_id: "dqh-approval:demo-1".to_owned(),
-            topic: "internal.data_quality_hygiene.reviewed_handoff".to_owned(),
-            review_gate: ReviewGateCode::ManagerApproval,
-            aggregate_kind: "message".to_owned(),
-            aggregate_id: "00c0ffee-0000-0000-0000-000000000001".to_owned(),
-            payload: serde_json::json!({
-                "internal_handoff_only": true,
-                "live_delivery_allowed": false
-            }),
-            status: OutboxStatusCode::Pending,
-            available_at: recorded_at,
-        }),
+        outbox_candidate: Some(
+            serde_json::from_value::<OutboxRecord>(serde_json::json!({
+                "id": "dqh-outbox:demo-1",
+                "idempotency_key": "dqh-demo-1:internal-reviewed-handoff",
+                "approval_record_id": "dqh-approval:demo-1",
+                "topic": "internal.data_quality_hygiene.reviewed_handoff",
+                "review_gate": ReviewGateCode::ManagerApproval,
+                "aggregate_kind": "message",
+                "aggregate_id": "00c0ffee-0000-0000-0000-000000000001",
+                "payload": {
+                    "internal_handoff_only": true,
+                    "live_delivery_allowed": false
+                },
+                "status": OutboxStatusCode::Pending,
+                "available_at": recorded_at,
+            }))
+            .expect("valid persisted outbox fixture"),
+        ),
     }
 }

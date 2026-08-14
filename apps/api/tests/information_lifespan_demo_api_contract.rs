@@ -7,13 +7,19 @@ async fn request_json(
     method: axum_http::Method,
     uri: &str,
 ) -> (axum_http::StatusCode, serde_json::Value) {
-    let response = http::router_with_state(http::VaccineDocumentState::default())
+    let response = http::router_with_test_auth_state(http::VaccineDocumentState::default())
         .oneshot(
             axum_http::request::Builder::new()
                 .method(method)
                 .uri(uri)
                 .header("x-request-id", "api-contract-test-request")
                 .header("x-correlation-id", "api-contract-test-correlation")
+                .header("x-test-auth-actor-id", "general-manager-1")
+                .header("x-test-auth-role", "general_manager")
+                .header(
+                    "x-test-auth-location-id",
+                    "00c0ffee-0000-0000-0000-000000000001",
+                )
                 .body(Body::empty())
                 .expect("request builds"),
         )

@@ -172,6 +172,18 @@ fn site_finance_outcome_records_roundtrip_review_audit_and_claimability_links() 
         .review_packet_id("site-finance-review:00c0ffee:2026-06".to_owned())
         .audit_event_id("audit:site-finance-review:00c0ffee:2026-06".to_owned())
         .legal_action("record_reviewed_recommendation_only".to_owned())
+        .value_attribution(storage::operations::SiteFinanceValueAttribution::ReviewedAction)
+        .workflow_completion(storage::operations::SiteFinanceWorkflowCompletion::Completed)
+        .manager_approval(
+            storage::operations::SiteFinanceManagerApproval::approved_by_manager(
+                "general-manager-1".to_owned(),
+                "2026-07-02T12:00:00Z".to_owned(),
+                None,
+                "site-finance-approval:00c0ffee:2026-06".to_owned(),
+                "message".to_owned(),
+                "00c0ffee-0000-0000-0000-000000000001".to_owned(),
+            ),
+        )
         .can_support_value_claim(true)
         .currency("usd".to_owned())
         .net_revenue_minor_units(159_000)

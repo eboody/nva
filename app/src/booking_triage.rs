@@ -1049,7 +1049,7 @@ where
         let deterministic_result =
             DeterministicResult::evaluate(evaluate_reservation(&reservation));
         Ok(StaffEvaluationPacket::new(
-            Reservation::try_new(reservation.id.0.to_string())
+            Reservation::try_new(reservation.id().0.to_string())
                 .expect("uuid reservation id should be a non-empty app reservation label"),
             deterministic_result,
         ))
@@ -1057,7 +1057,7 @@ where
 }
 
 fn evaluate_reservation(reservation: &entities::Reservation) -> Vec<rule::Evaluation> {
-    if reservation.hard_stops.is_empty() && reservation.deposit_is_satisfied() {
+    if reservation.hard_stops().is_empty() && reservation.deposit_is_satisfied() {
         return vec![rule::Evaluation::pass(
             rule::Id::DateRangeAndServiceSupported,
             vec![
@@ -1068,7 +1068,7 @@ fn evaluate_reservation(reservation: &entities::Reservation) -> Vec<rule::Evalua
     }
 
     let mut evaluations = Vec::new();
-    for hard_stop in &reservation.hard_stops {
+    for hard_stop in reservation.hard_stops() {
         evaluations.push(evaluate_hard_stop(hard_stop));
     }
     if !reservation.deposit_is_satisfied() {
@@ -1089,7 +1089,7 @@ trait ReservationDepositReadiness {
 
 impl ReservationDepositReadiness for entities::Reservation {
     fn deposit_is_satisfied(&self) -> bool {
-        self.deposit.as_ref().is_some_and(|deposit| {
+        self.deposit().is_some_and(|deposit| {
             matches!(
                 deposit.status(),
                 domain::payment::DepositStatus::Paid

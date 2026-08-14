@@ -5,11 +5,10 @@
 //! explicit: what work exists, who/what role owns it, priority, due time, and completion
 //! evidence.
 
-use bon::Builder;
 use chrono::{DateTime, Utc};
 use nutype::nutype;
 #[allow(unused_imports)]
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::daily_brief::{self, FollowUpReason};
 use crate::entities::{self, CustomerId, LocationId, PetId, StaffId};
@@ -38,30 +37,161 @@ pub mod completion_evidence {
     pub struct Evidence(String);
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+/// Staff-task aggregate construction and rehydration failures.
+pub enum TaskError {
+    #[error("staff task location id is required")]
+    /// Represents the `LocationIdRequired` semantic case.
+    LocationIdRequired,
+    #[error("staff task kind is required")]
+    /// Represents the `KindRequired` semantic case.
+    KindRequired,
+    #[error("staff task title is required")]
+    /// Represents the `TitleRequired` semantic case.
+    TitleRequired,
+    #[error("staff task status is required")]
+    /// Represents the `StatusRequired` semantic case.
+    StatusRequired,
+    #[error("staff task priority is required")]
+    /// Represents the `PriorityRequired` semantic case.
+    PriorityRequired,
+    #[error("staff task due time is required")]
+    /// Represents the `DueAtRequired` semantic case.
+    DueAtRequired,
+    #[error("staff task assignment is required")]
+    /// Represents the `AssignmentRequired` semantic case.
+    AssignmentRequired,
+    #[error("staff task source is required")]
+    /// Represents the `SourceRequired` semantic case.
+    SourceRequired,
+    #[error("completed staff task requires completion evidence")]
+    /// Represents the `CompletedRequiresCompletionEvidence` semantic case.
+    CompletedRequiresCompletionEvidence,
+    #[error("only completed staff tasks may carry completion evidence")]
+    /// Represents the `OnlyCompletedTasksMayCarryCompletionEvidence` semantic case.
+    OnlyCompletedTasksMayCarryCompletionEvidence,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 /// Staff task assembled from source-backed resort work so managers can route labor without guessing.
 pub struct Task {
     /// Resort location whose team owns this task.
-    pub location_id: LocationId,
+    location_id: LocationId,
     /// Type of labor staff must perform or review.
-    pub kind: task::Kind,
+    kind: task::Kind,
     /// Staff-visible task title used in work queues and manager briefs.
-    pub title: workflow_task::Title,
+    title: workflow_task::Title,
     /// Current workflow state controlling whether staff can act, wait, or review.
-    pub status: task::Status,
+    status: task::Status,
     /// Urgency used to rank the labor queue for leads and managers.
-    pub priority: task::Priority,
+    priority: task::Priority,
     /// Time by which the resort work should be completed or escalated.
-    pub due_at: DateTime<Utc>,
+    due_at: DateTime<Utc>,
     /// Staff member or labor role currently responsible for the work.
-    pub assignment: task::Assignment,
+    assignment: task::Assignment,
     /// Source record or workflow event that explains why this task exists.
-    pub source: task::Source,
+    source: task::Source,
     /// Optional closeout note proving the task was finished before reports treat it as done.
-    pub completion_evidence: Option<completion_evidence::Evidence>,
+    completion_evidence: Option<completion_evidence::Evidence>,
+}
+
+#[derive(Deserialize)]
+struct RawTask {
+    location_id: LocationId,
+    kind: task::Kind,
+    title: workflow_task::Title,
+    status: task::Status,
+    priority: task::Priority,
+    due_at: DateTime<Utc>,
+    assignment: task::Assignment,
+    source: task::Source,
+    completion_evidence: Option<completion_evidence::Evidence>,
+}
+
+impl RawTask {
+    fn try_into_task(self) -> std::result::Result<Task, TaskError> {
+        if self.status == task::Status::Completed && self.completion_evidence.is_none() {
+            return Err(TaskError::CompletedRequiresCompletionEvidence);
+        }
+        if self.status != task::Status::Completed && self.completion_evidence.is_some() {
+            return Err(TaskError::OnlyCompletedTasksMayCarryCompletionEvidence);
+        }
+        Ok(Task {
+            location_id: self.location_id,
+            kind: self.kind,
+            title: self.title,
+            status: self.status,
+            priority: self.priority,
+            due_at: self.due_at,
+            assignment: self.assignment,
+            source: self.source,
+            completion_evidence: self.completion_evidence,
+        })
+    }
+}
+
+impl<'de> Deserialize<'de> for Task {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        RawTask::deserialize(deserializer)?
+            .try_into_task()
+            .map_err(serde::de::Error::custom)
+    }
 }
 
 impl Task {
+    /// Starts checked construction of the aggregate.
+    pub fn builder() -> TaskBuilder {
+        TaskBuilder::default()
+    }
+
+    /// Returns the aggregate location id.
+    pub const fn location_id(&self) -> LocationId {
+        self.location_id
+    }
+
+    /// Returns the aggregate kind.
+    pub const fn kind(&self) -> &task::Kind {
+        &self.kind
+    }
+
+    /// Returns the aggregate title.
+    pub const fn title(&self) -> &workflow_task::Title {
+        &self.title
+    }
+
+    /// Returns the aggregate status.
+    pub const fn status(&self) -> task::Status {
+        self.status
+    }
+
+    /// Returns the aggregate priority.
+    pub const fn priority(&self) -> task::Priority {
+        self.priority
+    }
+
+    /// Returns the aggregate due at.
+    pub const fn due_at(&self) -> DateTime<Utc> {
+        self.due_at
+    }
+
+    /// Returns the aggregate assignment.
+    pub const fn assignment(&self) -> &task::Assignment {
+        &self.assignment
+    }
+
+    /// Returns the aggregate source.
+    pub const fn source(&self) -> &task::Source {
+        &self.source
+    }
+
+    /// Returns the aggregate completion evidence.
+    pub const fn completion_evidence(&self) -> Option<&completion_evidence::Evidence> {
+        self.completion_evidence.as_ref()
+    }
+
     /// Returns whether priority, status, or safety-sensitive kind should surface to managers.
     pub fn requires_manager_attention(&self) -> bool {
         matches!(
@@ -83,6 +213,92 @@ impl Task {
         self.status = task::Status::Completed;
         self.completion_evidence = Some(evidence);
         self
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+/// Relationship-checked task builder used at this boundary.
+pub struct TaskBuilder {
+    location_id: Option<LocationId>,
+    kind: Option<task::Kind>,
+    title: Option<workflow_task::Title>,
+    status: Option<task::Status>,
+    priority: Option<task::Priority>,
+    due_at: Option<DateTime<Utc>>,
+    assignment: Option<task::Assignment>,
+    source: Option<task::Source>,
+    completion_evidence: Option<completion_evidence::Evidence>,
+}
+
+impl TaskBuilder {
+    /// Returns the aggregate location id.
+    pub fn location_id(mut self, value: LocationId) -> Self {
+        self.location_id = Some(value);
+        self
+    }
+
+    /// Returns the aggregate kind.
+    pub fn kind(mut self, value: task::Kind) -> Self {
+        self.kind = Some(value);
+        self
+    }
+
+    /// Returns the aggregate title.
+    pub fn title(mut self, value: workflow_task::Title) -> Self {
+        self.title = Some(value);
+        self
+    }
+
+    /// Returns the aggregate status.
+    pub fn status(mut self, value: task::Status) -> Self {
+        self.status = Some(value);
+        self
+    }
+
+    /// Returns the aggregate priority.
+    pub fn priority(mut self, value: task::Priority) -> Self {
+        self.priority = Some(value);
+        self
+    }
+
+    /// Returns the aggregate due at.
+    pub fn due_at(mut self, value: DateTime<Utc>) -> Self {
+        self.due_at = Some(value);
+        self
+    }
+
+    /// Returns the aggregate assignment.
+    pub fn assignment(mut self, value: task::Assignment) -> Self {
+        self.assignment = Some(value);
+        self
+    }
+
+    /// Returns the aggregate source.
+    pub fn source(mut self, value: task::Source) -> Self {
+        self.source = Some(value);
+        self
+    }
+
+    /// Returns the aggregate completion evidence.
+    pub fn completion_evidence(mut self, value: completion_evidence::Evidence) -> Self {
+        self.completion_evidence = Some(value);
+        self
+    }
+
+    /// Validates the accumulated fields and builds the aggregate.
+    pub fn build(self) -> std::result::Result<Task, TaskError> {
+        RawTask {
+            location_id: self.location_id.ok_or(TaskError::LocationIdRequired)?,
+            kind: self.kind.ok_or(TaskError::KindRequired)?,
+            title: self.title.ok_or(TaskError::TitleRequired)?,
+            status: self.status.ok_or(TaskError::StatusRequired)?,
+            priority: self.priority.ok_or(TaskError::PriorityRequired)?,
+            due_at: self.due_at.ok_or(TaskError::DueAtRequired)?,
+            assignment: self.assignment.ok_or(TaskError::AssignmentRequired)?,
+            source: self.source.ok_or(TaskError::SourceRequired)?,
+            completion_evidence: self.completion_evidence,
+        }
+        .try_into_task()
     }
 }
 

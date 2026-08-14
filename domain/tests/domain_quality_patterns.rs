@@ -1,6 +1,7 @@
 use domain::{
-    agent, care, customer, daily_brief, entities, grooming, lead, location, money, operations,
-    payment, pet, policy, portal, reputation, reservation, staff, temperament, training, workflow,
+    agent, audit, care, customer, daily_brief, entities, grooming, lead, location, money,
+    operations, payment, pet, policy, portal, reputation, reservation, staff, temperament,
+    training, workflow,
 };
 
 #[test]
@@ -298,18 +299,16 @@ fn actor_refs_use_role_specific_identity_contracts() {
 
 #[test]
 fn audit_events_use_typed_subject_action_and_metadata_contracts() {
-    let event = entities::audit::Event {
+    let event = audit::Event {
         at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
         actor: entities::ActorRef::Manager {
             manager_id: entities::ManagerId::try_new("mgr-1").unwrap(),
         },
-        subject: entities::audit::Subject::Reservation(
-            entities::reservation::Id(uuid::Uuid::nil()),
-        ),
-        action: entities::audit::Action::ReservationStatusSuggested,
+        subject: audit::Subject::Reservation(entities::reservation::Id(uuid::Uuid::nil())),
+        action: audit::Action::ReservationStatusSuggested,
         metadata: [(
-            entities::audit::MetadataKey::try_new("  source_workflow  ").unwrap(),
-            entities::audit::MetadataValue::try_new("  booking-triage  ").unwrap(),
+            audit::MetadataKey::try_new("  source_workflow  ").unwrap(),
+            audit::MetadataValue::try_new("  booking-triage  ").unwrap(),
         )]
         .into_iter()
         .collect(),
@@ -317,7 +316,7 @@ fn audit_events_use_typed_subject_action_and_metadata_contracts() {
 
     assert_eq!(
         event.subject,
-        entities::audit::Subject::Reservation(entities::reservation::Id(uuid::Uuid::nil()))
+        audit::Subject::Reservation(entities::reservation::Id(uuid::Uuid::nil()))
     );
     assert_eq!(
         event.metadata.keys().next().unwrap().clone().into_inner(),
@@ -327,8 +326,8 @@ fn audit_events_use_typed_subject_action_and_metadata_contracts() {
         event.metadata.values().next().unwrap().clone().into_inner(),
         "booking-triage"
     );
-    assert!(entities::audit::MetadataKey::try_new("   ").is_err());
-    assert!(entities::audit::MetadataValue::try_new("   ").is_err());
+    assert!(audit::MetadataKey::try_new("   ").is_err());
+    assert!(audit::MetadataValue::try_new("   ").is_err());
 }
 
 #[test]
@@ -463,11 +462,10 @@ fn workflow_packets_results_and_actions_use_semantic_values() {
         _ => panic!("expected external subject"),
     }
 
-    let result = workflow::Result::<()> {
-        status: workflow::Status::NeedsHumanReview,
-        summary: workflow::Summary::try_new("  Vaccine date needs manager review.  ").unwrap(),
-        structured_output: None,
-        recommended_actions: vec![
+    let result = workflow::Result::<()>::needs_human_review(
+        workflow::Summary::try_new("  Vaccine date needs manager review.  ").unwrap(),
+        workflow::ReviewReason::try_new("Medical document ambiguity").unwrap(),
+        vec![
             workflow::RecommendedAction::InternalTask {
                 title: workflow::task::Title::try_new("  Review vaccine proof  ").unwrap(),
                 body: workflow::task::Body::try_new("Confirm rabies expiration date.").unwrap(),
@@ -489,22 +487,20 @@ fn workflow_packets_results_and_actions_use_semantic_values() {
                 ),
             },
         ],
-        risk_flags: vec![workflow::RiskFlag::try_new("  vaccine ambiguity  ").unwrap()],
-        verification: vec![workflow::VerificationNote::try_new("Matched policy gate.").unwrap()],
-        human_review_reason: Some(
-            workflow::ReviewReason::try_new("Medical document ambiguity").unwrap(),
-        ),
-    };
+        vec![workflow::RiskFlag::try_new("  vaccine ambiguity  ").unwrap()],
+        vec![workflow::VerificationNote::try_new("Matched policy gate.").unwrap()],
+    )
+    .unwrap();
 
     assert_eq!(
-        result.summary.into_inner(),
+        result.summary().clone().into_inner(),
         "Vaccine date needs manager review."
     );
     assert_eq!(
-        result.risk_flags[0].clone().into_inner(),
+        result.risk_flags()[0].clone().into_inner(),
         "vaccine ambiguity"
     );
-    match &result.recommended_actions[2] {
+    match &result.recommended_actions()[2] {
         workflow::RecommendedAction::UpdateStatus { target } => match target {
             workflow::status_update::Target::Reservation(update) => {
                 assert_eq!(update.status, entities::reservation::Status::VaccinePending);
@@ -691,10 +687,32 @@ fn staff_operations_tasks_encode_due_evidence_and_manager_attention() {
         .source(staff::task::Source::Reservation(entities::reservation::Id(
             uuid::Uuid::nil(),
         )))
-        .build();
+        .build()
+        .unwrap();
 
     assert!(task.requires_manager_attention());
-    assert_eq!(task.title.clone().into_inner(), "Give evening medication");
+    assert_eq!(task.title().clone().into_inner(), "Give evening medication");
+
+    let completed_without_builder_evidence = staff::Task::builder()
+        .location_id(entities::LocationId(uuid::Uuid::nil()))
+        .kind(staff::task::Kind::MedicationAdministration {
+            pet_id: entities::PetId(uuid::Uuid::nil()),
+        })
+        .title(workflow::task::Title::try_new("Give evening medication").unwrap())
+        .status(staff::task::Status::Completed)
+        .priority(staff::task::Priority::High)
+        .due_at(chrono::DateTime::<chrono::Utc>::UNIX_EPOCH)
+        .assignment(staff::task::Assignment::Role(staff::Role::KennelTechnician))
+        .source(staff::task::Source::Reservation(entities::reservation::Id(
+            uuid::Uuid::nil(),
+        )))
+        .build()
+        .expect_err("ordinary staff task construction must require completed evidence");
+    assert!(
+        completed_without_builder_evidence
+            .to_string()
+            .contains("completed staff task requires completion evidence")
+    );
 
     let completed = task.complete_with(
         staff::completion_evidence::Evidence::try_new(
@@ -703,12 +721,35 @@ fn staff_operations_tasks_encode_due_evidence_and_manager_attention() {
         .unwrap(),
     );
 
-    assert_eq!(completed.status, staff::task::Status::Completed);
+    assert_eq!(completed.status(), staff::task::Status::Completed);
     assert_eq!(
-        completed.completion_evidence.unwrap().into_inner(),
+        completed
+            .completion_evidence()
+            .unwrap()
+            .clone()
+            .into_inner(),
         "administered by tech and double-checked by lead"
     );
     assert!(staff::completion_evidence::Evidence::try_new("   ").is_err());
+
+    let completed_without_evidence = serde_json::json!({
+        "location_id": entities::LocationId(uuid::Uuid::nil()),
+        "kind": { "MedicationAdministration": { "pet_id": entities::PetId(uuid::Uuid::nil()) } },
+        "title": "Give evening medication",
+        "status": "Completed",
+        "priority": "High",
+        "due_at": chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
+        "assignment": { "Role": "KennelTechnician" },
+        "source": { "Reservation": entities::reservation::Id(uuid::Uuid::nil()) },
+        "completion_evidence": null
+    });
+    let error = serde_json::from_value::<staff::Task>(completed_without_evidence)
+        .expect_err("persisted completed staff tasks must keep completion evidence");
+    assert!(
+        error
+            .to_string()
+            .contains("completed staff task requires completion evidence")
+    );
 }
 
 #[test]
@@ -886,13 +927,14 @@ fn entity_builders_keep_optional_and_collection_defaults_semantic() {
         .service(entities::ServiceKind::Boarding)
         .status(entities::reservation::Status::Requested)
         .starts_at(chrono::DateTime::<chrono::Utc>::UNIX_EPOCH)
-        .ends_at(chrono::DateTime::<chrono::Utc>::UNIX_EPOCH)
+        .ends_at(chrono::DateTime::<chrono::Utc>::from_timestamp(60, 0).unwrap())
         .source(entities::reservation::Source::WebsiteForm)
-        .build();
+        .build()
+        .unwrap();
 
-    assert_eq!(reservation.deposit, None);
-    assert!(reservation.requested_add_ons.is_empty());
-    assert!(reservation.hard_stops.is_empty());
+    assert_eq!(reservation.deposit(), None);
+    assert!(reservation.requested_add_ons().is_empty());
+    assert!(reservation.hard_stops().is_empty());
 
     let pet = entities::Pet::builder()
         .id(entities::PetId(uuid::Uuid::nil()))

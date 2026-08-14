@@ -14,22 +14,26 @@ use crate::{
     storage::review_queue::{
         BlockedActionAttemptRow, BlockedActionReasonColumn, HygieneOutcomeRow,
         ResolutionStatusColumn, ReviewQueueItemRow, ReviewQueueStatusColumn,
-        status_column::FeedbackOutcomeColumn,
+        status_column::{
+            ActorRefColumn, BlockedActionColumn, FeedbackOutcomeColumn, IssueRefColumn,
+            ReviewGateColumn, SourceRecordRefColumn, SourceSystemColumn,
+        },
     },
 };
 
 /// Current schema version for review-queue storage rows created by this adapter.
-pub const REVIEW_QUEUE_SCHEMA_VERSION: u32 = 1;
+pub const REVIEW_QUEUE_SCHEMA_VERSION: u32 = 2;
 
 /// Promotes a private storage row into the app review queue item.
 pub fn review_queue_item(row: &ReviewQueueItemRow) -> Option<hygiene::ReviewQueueItem> {
     let action_id = hygiene::ActionId::try_new(row.action_id.clone()).ok()?;
     let location_id = crate::authz::parse_location_id(&row.location_id)?;
-    let required_review_gates = if row.requires_manager_approval {
-        vec![policy::ReviewGate::ManagerApproval]
-    } else {
-        Vec::new()
-    };
+    let required_review_gates = row
+        .required_review_gates
+        .iter()
+        .copied()
+        .map(review_gate)
+        .collect();
     Some(hygiene::ReviewQueueItem::new(
         action_id,
         location_id,
@@ -45,7 +49,7 @@ pub fn staff_queue_item(row: &ReviewQueueItemRow) -> StaffQueueItemRow {
         actor_id: row.actor_id.clone(),
         claimed_by_actor_id: row.claimed_by_actor_id.clone(),
         status_label: status_label(row.status).to_owned(),
-        source_ref_id: row.source_ref_id.clone(),
+        source_ref: row.source_ref.clone(),
         issue_ref: row.issue_ref.clone(),
         recommendation: row.recommendation.clone(),
         created_at: row.created_at,
@@ -56,22 +60,24 @@ pub fn staff_queue_item(row: &ReviewQueueItemRow) -> StaffQueueItemRow {
 
 /// Projects manager-gated queue rows into the manager subscription read model.
 pub fn manager_queue_item(row: &ReviewQueueItemRow) -> Option<ManagerQueueItemRow> {
-    row.requires_manager_approval.then(|| ManagerQueueItemRow {
-        action_id: row.action_id.clone(),
-        location_id: row.location_id.clone(),
-        actor_id: row.actor_id.clone(),
-        claimed_by_actor_id: row.claimed_by_actor_id.clone(),
-        requires_manager_approval: row.requires_manager_approval,
-        status_label: status_label(row.status).to_owned(),
-        source_ref_id: row.source_ref_id.clone(),
-        issue_ref: row.issue_ref.clone(),
-        recommendation: row.recommendation.clone(),
-        staff_disposition: row.staff_disposition.clone(),
-        manager_outcome: row.manager_outcome.clone(),
-        created_at: row.created_at,
-        updated_at: row.updated_at,
-        schema_version: row.schema_version,
-    })
+    row.required_review_gates
+        .contains(&ReviewGateColumn::ManagerApproval)
+        .then(|| ManagerQueueItemRow {
+            action_id: row.action_id.clone(),
+            location_id: row.location_id.clone(),
+            actor_id: row.actor_id.clone(),
+            claimed_by_actor_id: row.claimed_by_actor_id.clone(),
+            required_review_gates: row.required_review_gates.clone(),
+            status_label: status_label(row.status).to_owned(),
+            source_ref: row.source_ref.clone(),
+            issue_ref: row.issue_ref.clone(),
+            recommendation: row.recommendation.clone(),
+            staff_disposition: row.staff_disposition,
+            manager_outcome: row.manager_outcome,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            schema_version: row.schema_version,
+        })
 }
 
 /// Projects a blocked side-effect attempt into the public notice read model.
@@ -81,7 +87,7 @@ pub fn blocked_action_notice(row: &BlockedActionAttemptRow) -> BlockedActionNoti
         action_id: row.action_id.clone(),
         actor_id: row.actor_id.clone(),
         location_id: row.location_id.clone(),
-        attempted_side_effect: row.attempted_side_effect.clone(),
+        attempted_side_effect: row.attempted_side_effect,
         reason_label: blocked_reason_label(row.reason).to_owned(),
         created_at: row.created_at,
         schema_version: row.schema_version,
@@ -94,7 +100,7 @@ pub const fn status_label(status: ReviewQueueStatusColumn) -> &'static str {
         ReviewQueueStatusColumn::PendingStaffReview => "pending_staff_review",
         ReviewQueueStatusColumn::ClaimedByStaff => "claimed_by_staff",
         ReviewQueueStatusColumn::PendingManagerApproval => "pending_manager_approval",
-        ReviewQueueStatusColumn::ManagerApproved => "manager_approved",
+        ReviewQueueStatusColumn::ReadyForOutcome => "ready_for_outcome",
         ReviewQueueStatusColumn::OutcomeRecorded => "outcome_recorded",
         ReviewQueueStatusColumn::Blocked => "blocked",
     }
@@ -113,7 +119,7 @@ pub const fn blocked_reason_label(reason: BlockedActionReasonColumn) -> &'static
 pub fn hygiene_outcome_row(outcome: &hygiene::OutcomeRecord, now: u64) -> HygieneOutcomeRow {
     HygieneOutcomeRow {
         action_id: outcome.action_id().as_ref().to_owned(),
-        recorded_by: actor_ref_label(outcome.recorded_by()),
+        recorded_by: actor_ref_column(outcome.recorded_by()),
         outcome: feedback_outcome_column(outcome.outcome()),
         before_minutes: outcome.before_minutes().get().into(),
         actual_minutes: outcome.actual_minutes().get().into(),
@@ -133,7 +139,7 @@ pub fn staff_outcome_card(row: HygieneOutcomeRow) -> HygieneOutcomeCardRow {
     HygieneOutcomeCardRow::new(
         row.action_id,
         row.recorded_by,
-        format!("{:?}", row.outcome),
+        row.outcome,
         row.before_minutes,
         row.actual_minutes,
         row.source_record_refs,
@@ -204,44 +210,183 @@ pub fn labor_minutes(value: u32) -> Result<hygiene::LaborMinutes, String> {
     hygiene::LaborMinutes::try_new(value).map_err(|err| err.to_string())
 }
 
-/// Adapter label for actor refs used in storage/read-model rows.
-pub fn actor_ref_label(actor: &entities::ActorRef) -> String {
+/// Stable actor representation used in storage/read-model rows.
+pub fn actor_ref_column(actor: &entities::ActorRef) -> ActorRefColumn {
     match actor {
-        entities::ActorRef::Customer(id) => format!("customer:{}", id.0),
-        entities::ActorRef::Staff { staff_id } => format!("staff:{staff_id:?}"),
-        entities::ActorRef::Manager { manager_id } => format!("manager:{manager_id:?}"),
-        entities::ActorRef::System => "system".to_owned(),
-        entities::ActorRef::Agent { .. } => "agent".to_owned(),
+        entities::ActorRef::Customer(id) => ActorRefColumn::Customer(id.0.to_string()),
+        entities::ActorRef::Staff { staff_id } => {
+            ActorRefColumn::Staff(staff_id.clone().into_inner())
+        }
+        entities::ActorRef::Manager { manager_id } => {
+            ActorRefColumn::Manager(manager_id.clone().into_inner())
+        }
+        entities::ActorRef::System => ActorRefColumn::System,
+        entities::ActorRef::Agent { workflow } => {
+            ActorRefColumn::Agent(workflow.clone().into_inner())
+        }
     }
 }
 
+/// Rehydrates a stable actor representation.
+pub fn actor_ref(actor: &ActorRefColumn) -> Option<entities::ActorRef> {
+    Some(match actor {
+        ActorRefColumn::Customer(id) => {
+            entities::ActorRef::Customer(entities::CustomerId(uuid::Uuid::parse_str(id).ok()?))
+        }
+        ActorRefColumn::Staff(id) => entities::ActorRef::Staff {
+            staff_id: entities::StaffId::try_new(id.clone()).ok()?,
+        },
+        ActorRefColumn::Manager(id) => entities::ActorRef::Manager {
+            manager_id: entities::ManagerId::try_new(id.clone()).ok()?,
+        },
+        ActorRefColumn::System => entities::ActorRef::System,
+        ActorRefColumn::Agent(workflow) => entities::ActorRef::Agent {
+            workflow: domain::agent::Name::try_new(workflow.clone()).ok()?,
+        },
+    })
+}
+
 /// Encodes source refs for compact adapter read-model projection.
-pub fn encode_source_refs(refs: Vec<&source::RecordRef>) -> String {
+pub fn encode_source_refs(refs: Vec<&source::RecordRef>) -> Vec<SourceRecordRefColumn> {
     refs.into_iter()
-        .map(|record_ref| {
-            format!(
-                "{:?}:{}",
-                record_ref.system(),
-                record_ref.record_id().as_str()
-            )
+        .map(|record_ref| SourceRecordRefColumn {
+            system: source_system_column(record_ref.system()),
+            record_id: record_ref.record_id().as_str().to_owned(),
         })
-        .collect::<Vec<_>>()
-        .join(",")
+        .collect()
 }
 
 /// Encodes issue refs for compact adapter read-model projection.
-pub fn encode_issue_refs(refs: Vec<&hygiene::IssueRef>) -> String {
+pub fn encode_issue_refs(refs: Vec<&hygiene::IssueRef>) -> Vec<IssueRefColumn> {
     refs.into_iter()
         .map(|issue_ref| issue_ref.as_str().to_owned())
-        .collect::<Vec<_>>()
-        .join(",")
+        .collect()
 }
 
 /// Initial review-queue status for a row inserted by upstream workflow adapters.
-pub const fn initial_status(requires_manager_approval: bool) -> ReviewQueueStatusColumn {
-    if requires_manager_approval {
-        ReviewQueueStatusColumn::PendingManagerApproval
-    } else {
-        ReviewQueueStatusColumn::PendingStaffReview
+pub const fn initial_status() -> ReviewQueueStatusColumn {
+    ReviewQueueStatusColumn::PendingStaffReview
+}
+
+/// Parses a stable review-queue status label.
+pub fn parse_status(label: &str) -> Result<ReviewQueueStatusColumn, String> {
+    ReviewQueueStatusColumn::ALL
+        .into_iter()
+        .find(|status| status_label(*status) == label)
+        .ok_or_else(|| format!("unsupported review queue status: {label}"))
+}
+
+/// Promotes the stored review gate into the semantic application value.
+pub const fn review_gate(gate: ReviewGateColumn) -> policy::ReviewGate {
+    match gate {
+        ReviewGateColumn::ManagerApproval => policy::ReviewGate::ManagerApproval,
+        ReviewGateColumn::MedicalDocumentReview => policy::ReviewGate::MedicalDocumentReview,
+        ReviewGateColumn::BehaviorReview => policy::ReviewGate::BehaviorReview,
+        ReviewGateColumn::CustomerMessageApproval => policy::ReviewGate::CustomerMessageApproval,
+        ReviewGateColumn::RefundOrDepositException => policy::ReviewGate::RefundOrDepositException,
+    }
+}
+
+/// Projects review gate into its stable storage column.
+pub const fn review_gate_column(gate: policy::ReviewGate) -> ReviewGateColumn {
+    match gate {
+        policy::ReviewGate::ManagerApproval => ReviewGateColumn::ManagerApproval,
+        policy::ReviewGate::MedicalDocumentReview => ReviewGateColumn::MedicalDocumentReview,
+        policy::ReviewGate::BehaviorReview => ReviewGateColumn::BehaviorReview,
+        policy::ReviewGate::CustomerMessageApproval => ReviewGateColumn::CustomerMessageApproval,
+        policy::ReviewGate::RefundOrDepositException => ReviewGateColumn::RefundOrDepositException,
+    }
+}
+
+/// Promotes the stored source system into the semantic application value.
+pub const fn source_system(system: SourceSystemColumn) -> source::System {
+    match system {
+        SourceSystemColumn::Gingr => source::System::Gingr,
+        SourceSystemColumn::Telephony => source::System::Telephony,
+        SourceSystemColumn::SmsProvider => source::System::SmsProvider,
+        SourceSystemColumn::Email => source::System::Email,
+        SourceSystemColumn::WebChat => source::System::WebChat,
+        SourceSystemColumn::WebsiteForms => source::System::WebsiteForms,
+        SourceSystemColumn::MarketingAutomation => source::System::MarketingAutomation,
+        SourceSystemColumn::Crm => source::System::Crm,
+        SourceSystemColumn::FinanceAccounting => source::System::FinanceAccounting,
+        SourceSystemColumn::WorkforceManagement => source::System::WorkforceManagement,
+        SourceSystemColumn::KnowledgeBase => source::System::KnowledgeBase,
+        SourceSystemColumn::ProviderOrPms => source::System::ProviderOrPms,
+        SourceSystemColumn::BusinessIntelligence => source::System::BusinessIntelligence,
+        SourceSystemColumn::LaborScheduling => source::System::LaborScheduling,
+        SourceSystemColumn::Timeclock => source::System::Timeclock,
+        SourceSystemColumn::Payroll => source::System::Payroll,
+        SourceSystemColumn::CapacityInventory => source::System::CapacityInventory,
+        SourceSystemColumn::PointOfSale => source::System::PointOfSale,
+        SourceSystemColumn::ManualImport => source::System::ManualImport,
+    }
+}
+
+/// Projects source system into its stable storage column.
+pub const fn source_system_column(system: source::System) -> SourceSystemColumn {
+    match system {
+        source::System::Gingr => SourceSystemColumn::Gingr,
+        source::System::Telephony => SourceSystemColumn::Telephony,
+        source::System::SmsProvider => SourceSystemColumn::SmsProvider,
+        source::System::Email => SourceSystemColumn::Email,
+        source::System::WebChat => SourceSystemColumn::WebChat,
+        source::System::WebsiteForms => SourceSystemColumn::WebsiteForms,
+        source::System::MarketingAutomation => SourceSystemColumn::MarketingAutomation,
+        source::System::Crm => SourceSystemColumn::Crm,
+        source::System::FinanceAccounting => SourceSystemColumn::FinanceAccounting,
+        source::System::WorkforceManagement => SourceSystemColumn::WorkforceManagement,
+        source::System::KnowledgeBase => SourceSystemColumn::KnowledgeBase,
+        source::System::ProviderOrPms => SourceSystemColumn::ProviderOrPms,
+        source::System::BusinessIntelligence => SourceSystemColumn::BusinessIntelligence,
+        source::System::LaborScheduling => SourceSystemColumn::LaborScheduling,
+        source::System::Timeclock => SourceSystemColumn::Timeclock,
+        source::System::Payroll => SourceSystemColumn::Payroll,
+        source::System::CapacityInventory => SourceSystemColumn::CapacityInventory,
+        source::System::PointOfSale => SourceSystemColumn::PointOfSale,
+        source::System::ManualImport => SourceSystemColumn::ManualImport,
+    }
+}
+
+/// Promotes the stored blocked action into the semantic application value.
+pub const fn blocked_action(action: BlockedActionColumn) -> Option<hygiene::BlockedAction> {
+    Some(match action {
+        BlockedActionColumn::SendCustomerMessage => hygiene::BlockedAction::SendCustomerMessage,
+        BlockedActionColumn::MutateProviderOrPmsRecord => {
+            hygiene::BlockedAction::MutateProviderOrPmsRecord
+        }
+        BlockedActionColumn::ChangeStaffSchedule => hygiene::BlockedAction::ChangeStaffSchedule,
+        BlockedActionColumn::MoveRefundDiscountOrPayment => {
+            hygiene::BlockedAction::MoveRefundDiscountOrPayment
+        }
+        BlockedActionColumn::HideOrAutoResolveSourceAmbiguity => {
+            hygiene::BlockedAction::HideOrAutoResolveSourceAmbiguity
+        }
+        BlockedActionColumn::ExposeQuarantinedSensitivePayload => {
+            hygiene::BlockedAction::ExposeQuarantinedSensitivePayload
+        }
+        BlockedActionColumn::RecordReviewedOutcome
+        | BlockedActionColumn::UnauthorizedQueueWork
+        | BlockedActionColumn::UnsafeSideEffect => return None,
+    })
+}
+
+/// Projects blocked action into its stable storage column.
+pub const fn blocked_action_column(action: hygiene::BlockedAction) -> BlockedActionColumn {
+    match action {
+        hygiene::BlockedAction::SendCustomerMessage => BlockedActionColumn::SendCustomerMessage,
+        hygiene::BlockedAction::MutateProviderOrPmsRecord => {
+            BlockedActionColumn::MutateProviderOrPmsRecord
+        }
+        hygiene::BlockedAction::ChangeStaffSchedule => BlockedActionColumn::ChangeStaffSchedule,
+        hygiene::BlockedAction::MoveRefundDiscountOrPayment => {
+            BlockedActionColumn::MoveRefundDiscountOrPayment
+        }
+        hygiene::BlockedAction::HideOrAutoResolveSourceAmbiguity => {
+            BlockedActionColumn::HideOrAutoResolveSourceAmbiguity
+        }
+        hygiene::BlockedAction::ExposeQuarantinedSensitivePayload => {
+            BlockedActionColumn::ExposeQuarantinedSensitivePayload
+        }
     }
 }

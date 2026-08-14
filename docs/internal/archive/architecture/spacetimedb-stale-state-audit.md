@@ -40,7 +40,7 @@ Every SpacetimeDB struct inspected has a deliberate adapter role:
 | `RoleAssignmentRow` | Private review-role assignment row. | Used to rebuild `ActorAssignment` for app authorization. |
 | `LocationScopeRow` | Private location-scope row for review authorization. | Used to rebuild location-scoped app assignment. |
 | `StaffQueueItemRow` | Public subscription read model for staff dashboard queue state. | Projected by `codec::staff_queue_item` from private queue rows. |
-| `ManagerQueueItemRow` | Public subscription read model for manager-gated queue state. | Projected only when `requires_manager_approval` is true. |
+| `ManagerQueueItemRow` | Public subscription read model for manager-gated queue state. | Projected only when `required_review_gates` contains `ManagerApproval`. |
 | `BlockedActionNoticeRow` | Public subscription read model for denied actions/blocked side effects. | Projected by `codec::blocked_action_notice` from private blocked attempts. |
 | `HygieneOutcomeCardRow` | Public subscription read model for reviewed hygiene outcomes. | Projected by `codec::staff_outcome_card`; hard-codes `live_delivery_allowed=false`. |
 | `ReviewQueueStatusColumn`, `FeedbackOutcomeColumn`, `ResolutionStatusColumn`, `BlockedActionReasonColumn`, `ActorKindColumn`, `ReviewerRoleColumn` | Nested `SpacetimeType` adapter columns/reducer arguments. | Used as storage/reducer boundary vocabulary; app/domain semantics remain canonical. |

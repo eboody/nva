@@ -20,4 +20,5 @@ uuid.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
+storage.workspace = true
 trybuild.workspace = true

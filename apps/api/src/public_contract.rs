@@ -1,45 +1,54 @@
 //! Product-owned API schema contracts for NVA Pet Resorts operations v0.
 //!
-//! These DTOs are the stable public boundary for the replacement API. They are
-//! intentionally named around NVA operations, review gates, labor outcomes, audit
-//! refs, and BI/read-model needs. Provider/PMS payloads remain source evidence and
-//! must not pass through this module as canonical API resources.
+//! These DTOs are the stable public boundary for the replacement API. Provider
+//! payloads remain quarantined source evidence and never become public resources.
 
 #![allow(missing_docs)]
 
-use serde::Serialize;
-use serde_json::Value;
+use core::fmt;
 
-pub const OWNED_OPERATIONS_API_VERSION: &str = "0.1.0";
-pub const OWNED_OPERATIONS_API_BOUNDARY: &str = "owned_operations_api_v0";
-pub const OWNED_OPERATIONS_API_OWNER: &str = "nva_pet_resorts_operations";
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub const OWNED_OPERATIONS_API_VERSION: &str = "pet_resort_api.runtime.v0";
+pub const OWNED_OPERATIONS_API_BOUNDARY: &str = "api_runtime_dto";
+pub const OWNED_OPERATIONS_API_OWNER: &str = "pet_resort_api";
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderBoundaryMode {
+    EvidenceRefsOnly,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum LiveSideEffectsMode {
+    Disabled,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ApiContractMetadata {
-    pub owner: &'static str,
-    pub boundary: &'static str,
-    pub version: &'static str,
-    pub workflow: &'static str,
-    pub provider_payload_passthrough: bool,
-    pub provider_dto_boundary: &'static str,
-    pub live_side_effects_allowed: bool,
+    pub owner: String,
+    pub boundary: String,
+    pub schema_version: String,
+    pub workflow: String,
+    pub provider_boundary: ProviderBoundaryMode,
+    pub live_side_effects: LiveSideEffectsMode,
 }
 
 impl ApiContractMetadata {
-    pub fn operations_v0(workflow: &'static str) -> Self {
+    pub fn operations_v0(workflow: impl Into<String>) -> Self {
         Self {
-            owner: OWNED_OPERATIONS_API_OWNER,
-            boundary: OWNED_OPERATIONS_API_BOUNDARY,
-            version: OWNED_OPERATIONS_API_VERSION,
-            workflow,
-            provider_payload_passthrough: false,
-            provider_dto_boundary: "provider_evidence_refs_only",
-            live_side_effects_allowed: false,
+            owner: OWNED_OPERATIONS_API_OWNER.to_owned(),
+            boundary: OWNED_OPERATIONS_API_BOUNDARY.to_owned(),
+            schema_version: OWNED_OPERATIONS_API_VERSION.to_owned(),
+            workflow: workflow.into(),
+            provider_boundary: ProviderBoundaryMode::EvidenceRefsOnly,
+            live_side_effects: LiveSideEffectsMode::Disabled,
         }
     }
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RequestMetadata {
     pub request_id: String,
     pub correlation_id: Option<String>,
@@ -49,21 +58,24 @@ pub struct RequestMetadata {
     pub tenant_id: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum PayloadLogging {
     Disabled,
     RedactedSummaryOnly,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ActorRef {
-    pub actor_kind: String,
-    pub actor_id: Option<String>,
+    #[serde(alias = "actor_kind")]
+    pub persona: String,
+    #[serde(alias = "actor_id")]
+    pub id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub actor_role: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SourceRef {
     pub source_system: String,
     pub external_record_ref: String,
@@ -72,7 +84,17 @@ pub struct SourceRef {
     pub source_visibility: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+/// Stable source-record evidence shape used by the v0 workflow routes.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+pub struct SourceRecordRef {
+    pub system: String,
+    pub record_type: String,
+    pub record_id: String,
+    pub observed_at: String,
+    pub adapter_version: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ReviewGateRef {
     pub gate: String,
     pub required: bool,
@@ -80,14 +102,14 @@ pub struct ReviewGateRef {
     pub reason: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct BlockedAction {
     pub action: String,
     pub blocked_reason: String,
     pub review_gate: Option<ReviewGateRef>,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AuditRef {
     pub audit_event_id: String,
     pub event_name: String,
@@ -97,57 +119,23 @@ pub struct AuditRef {
     pub outbox_record_id: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ErrorEnvelope {
     pub error: ApiError,
     pub request_id: String,
     pub correlation_id: Option<String>,
-    pub live_side_effects_allowed: bool,
+    pub live_side_effects: LiveSideEffectsMode,
 }
 
-impl ErrorEnvelope {
-    pub fn validation_failed(
-        request_id: String,
-        correlation_id: Option<String>,
-        details: Vec<ErrorDetail>,
-    ) -> Self {
-        Self {
-            error: ApiError {
-                code: "workflow_validation_failed",
-                message: "The request violates the owned workflow safety contract.",
-                safe_error_class: "validation_failed",
-                details,
-            },
-            request_id,
-            correlation_id,
-            live_side_effects_allowed: false,
-        }
-    }
-
-    pub fn not_found(request_id: String, path: String) -> Self {
-        Self {
-            error: ApiError {
-                code: "not_found",
-                message: "The requested owned operations API route is not available.",
-                safe_error_class: "not_found",
-                details: vec![ErrorDetail::field("path".to_owned(), path)],
-            },
-            request_id,
-            correlation_id: None,
-            live_side_effects_allowed: false,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ApiError {
-    pub code: &'static str,
-    pub message: &'static str,
-    pub safe_error_class: &'static str,
+    pub code: String,
+    pub message: String,
+    pub safe_error_class: String,
     pub details: Vec<ErrorDetail>,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ErrorDetail {
     pub field: String,
     pub reason: String,
@@ -159,75 +147,154 @@ impl ErrorDetail {
     }
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct WorkflowDescriptor {
+    pub name: String,
+    pub version: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct LaborSavingsEstimate {
+    pub before_minutes: u16,
+    pub after_minutes: u16,
+    pub estimated_minutes_saved: u16,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct WorkflowAudit {
+    pub context_packet_id: String,
+    pub correlation_id: String,
+    pub runtime: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct WorkflowObservability {
+    pub correlation_id: String,
+    pub request_id: String,
+    pub request_correlation_id: String,
+    pub route_status_trace: String,
+    pub safe_error_class: String,
+    pub payload_logging: String,
+    pub sensitive_payload_logging: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DataQualityIssue {
+    pub kind: String,
+    pub severity: String,
+    pub workflow_blocking: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+    #[serde(default)]
+    pub source_refs: Vec<SourceRecordRef>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DataQualityCandidate {
+    pub id: String,
+    pub kind: String,
+    pub issue: DataQualityIssue,
+    pub source_refs: Vec<SourceRecordRef>,
+    pub source_freshness: String,
+    pub sensitivity: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DataQualityAction {
+    pub id: String,
+    pub kind: String,
+    pub priority: String,
+    pub owner_persona: String,
+    pub removed_manual_work: String,
+    pub rationale: String,
+    pub source_refs: Vec<SourceRecordRef>,
+    pub issue_refs: Vec<String>,
+    pub review_gates: Vec<String>,
+    pub labor_impact: LaborSavingsEstimate,
+    pub live_side_effects_allowed: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DataQualityHygieneContextResponse {
-    pub metadata: RequestMetadata,
     pub api_contract: ApiContractMetadata,
-    pub workflow: Value,
+    pub workflow: WorkflowDescriptor,
     pub location_id: String,
     pub operating_day: String,
     pub prepared_for: String,
-    pub candidates: Vec<Value>,
-    pub hygiene_actions: Vec<Value>,
-    pub labor_savings_estimate: Value,
+    pub candidates: Vec<DataQualityCandidate>,
+    pub hygiene_actions: Vec<DataQualityAction>,
+    pub labor_savings_estimate: LaborSavingsEstimate,
     pub allowed_agent_actions: Vec<String>,
     pub blocked_actions: Vec<String>,
-    pub audit: Value,
     pub live_side_effects_allowed: bool,
+    pub audit: WorkflowAudit,
+    pub observability: WorkflowObservability,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DataQualityHygieneSubmittedAction {
+    pub action_id: String,
+    pub kind: String,
+    #[serde(default)]
+    pub source_refs: Vec<SourceRecordRef>,
+    #[serde(default)]
+    pub issue_refs: Vec<String>,
+    #[serde(default)]
+    pub review_gates: Vec<String>,
+    #[serde(default)]
+    pub requested_side_effects: Vec<String>,
+    #[serde(default)]
+    pub attempted_ambiguity_resolution: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DataQualityHygieneDraftSubmissionRequest {
     pub context_packet_id: String,
     pub correlation_id: String,
-    pub actions: Vec<Value>,
+    pub actions: Vec<DataQualityHygieneSubmittedAction>,
     pub idempotency_key: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
-pub struct DataQualityHygieneDraftSubmissionResponse {
-    pub metadata: RequestMetadata,
-    pub validation: Value,
-    pub accepted_actions: Vec<Value>,
-    pub rejected_actions: Vec<Value>,
-    pub workflow_event_id: Option<String>,
-    pub review_packet_id: Option<String>,
-    pub outbox_candidate: Option<Value>,
-    pub audit_refs: Vec<AuditRef>,
-    pub live_side_effects_allowed: bool,
-}
-
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DataQualityHygieneOutcomeCaptureRequest {
     pub outcome: String,
     pub actual_minutes: u16,
     pub actor: ActorRef,
     pub feedback: String,
-    pub source_refs: Vec<SourceRef>,
+    #[serde(default)]
+    pub source_refs: Vec<SourceRecordRef>,
+    #[serde(default)]
     pub issue_refs: Vec<String>,
     pub resolution_status_after_review: String,
     pub timestamp: String,
-    pub audit: Value,
+    pub audit: OutcomeAudit,
+    #[serde(default)]
     pub requested_side_effects: Vec<String>,
     pub idempotency_key: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
-pub struct DataQualityHygieneOutcomeCaptureResponse {
-    pub metadata: RequestMetadata,
-    pub outcome_record: Value,
-    pub audit_refs: Vec<AuditRef>,
-    pub summary_ref: Option<String>,
-    pub live_side_effects_allowed: bool,
+impl fmt::Debug for DataQualityHygieneOutcomeCaptureRequest {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("DataQualityHygieneOutcomeCaptureRequest")
+            .field("outcome", &self.outcome)
+            .field("actual_minutes", &self.actual_minutes)
+            .field(
+                "resolution_status_after_review",
+                &self.resolution_status_after_review,
+            )
+            .field("source_ref_count", &self.source_refs.len())
+            .field("issue_ref_count", &self.issue_refs.len())
+            .field(
+                "requested_side_effect_count",
+                &self.requested_side_effects.len(),
+            )
+            .field("sensitive_fields", &"[REDACTED]")
+            .finish()
+    }
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
-pub struct DataQualityHygieneOutcomeSummaryResponse {
-    pub metadata: RequestMetadata,
-    pub filters: Value,
-    pub summary: Value,
-    pub source_refs: Vec<SourceRef>,
-    pub issue_refs: Vec<String>,
-    pub caveats: Vec<String>,
-    pub live_side_effects_allowed: bool,
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OutcomeAudit {
+    pub correlation_id: String,
 }

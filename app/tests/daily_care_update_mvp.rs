@@ -1,17 +1,17 @@
 use app::daily_update;
-use domain::{entities, message, policy, workflow};
+use domain::{audit, entities, message, policy, workflow};
 
 fn workflow_event(event_type: workflow::EventType) -> workflow::Event {
-    workflow::Event {
-        event_id: workflow::EventId(uuid::Uuid::nil()),
+    workflow::Event::try_new(
+        workflow::EventId(uuid::Uuid::nil()),
         event_type,
-        occurred_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
-        actor: entities::ActorRef::Staff {
+        chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
+        entities::ActorRef::Staff {
             staff_id: entities::StaffId::try_new("lead-care-1").unwrap(),
         },
-        location_id: entities::LocationId(uuid::Uuid::nil()),
-        subject: workflow::Subject::Reservation(entities::reservation::Id(uuid::Uuid::nil())),
-        policy_context: workflow::PolicyContext {
+        entities::LocationId(uuid::Uuid::nil()),
+        workflow::Subject::Reservation(entities::reservation::Id(uuid::Uuid::nil())),
+        workflow::PolicyContext {
             allowed_actions: vec![
                 workflow::AllowedAction::SummarizeCareNotes,
                 workflow::AllowedAction::DraftCustomerMessage,
@@ -19,7 +19,8 @@ fn workflow_event(event_type: workflow::EventType) -> workflow::Event {
             automation_level: policy::automation::Level::DraftOnly,
             required_reviews: vec![policy::ReviewGate::CustomerMessageApproval],
         },
-    }
+    )
+    .expect("daily update workflow event fixture should match reservation subject")
 }
 
 fn note(
@@ -88,7 +89,7 @@ fn routine_staff_notes_become_review_gated_owner_preview_with_audit_lineage() {
             .any(|fact| fact.source_note_id == entities::care_note::Id(uuid::Uuid::from_u128(1)))
     );
     assert_eq!(
-        preview.approval.lifecycle,
+        preview.approval.lifecycle().clone(),
         entities::approval::Lifecycle::ApprovalRequested
     );
     assert!(preview.send_stub.is_blocked_until_human_approval());
@@ -96,13 +97,13 @@ fn routine_staff_notes_become_review_gated_owner_preview_with_audit_lineage() {
         preview
             .audit_log
             .iter()
-            .any(|event| event.action == entities::audit::Action::WorkflowEventRecorded)
+            .any(|event| event.action == audit::Action::WorkflowEventRecorded)
     );
     assert!(
         preview
             .audit_log
             .iter()
-            .any(|event| event.action == entities::audit::Action::MessageApprovalRequested)
+            .any(|event| event.action == audit::Action::MessageApprovalRequested)
     );
 
     let output_json = serde_json::to_value(&preview.output).expect("output serializes");
@@ -189,7 +190,10 @@ fn concern_notes_are_suppressed_from_customer_copy_and_route_to_manager_review()
             .iter()
             .any(|flag| flag.code == daily_update::InternalFlagCode::BehaviorReviewRequired)
     );
-    assert_eq!(preview.approval.gate, policy::ReviewGate::ManagerApproval);
+    assert_eq!(
+        *preview.approval.gate(),
+        policy::ReviewGate::ManagerApproval
+    );
     assert!(preview.send_stub.is_blocked_until_human_approval());
 }
 
@@ -271,6 +275,9 @@ fn sensitive_payment_incident_and_ambiguous_facts_create_suppression_records_not
             .iter()
             .any(|record| record.reason == message::SuppressionReason::SourceAmbiguity)
     );
-    assert_eq!(preview.approval.gate, policy::ReviewGate::ManagerApproval);
+    assert_eq!(
+        *preview.approval.gate(),
+        policy::ReviewGate::ManagerApproval
+    );
     assert!(preview.send_stub.is_blocked_until_human_approval());
 }

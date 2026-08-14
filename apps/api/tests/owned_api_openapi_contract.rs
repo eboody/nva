@@ -7,11 +7,17 @@ use tower::ServiceExt;
 const OPENAPI: &str = include_str!("../openapi/owned-operations-v0.openapi.json");
 
 async fn get_json(uri: &str) -> (axum_http::StatusCode, Value) {
-    let response = http::router_with_state(http::VaccineDocumentState::default())
+    let response = http::router_with_test_auth_state(http::VaccineDocumentState::default())
         .oneshot(
             axum_http::request::Builder::new()
                 .method(axum_http::Method::GET)
                 .uri(uri)
+                .header("x-test-auth-actor-id", "general-manager-17")
+                .header("x-test-auth-role", "general_manager")
+                .header(
+                    "x-test-auth-location-id",
+                    "00c0ffee-0000-0000-0000-000000000001",
+                )
                 .body(Body::empty())
                 .expect("request builds"),
         )
@@ -31,12 +37,33 @@ async fn get_json(uri: &str) -> (axum_http::StatusCode, Value) {
 }
 
 async fn post_json(uri: &str, body: Value) -> (axum_http::StatusCode, Value) {
-    let response = http::router_with_state(http::VaccineDocumentState::default())
+    let trusted_actor = body["actor"]["id"]
+        .as_str()
+        .map(|actor_id| (actor_id, "front_desk_lead"))
+        .or_else(|| {
+            body["submitted_by"]
+                .as_str()
+                .map(|actor_id| (actor_id, "general_manager"))
+        })
+        .or_else(|| {
+            (body.get("context_packet_id").is_some() && body.get("actions").is_some())
+                .then_some(("front-desk-lead-17", "front_desk_lead"))
+        })
+        .unwrap_or(("general-manager-17", "general_manager"));
+    let builder = axum_http::request::Builder::new()
+        .method(axum_http::Method::POST)
+        .uri(uri)
+        .header(axum_http::header::CONTENT_TYPE, "application/json")
+        .header("x-test-auth-actor-id", trusted_actor.0)
+        .header("x-test-auth-role", trusted_actor.1)
+        .header(
+            "x-test-auth-location-id",
+            "00c0ffee-0000-0000-0000-000000000001",
+        );
+
+    let response = http::router_with_test_auth_state(http::VaccineDocumentState::default())
         .oneshot(
-            axum_http::request::Builder::new()
-                .method(axum_http::Method::POST)
-                .uri(uri)
-                .header(axum_http::header::CONTENT_TYPE, "application/json")
+            builder
                 .body(Body::from(body.to_string()))
                 .expect("request builds"),
         )
@@ -111,40 +138,54 @@ fn checked_openapi_artifact_names_owned_v0_operations_and_safe_schemas() {
     }
 
     assert_eq!(
-        schemas["ApiContractMetadata"]["properties"]["provider_payload_passthrough"]["const"],
-        false
+        schemas["ApiContractMetadata"]["properties"]["provider_boundary"]["const"],
+        "evidence_refs_only"
     );
     assert_eq!(
-        schemas["ApiContractMetadata"]["properties"]["live_side_effects_allowed"]["const"],
-        false
-    );
-    assert_eq!(
-        schemas["ErrorEnvelope"]["properties"]["live_side_effects_allowed"]["const"],
-        false
+        schemas["ApiContractMetadata"]["properties"]["live_side_effects"]["const"],
+        "disabled"
     );
 }
 
 #[test]
+fn checked_openapi_marks_authenticated_mutations_and_their_fail_closed_responses() {
+    let spec: Value = serde_json::from_str(OPENAPI).expect("checked OpenAPI json parses");
+    let outcome = &spec["paths"]["/v0/data-quality-hygiene/actions/{action_id}/outcome"]["post"];
+
+    assert_eq!(outcome["security"], json!([{"StaffSessionCookie": []}]));
+    for status in ["401", "403"] {
+        assert_eq!(
+            outcome["responses"][status]["content"]["application/json"]["schema"]["$ref"],
+            "#/components/schemas/ErrorEnvelope"
+        );
+    }
+}
+
+#[test]
 fn public_contract_dtos_serialize_owned_boundary_and_error_posture() {
+    use pet_resort_api::error::{ErrorContext, ErrorKind, PublicApiError};
+
     let metadata = public_contract::ApiContractMetadata::operations_v0("data-quality-hygiene");
-    let error = public_contract::ErrorEnvelope::validation_failed(
-        "req_contract_test".to_owned(),
-        Some("data-quality-hygiene:test".to_owned()),
-        vec![public_contract::ErrorDetail::field(
-            "actions[0].requested_side_effects".to_owned(),
-            "customer_send_requires_review_and_live_sends_are_disabled".to_owned(),
-        )],
-    );
+    let error = PublicApiError::new(
+        ErrorKind::Validation {
+            details: vec![public_contract::ErrorDetail::field(
+                "actions[0].requested_side_effects".to_owned(),
+                "customer_send_requires_review_and_live_sends_are_disabled".to_owned(),
+            )],
+        },
+        ErrorContext::new("req_contract_test").with_correlation_id("data-quality-hygiene:test"),
+    )
+    .envelope();
 
     let metadata_json = serde_json::to_value(metadata).expect("metadata serializes");
     let error_json = serde_json::to_value(error).expect("error envelope serializes");
 
-    assert_eq!(metadata_json["owner"], "nva_pet_resorts_operations");
-    assert_eq!(metadata_json["boundary"], "owned_operations_api_v0");
-    assert_eq!(metadata_json["provider_payload_passthrough"], false);
-    assert_eq!(metadata_json["live_side_effects_allowed"], false);
+    assert_eq!(metadata_json["owner"], "pet_resort_api");
+    assert_eq!(metadata_json["boundary"], "api_runtime_dto");
+    assert_eq!(metadata_json["provider_boundary"], "evidence_refs_only");
+    assert_eq!(metadata_json["live_side_effects"], "disabled");
     assert_eq!(error_json["error"]["safe_error_class"], "validation_failed");
-    assert_eq!(error_json["live_side_effects_allowed"], false);
+    assert_eq!(error_json["live_side_effects"], "disabled");
 }
 
 #[tokio::test]
@@ -153,8 +194,8 @@ async fn v0_routes_expose_safe_runtime_readiness_and_data_quality_context() {
     assert_eq!(health_status, axum_http::StatusCode::OK);
     assert_eq!(health["live_side_effects"], "disabled");
     assert_eq!(
-        health["api_contract"]["provider_payload_passthrough"],
-        false
+        health["api_contract"]["provider_boundary"],
+        "evidence_refs_only"
     );
 
     let (ready_status, ready) = get_json("/v0/readyz").await;
@@ -342,7 +383,7 @@ async fn v0_success_payloads_include_openapi_required_contract_fields() {
         json!({
             "outcome": "completed",
             "actual_minutes": 10,
-            "actor": { "id": "front-desk:test", "persona": "front_desk_agent" },
+            "actor": { "id": "front-desk:test", "persona": "front_desk_lead" },
             "feedback": "Resolved duplicate aliases after manager review.",
             "source_refs": action["source_refs"],
             "issue_refs": action["issue_refs"],

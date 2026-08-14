@@ -8,8 +8,13 @@
     reason = "SpacetimeDB table macros generate public accessors/traits without rustdoc hooks; row structs and fields remain documented."
 )]
 
-/// Public queue item for manager dashboards subscribed to approval-gated work.
-#[spacetimedb::table(accessor = manager_queue_item, public)]
+use crate::storage::review_queue::{
+    ManagerOutcomeColumn, RecommendationColumn, ReviewGateColumn, SourceRecordRefColumn,
+    StaffDispositionColumn,
+};
+
+/// Private queue projection for manager dashboards pending an authorized subscription view.
+#[spacetimedb::table(accessor = manager_queue_item)]
 #[derive(Clone, Debug)]
 pub struct ManagerQueueItemRow {
     /// Action id shown to dashboard clients.
@@ -26,20 +31,20 @@ pub struct ManagerQueueItemRow {
     pub claimed_by_actor_id: Option<String>,
     /// Whether the item is currently waiting on manager approval.
     #[index(btree)]
-    pub requires_manager_approval: bool,
+    pub required_review_gates: Vec<ReviewGateColumn>,
     /// Queue status label for display.
     pub status_label: String,
     /// Optional source ref for traceability/filtering.
     #[index(btree)]
-    pub source_ref_id: Option<String>,
+    pub source_ref: Option<SourceRecordRefColumn>,
     /// Data-quality issue ref for traceability.
     pub issue_ref: String,
     /// Staff recommendation routed for manager review.
-    pub recommendation: Option<String>,
+    pub recommendation: Option<RecommendationColumn>,
     /// Staff disposition routed for manager review.
-    pub staff_disposition: Option<String>,
+    pub staff_disposition: Option<StaffDispositionColumn>,
     /// Manager outcome once disposition is recorded.
-    pub manager_outcome: Option<String>,
+    pub manager_outcome: Option<ManagerOutcomeColumn>,
     /// Unix timestamp when the work entered the queue.
     #[index(btree)]
     pub created_at: u64,

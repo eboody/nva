@@ -4,11 +4,19 @@ use pet_resort_api::http;
 use tower::ServiceExt;
 
 async fn get_json(uri: &str) -> (axum_http::StatusCode, serde_json::Value) {
-    let response = http::router()
+    let location_id = if uri.contains("000000000002") {
+        "00c0ffee-0000-0000-0000-000000000002"
+    } else {
+        "00c0ffee-0000-0000-0000-000000000001"
+    };
+    let response = http::router_with_test_auth_state(http::VaccineDocumentState::default())
         .oneshot(
             axum_http::request::Builder::new()
                 .method(axum_http::Method::GET)
                 .uri(uri)
+                .header("x-test-auth-actor-id", "general-manager-17")
+                .header("x-test-auth-role", "general_manager")
+                .header("x-test-auth-location-id", location_id)
                 .body(Body::empty())
                 .expect("request builds"),
         )

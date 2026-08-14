@@ -1,7 +1,7 @@
 use crate::{endpoint, response};
 use domain::pet;
 
-use super::{Error, ProviderField, Result};
+use super::{Error, Promoted, ProviderField, Result, Version};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// Pet mapping candidate produced from Gingr animal name fields.
@@ -13,7 +13,10 @@ pub struct NameCandidate {
 }
 
 /// Extracts the pet name Gingr exposed for animal-to-domain mapping.
-pub fn name_candidate(record: &response::AnimalRecord) -> Result<NameCandidate> {
+pub fn name_candidate(
+    record: &response::AnimalRecord,
+    provenance: domain::source::Provenance,
+) -> Result<Promoted<NameCandidate>> {
     let name = record
         .name
         .as_deref()
@@ -25,8 +28,13 @@ pub fn name_candidate(record: &response::AnimalRecord) -> Result<NameCandidate> 
         reason: err.to_string(),
     })?;
 
-    Ok(NameCandidate {
-        provider_animal_id: record.id,
-        name,
-    })
+    Promoted::from_gingr_record(
+        NameCandidate {
+            provider_animal_id: record.id,
+            name,
+        },
+        record.id.to_string(),
+        provenance,
+        Version::PetNameV1,
+    )
 }

@@ -11,7 +11,9 @@
 )]
 
 use super::status_column::{
-    BlockedActionReasonColumn, FeedbackOutcomeColumn, ResolutionStatusColumn,
+    ActorRefColumn, BlockedActionColumn, BlockedActionReasonColumn, FeedbackOutcomeColumn,
+    IssueRefColumn, ManagerOutcomeColumn, RecommendationColumn, ResolutionStatusColumn,
+    ReviewGateColumn, SourceRecordRefColumn, StaffDispositionColumn,
 };
 
 /// Review queue metadata needed before an outcome may be captured.
@@ -34,23 +36,23 @@ pub struct ReviewQueueItemRow {
     pub status: ReviewQueueStatusColumn,
     /// Optional source record ref for subscription filtering/display.
     #[index(btree)]
-    pub source_ref_id: Option<String>,
+    pub source_ref: Option<SourceRecordRefColumn>,
     /// Data-quality issue ref for traceable outcome capture.
     #[index(btree)]
     pub issue_ref: String,
     /// Staff/agent recommendation text; internal review draft only.
-    pub recommendation: Option<String>,
+    pub recommendation: Option<RecommendationColumn>,
     /// Staff disposition text after triage.
-    pub staff_disposition: Option<String>,
+    pub staff_disposition: Option<StaffDispositionColumn>,
     /// Manager disposition text when approval closes the gate.
-    pub manager_outcome: Option<String>,
+    pub manager_outcome: Option<ManagerOutcomeColumn>,
     /// Unix timestamp when the item entered the queue.
     #[index(btree)]
     pub created_at: u64,
     /// Unix timestamp when reducer/projection state last changed.
     pub updated_at: u64,
-    /// Whether manager approval is required before capture.
-    pub requires_manager_approval: bool,
+    /// Exact review gates required before capture.
+    pub required_review_gates: Vec<ReviewGateColumn>,
     /// Schema version for additive row evolution.
     pub schema_version: u32,
 }
@@ -64,12 +66,23 @@ pub enum ReviewQueueStatusColumn {
     ClaimedByStaff,
     /// Staff triage is complete and manager approval is pending.
     PendingManagerApproval,
-    /// Manager disposition accepted the staff recommendation.
-    ManagerApproved,
+    /// Staff or manager disposition completed and an outcome may be captured.
+    ReadyForOutcome,
     /// Accepted outcome has been recorded.
     OutcomeRecorded,
     /// Capture attempt failed closed.
     Blocked,
+}
+
+impl ReviewQueueStatusColumn {
+    pub const ALL: [Self; 6] = [
+        Self::PendingStaffReview,
+        Self::ClaimedByStaff,
+        Self::PendingManagerApproval,
+        Self::ReadyForOutcome,
+        Self::OutcomeRecorded,
+        Self::Blocked,
+    ];
 }
 
 /// Source-quality issue storage fact that feeds the workflow queue.
@@ -84,7 +97,7 @@ pub struct DataQualityIssueRow {
     pub location_id: String,
     /// Source record ref that produced the issue.
     #[index(btree)]
-    pub source_ref_id: String,
+    pub source_ref: SourceRecordRefColumn,
     /// Human-readable issue summary for queue projection.
     pub summary: String,
     /// Unix timestamp when the issue was stored.
@@ -128,7 +141,7 @@ pub struct WorkflowOutcomeRow {
     #[index(btree)]
     pub actor_id: String,
     /// Display-safe workflow outcome label.
-    pub outcome_label: String,
+    pub outcome: ManagerOutcomeColumn,
     /// Unix timestamp when the outcome was recorded.
     pub created_at: u64,
     /// Schema version for additive outcome evolution.
@@ -144,7 +157,7 @@ pub struct HygieneOutcomeRow {
     pub action_id: String,
     /// Domain actor display payload preserved from the accepted outcome.
     #[index(btree)]
-    pub recorded_by: String,
+    pub recorded_by: ActorRefColumn,
     /// Reviewed outcome selected by staff/manager.
     pub outcome: FeedbackOutcomeColumn,
     /// Estimated pre-cleanup minutes.
@@ -152,9 +165,9 @@ pub struct HygieneOutcomeRow {
     /// Actual reviewed minutes.
     pub actual_minutes: u32,
     /// Source record refs encoded for read-model projection.
-    pub source_record_refs: String,
+    pub source_record_refs: Vec<SourceRecordRefColumn>,
     /// Data-quality issue refs encoded for read-model projection.
-    pub issue_refs: String,
+    pub issue_refs: Vec<IssueRefColumn>,
     /// Optional reviewed resolution status.
     pub reviewed_resolution_status: Option<ResolutionStatusColumn>,
     /// Unix timestamp when the outcome was persisted by the adapter.
@@ -180,9 +193,9 @@ pub struct HygieneAuditEventRow {
     #[index(btree)]
     pub actor_id: String,
     /// Accountable actor label for audit display.
-    pub actor: String,
+    pub actor: ActorRefColumn,
     /// Protected actions still blocked by the runtime.
-    pub blocked_actions: String,
+    pub blocked_actions: Vec<BlockedActionColumn>,
     /// Unix timestamp when the audit event was projected.
     pub created_at: u64,
     /// Schema version for additive row evolution.
@@ -207,7 +220,7 @@ pub struct BlockedActionAttemptRow {
     #[index(btree)]
     pub location_id: String,
     /// Forbidden side effect the caller attempted.
-    pub attempted_side_effect: String,
+    pub attempted_side_effect: BlockedActionColumn,
     /// Fail-closed reason returned by app authorization.
     pub reason: BlockedActionReasonColumn,
     /// Unix timestamp when the blocked event was recorded.

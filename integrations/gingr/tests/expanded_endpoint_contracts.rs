@@ -1,4 +1,4 @@
-use domain::retail;
+use domain::{retail, source};
 use gingr::{config, dto, endpoint, mapping, response, transport};
 
 const SENTINEL_KEY: &str = "gingr_test_api_key_do_not_send";
@@ -304,16 +304,32 @@ fn provider_dtos_preserve_unknown_fields_and_mappers_promote_only_existing_domai
     }))
     .unwrap();
 
-    let customer = mapping::customer::contact_candidate(&owner).unwrap();
-    let pet = mapping::pet::name_candidate(&animal).unwrap();
+    let customer = mapping::customer::contact_candidate(
+        &owner,
+        mapping_provenance("42", "GET /owners/{id}", "gingr-owner-v1"),
+    )
+    .unwrap();
+    let pet = mapping::pet::name_candidate(
+        &animal,
+        mapping_provenance("9", "GET /animals/{id}", "gingr-animal-v1"),
+    )
+    .unwrap();
+    let customer = customer.candidate();
+    let pet = pet.candidate();
 
-    assert_eq!(customer.full_name.into_inner(), "Ana Rivera");
-    assert_eq!(customer.email.unwrap().into_inner(), "ana@example.test");
-    assert_eq!(customer.mobile_phone.unwrap().into_inner(), "+1 555 0100");
+    assert_eq!(customer.full_name.clone().into_inner(), "Ana Rivera");
+    assert_eq!(
+        customer.email.clone().unwrap().into_inner(),
+        "ana@example.test"
+    );
+    assert_eq!(
+        customer.mobile_phone.clone().unwrap().into_inner(),
+        "+1 555 0100"
+    );
     assert_eq!(owner.id, endpoint::OwnerId::new(42));
     assert_eq!(owner.email.as_ref().unwrap().as_str(), " ana@example.test ");
     assert_eq!(customer.provider_owner_id, endpoint::OwnerId::new(42));
-    assert_eq!(pet.name.into_inner(), "Juniper");
+    assert_eq!(pet.name.clone().into_inner(), "Juniper");
     assert_eq!(animal.id, endpoint::AnimalId::new(9));
     assert_eq!(animal.owner_id, Some(endpoint::OwnerId::new(42)));
     assert_eq!(pet.provider_animal_id, endpoint::AnimalId::new(9));
@@ -364,10 +380,15 @@ fn retail_item_dto_promotes_documented_provider_surface_into_retail_product_cand
     }))
     .unwrap();
 
-    let candidate = mapping::retail::product_candidate(&item).unwrap();
+    let candidate = mapping::retail::product_candidate(
+        &item,
+        mapping_provenance("41", "GET /retail/items/{id}", "gingr-retail-item-v1"),
+    )
+    .unwrap();
+    let candidate = candidate.candidate();
 
     assert_eq!(candidate.provider_item_id, dto::retail::ItemId::new(41));
-    assert_eq!(candidate.name.into_inner(), "Calming Chew");
+    assert_eq!(candidate.name.clone().into_inner(), "Calming Chew");
     assert_eq!(candidate.product.sku().as_str(), "CALM-CHEW");
     assert_eq!(
         candidate.product.category,
@@ -406,13 +427,19 @@ fn retail_item_mapping_rejects_missing_category_or_status_instead_of_silent_defa
     .unwrap();
 
     assert_eq!(
-        mapping::retail::product_candidate(&missing_category),
+        mapping::retail::product_candidate(
+            &missing_category,
+            mapping_provenance("43", "GET /retail/items/{id}", "gingr-retail-item-v1"),
+        ),
         Err(mapping::Error::MissingRequiredProviderField {
             field: mapping::ProviderField::RetailItemCategory,
         })
     );
     assert_eq!(
-        mapping::retail::product_candidate(&missing_active),
+        mapping::retail::product_candidate(
+            &missing_active,
+            mapping_provenance("44", "GET /retail/items/{id}", "gingr-retail-item-v1"),
+        ),
         Err(mapping::Error::MissingRequiredProviderField {
             field: mapping::ProviderField::RetailItemActive,
         })
@@ -435,4 +462,18 @@ fn grooming_and_training_surfaces_remain_explicit_provider_gaps_without_fake_dto
     );
     assert!(endpoint::catalog::semantic_mapping_gaps().contains(&"grooming"));
     assert!(endpoint::catalog::semantic_mapping_gaps().contains(&"training"));
+}
+
+fn mapping_provenance(record_id: &str, endpoint: &str, schema_version: &str) -> source::Provenance {
+    source::Provenance::builder()
+        .system(source::System::Gingr)
+        .endpoint(source::Endpoint::try_new(endpoint).unwrap())
+        .record_id(source::record::Id::try_new(record_id).unwrap())
+        .extraction_batch(source::ExtractionBatchId::try_new("endpoint-contract").unwrap())
+        .pulled_at(source::Timestamp::try_new("2026-08-13T21:30:00Z").unwrap())
+        .request_scope(source::RequestScope::try_new("expanded-endpoint-contract").unwrap())
+        .schema_version(source::SchemaVersion::try_new(schema_version).unwrap())
+        .payload_hash(source::PayloadHash::try_new("sha256:fixture").unwrap())
+        .raw_payload_ref(source::RawPayloadRef::try_new("fixture://gingr/provider-record").unwrap())
+        .build()
 }

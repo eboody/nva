@@ -1,0 +1,10 @@
+error[E0382]: use of moved value: `authority`
+ --> tests/ui/message_queue_authority_is_one_shot.rs:9:31
+  |
+6 |     authority: message_record::QueueAuthorization,
+  |     --------- move occurs because `authority` has type `QueueAuthorization`, which does not implement the `Copy` trait
+7 | ) {
+8 |     let _ = first.queue_with(authority);
+  |                              --------- value moved here
+9 |     let _ = second.queue_with(authority);
+  |                               ^^^^^^^^^ value used here after move

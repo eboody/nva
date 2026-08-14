@@ -690,7 +690,7 @@ pub mod response {
         message_ref: message::BodyRef,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
     /// Proof token for an approved outbound draft that can only enter a queue.
     pub struct QueueableContact {
         action: LegalContactAction,

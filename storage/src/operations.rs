@@ -393,7 +393,13 @@ pub struct SiteFinanceOutcomeRecord {
     pub audit_event_id: String,
     /// Safe action label; this must not become a payment, discount, refund, or accounting mutation.
     pub legal_action: String,
-    /// Whether the observed outcome has strong reviewed-action attribution.
+    /// Value-attribution evidence available for measured finance/labor claims.
+    pub value_attribution: SiteFinanceValueAttribution,
+    /// Local workflow completion projection, separate from approval and value attribution.
+    pub workflow_completion: SiteFinanceWorkflowCompletion,
+    /// Manager approval projection, separate from workflow completion and value attribution.
+    pub manager_approval: SiteFinanceManagerApproval,
+    /// Compatibility mirror for whether value-attribution evidence can support a strong claim.
     pub can_support_value_claim: bool,
     /// Currency code preserved for currency-aware reporting.
     pub currency: String,
@@ -408,6 +414,146 @@ pub struct SiteFinanceOutcomeRecord {
     pub recorded_at: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, strum::Display, Default)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
+/// Evidence strength for a site-finance value attribution claim.
+pub enum SiteFinanceValueAttribution {
+    /// Reviewed action plus source/audit evidence can support a stronger measured claim.
+    #[default]
+    ReviewedAction,
+    /// Correlated finance evidence is visible but cannot support a strong measured claim.
+    CorrelatedOnly,
+    /// Source evidence was wrong, so no measured value claim is allowed.
+    WrongSource,
+}
+
+impl SiteFinanceValueAttribution {
+    /// Returns whether this value-attribution evidence can support a strong value claim.
+    pub const fn can_support_value_claim(self) -> bool {
+        matches!(self, Self::ReviewedAction)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, strum::Display, Default)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
+/// Completion state for the local site-finance workflow projection.
+pub enum SiteFinanceWorkflowCompletion {
+    /// Workflow completed locally without authorizing live side effects.
+    #[default]
+    Completed,
+    /// Workflow produced output that still needs review or follow-up.
+    NeedsReview,
+    /// Workflow was intentionally deferred.
+    Deferred,
+    /// Workflow was cancelled before local completion.
+    Cancelled,
+}
+
+impl SiteFinanceWorkflowCompletion {
+    const fn workflow_result_status(self) -> WorkflowResultStatusCode {
+        match self {
+            Self::Completed => WorkflowResultStatusCode::Succeeded,
+            Self::NeedsReview => WorkflowResultStatusCode::NeedsReview,
+            Self::Deferred => WorkflowResultStatusCode::Deferred,
+            Self::Cancelled => WorkflowResultStatusCode::Cancelled,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+/// Manager approval state for the site-finance handoff projection.
+///
+/// Decision variants carry the real manager identity and decision timestamp. The
+/// private representation prevents callers from manufacturing approval by choosing
+/// a status enum while projection code invents the missing evidence.
+pub struct SiteFinanceManagerApproval(SiteFinanceManagerApprovalDecision);
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+enum SiteFinanceManagerApprovalDecision {
+    #[default]
+    Pending,
+    Approved(ApprovalDecisionEvidence),
+    Rejected(ApprovalDecisionEvidence),
+}
+
+impl SiteFinanceManagerApproval {
+    /// Records that manager approval has not yet been granted.
+    pub const fn pending() -> Self {
+        Self(SiteFinanceManagerApprovalDecision::Pending)
+    }
+
+    /// Records manager approval together with the evidence required by approval rows.
+    pub fn approved_by_manager(
+        actor_id: String,
+        decided_at: String,
+        reason: Option<String>,
+        approval_record_id: String,
+        target_kind: String,
+        target_id: String,
+    ) -> Self {
+        Self(SiteFinanceManagerApprovalDecision::Approved(
+            ApprovalDecisionEvidence {
+                actor_kind: ActorKindCode::Manager,
+                actor_id,
+                decided_at,
+                reason,
+                approval_record_id,
+                target_kind,
+                target_id,
+                gate: ReviewGateCode::ManagerApproval,
+            },
+        ))
+    }
+
+    /// Records manager rejection together with the evidence required by approval rows.
+    pub fn rejected_by_manager(
+        actor_id: String,
+        decided_at: String,
+        reason: Option<String>,
+        approval_record_id: String,
+        target_kind: String,
+        target_id: String,
+    ) -> Self {
+        Self(SiteFinanceManagerApprovalDecision::Rejected(
+            ApprovalDecisionEvidence {
+                actor_kind: ActorKindCode::Manager,
+                actor_id,
+                decided_at,
+                reason,
+                approval_record_id,
+                target_kind,
+                target_id,
+                gate: ReviewGateCode::ManagerApproval,
+            },
+        ))
+    }
+
+    fn approval_review_disposition(&self) -> ApprovalReviewDisposition {
+        match &self.0 {
+            SiteFinanceManagerApprovalDecision::Approved(evidence) => {
+                ApprovalReviewDisposition::Approved(evidence.clone())
+            }
+            SiteFinanceManagerApprovalDecision::Pending => ApprovalReviewDisposition::pending(),
+            SiteFinanceManagerApprovalDecision::Rejected(evidence) => {
+                ApprovalReviewDisposition::Rejected(evidence.clone())
+            }
+        }
+    }
+}
+
+impl std::fmt::Display for SiteFinanceManagerApproval {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self.0 {
+            SiteFinanceManagerApprovalDecision::Approved(_) => "approved",
+            SiteFinanceManagerApprovalDecision::Pending => "pending",
+            SiteFinanceManagerApprovalDecision::Rejected(_) => "rejected",
+        })
+    }
+}
+
 impl SiteFinanceOutcomeRecord {
     /// Decodes a JSON storage payload into its typed site finance outcome record shape.
     pub fn decode_json(raw: &str) -> Result<Self> {
@@ -419,6 +565,31 @@ impl SiteFinanceOutcomeRecord {
     pub fn encode_json(&self) -> Result<String> {
         serde_json::to_string(self)
             .map_err(|source| CodecError::encode(RecordKind::SiteFinanceOutcome, source).into())
+    }
+
+    /// Returns a copy with explicit value-attribution evidence and its compatibility mirror aligned.
+    pub fn with_value_attribution(
+        mut self,
+        value_attribution: SiteFinanceValueAttribution,
+    ) -> Self {
+        self.can_support_value_claim = value_attribution.can_support_value_claim();
+        self.value_attribution = value_attribution;
+        self
+    }
+
+    /// Returns a copy with an explicit local workflow-completion projection.
+    pub const fn with_workflow_completion(
+        mut self,
+        workflow_completion: SiteFinanceWorkflowCompletion,
+    ) -> Self {
+        self.workflow_completion = workflow_completion;
+        self
+    }
+
+    /// Returns a copy with an explicit manager-approval projection.
+    pub fn with_manager_approval(mut self, manager_approval: SiteFinanceManagerApproval) -> Self {
+        self.manager_approval = manager_approval;
+        self
     }
 }
 
@@ -1601,16 +1772,12 @@ pub struct ApprovalOutboxProjectionInput {
     pub event_kind: String,
     /// Review gate used for packet, approval, and outbox rows.
     pub gate: ReviewGateCode,
-    /// Whether a human/system-of-record review completed the local handoff candidate.
-    pub completed: bool,
+    /// Evidence-bearing human/system-of-record disposition for the local handoff candidate.
+    pub disposition: ApprovalReviewDisposition,
     /// Target aggregate kind matching the approved outbox candidate.
     pub target_kind: String,
     /// Agent actor id that prepared the packet and requested approval.
     pub agent_actor_id: String,
-    /// Actor kind that decided completed review rows.
-    pub reviewing_actor_kind: ActorKindCode,
-    /// Actor id that decided completed review rows.
-    pub reviewing_actor_id: String,
     /// Workflow payload for source refs, correlation evidence, and safety posture.
     pub workflow_payload: serde_json::Value,
     /// Reviewable result payload; never execution proof for live side effects.
@@ -1623,6 +1790,189 @@ pub struct ApprovalOutboxProjectionInput {
     pub outbox_topic: String,
     /// Internal outbox payload produced only after approval.
     pub outbox_payload: serde_json::Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Human/system-of-record disposition that controls approval rows and outbox eligibility.
+///
+/// Pending carries no decision evidence. Approved and rejected carry the reviewer and
+/// timestamp evidence together so callers cannot construct incoherent approval rows such
+/// as `status = approved` without a deciding actor.
+pub enum ApprovalReviewDisposition {
+    /// Review has not produced a decision; no approval or outbox authority exists.
+    Pending,
+    /// Review approved the handoff candidate and may expose the approved internal outbox row.
+    Approved(ApprovalDecisionEvidence),
+    /// Review rejected the candidate; decision evidence is recorded but no outbox authority exists.
+    Rejected(ApprovalDecisionEvidence),
+}
+
+impl ApprovalReviewDisposition {
+    /// Creates a pending disposition with no review decision evidence.
+    pub const fn pending() -> Self {
+        Self::Pending
+    }
+
+    /// Creates an approved disposition with the evidence required for approved rows and outbox candidates.
+    pub fn approved(
+        actor_kind: ActorKindCode,
+        actor_id: String,
+        decided_at: String,
+        reason: Option<String>,
+        target: ApprovalTargetBinding,
+    ) -> Self {
+        Self::Approved(ApprovalDecisionEvidence {
+            actor_kind,
+            actor_id,
+            decided_at,
+            reason,
+            approval_record_id: target.approval_record_id,
+            target_kind: target.target_kind,
+            target_id: target.target_id,
+            gate: target.gate,
+        })
+    }
+
+    /// Creates a rejected disposition with the evidence required for rejected rows.
+    pub fn rejected(
+        actor_kind: ActorKindCode,
+        actor_id: String,
+        decided_at: String,
+        reason: Option<String>,
+        target: ApprovalTargetBinding,
+    ) -> Self {
+        Self::Rejected(ApprovalDecisionEvidence {
+            actor_kind,
+            actor_id,
+            decided_at,
+            reason,
+            approval_record_id: target.approval_record_id,
+            target_kind: target.target_kind,
+            target_id: target.target_id,
+            gate: target.gate,
+        })
+    }
+
+    const fn workflow_result_status(&self) -> WorkflowResultStatusCode {
+        match self {
+            Self::Approved(_) => WorkflowResultStatusCode::Succeeded,
+            Self::Pending | Self::Rejected(_) => WorkflowResultStatusCode::NeedsReview,
+        }
+    }
+
+    const fn review_packet_status(&self) -> ReviewPacketStatusCode {
+        match self {
+            Self::Pending => ReviewPacketStatusCode::ReadyForReview,
+            Self::Approved(_) => ReviewPacketStatusCode::Approved,
+            Self::Rejected(_) => ReviewPacketStatusCode::Rejected,
+        }
+    }
+
+    const fn approval_status(&self) -> &'static str {
+        match self {
+            Self::Pending => "approval_requested",
+            Self::Approved(_) => "approved",
+            Self::Rejected(_) => "rejected",
+        }
+    }
+
+    const fn decision_evidence(&self) -> Option<&ApprovalDecisionEvidence> {
+        match self {
+            Self::Pending => None,
+            Self::Approved(evidence) | Self::Rejected(evidence) => Some(evidence),
+        }
+    }
+
+    const fn is_approved(&self) -> bool {
+        matches!(self, Self::Approved(_))
+    }
+
+    fn authorized_for_projection(
+        self,
+        approval_record_id: &str,
+        target_kind: &str,
+        target_id: &str,
+        gate: ReviewGateCode,
+    ) -> Self {
+        let actor_kind = self.decision_evidence().map(|evidence| evidence.actor_kind);
+        let evidence_matches = self.decision_evidence().is_none_or(|evidence| {
+            evidence.approval_record_id == approval_record_id
+                && evidence.target_kind == target_kind
+                && evidence.target_id == target_id
+                && evidence.gate == gate
+        });
+        let role_authorized = match gate {
+            ReviewGateCode::ManagerApproval
+            | ReviewGateCode::CustomerMessageApproval
+            | ReviewGateCode::RefundOrDepositException => {
+                actor_kind == Some(ActorKindCode::Manager)
+            }
+            ReviewGateCode::MedicalDocumentReview | ReviewGateCode::BehaviorReview => {
+                actor_kind.is_none()
+                    || matches!(
+                        actor_kind,
+                        Some(ActorKindCode::Staff | ActorKindCode::Manager)
+                    )
+            }
+        };
+        if role_authorized && evidence_matches {
+            self
+        } else {
+            Self::Pending
+        }
+    }
+}
+
+/// Exact approval-row and operational-target binding carried by a review decision.
+pub struct ApprovalTargetBinding {
+    approval_record_id: String,
+    target_kind: String,
+    target_id: String,
+    gate: ReviewGateCode,
+}
+
+impl ApprovalTargetBinding {
+    /// Binds review evidence to one approval row, target, and gate.
+    pub fn new(
+        approval_record_id: String,
+        target_kind: String,
+        target_id: String,
+        gate: ReviewGateCode,
+    ) -> Self {
+        Self {
+            approval_record_id,
+            target_kind,
+            target_id,
+            gate,
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Evidence proving who decided an approval disposition and when.
+pub struct ApprovalDecisionEvidence {
+    /// Actor kind that decided the review.
+    pub actor_kind: ActorKindCode,
+    /// Actor id that decided the review.
+    pub actor_id: String,
+    /// Decision timestamp copied into approval and audit rows.
+    pub decided_at: String,
+    /// Optional human review rationale.
+    pub reason: Option<String>,
+    /// Exact approval row authorized by this decision.
+    approval_record_id: String,
+    /// Exact target kind authorized by this decision.
+    target_kind: String,
+    /// Exact target id authorized by this decision.
+    target_id: String,
+    /// Exact review gate authorized by this decision.
+    gate: ReviewGateCode,
+}
+
+impl std::fmt::Debug for ApprovalDecisionEvidence {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("ApprovalDecisionEvidence { <redacted> }")
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, strum::Display)]
@@ -1855,25 +2205,57 @@ pub struct AuditEventRecord {
 /// Storage-shaped outbox candidate row; it is an approved local/internal handoff candidate, not a send.
 pub struct OutboxRecord {
     /// Outbox primary key.
-    pub id: String,
+    id: String,
     /// Idempotency key for the candidate.
-    pub idempotency_key: String,
+    idempotency_key: String,
     /// Matching approved approval record id.
-    pub approval_record_id: String,
+    approval_record_id: String,
     /// Internal topic only; no customer/provider/payment/schedule topics are produced here.
-    pub topic: String,
+    topic: String,
     /// Review gate matching the approval row.
-    pub review_gate: ReviewGateCode,
+    review_gate: ReviewGateCode,
     /// Aggregate kind matching the approval row.
-    pub aggregate_kind: String,
+    aggregate_kind: String,
     /// Aggregate id matching the approval row.
-    pub aggregate_id: String,
+    aggregate_id: String,
     /// Candidate payload for local/internal handoff.
-    pub payload: serde_json::Value,
+    payload: serde_json::Value,
     /// Candidate status.
-    pub status: OutboxStatusCode,
+    status: OutboxStatusCode,
     /// Availability timestamp.
-    pub available_at: String,
+    available_at: String,
+}
+
+impl OutboxRecord {
+    /// Durable identifier for the persisted internal handoff candidate.
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    /// Approval record whose decision admitted this candidate to the outbox.
+    pub fn approval_record_id(&self) -> &str {
+        &self.approval_record_id
+    }
+
+    /// Internal-only topic retained by the persistence record.
+    pub fn topic(&self) -> &str {
+        &self.topic
+    }
+
+    /// Review gate retained by the persistence record.
+    pub const fn review_gate(&self) -> ReviewGateCode {
+        self.review_gate
+    }
+
+    /// Read-only payload retained as historical handoff evidence, not execution authority.
+    pub fn payload(&self) -> &serde_json::Value {
+        &self.payload
+    }
+
+    /// Persisted candidate status.
+    pub const fn status(&self) -> OutboxStatusCode {
+        self.status
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1941,6 +2323,13 @@ impl ApprovalOutboxProjection {
         ids: ApprovalOutboxLineageIds,
         input: ApprovalOutboxProjectionInput,
     ) -> Self {
+        let disposition = input.disposition.authorized_for_projection(
+            &ids.approval_record_id,
+            &input.target_kind,
+            &ids.subject_id,
+            input.gate,
+        );
+        let decision_evidence = disposition.decision_evidence().cloned();
         let workflow_event = WorkflowEventRecord {
             id: ids.workflow_event_id.clone(),
             workflow_name: input.workflow_name.clone(),
@@ -1956,11 +2345,7 @@ impl ApprovalOutboxProjection {
         let workflow_result = WorkflowResultRecord {
             id: format!("{}:result", ids.workflow_event_id),
             workflow_event_id: ids.workflow_event_id.clone(),
-            status: if input.completed {
-                WorkflowResultStatusCode::Succeeded
-            } else {
-                WorkflowResultStatusCode::NeedsReview
-            },
+            status: disposition.workflow_result_status(),
             result: input.result_payload,
             error_code: None,
             created_at: ids.recorded_at.clone(),
@@ -1971,11 +2356,7 @@ impl ApprovalOutboxProjection {
             subject_kind: ids.subject_kind.clone(),
             subject_id: ids.subject_id.clone(),
             gate: input.gate,
-            status: if input.completed {
-                ReviewPacketStatusCode::Approved
-            } else {
-                ReviewPacketStatusCode::ReadyForReview
-            },
+            status: disposition.review_packet_status(),
             workflow_event_id: ids.workflow_event_id.clone(),
             created_by_actor_kind: ActorKindCode::Agent,
             created_by_actor_id: input.agent_actor_id.clone(),
@@ -1988,25 +2369,26 @@ impl ApprovalOutboxProjection {
             target_kind: input.target_kind.clone(),
             target_id: ids.subject_id.clone(),
             gate: input.gate,
-            status: if input.completed {
-                "approved"
-            } else {
-                "approval_requested"
-            }
-            .to_owned(),
+            status: disposition.approval_status().to_owned(),
             requested_by_actor_kind: ActorKindCode::Agent,
             requested_by_actor_id: input.agent_actor_id.clone(),
             requested_at: ids.recorded_at.clone(),
-            decided_by_actor_kind: input.completed.then_some(input.reviewing_actor_kind),
-            decided_by_actor_id: input.completed.then(|| input.reviewing_actor_id.clone()),
-            decided_at: input.completed.then(|| ids.recorded_at.clone()),
+            decided_by_actor_kind: decision_evidence
+                .as_ref()
+                .map(|evidence| evidence.actor_kind),
+            decided_by_actor_id: decision_evidence
+                .as_ref()
+                .map(|evidence| evidence.actor_id.clone()),
+            decided_at: decision_evidence
+                .as_ref()
+                .map(|evidence| evidence.decided_at.clone()),
             review_packet_id: ids.review_packet_id.clone(),
         };
 
         let audit_events = vec![
             AuditEventRecord {
                 actor_kind: ActorKindCode::Agent,
-                actor_id: input.agent_actor_id,
+                actor_id: input.agent_actor_id.clone(),
                 subject_kind: "workflow_event".to_owned(),
                 subject_id: ids.workflow_event_id.clone(),
                 action: format!("{}.context_recorded", input.workflow_name.replace('-', "_")),
@@ -2016,19 +2398,27 @@ impl ApprovalOutboxProjection {
                 recorded_at: ids.recorded_at.clone(),
             },
             AuditEventRecord {
-                actor_kind: input.reviewing_actor_kind,
-                actor_id: input.reviewing_actor_id,
+                actor_kind: decision_evidence
+                    .as_ref()
+                    .map_or(ActorKindCode::Agent, |evidence| evidence.actor_kind),
+                actor_id: decision_evidence.as_ref().map_or_else(
+                    || input.agent_actor_id.clone(),
+                    |evidence| evidence.actor_id.clone(),
+                ),
                 subject_kind: "approval".to_owned(),
                 subject_id: ids.approval_record_id.clone(),
                 action: input.audit_action,
                 workflow_event_id: ids.workflow_event_id.clone(),
                 metadata: input.audit_metadata,
-                occurred_at: ids.recorded_at.clone(),
+                occurred_at: decision_evidence.as_ref().map_or_else(
+                    || ids.recorded_at.clone(),
+                    |evidence| evidence.decided_at.clone(),
+                ),
                 recorded_at: ids.recorded_at.clone(),
             },
         ];
 
-        let outbox_candidate = input.completed.then(|| OutboxRecord {
+        let outbox_candidate = disposition.is_approved().then(|| OutboxRecord {
             id: ids.outbox_record_id,
             idempotency_key: format!("{}:internal-reviewed-handoff", ids.idempotency_key),
             approval_record_id: ids.approval_record_id,
@@ -2058,17 +2448,18 @@ impl SiteFinanceLocalPersistenceRecords {
         ids: ApprovalOutboxLineageIds,
         outcome: SiteFinanceOutcomeRecord,
     ) -> Self {
+        let manager_approval = outcome.manager_approval.clone();
+        let workflow_completion = outcome.workflow_completion;
+        let value_attribution = outcome.value_attribution;
         let projection = ApprovalOutboxProjection::from_reviewed_internal_handoff(
             ids.clone(),
             ApprovalOutboxProjectionInput::builder()
                 .workflow_name("site-finance".to_owned())
                 .event_kind("reviewed_recommendation_recorded".to_owned())
                 .gate(ReviewGateCode::ManagerApproval)
-                .completed(outcome.can_support_value_claim)
+                .disposition(manager_approval.approval_review_disposition())
                 .target_kind("message".to_owned())
                 .agent_actor_id("site-finance-agent".to_owned())
-                .reviewing_actor_kind(ActorKindCode::Manager)
-                .reviewing_actor_id("site-finance-reviewer".to_owned())
                 .workflow_payload(json!({
                     "correlation_id": outcome.correlation_id,
                     "location_id": outcome.location_id,
@@ -2082,14 +2473,20 @@ impl SiteFinanceLocalPersistenceRecords {
                 .result_payload(json!({
                     "record_only_finance_action": true,
                     "legal_action": outcome.legal_action,
-                    "can_support_value_claim": outcome.can_support_value_claim,
+                    "value_attribution": value_attribution.to_string(),
+                    "workflow_completion": workflow_completion.to_string(),
+                    "manager_approval": manager_approval.to_string(),
+                    "can_support_value_claim": value_attribution.can_support_value_claim(),
                     "live_side_effects_allowed": false,
                 }))
                 .audit_action("site_finance.reviewed_recommendation_recorded".to_owned())
                 .audit_metadata(json!({
                     "recommendation_id": outcome.recommendation_id,
                     "legal_action": outcome.legal_action,
-                    "can_support_value_claim": outcome.can_support_value_claim,
+                    "value_attribution": value_attribution.to_string(),
+                    "workflow_completion": workflow_completion.to_string(),
+                    "manager_approval": manager_approval.to_string(),
+                    "can_support_value_claim": value_attribution.can_support_value_claim(),
                     "payment_actions_allowed": false,
                     "accounting_mutations_allowed": false,
                 }))
@@ -2103,10 +2500,12 @@ impl SiteFinanceLocalPersistenceRecords {
                 }))
                 .build(),
         );
+        let mut workflow_result = projection.workflow_result;
+        workflow_result.status = workflow_completion.workflow_result_status();
 
         Self {
             workflow_event: projection.workflow_event,
-            workflow_result: projection.workflow_result,
+            workflow_result,
             review_packet: projection.review_packet,
             approval_record: projection.approval_record,
             outcome: SiteFinanceOutcomeRow {
@@ -2120,13 +2519,19 @@ impl SiteFinanceLocalPersistenceRecords {
     }
 }
 
+fn data_quality_hygiene_review_disposition(
+    _outcome: &DataQualityHygieneOutcomeRecord,
+) -> ApprovalReviewDisposition {
+    ApprovalReviewDisposition::pending()
+}
+
 impl DataQualityHygieneLocalPersistenceRecords {
     /// Projects a reviewed Data-Quality Hygiene outcome into storage-shaped MVP rows without enabling live side effects.
     pub fn from_reviewed_outcome(
         ids: DataQualityHygieneLineageIds,
         outcome: DataQualityHygieneOutcomeRecord,
     ) -> Self {
-        let completed = outcome.outcome == DataQualityHygieneOutcomeCode::Completed;
+        let disposition = data_quality_hygiene_review_disposition(&outcome);
         let workflow_payload = json!({
             "correlation_id": outcome.correlation_id,
             "location_id": outcome.location_id,
@@ -2153,11 +2558,9 @@ impl DataQualityHygieneLocalPersistenceRecords {
                 .workflow_name("data-quality-hygiene".to_owned())
                 .event_kind("context_created".to_owned())
                 .gate(ReviewGateCode::ManagerApproval)
-                .completed(completed)
+                .disposition(disposition)
                 .target_kind("message".to_owned())
                 .agent_actor_id("data-quality-hygiene-agent".to_owned())
-                .reviewing_actor_kind(ActorKindCode::Staff)
-                .reviewing_actor_id(outcome.actor_id.clone())
                 .workflow_payload(workflow_payload)
                 .result_payload(json!({
                     "mode": "fake_deterministic_or_disabled",
@@ -2186,10 +2589,18 @@ impl DataQualityHygieneLocalPersistenceRecords {
                 }))
                 .build(),
         );
+        let mut workflow_result = projection.workflow_result;
+        workflow_result.status = match outcome.outcome {
+            DataQualityHygieneOutcomeCode::Completed => WorkflowResultStatusCode::Succeeded,
+            DataQualityHygieneOutcomeCode::Deferred
+            | DataQualityHygieneOutcomeCode::SuppressedByManager
+            | DataQualityHygieneOutcomeCode::SourceFactWasWrong
+            | DataQualityHygieneOutcomeCode::NotActionable => WorkflowResultStatusCode::NeedsReview,
+        };
 
         Self {
             workflow_event: projection.workflow_event,
-            workflow_result: projection.workflow_result,
+            workflow_result,
             review_packet: projection.review_packet,
             approval_record: projection.approval_record,
             outcome: DataQualityHygieneOutcomeRow {

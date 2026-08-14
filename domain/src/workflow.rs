@@ -22,7 +22,7 @@
 use chrono::{DateTime, Utc};
 use nutype::nutype;
 #[allow(unused_imports)]
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uuid::Uuid;
 
 use crate::{entities, policy};
@@ -300,19 +300,77 @@ pub mod status_update {
 /// Workflow event that records what changed, who/what it concerns, and what evidence/risk came with it.
 pub struct Event {
     /// Workflow event ID value preserved for staff review and audit evidence.
-    pub event_id: EventId,
+    event_id: EventId,
     /// Workflow event type value preserved for staff review and audit evidence.
-    pub event_type: EventType,
+    event_type: EventType,
     /// Workflow occurred at value preserved for staff review and audit evidence.
-    pub occurred_at: DateTime<Utc>,
+    occurred_at: DateTime<Utc>,
     /// Workflow actor value preserved for staff review and audit evidence.
-    pub actor: entities::ActorRef,
+    actor: entities::ActorRef,
     /// Workflow location ID value preserved for staff review and audit evidence.
-    pub location_id: entities::LocationId,
+    location_id: entities::LocationId,
     /// Workflow subject value preserved for staff review and audit evidence.
-    pub subject: Subject,
+    subject: Subject,
     /// Workflow policy context value preserved for staff review and audit evidence.
-    pub policy_context: PolicyContext,
+    policy_context: PolicyContext,
+}
+
+impl Event {
+    /// Creates a workflow event after validating event-type/subject agreement.
+    pub fn try_new(
+        event_id: EventId,
+        event_type: EventType,
+        occurred_at: DateTime<Utc>,
+        actor: entities::ActorRef,
+        location_id: entities::LocationId,
+        subject: Subject,
+        policy_context: PolicyContext,
+    ) -> std::result::Result<Self, EventError> {
+        Self::try_from_persisted(RawEvent {
+            event_id,
+            event_type,
+            occurred_at,
+            actor,
+            location_id,
+            subject,
+            policy_context,
+        })
+    }
+
+    /// Workflow event id used for audit correlation.
+    pub const fn event_id(&self) -> EventId {
+        self.event_id
+    }
+
+    /// Event category emitted by triage, policy, review, external sync, or source ingestion.
+    pub const fn event_type(&self) -> &EventType {
+        &self.event_type
+    }
+
+    /// Instant when the workflow event occurred.
+    pub const fn occurred_at(&self) -> DateTime<Utc> {
+        self.occurred_at
+    }
+
+    /// Actor that emitted or caused the workflow event.
+    pub const fn actor(&self) -> &entities::ActorRef {
+        &self.actor
+    }
+
+    /// Owning location for labor routing and policy lookup.
+    pub const fn location_id(&self) -> entities::LocationId {
+        self.location_id
+    }
+
+    /// Subject that the event type is allowed to concern.
+    pub const fn subject(&self) -> &Subject {
+        &self.subject
+    }
+
+    /// Policy context attached for review and automation boundaries.
+    pub const fn policy_context(&self) -> &PolicyContext {
+        &self.policy_context
+    }
 }
 
 #[derive(Deserialize)]
@@ -337,9 +395,9 @@ impl<'de> Deserialize<'de> for Event {
 }
 
 impl Event {
-    fn try_from_persisted(raw: RawEvent) -> std::result::Result<Self, &'static str> {
+    fn try_from_persisted(raw: RawEvent) -> std::result::Result<Self, EventError> {
         if !event_type_matches_subject(&raw.event_type, &raw.subject) {
-            return Err("workflow event subject does not match event type");
+            return Err(EventError::EventTypeSubjectMismatch);
         }
         Ok(Self {
             event_id: raw.event_id,
@@ -351,6 +409,14 @@ impl Event {
             policy_context: raw.policy_context,
         })
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+/// Validation failures returned by workflow event construction and rehydration.
+pub enum EventError {
+    /// Event type and subject represented different workflow ownership domains.
+    #[error("workflow event subject does not match event type")]
+    EventTypeSubjectMismatch,
 }
 
 fn event_type_matches_subject(event_type: &EventType, subject: &Subject) -> bool {
@@ -464,23 +530,561 @@ pub enum AllowedAction {
     FlagRisk,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Workflow result carrying status, summary, recommended action, and verification notes for staff review.
+#[derive(Debug, Clone, PartialEq, Eq)]
+/// Workflow result carrying a summary plus one coherent, evidence-bearing outcome variant.
 pub struct Result<T> {
-    /// Workflow status value preserved for staff review and audit evidence.
-    pub status: Status,
     /// Workflow summary value preserved for staff review and audit evidence.
-    pub summary: Summary,
-    /// Workflow structured output value preserved for staff review and audit evidence.
-    pub structured_output: Option<T>,
-    /// Workflow recommended actions value preserved for staff review and audit evidence.
-    pub recommended_actions: Vec<RecommendedAction>,
-    /// Workflow risk flags value preserved for staff review and audit evidence.
-    pub risk_flags: Vec<RiskFlag>,
-    /// Workflow verification value preserved for staff review and audit evidence.
-    pub verification: Vec<VerificationNote>,
-    /// Workflow human review reason value preserved for staff review and audit evidence.
-    pub human_review_reason: Option<ReviewReason>,
+    summary: Summary,
+    /// Evidence-bearing workflow outcome. The variant owns the fields legal for that state.
+    outcome: Outcome<T>,
+}
+
+impl<T> Result<T> {
+    /// Records a completed workflow outcome with structured output and verification evidence.
+    pub fn completed(
+        summary: Summary,
+        structured_output: T,
+        recommended_actions: Vec<RecommendedAction>,
+        risk_flags: Vec<RiskFlag>,
+        verification: Vec<VerificationNote>,
+    ) -> std::result::Result<Self, Error> {
+        ensure_verification_evidence(&verification)?;
+        Ok(Self {
+            summary,
+            outcome: Outcome::Completed {
+                structured_output,
+                recommended_actions,
+                risk_flags,
+                verification,
+            },
+        })
+    }
+
+    /// Records a workflow outcome that stopped at a human review gate.
+    pub fn needs_human_review(
+        summary: Summary,
+        human_review_reason: ReviewReason,
+        recommended_actions: Vec<RecommendedAction>,
+        risk_flags: Vec<RiskFlag>,
+        verification: Vec<VerificationNote>,
+    ) -> std::result::Result<Self, Error> {
+        ensure_verification_evidence(&verification)?;
+        Ok(Self {
+            summary,
+            outcome: Outcome::NeedsHumanReview {
+                human_review_reason,
+                recommended_actions,
+                risk_flags,
+                verification,
+            },
+        })
+    }
+
+    /// Records a workflow outcome rejected by deterministic policy evidence.
+    pub fn rejected_by_policy(
+        summary: Summary,
+        human_review_reason: ReviewReason,
+        recommended_actions: Vec<RecommendedAction>,
+        risk_flags: Vec<RiskFlag>,
+        verification: Vec<VerificationNote>,
+    ) -> std::result::Result<Self, Error> {
+        ensure_verification_evidence(&verification)?;
+        Ok(Self {
+            summary,
+            outcome: Outcome::RejectedByPolicy {
+                human_review_reason,
+                recommended_actions,
+                risk_flags,
+                verification,
+            },
+        })
+    }
+
+    /// Records a workflow outcome that needs more source/staff information.
+    pub fn needs_more_information(
+        summary: Summary,
+        human_review_reason: ReviewReason,
+        recommended_actions: Vec<RecommendedAction>,
+        risk_flags: Vec<RiskFlag>,
+        verification: Vec<VerificationNote>,
+    ) -> std::result::Result<Self, Error> {
+        ensure_verification_evidence(&verification)?;
+        Ok(Self {
+            summary,
+            outcome: Outcome::NeedsMoreInformation {
+                human_review_reason,
+                recommended_actions,
+                risk_flags,
+                verification,
+            },
+        })
+    }
+
+    /// Records a workflow outcome that failed safely without producing live side effects.
+    pub fn failed_safely(
+        summary: Summary,
+        human_review_reason: ReviewReason,
+        recommended_actions: Vec<RecommendedAction>,
+        risk_flags: Vec<RiskFlag>,
+        verification: Vec<VerificationNote>,
+    ) -> std::result::Result<Self, Error> {
+        ensure_verification_evidence(&verification)?;
+        Ok(Self {
+            summary,
+            outcome: Outcome::FailedSafely {
+                human_review_reason,
+                recommended_actions,
+                risk_flags,
+                verification,
+            },
+        })
+    }
+
+    /// Summary preserved for staff review and audit evidence.
+    pub const fn summary(&self) -> &Summary {
+        &self.summary
+    }
+
+    /// Coherent evidence-bearing outcome variant.
+    pub const fn outcome(&self) -> &Outcome<T> {
+        &self.outcome
+    }
+
+    /// Stable status code used only by explicit versioned DTO/storage projections.
+    pub const fn status(&self) -> Status {
+        self.outcome.status()
+    }
+
+    /// Recommended staff/automation actions for this outcome.
+    pub fn recommended_actions(&self) -> &[RecommendedAction] {
+        self.outcome.recommended_actions()
+    }
+
+    /// Risk flags carried as review and reporting evidence for this outcome.
+    pub fn risk_flags(&self) -> &[RiskFlag] {
+        self.outcome.risk_flags()
+    }
+
+    /// Verification evidence carried by the outcome.
+    pub fn verification(&self) -> &[VerificationNote] {
+        self.outcome.verification()
+    }
+
+    /// Human review evidence for variants that legally stop at a review gate.
+    pub fn human_review_reason(&self) -> Option<&ReviewReason> {
+        self.outcome.human_review_reason()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+/// Evidence-bearing result variant. Each outcome owns exactly the fields legal for its status.
+pub enum Outcome<T> {
+    /// Workflow completed with structured output and verification evidence.
+    Completed {
+        /// Typed output accepted by the owning workflow validator.
+        structured_output: T,
+        /// Staff-visible next actions created from the accepted output.
+        recommended_actions: Vec<RecommendedAction>,
+        /// Risk markers retained for reports and review.
+        risk_flags: Vec<RiskFlag>,
+        /// Evidence proving why the output can be treated as completed workflow output.
+        verification: Vec<VerificationNote>,
+    },
+    /// Workflow stopped at a human review gate with an explicit reason.
+    NeedsHumanReview {
+        /// Review-gate evidence explaining why automation must stop.
+        human_review_reason: ReviewReason,
+        /// Staff-visible next actions created before the review gate.
+        recommended_actions: Vec<RecommendedAction>,
+        /// Risk markers retained for reports and review.
+        risk_flags: Vec<RiskFlag>,
+        /// Evidence proving why review is required.
+        verification: Vec<VerificationNote>,
+    },
+    /// Workflow was rejected by policy with reviewable evidence.
+    RejectedByPolicy {
+        /// Policy/review evidence explaining the rejection.
+        human_review_reason: ReviewReason,
+        /// Staff-visible next actions created before rejection.
+        recommended_actions: Vec<RecommendedAction>,
+        /// Risk markers retained for reports and review.
+        risk_flags: Vec<RiskFlag>,
+        /// Evidence proving why the policy rejection is valid.
+        verification: Vec<VerificationNote>,
+    },
+    /// Workflow needs more source/staff information before continuing.
+    NeedsMoreInformation {
+        /// Evidence explaining the missing information boundary.
+        human_review_reason: ReviewReason,
+        /// Staff-visible next actions for gathering missing proof.
+        recommended_actions: Vec<RecommendedAction>,
+        /// Risk markers retained for reports and review.
+        risk_flags: Vec<RiskFlag>,
+        /// Evidence proving which facts were insufficient.
+        verification: Vec<VerificationNote>,
+    },
+    /// Workflow failed safely without live side effects.
+    FailedSafely {
+        /// Evidence explaining the safe-failure boundary.
+        human_review_reason: ReviewReason,
+        /// Staff-visible next actions after safe failure.
+        recommended_actions: Vec<RecommendedAction>,
+        /// Risk markers retained for reports and review.
+        risk_flags: Vec<RiskFlag>,
+        /// Evidence proving no unsafe completion was manufactured.
+        verification: Vec<VerificationNote>,
+    },
+}
+
+impl<T> Outcome<T> {
+    /// Stable status code used only by explicit versioned DTO/storage projections.
+    pub const fn status(&self) -> Status {
+        match self {
+            Self::Completed { .. } => Status::Completed,
+            Self::NeedsHumanReview { .. } => Status::NeedsHumanReview,
+            Self::RejectedByPolicy { .. } => Status::RejectedByPolicy,
+            Self::NeedsMoreInformation { .. } => Status::NeedsMoreInformation,
+            Self::FailedSafely { .. } => Status::FailedSafely,
+        }
+    }
+
+    /// Structured output for completed outcomes.
+    pub const fn structured_output(&self) -> Option<&T> {
+        match self {
+            Self::Completed {
+                structured_output, ..
+            } => Some(structured_output),
+            Self::NeedsHumanReview { .. }
+            | Self::RejectedByPolicy { .. }
+            | Self::NeedsMoreInformation { .. }
+            | Self::FailedSafely { .. } => None,
+        }
+    }
+
+    /// Recommended staff/automation actions for this outcome.
+    pub fn recommended_actions(&self) -> &[RecommendedAction] {
+        match self {
+            Self::Completed {
+                recommended_actions,
+                ..
+            }
+            | Self::NeedsHumanReview {
+                recommended_actions,
+                ..
+            }
+            | Self::RejectedByPolicy {
+                recommended_actions,
+                ..
+            }
+            | Self::NeedsMoreInformation {
+                recommended_actions,
+                ..
+            }
+            | Self::FailedSafely {
+                recommended_actions,
+                ..
+            } => recommended_actions,
+        }
+    }
+
+    /// Risk flags carried as review and reporting evidence for this outcome.
+    pub fn risk_flags(&self) -> &[RiskFlag] {
+        match self {
+            Self::Completed { risk_flags, .. }
+            | Self::NeedsHumanReview { risk_flags, .. }
+            | Self::RejectedByPolicy { risk_flags, .. }
+            | Self::NeedsMoreInformation { risk_flags, .. }
+            | Self::FailedSafely { risk_flags, .. } => risk_flags,
+        }
+    }
+
+    /// Verification evidence carried by the outcome.
+    pub fn verification(&self) -> &[VerificationNote] {
+        match self {
+            Self::Completed { verification, .. }
+            | Self::NeedsHumanReview { verification, .. }
+            | Self::RejectedByPolicy { verification, .. }
+            | Self::NeedsMoreInformation { verification, .. }
+            | Self::FailedSafely { verification, .. } => verification,
+        }
+    }
+
+    /// Human review evidence for variants that legally stop at a review gate.
+    pub fn human_review_reason(&self) -> Option<&ReviewReason> {
+        match self {
+            Self::Completed { .. } => None,
+            Self::NeedsHumanReview {
+                human_review_reason,
+                ..
+            }
+            | Self::RejectedByPolicy {
+                human_review_reason,
+                ..
+            }
+            | Self::NeedsMoreInformation {
+                human_review_reason,
+                ..
+            }
+            | Self::FailedSafely {
+                human_review_reason,
+                ..
+            } => Some(human_review_reason),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+/// Validation failures returned by workflow result/outcome construction and rehydration.
+pub enum Error {
+    /// Completed outcome was missing structured output evidence.
+    #[error("completed workflow outcome requires structured output evidence")]
+    CompletedOutcomeRequiresStructuredOutput,
+    /// Completed outcome carried a human review reason, which belongs only to stopped/rejected variants.
+    #[error("completed workflow outcome must not carry human review reason")]
+    CompletedOutcomeMustNotCarryHumanReviewReason,
+    /// A stopped or rejected outcome carried completed structured output evidence.
+    #[error("non-completed workflow outcome must not carry structured output")]
+    NonCompletedOutcomeMustNotCarryStructuredOutput,
+    /// Human-review outcome omitted the review reason evidence.
+    #[error("workflow outcome needing human review requires review reason evidence")]
+    HumanReviewOutcomeRequiresReviewReason,
+    /// Policy-rejected outcome omitted the review/policy reason evidence.
+    #[error("policy-rejected workflow outcome requires review reason evidence")]
+    PolicyRejectedOutcomeRequiresReviewReason,
+    /// More-information outcome omitted the missing-information reason evidence.
+    #[error("workflow outcome needing more information requires review reason evidence")]
+    NeedsMoreInformationOutcomeRequiresReviewReason,
+    /// Safe-failure outcome omitted the reason/evidence that explains the stop.
+    #[error("failed-safe workflow outcome requires review reason evidence")]
+    FailedSafelyOutcomeRequiresReviewReason,
+    /// Outcome variants must carry at least one verification note before they can enter reports.
+    #[error("workflow outcome requires verification evidence")]
+    VerificationEvidenceRequired,
+}
+
+fn ensure_verification_evidence(
+    verification: &[VerificationNote],
+) -> std::result::Result<(), Error> {
+    if verification.is_empty() {
+        return Err(Error::VerificationEvidenceRequired);
+    }
+    Ok(())
+}
+
+#[derive(Serialize, Deserialize)]
+/// Versioned compatibility projection for the historic workflow result wire shape.
+struct ResultV1<T> {
+    status: Status,
+    summary: Summary,
+    structured_output: Option<T>,
+    recommended_actions: Vec<RecommendedAction>,
+    risk_flags: Vec<RiskFlag>,
+    verification: Vec<VerificationNote>,
+    human_review_reason: Option<ReviewReason>,
+}
+
+impl<T> TryFrom<ResultV1<T>> for Result<T> {
+    type Error = Error;
+
+    fn try_from(value: ResultV1<T>) -> std::result::Result<Self, Self::Error> {
+        if value.status != Status::Completed && value.structured_output.is_some() {
+            return Err(Error::NonCompletedOutcomeMustNotCarryStructuredOutput);
+        }
+        match value.status {
+            Status::Completed => {
+                if value.human_review_reason.is_some() {
+                    return Err(Error::CompletedOutcomeMustNotCarryHumanReviewReason);
+                }
+                let Some(structured_output) = value.structured_output else {
+                    return Err(Error::CompletedOutcomeRequiresStructuredOutput);
+                };
+                Self::completed(
+                    value.summary,
+                    structured_output,
+                    value.recommended_actions,
+                    value.risk_flags,
+                    value.verification,
+                )
+            }
+            Status::NeedsHumanReview => {
+                let Some(reason) = value.human_review_reason else {
+                    return Err(Error::HumanReviewOutcomeRequiresReviewReason);
+                };
+                Self::needs_human_review(
+                    value.summary,
+                    reason,
+                    value.recommended_actions,
+                    value.risk_flags,
+                    value.verification,
+                )
+            }
+            Status::RejectedByPolicy => {
+                let Some(reason) = value.human_review_reason else {
+                    return Err(Error::PolicyRejectedOutcomeRequiresReviewReason);
+                };
+                Self::rejected_by_policy(
+                    value.summary,
+                    reason,
+                    value.recommended_actions,
+                    value.risk_flags,
+                    value.verification,
+                )
+            }
+            Status::NeedsMoreInformation => {
+                let Some(reason) = value.human_review_reason else {
+                    return Err(Error::NeedsMoreInformationOutcomeRequiresReviewReason);
+                };
+                Self::needs_more_information(
+                    value.summary,
+                    reason,
+                    value.recommended_actions,
+                    value.risk_flags,
+                    value.verification,
+                )
+            }
+            Status::FailedSafely => {
+                let Some(reason) = value.human_review_reason else {
+                    return Err(Error::FailedSafelyOutcomeRequiresReviewReason);
+                };
+                Self::failed_safely(
+                    value.summary,
+                    reason,
+                    value.recommended_actions,
+                    value.risk_flags,
+                    value.verification,
+                )
+            }
+        }
+    }
+}
+
+impl<T> From<Result<T>> for ResultV1<T> {
+    fn from(value: Result<T>) -> Self {
+        let status = value.status();
+        match value.outcome {
+            Outcome::Completed {
+                structured_output,
+                recommended_actions,
+                risk_flags,
+                verification,
+            } => Self {
+                status,
+                summary: value.summary,
+                structured_output: Some(structured_output),
+                recommended_actions,
+                risk_flags,
+                verification,
+                human_review_reason: None,
+            },
+            Outcome::NeedsHumanReview {
+                human_review_reason,
+                recommended_actions,
+                risk_flags,
+                verification,
+            }
+            | Outcome::RejectedByPolicy {
+                human_review_reason,
+                recommended_actions,
+                risk_flags,
+                verification,
+            }
+            | Outcome::NeedsMoreInformation {
+                human_review_reason,
+                recommended_actions,
+                risk_flags,
+                verification,
+            }
+            | Outcome::FailedSafely {
+                human_review_reason,
+                recommended_actions,
+                risk_flags,
+                verification,
+            } => Self {
+                status,
+                summary: value.summary,
+                structured_output: None,
+                recommended_actions,
+                risk_flags,
+                verification,
+                human_review_reason: Some(human_review_reason),
+            },
+        }
+    }
+}
+
+impl<T> Serialize for Result<T>
+where
+    T: Serialize,
+{
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let status = self.status();
+        match &self.outcome {
+            Outcome::Completed {
+                structured_output,
+                recommended_actions,
+                risk_flags,
+                verification,
+            } => ResultV1 {
+                status,
+                summary: self.summary.clone(),
+                structured_output: Some(structured_output),
+                recommended_actions: recommended_actions.clone(),
+                risk_flags: risk_flags.clone(),
+                verification: verification.clone(),
+                human_review_reason: None,
+            }
+            .serialize(serializer),
+            Outcome::NeedsHumanReview {
+                human_review_reason,
+                recommended_actions,
+                risk_flags,
+                verification,
+            }
+            | Outcome::RejectedByPolicy {
+                human_review_reason,
+                recommended_actions,
+                risk_flags,
+                verification,
+            }
+            | Outcome::NeedsMoreInformation {
+                human_review_reason,
+                recommended_actions,
+                risk_flags,
+                verification,
+            }
+            | Outcome::FailedSafely {
+                human_review_reason,
+                recommended_actions,
+                risk_flags,
+                verification,
+            } => ResultV1::<&T> {
+                status,
+                summary: self.summary.clone(),
+                structured_output: None,
+                recommended_actions: recommended_actions.clone(),
+                risk_flags: risk_flags.clone(),
+                verification: verification.clone(),
+                human_review_reason: Some(human_review_reason.clone()),
+            }
+            .serialize(serializer),
+        }
+    }
+}
+
+impl<'de, T> Deserialize<'de> for Result<T>
+where
+    T: Deserialize<'de>,
+{
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let projection = ResultV1::deserialize(deserializer)?;
+        Self::try_from(projection).map_err(serde::de::Error::custom)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

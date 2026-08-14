@@ -310,41 +310,25 @@ pub mod assistant {
                 answer: AnswerText,
                 #[serde(default)]
                 state: AnswerState,
-                #[serde(default)]
-                claims: Vec<Claim>,
-                #[serde(default)]
-                authorized_evidence: Vec<knowledge::AuthorizedEvidence>,
-                #[serde(default)]
-                citations: Vec<knowledge::Citation>,
                 confidence: identity::Confidence,
                 escalation: Option<EscalationReason>,
             }
 
             let raw = RawAnswerPacket::deserialize(deserializer)?;
             match raw.state {
-                AnswerState::Cited => Self::try_cited(
-                    raw.context,
-                    raw.answer,
-                    raw.claims,
-                    raw.authorized_evidence,
-                    raw.citations,
-                    raw.confidence,
-                )
-                .map_err(serde::de::Error::custom),
+                AnswerState::Cited => {
+                    Err(serde::de::Error::custom(Error::MissingAuthorizedEvidence))
+                }
                 AnswerState::Escalated => {
-                    if raw.escalation.is_none() {
-                        return Err(serde::de::Error::custom(Error::MissingEscalationReason));
-                    }
-                    Ok(Self {
-                        context: raw.context,
-                        answer: raw.answer,
-                        state: AnswerState::Escalated,
-                        claims: Vec::new(),
-                        authorized_evidence: Vec::new(),
-                        citations: Vec::new(),
-                        confidence: raw.confidence,
-                        escalation: raw.escalation,
-                    })
+                    let reason = raw
+                        .escalation
+                        .ok_or_else(|| serde::de::Error::custom(Error::MissingEscalationReason))?;
+                    Ok(Self::escalated(
+                        raw.context,
+                        raw.answer,
+                        raw.confidence,
+                        reason,
+                    ))
                 }
                 AnswerState::Draft => Ok(Self {
                     context: raw.context,
@@ -578,7 +562,7 @@ pub mod knowledge {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
     /// Retrieval passage authorized for a concrete actor request before answer construction.
     pub struct AuthorizedEvidence {
         document_id: DocumentId,

@@ -1,0 +1,47 @@
+error[E0560]: struct `domain::entities::Reservation` has no field named `pet_ids`
+  --> tests/ui/aggregate_literal_bypass.rs:10:9
+   |
+10 |         pet_ids: Vec::new(),
+   |         ^^^^^^^ `domain::entities::Reservation` does not have this field
+   |
+   = note: all struct fields are already assigned
+
+error[E0560]: struct `domain::entities::Reservation` has no field named `starts_at`
+  --> tests/ui/aggregate_literal_bypass.rs:13:9
+   |
+13 |         starts_at: Utc.with_ymd_and_hms(2026, 8, 12, 17, 0, 0).unwrap(),
+   |         ^^^^^^^^^ `domain::entities::Reservation` does not have this field
+   |
+   = note: all struct fields are already assigned
+
+error[E0560]: struct `domain::entities::Reservation` has no field named `ends_at`
+  --> tests/ui/aggregate_literal_bypass.rs:14:9
+   |
+14 |         ends_at: Utc.with_ymd_and_hms(2026, 8, 12, 9, 0, 0).unwrap(),
+   |         ^^^^^^^ `domain::entities::Reservation` does not have this field
+   |
+   = note: all struct fields are already assigned
+
+error[E0560]: struct `domain::entities::Message` has no field named `direction`
+  --> tests/ui/aggregate_literal_bypass.rs:28:9
+   |
+28 |         direction: message::Direction::InboundReceived,
+   |         ^^^^^^^^^ `domain::entities::Message` does not have this field
+   |
+   = note: all struct fields are already assigned
+
+error[E0560]: struct `domain::entities::Message` has no field named `status`
+  --> tests/ui/aggregate_literal_bypass.rs:30:9
+   |
+30 |         status: message::Status::Queued,
+   |         ^^^^^^ `domain::entities::Message` does not have this field
+   |
+   = note: all struct fields are already assigned
+
+error[E0560]: struct `domain::entities::Message` has no field named `approval_gate`
+  --> tests/ui/aggregate_literal_bypass.rs:32:9
+   |
+32 |         approval_gate: Some(domain::policy::ReviewGate::CustomerMessageApproval),
+   |         ^^^^^^^^^^^^^ `domain::entities::Message` does not have this field
+   |
+   = note: all struct fields are already assigned

@@ -33,6 +33,8 @@
 use super::*;
 use crate::policy;
 use bon::Builder;
+use nonempty::NonEmpty;
+use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 /// Non-negative count of rooms in a boarding accommodation segment.
@@ -98,24 +100,45 @@ impl NightlySegmentSnapshot {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 /// Point-in-time boarding inventory evidence used to make confirm/waitlist/deny decisions.
 pub struct Snapshot {
-    segments: Vec<NightlySegmentSnapshot>,
+    segments: NonEmpty<NightlySegmentSnapshot>,
 }
 
 impl Snapshot {
     /// Creates a capacity snapshot from one or more nightly accommodation segments.
     pub fn new(segments: Vec<NightlySegmentSnapshot>) -> std::result::Result<Self, SnapshotError> {
-        if segments.is_empty() {
-            return Err(SnapshotError::EmptyInventory);
+        let segments = NonEmpty::from_vec(segments).ok_or(SnapshotError::EmptyInventory)?;
+        let mut seen = BTreeSet::new();
+        for segment in &segments {
+            if !seen.insert(segment.accommodation) {
+                return Err(SnapshotError::DuplicateAccommodation {
+                    accommodation: segment.accommodation,
+                });
+            }
         }
         Ok(Self { segments })
     }
 
     /// Returns the nightly accommodation inventory segments considered by capacity policy.
-    pub fn segments(&self) -> &[NightlySegmentSnapshot] {
-        &self.segments
+    pub fn segments(&self) -> impl ExactSizeIterator<Item = &NightlySegmentSnapshot> {
+        self.segments.iter()
+    }
+}
+
+impl<'de> Deserialize<'de> for Snapshot {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct RawSnapshot {
+            segments: Vec<NightlySegmentSnapshot>,
+        }
+
+        Self::new(RawSnapshot::deserialize(deserializer)?.segments)
+            .map_err(serde::de::Error::custom)
     }
 }
 
@@ -125,6 +148,12 @@ pub enum SnapshotError {
     #[error("boarding capacity snapshot requires at least one accommodation segment")]
     /// No inventory segments were available, so automation must not infer availability.
     EmptyInventory,
+    #[error("boarding capacity snapshot contains duplicate {accommodation:?} inventory")]
+    /// More than one segment claimed authority for the same accommodation.
+    DuplicateAccommodation {
+        /// Accommodation represented by conflicting duplicate segments.
+        accommodation: accommodation::Kind,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -221,10 +250,10 @@ impl Policy {
             }
 
             for segment in snapshot.segments() {
-                if segment.accommodation == *wanted {
+                if segment.accommodation == wanted {
                     if segment.available_rooms().get() > 0 {
                         return Decision::Available {
-                            accommodation: *wanted,
+                            accommodation: wanted,
                         };
                     }
                     compatible_but_full = true;
