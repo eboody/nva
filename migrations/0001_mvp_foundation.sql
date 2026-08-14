@@ -362,11 +362,33 @@ CREATE TABLE IF NOT EXISTS data_quality_hygiene_outcomes (
     CONSTRAINT data_quality_hygiene_outcomes_action_id_key UNIQUE (action_id)
 );
 
+-- One approval may issue exactly one internal handoff capability. This row is the
+-- durable, relational image of the opaque application authority. It binds the
+-- exact topic, gate, target, and payload before an outbox row can be admitted.
+CREATE TABLE IF NOT EXISTS approval_outbox_bindings (
+    approval_record_id uuid PRIMARY KEY REFERENCES approval_records(id),
+    topic text NOT NULL,
+    review_gate text NOT NULL CHECK (review_gate_is_valid(review_gate)),
+    aggregate_kind text NOT NULL CHECK (aggregate_kind IN ('reservation', 'document', 'vaccine_record', 'incident', 'message')),
+    aggregate_id uuid NOT NULL,
+    payload jsonb NOT NULL,
+    authorized_by_actor_kind text NOT NULL CHECK (authorized_by_actor_kind IN ('staff', 'manager')),
+    authorized_by_actor_id text NOT NULL CHECK (length(trim(authorized_by_actor_id)) > 0),
+    authorized_at timestamptz NOT NULL,
+    consumed_by_outbox_id uuid UNIQUE,
+    CONSTRAINT approval_outbox_bindings_internal_topic_is_closed CHECK (
+        topic IN (
+            'internal.data_quality_hygiene.reviewed_handoff',
+            'internal.site_finance.reviewed_handoff'
+        )
+    )
+);
+
 CREATE TABLE IF NOT EXISTS outbox_records (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     idempotency_key text NOT NULL,
     approval_record_id uuid NOT NULL REFERENCES approval_records(id),
-    topic text NOT NULL CHECK (length(trim(topic)) > 0),
+    topic text NOT NULL,
     review_gate text NOT NULL CHECK (review_gate_is_valid(review_gate)),
     aggregate_kind text NOT NULL CHECK (aggregate_kind IN ('reservation', 'document', 'vaccine_record', 'incident', 'message')),
     aggregate_id uuid NOT NULL,
@@ -378,7 +400,14 @@ CREATE TABLE IF NOT EXISTS outbox_records (
     failure_count integer NOT NULL DEFAULT 0 CHECK (failure_count >= 0),
     last_error text,
     created_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT outbox_records_approval_record_id_key UNIQUE (approval_record_id),
     CONSTRAINT outbox_records_idempotency_key_key UNIQUE (idempotency_key),
+    CONSTRAINT outbox_internal_handoff_topic_is_closed CHECK (
+        topic IN (
+            'internal.data_quality_hygiene.reviewed_handoff',
+            'internal.site_finance.reviewed_handoff'
+        )
+    ),
     CONSTRAINT outbox_records_status_timestamp_integrity CHECK (
         (status = 'pending' AND claimed_at IS NULL AND published_at IS NULL)
         OR (status = 'claimed' AND claimed_at IS NOT NULL AND published_at IS NULL)
@@ -387,6 +416,107 @@ CREATE TABLE IF NOT EXISTS outbox_records (
         OR (status = 'dead_letter' AND failure_count > 0 AND last_error IS NOT NULL AND published_at IS NULL)
     )
 );
+
+-- Consumption points at the durable row whose validated insertion consumed the
+-- binding. The relation is added after both tables exist to avoid making trigger
+-- nesting depth or caller-controlled session state part of the authority model.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'approval_outbox_bindings_consumed_outbox_fkey'
+          AND conrelid = 'approval_outbox_bindings'::regclass
+    ) THEN
+        ALTER TABLE approval_outbox_bindings
+            ADD CONSTRAINT approval_outbox_bindings_consumed_outbox_fkey
+            FOREIGN KEY (consumed_by_outbox_id)
+            REFERENCES outbox_records(id);
+    END IF;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION enforce_approval_outbox_binding_authority()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    approval_record approval_records%ROWTYPE;
+BEGIN
+    SELECT * INTO approval_record
+    FROM approval_records
+    WHERE id = NEW.approval_record_id
+    FOR UPDATE;
+
+    IF approval_record.id IS NULL
+        OR approval_record.status <> 'approved'
+        OR approval_record.target_kind <> NEW.aggregate_kind
+        OR approval_record.target_id <> NEW.aggregate_id
+        OR approval_record.gate <> NEW.review_gate
+        OR approval_record.decided_by_actor_kind <> NEW.authorized_by_actor_kind
+        OR approval_record.decided_by_actor_id <> NEW.authorized_by_actor_id
+        OR approval_record.decided_at <> NEW.authorized_at
+    THEN
+        RAISE EXCEPTION 'approval_outbox_bindings require the matching approved decision authority';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS approval_outbox_bindings_authority_guard ON approval_outbox_bindings;
+CREATE TRIGGER approval_outbox_bindings_authority_guard
+    BEFORE INSERT ON approval_outbox_bindings
+    FOR EACH ROW EXECUTE FUNCTION enforce_approval_outbox_binding_authority();
+
+CREATE OR REPLACE FUNCTION reject_approval_outbox_binding_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        RAISE EXCEPTION 'approval_outbox_bindings are immutable and cannot be deleted';
+    END IF;
+
+    IF OLD.approval_record_id <> NEW.approval_record_id
+        OR OLD.topic <> NEW.topic
+        OR OLD.review_gate <> NEW.review_gate
+        OR OLD.aggregate_kind <> NEW.aggregate_kind
+        OR OLD.aggregate_id <> NEW.aggregate_id
+        OR OLD.payload <> NEW.payload
+        OR OLD.authorized_by_actor_kind <> NEW.authorized_by_actor_kind
+        OR OLD.authorized_by_actor_id <> NEW.authorized_by_actor_id
+        OR OLD.authorized_at <> NEW.authorized_at
+        OR OLD.consumed_by_outbox_id IS NOT NULL
+        OR NEW.consumed_by_outbox_id IS NULL
+        OR NOT EXISTS (
+            SELECT 1
+            FROM outbox_records
+            WHERE id = NEW.consumed_by_outbox_id
+              AND approval_record_id = OLD.approval_record_id
+              AND topic = OLD.topic
+              AND review_gate = OLD.review_gate
+              AND aggregate_kind = OLD.aggregate_kind
+              AND aggregate_id = OLD.aggregate_id
+              AND payload = OLD.payload
+        )
+    THEN
+        RAISE EXCEPTION 'approval_outbox_bindings permit only one relationally proven consumption transition';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS approval_outbox_bindings_immutable_update ON approval_outbox_bindings;
+CREATE TRIGGER approval_outbox_bindings_immutable_update
+    BEFORE UPDATE ON approval_outbox_bindings
+    FOR EACH ROW EXECUTE FUNCTION reject_approval_outbox_binding_mutation();
+
+DROP TRIGGER IF EXISTS approval_outbox_bindings_immutable_delete ON approval_outbox_bindings;
+CREATE TRIGGER approval_outbox_bindings_immutable_delete
+    BEFORE DELETE ON approval_outbox_bindings
+    FOR EACH ROW EXECUTE FUNCTION reject_approval_outbox_binding_mutation();
 
 CREATE OR REPLACE FUNCTION enforce_outbox_approval_record_is_approved()
 RETURNS trigger
@@ -397,7 +527,8 @@ DECLARE
 BEGIN
     SELECT * INTO approval_record
     FROM approval_records
-    WHERE id = NEW.approval_record_id;
+    WHERE id = NEW.approval_record_id
+    FOR UPDATE;
 
     IF approval_record.id IS NULL
         OR approval_record.status <> 'approved'
@@ -412,10 +543,84 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION enforce_outbox_internal_handoff_binding()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    binding approval_outbox_bindings%ROWTYPE;
+BEGIN
+    SELECT * INTO binding
+    FROM approval_outbox_bindings
+    WHERE approval_record_id = NEW.approval_record_id
+    FOR UPDATE;
+
+    IF binding.approval_record_id IS NULL
+        OR binding.consumed_by_outbox_id IS NOT NULL
+        OR binding.topic <> NEW.topic
+        OR binding.review_gate <> NEW.review_gate
+        OR binding.aggregate_kind <> NEW.aggregate_kind
+        OR binding.aggregate_id <> NEW.aggregate_id
+        OR binding.payload <> NEW.payload
+    THEN
+        RAISE EXCEPTION 'outbox_records require one matching unconsumed approval_outbox_binding';
+    END IF;
+
+    UPDATE approval_outbox_bindings
+    SET consumed_by_outbox_id = NEW.id
+    WHERE approval_record_id = NEW.approval_record_id;
+
+    RETURN NEW;
+END;
+$$;
+
 DROP TRIGGER IF EXISTS outbox_records_approved_approval_record ON outbox_records;
 CREATE TRIGGER outbox_records_approved_approval_record
     BEFORE INSERT OR UPDATE OF approval_record_id, aggregate_kind, aggregate_id, review_gate ON outbox_records
     FOR EACH ROW EXECUTE FUNCTION enforce_outbox_approval_record_is_approved();
+
+DROP TRIGGER IF EXISTS outbox_records_internal_handoff_binding ON outbox_records;
+CREATE TRIGGER outbox_records_internal_handoff_binding
+    AFTER INSERT ON outbox_records
+    FOR EACH ROW EXECUTE FUNCTION enforce_outbox_internal_handoff_binding();
+
+CREATE OR REPLACE FUNCTION reject_outbox_authority_identity_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        RAISE EXCEPTION 'outbox_records are durable history and cannot be deleted';
+    END IF;
+
+    IF OLD.id <> NEW.id
+        OR OLD.idempotency_key <> NEW.idempotency_key
+        OR OLD.aggregate_kind <> NEW.aggregate_kind
+        OR OLD.aggregate_id <> NEW.aggregate_id
+        OR OLD.topic <> NEW.topic
+        OR OLD.payload <> NEW.payload
+        OR OLD.approval_record_id <> NEW.approval_record_id
+        OR OLD.review_gate <> NEW.review_gate
+        OR OLD.available_at <> NEW.available_at
+        OR OLD.created_at <> NEW.created_at
+    THEN
+        RAISE EXCEPTION 'outbox authority identity is immutable after admission';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS outbox_records_authority_identity_immutable_update ON outbox_records;
+CREATE TRIGGER outbox_records_authority_identity_immutable_update
+    BEFORE UPDATE OF id, idempotency_key, aggregate_kind, aggregate_id, topic, payload,
+        approval_record_id, review_gate, available_at, created_at ON outbox_records
+    FOR EACH ROW EXECUTE FUNCTION reject_outbox_authority_identity_mutation();
+
+DROP TRIGGER IF EXISTS outbox_records_durable_history_delete ON outbox_records;
+CREATE TRIGGER outbox_records_durable_history_delete
+    BEFORE DELETE ON outbox_records
+    FOR EACH ROW EXECUTE FUNCTION reject_outbox_authority_identity_mutation();
 
 CREATE OR REPLACE FUNCTION prevent_approval_change_with_open_outbox_records()
 RETURNS trigger
@@ -429,15 +634,24 @@ BEGIN
             OR NEW.target_kind <> OLD.target_kind
             OR NEW.target_id <> OLD.target_id
             OR NEW.gate <> OLD.gate
+            OR NEW.decided_by_actor_kind IS DISTINCT FROM OLD.decided_by_actor_kind
+            OR NEW.decided_by_actor_id IS DISTINCT FROM OLD.decided_by_actor_id
+            OR NEW.decided_at IS DISTINCT FROM OLD.decided_at
         )
-        AND EXISTS (
-            SELECT 1
-            FROM outbox_records
-            WHERE approval_record_id = OLD.id
-              AND status IN ('pending', 'claimed')
+        AND (
+            EXISTS (
+                SELECT 1
+                FROM approval_outbox_bindings
+                WHERE approval_record_id = OLD.id
+            )
+            OR EXISTS (
+                SELECT 1
+                FROM outbox_records
+                WHERE approval_record_id = OLD.id
+            )
         )
     ) THEN
-        RAISE EXCEPTION 'cannot change approval while pending or claimed outbox_records reference it';
+        RAISE EXCEPTION 'cannot change approval after an approval_outbox_binding or outbox_record exists';
     END IF;
 
     RETURN NEW;
@@ -446,7 +660,8 @@ $$;
 
 DROP TRIGGER IF EXISTS approval_records_open_outbox_guard ON approval_records;
 CREATE TRIGGER approval_records_open_outbox_guard
-    BEFORE UPDATE OF status, target_kind, target_id, gate ON approval_records
+    BEFORE UPDATE OF status, target_kind, target_id, gate,
+        decided_by_actor_kind, decided_by_actor_id, decided_at ON approval_records
     FOR EACH ROW EXECUTE FUNCTION prevent_approval_change_with_open_outbox_records();
 
 CREATE TABLE IF NOT EXISTS audit_events (

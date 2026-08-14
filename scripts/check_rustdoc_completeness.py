@@ -20,7 +20,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TARGET_ROOT = Path(os.environ.get("CARGO_TARGET_DIR", REPO_ROOT / "target"))
 DOC_ROOT = TARGET_ROOT / "doc"
-STRICT_COMMAND = ["cargo", "doc", "--workspace", "--no-deps"]
+STRICT_COMMAND = ["cargo", "doc", "--workspace", "--no-deps", "--locked"]
 STRICT_ENV = {"RUSTDOCFLAGS": "-D missing_docs"}
 
 # statum 0.9 currently expands public typestate artifacts from these two source
@@ -126,7 +126,9 @@ def strict_missing_docs_failure_is_allowed(output: str) -> bool:
 
 
 def run_strict_missing_docs_gate() -> None:
-    command_for_humans = "RUSTDOCFLAGS='-D missing_docs' cargo doc --workspace --no-deps"
+    command_for_humans = (
+        "RUSTDOCFLAGS='-D missing_docs' cargo doc --workspace --no-deps --locked"
+    )
     print(f"running strict rustdoc gate: {command_for_humans}", flush=True)
     result = run_command(STRICT_COMMAND, extra_env=STRICT_ENV)
     if result.returncode == 0:
@@ -151,7 +153,10 @@ def text_from_html(raw: str) -> str:
 
 
 def smoke_check_rendered_docs() -> None:
-    print("rendering rustdocs for HTML smoke checks: cargo doc --workspace --no-deps", flush=True)
+    print(
+        "rendering rustdocs for HTML smoke checks: cargo doc --workspace --no-deps --locked",
+        flush=True,
+    )
     result = run_command(STRICT_COMMAND)
     if result.returncode != 0:
         print(result.stdout, file=sys.stderr)

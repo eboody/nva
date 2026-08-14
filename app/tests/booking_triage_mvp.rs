@@ -1,5 +1,6 @@
 use app::booking_triage;
 use domain::entities;
+use uuid::Uuid;
 
 fn evidence(label: &str) -> booking_triage::EvidenceRef {
     booking_triage::EvidenceRef::try_new(label).unwrap()
@@ -73,7 +74,7 @@ fn ready_request_produces_staff_bounded_ai_recommendation_confirmation_draft_and
     ]);
 
     let packet = booking_triage::StaffEvaluationPacket::new(
-        booking_triage::Reservation::try_new("REQ-123").unwrap(),
+        entities::reservation::Id(Uuid::from_u128(123)),
         evaluation,
     )
     .with_ai_recommendation(booking_triage::AiRecommendation::recommend_staff_confirmation(
@@ -165,7 +166,7 @@ fn hard_rejections_dominate_review_buckets_but_only_suggest_special_review() {
     ]);
 
     let packet = booking_triage::StaffEvaluationPacket::new(
-        booking_triage::Reservation::try_new("REQ-456").unwrap(),
+        entities::reservation::Id(Uuid::from_u128(456)),
         evaluation,
     );
 
@@ -198,7 +199,7 @@ fn confirmation_draft_cannot_attach_until_deterministic_result_is_ready() {
     ]);
 
     let packet = booking_triage::StaffEvaluationPacket::new(
-        booking_triage::Reservation::try_new("REQ-789").unwrap(),
+        entities::reservation::Id(Uuid::from_u128(789)),
         evaluation,
     );
     let draft = booking_triage::ConfirmationDraft::new(
@@ -334,7 +335,7 @@ fn missing_info_draft_is_reviewable_copy_not_confirmation_or_customer_send_autho
         ),
     ]);
     let packet = booking_triage::StaffEvaluationPacket::new(
-        booking_triage::Reservation::try_new("REQ-45").unwrap(),
+        entities::reservation::Id(Uuid::from_u128(45)),
         evaluation,
     );
 

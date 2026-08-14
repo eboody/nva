@@ -111,11 +111,7 @@ fn outcome_body() -> serde_json::Value {
         },
         "reporting": {
             "location_id": "00c0ffee-0000-0000-0000-000000000001",
-            "operating_day": "2026-06-17",
-            "action_kind": "approve_retention_follow_up_draft",
-            "owner_persona": "general_manager",
-            "before_minutes": 999,
-            "estimated_minutes_saved": 999
+            "operating_day": "2026-06-17"
         },
         "requested_side_effects": []
     })

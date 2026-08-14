@@ -1420,6 +1420,24 @@
         }
       }
     },
+    "/v0/metrics": {
+      "get": {
+        "operationId": "getPrometheusMetrics",
+        "description": "Bounded-label HTTP request counters and duration histograms in Prometheus exposition format.",
+        "responses": {
+          "200": {
+            "description": "Prometheus metrics",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v0/ops/metrics/summary": {
       "get": {
         "operationId": "getOpsMetricsSummary",

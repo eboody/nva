@@ -368,7 +368,7 @@ pub fn run_fixture(fixture_json: &str) -> Result<FullChainEvidence> {
     };
     let profile = build_profile(&fixture.customer, &fixture.pet, ids.customer_id, ids.pet_id)?;
     let vaccine_docs = build_vaccine_document(ids, occurred_at)?;
-    let booking_packet = build_booking_packet(&reservation_label);
+    let booking_packet = build_booking_packet(ids.reservation_id);
     let confirmation_draft = SmokeConfirmationDraft {
         draft: booking_packet.confirmation_draft().clone(),
     };
@@ -552,7 +552,7 @@ fn build_vaccine_document(
 }
 
 fn build_booking_packet(
-    reservation_label: &ReservationLabel,
+    reservation_id: entities::reservation::Id,
 ) -> booking_triage::StaffEvaluationPacket {
     let evaluation = booking_triage::DeterministicResult::evaluate(vec![
         booking_triage::rule::Evaluation::pass(
@@ -577,7 +577,7 @@ fn build_booking_packet(
     ]);
 
     booking_triage::StaffEvaluationPacket::new(
-        booking_triage::Reservation::try_new(reservation_label.as_ref()).unwrap(),
+        reservation_id,
         evaluation,
     )
     .with_ai_recommendation(booking_triage::AiRecommendation::recommend_staff_confirmation(

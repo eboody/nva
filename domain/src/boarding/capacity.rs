@@ -56,6 +56,108 @@ impl RoomCount {
 /// Validation errors for room-count promotion from provider or staff-entered data.
 pub enum RoomCountError {}
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+/// Proof that recorded occupancy exceeds recorded capacity and must be reconciled.
+pub struct OverOccupancy {
+    total: RoomCount,
+    occupied: RoomCount,
+    excess: RoomCount,
+}
+
+impl OverOccupancy {
+    /// Constructs contradiction evidence only when occupied rooms exceed total rooms.
+    pub const fn try_new(
+        total: RoomCount,
+        occupied: RoomCount,
+    ) -> std::result::Result<Self, OverOccupancyError> {
+        if occupied.get() <= total.get() {
+            return Err(OverOccupancyError::NotOverOccupied { total, occupied });
+        }
+
+        Ok(Self {
+            total,
+            occupied,
+            excess: RoomCount(occupied.get() - total.get()),
+        })
+    }
+
+    /// Returns the recorded total capacity involved in the contradiction.
+    pub const fn total(self) -> RoomCount {
+        self.total
+    }
+
+    /// Returns the recorded occupied count involved in the contradiction.
+    pub const fn occupied(self) -> RoomCount {
+        self.occupied
+    }
+
+    /// Returns how many occupied rooms exceed the recorded total capacity.
+    pub const fn excess(self) -> RoomCount {
+        self.excess
+    }
+}
+
+impl<'de> Deserialize<'de> for OverOccupancy {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct RawOverOccupancy {
+            total: RoomCount,
+            occupied: RoomCount,
+            excess: RoomCount,
+        }
+
+        let raw = RawOverOccupancy::deserialize(deserializer)?;
+        let evidence = Self::try_new(raw.total, raw.occupied).map_err(serde::de::Error::custom)?;
+        if evidence.excess != raw.excess {
+            return Err(serde::de::Error::custom(
+                OverOccupancyError::IncorrectExcess {
+                    expected: evidence.excess,
+                    actual: raw.excess,
+                },
+            ));
+        }
+        Ok(evidence)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+/// Validation errors for over-occupancy reconciliation evidence.
+pub enum OverOccupancyError {
+    #[error("occupied room count {occupied:?} does not exceed total room count {total:?}")]
+    /// The supplied counts are ordinary available or full occupancy, not a contradiction.
+    NotOverOccupied {
+        /// Recorded total capacity.
+        total: RoomCount,
+        /// Recorded occupied rooms.
+        occupied: RoomCount,
+    },
+    #[error("over-occupancy excess must be {expected:?}, not {actual:?}")]
+    /// Serialized evidence carried an excess inconsistent with total and occupied counts.
+    IncorrectExcess {
+        /// Excess derived from occupied minus total.
+        expected: RoomCount,
+        /// Excess supplied by serialized input.
+        actual: RoomCount,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Exhaustive semantic classification of one accommodation segment's occupancy.
+pub enum OccupancyState {
+    /// Recorded occupancy is below total capacity.
+    Available {
+        /// Rooms remaining according to the internally consistent counts.
+        available: RoomCount,
+    },
+    /// Recorded occupancy exactly equals total capacity.
+    Full,
+    /// Recorded occupancy exceeds total capacity and cannot authorize confirmation or waitlisting.
+    OverOccupied(OverOccupancy),
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Builder)]
 /// Builder-facing source counts for one accommodation segment on a boarding night.
 pub struct SegmentCounts {
@@ -94,9 +196,21 @@ impl NightlySegmentSnapshot {
         self.occupied
     }
 
-    /// Returns remaining rooms after committed occupancy, saturating at zero for dirty data.
-    pub const fn available_rooms(&self) -> RoomCount {
-        RoomCount(self.total.get().saturating_sub(self.occupied.get()))
+    /// Classifies the counts without collapsing contradictory over-occupancy into an ordinary full state.
+    pub const fn occupancy_state(&self) -> OccupancyState {
+        if self.occupied.get() < self.total.get() {
+            OccupancyState::Available {
+                available: RoomCount(self.total.get() - self.occupied.get()),
+            }
+        } else if self.occupied.get() == self.total.get() {
+            OccupancyState::Full
+        } else {
+            OccupancyState::OverOccupied(OverOccupancy {
+                total: self.total,
+                occupied: self.occupied,
+                excess: RoomCount(self.occupied.get() - self.total.get()),
+            })
+        }
     }
 }
 
@@ -202,13 +316,22 @@ pub enum Decision {
         /// Human approval gate required before overriding the denied capacity decision.
         review_gate: policy::ReviewGate,
     },
+    /// Source counts contradict one another, so staff must reconcile inventory before proceeding.
+    ReconciliationRequired {
+        /// Typed evidence preserving the contradictory counts and computed excess.
+        anomaly: OverOccupancy,
+        /// Human review gate required before corrected capacity evidence may be trusted.
+        review_gate: policy::ReviewGate,
+    },
 }
 
 impl Decision {
     /// Returns the human review gate required before staff override a denied capacity decision.
     pub fn required_review_gate(&self) -> Option<policy::ReviewGate> {
         match self {
-            Self::Deny { review_gate, .. } => Some(review_gate.clone()),
+            Self::Deny { review_gate, .. } | Self::ReconciliationRequired { review_gate, .. } => {
+                Some(review_gate.clone())
+            }
             Self::Available { .. } | Self::Waitlist { .. } => None,
         }
     }
@@ -240,8 +363,9 @@ impl Policy {
     /// Evaluates a boarding request against room inventory and returns confirm, waitlist, or denial evidence.
     pub fn evaluate(&self, request: &Request, snapshot: &Snapshot) -> Decision {
         let mut compatible_but_full = false;
+        let acceptable_accommodations = request.accommodation.acceptable_kinds();
 
-        for wanted in request.accommodation.acceptable_kinds() {
+        for wanted in &acceptable_accommodations {
             if !wanted.supports_species(&request.species) {
                 return Decision::Deny {
                     reason: DenialReason::SpeciesAccommodationMismatch,
@@ -250,13 +374,37 @@ impl Policy {
             }
 
             for segment in snapshot.segments() {
-                if segment.accommodation == wanted {
-                    if segment.available_rooms().get() > 0 {
-                        return Decision::Available {
-                            accommodation: wanted,
+                match segment.occupancy_state() {
+                    OccupancyState::OverOccupied(anomaly) if segment.accommodation == *wanted => {
+                        return Decision::ReconciliationRequired {
+                            anomaly,
+                            review_gate: policy::ReviewGate::ManagerApproval,
                         };
                     }
-                    compatible_but_full = true;
+                    OccupancyState::Available { .. }
+                    | OccupancyState::Full
+                    | OccupancyState::OverOccupied(_) => {}
+                }
+            }
+        }
+
+        for wanted in acceptable_accommodations {
+            for segment in snapshot.segments() {
+                if segment.accommodation == wanted {
+                    match segment.occupancy_state() {
+                        OccupancyState::Available { .. } => {
+                            return Decision::Available {
+                                accommodation: wanted,
+                            };
+                        }
+                        OccupancyState::Full => compatible_but_full = true,
+                        OccupancyState::OverOccupied(anomaly) => {
+                            return Decision::ReconciliationRequired {
+                                anomaly,
+                                review_gate: policy::ReviewGate::ManagerApproval,
+                            };
+                        }
+                    }
                 }
             }
         }

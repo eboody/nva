@@ -21,4 +21,5 @@ tracing.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
-uuid.workspace = true
+trybuild.workspace = true
+uuid = { workspace = true, features = ["v4"] }

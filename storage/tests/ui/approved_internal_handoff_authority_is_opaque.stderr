@@ -1,0 +1,5 @@
+error: cannot construct `ApprovedInternalHandoffAuthority` with struct literal syntax due to private fields
+ --> tests/ui/approved_internal_handoff_authority_is_opaque.rs:4:13
+  |
+4 |     let _ = ApprovedInternalHandoffAuthority {};
+  |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

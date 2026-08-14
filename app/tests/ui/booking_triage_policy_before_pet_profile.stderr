@@ -1,7 +1,11 @@
 error[E0599]: no method named `attach_policy_snapshot` found for struct `app::booking_triage::Request<app::booking_triage::Intake>` in the current scope
- --> tests/ui/booking_triage_policy_before_pet_profile.rs:8:28
-  |
-8 |     let _illegal = request.attach_policy_snapshot(
-  |                    --------^^^^^^^^^^^^^^^^^^^^^^ method not found in `app::booking_triage::Request<app::booking_triage::Intake>`
-  |
-  = note: the method was found for `app::booking_triage::Request<app::booking_triage::PetProfileAttached>`
+  --> tests/ui/booking_triage_policy_before_pet_profile.rs:11:10
+   |
+10 |       let _illegal = request
+   |  ____________________-
+11 | |         .attach_policy_snapshot(triage::PolicySnapshot::try_new("policy:boarding:v1").unwrap());
+   | |         -^^^^^^^^^^^^^^^^^^^^^^ method not found in `app::booking_triage::Request<app::booking_triage::Intake>`
+   | |_________|
+   |
+   |
+   = note: the method was found for `app::booking_triage::Request<app::booking_triage::PetProfileAttached>`

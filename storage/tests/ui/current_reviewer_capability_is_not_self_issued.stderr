@@ -1,0 +1,5 @@
+error[E0599]: no associated function or constant named `try_new` found for struct `CurrentApprovalReviewerCapability` in the current scope
+ --> tests/ui/current_reviewer_capability_is_not_self_issued.rs:4:48
+  |
+4 |     let _ = CurrentApprovalReviewerCapability::try_new(
+  |                                                ^^^^^^^ associated function or constant not found in `CurrentApprovalReviewerCapability`

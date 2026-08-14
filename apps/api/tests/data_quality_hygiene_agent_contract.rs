@@ -299,7 +299,8 @@ async fn data_quality_hygiene_outcome_capture_records_labor_evidence_without_pro
         "actual_minutes": 9,
         "actor": {
             "id": "front-desk-lead-17",
-            "persona": "front_desk_lead"
+            "persona": "front_desk_lead",
+            "actor_role": "front_desk_lead"
         },
         "feedback": "Prepared source-grounded cleanup task for manager review without touching Gingr.",
         "source_refs": action["source_refs"],
@@ -309,7 +310,8 @@ async fn data_quality_hygiene_outcome_capture_records_labor_evidence_without_pro
         "audit": {
             "correlation_id": context["audit"]["correlation_id"]
         },
-        "requested_side_effects": []
+        "requested_side_effects": [],
+        "idempotency_key": "agent-contract-outcome-1"
     });
 
     let (status, payload) = post_json(
@@ -457,7 +459,8 @@ async fn data_quality_hygiene_outcome_capture_rejects_missing_source_or_issue_re
         "actual_minutes": 9,
         "actor": {
             "id": "front-desk-lead-17",
-            "persona": "front_desk_lead"
+            "persona": "front_desk_lead",
+            "actor_role": "front_desk_lead"
         },
         "feedback": "Prepared source-grounded cleanup task for manager review without touching Gingr.",
         "source_refs": action["source_refs"],
@@ -467,7 +470,8 @@ async fn data_quality_hygiene_outcome_capture_rejects_missing_source_or_issue_re
         "audit": {
             "correlation_id": context["audit"]["correlation_id"]
         },
-        "requested_side_effects": []
+        "requested_side_effects": [],
+        "idempotency_key": "agent-contract-outcome-1"
     });
 
     let mut without_source_refs = base_body.clone();
@@ -511,7 +515,8 @@ async fn data_quality_hygiene_outcome_summary_reports_reviewed_minutes_and_prove
         "actual_minutes": 9,
         "actor": {
             "id": "front-desk-lead-17",
-            "persona": "front_desk_lead"
+            "persona": "front_desk_lead",
+            "actor_role": "front_desk_lead"
         },
         "feedback": "Prepared source-grounded cleanup task for manager review without touching Gingr.",
         "source_refs": action["source_refs"],
@@ -521,7 +526,8 @@ async fn data_quality_hygiene_outcome_summary_reports_reviewed_minutes_and_prove
         "audit": {
             "correlation_id": context["audit"]["correlation_id"]
         },
-        "requested_side_effects": []
+        "requested_side_effects": [],
+        "idempotency_key": "agent-contract-outcome-1"
     });
 
     let (status, capture_payload) = post_json_with_state(

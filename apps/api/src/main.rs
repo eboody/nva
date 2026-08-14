@@ -1,11 +1,20 @@
 use std::net::SocketAddr;
 
 use anyhow::Context;
-use pet_resort_api::http;
+use pet_resort_api::{
+    http,
+    observability::{ObservabilityConfig, ObservabilityRuntime},
+};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    init_tracing();
+    let observability = ObservabilityRuntime::new(
+        ObservabilityConfig::from_process_env().context("invalid observability configuration")?,
+    );
+    let _tracing_guard = observability
+        .install_tracing()
+        .context("failed to initialize structured tracing")?;
+    let state = http::VaccineDocumentState::default().with_observability(observability);
 
     let addr: SocketAddr = std::env::var("PET_RESORT_API_ADDR")
         .unwrap_or_else(|_| "127.0.0.1:3001".to_owned())
@@ -17,21 +26,10 @@ async fn main() -> anyhow::Result<()> {
         .with_context(|| format!("failed to bind pet-resort API at {addr}"))?;
 
     tracing::info!(%addr, "pet-resort API listening");
-    axum::serve(listener, http::router())
+    axum::serve(listener, http::router_with_state(state))
         .with_graceful_shutdown(shutdown_signal())
         .await
         .context("pet-resort API server failed")
-}
-
-fn init_tracing() {
-    let filter = tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-        tracing_subscriber::EnvFilter::new("pet_resort_api=info,tower_http=info")
-    });
-
-    tracing_subscriber::fmt()
-        .with_env_filter(filter)
-        .json()
-        .init();
 }
 
 async fn shutdown_signal() {

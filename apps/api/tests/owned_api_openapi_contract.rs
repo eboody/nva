@@ -383,14 +383,15 @@ async fn v0_success_payloads_include_openapi_required_contract_fields() {
         json!({
             "outcome": "completed",
             "actual_minutes": 10,
-            "actor": { "id": "front-desk:test", "persona": "front_desk_lead" },
+            "actor": { "id": "front-desk:test", "persona": "front_desk_lead", "actor_role": "front_desk_lead" },
             "feedback": "Resolved duplicate aliases after manager review.",
             "source_refs": action["source_refs"],
             "issue_refs": action["issue_refs"],
             "resolution_status_after_review": "repaired",
             "timestamp": "2026-06-17T16:00:00Z",
             "audit": { "correlation_id": "data-quality-hygiene:test-v0-outcome" },
-            "requested_side_effects": []
+            "requested_side_effects": [],
+            "idempotency_key": "openapi-contract-outcome-1"
         }),
     )
     .await;

@@ -118,16 +118,24 @@ async fn readiness_endpoint_keeps_mvp_dependencies_explicitly_stubbed() {
     );
     assert_eq!(
         payload["observability"]["local_request_metrics"],
-        "api_request_span_fields_and_aggregate_summary_only"
+        "prometheus_bounded_route_status_and_duration_series"
     );
     assert_eq!(
         payload["observability"]["metrics_scope"],
-        "aggregate_local_counters_and_labor_rollups"
+        "bounded_route_method_status_class_without_payload_or_actor_labels"
     );
     assert_eq!(
         payload["observability"]["production_gap"],
         "no_durable_traces_queue_dashboard_or_alerting"
     );
+    for field in [
+        "durable_traces",
+        "production_metrics",
+        "dashboard",
+        "alerting",
+    ] {
+        assert_eq!(payload["observability"][field], "not_configured");
+    }
 }
 
 #[tokio::test]

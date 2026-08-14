@@ -51,7 +51,7 @@
 //! assert!(deterministic.blocked_actions().contains(&triage::BlockedAction::MutateProviderRecord));
 //!
 //! let packet = triage::StaffEvaluationPacket::new(
-//!     triage::Reservation::try_new("reservation-fixture-123")?,
+//!     domain::entities::reservation::Id(uuid::Uuid::from_u128(123)),
 //!     deterministic,
 //! );
 //! let draft = triage::ConfirmationDraft::new(
@@ -70,23 +70,6 @@ use statum::{machine, state, transition};
 
 use domain::entities::reservation as reservation_entity;
 use domain::{entities, pet};
-
-#[nutype(
-    sanitize(trim),
-    validate(not_empty, len_char_max = 80),
-    derive(
-        Debug,
-        Clone,
-        PartialEq,
-        Eq,
-        PartialOrd,
-        Ord,
-        Hash,
-        Serialize,
-        Deserialize
-    )
-)]
-pub struct Reservation(String);
 
 #[nutype(
     sanitize(trim),
@@ -167,7 +150,7 @@ mod request_typestate {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct Request<RequestState> {
         /// Source reservation label or identifier that the typed request evaluates.
-        pub(super) reservation: Reservation,
+        pub(super) reservation: reservation_entity::Id,
     }
 
     #[transition]
@@ -214,7 +197,7 @@ pub use request_typestate::{
 
 impl<S: RequestStateTrait> Request<S> {
     /// Returns the reservation identifier this booking-readiness packet is evaluating.
-    pub fn reservation(&self) -> &Reservation {
+    pub fn reservation(&self) -> &reservation_entity::Id {
         &self.reservation
     }
 }
@@ -869,7 +852,7 @@ pub enum AuditEventDraft {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Staff evaluation packet used by the booking-readiness workflow; it keeps booking work grounded in deterministic policy evidence before any agent draft reaches staff.
 pub struct StaffEvaluationPacket {
-    reservation: Reservation,
+    reservation: reservation_entity::Id,
     deterministic_result: DeterministicResult,
     ai_recommendation: Option<AiRecommendation>,
     confirmation_draft: Option<ConfirmationDraft>,
@@ -879,7 +862,10 @@ pub struct StaffEvaluationPacket {
 
 impl StaffEvaluationPacket {
     /// Builds the booking-triage service around a read-only reservation evidence repository.
-    pub fn new(reservation: Reservation, deterministic_result: DeterministicResult) -> Self {
+    pub fn new(
+        reservation: reservation_entity::Id,
+        deterministic_result: DeterministicResult,
+    ) -> Self {
         Self {
             reservation,
             deterministic_result,
@@ -944,7 +930,7 @@ impl StaffEvaluationPacket {
     }
 
     /// Returns the reservation value kept on this booking-readiness workflow object for staff review and agent context.
-    pub const fn reservation(&self) -> &Reservation {
+    pub const fn reservation(&self) -> &reservation_entity::Id {
         &self.reservation
     }
 
@@ -1041,7 +1027,11 @@ where
     }
 
     /// Evaluates one reservation into a staff review packet using deterministic policy gates before any agent draft is allowed.
-    pub fn evaluate(&self, id: entities::reservation::Id) -> AppResult<StaffEvaluationPacket> {
+    pub fn evaluate(
+        &self,
+        request: Request<ReadyForPolicyDecision>,
+    ) -> AppResult<StaffEvaluationPacket> {
+        let id = *request.reservation();
         let reservation = self
             .reservations
             .get(id)
@@ -1049,8 +1039,7 @@ where
         let deterministic_result =
             DeterministicResult::evaluate(evaluate_reservation(&reservation));
         Ok(StaffEvaluationPacket::new(
-            Reservation::try_new(reservation.id().0.to_string())
-                .expect("uuid reservation id should be a non-empty app reservation label"),
+            reservation.id(),
             deterministic_result,
         ))
     }

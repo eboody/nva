@@ -106,9 +106,45 @@ fn mvp_migration_prevents_autonomous_outbox_side_effects_without_approved_review
     assert!(MVP_MIGRATION.contains("approval_record.target_id <> NEW.aggregate_id"));
     assert!(MVP_MIGRATION.contains("approval_record.gate <> NEW.review_gate"));
     assert!(MVP_MIGRATION.contains("prevent_approval_change_with_open_outbox_records"));
-    assert!(MVP_MIGRATION.contains("status IN ('pending', 'claimed')"));
+    assert!(MVP_MIGRATION.contains(
+        "cannot change approval after an approval_outbox_binding or outbox_record exists"
+    ));
     assert!(MVP_MIGRATION.contains("outbox_records_status_timestamp_integrity"));
     assert!(MVP_MIGRATION.contains("outbox_records_idempotency_key_key"));
+}
+
+#[test]
+fn mvp_migration_relationally_closes_and_one_shot_binds_internal_outbox_admission() {
+    assert!(MVP_MIGRATION.contains("approval_outbox_bindings"));
+    assert!(MVP_MIGRATION.contains("outbox_records_approval_record_id_key"));
+    assert!(MVP_MIGRATION.contains("outbox_internal_handoff_topic_is_closed"));
+    assert!(MVP_MIGRATION.contains("enforce_outbox_internal_handoff_binding"));
+    assert!(MVP_MIGRATION.contains("binding.topic <> NEW.topic"));
+    assert!(MVP_MIGRATION.contains("binding.payload <> NEW.payload"));
+    assert!(MVP_MIGRATION.contains("reject_approval_outbox_binding_mutation"));
+    assert!(MVP_MIGRATION.contains("reject_outbox_authority_identity_mutation"));
+    assert!(MVP_MIGRATION.contains("outbox_records_durable_history_delete"));
+    assert!(MVP_MIGRATION.contains("FOR UPDATE"));
+    assert!(MVP_MIGRATION.contains("approval_outbox_bindings_consumed_outbox_fkey"));
+    assert!(MVP_MIGRATION.contains("AFTER INSERT ON outbox_records"));
+    assert!(!MVP_MIGRATION.contains("pg_trigger_depth()"));
+}
+
+#[test]
+fn mvp_migration_freezes_approval_relation_after_binding_or_outbox_admission() {
+    let guard = MVP_MIGRATION
+        .split("CREATE OR REPLACE FUNCTION prevent_approval_change_with_open_outbox_records()")
+        .nth(1)
+        .expect("approval immutability trigger function must exist")
+        .split("CREATE TABLE IF NOT EXISTS audit_events")
+        .next()
+        .expect("guard function must precede audit events");
+
+    assert!(guard.contains("WHERE approval_record_id = OLD.id"));
+    assert!(!guard.contains("status IN ('pending', 'claimed')"));
+    assert!(guard.contains(
+        "cannot change approval after an approval_outbox_binding or outbox_record exists"
+    ));
 }
 
 #[test]

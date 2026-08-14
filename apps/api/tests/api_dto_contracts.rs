@@ -369,13 +369,15 @@ async fn ops_metrics_summary_counts_safe_local_state_without_prometheus_overbuil
         Some(json!({
             "outcome": "completed",
             "actual_minutes": 9,
-            "actor": {"id": "front-desk-lead-17", "persona": "front_desk_lead"},
+            "actor": {"id": "front-desk-lead-17", "persona": "front_desk_lead", "actor_role": "front_desk_lead"},
             "feedback": "Recorded aggregate metrics smoke outcome without touching Gingr.",
             "source_refs": action["source_refs"],
             "issue_refs": action["issue_refs"],
             "resolution_status_after_review": "acknowledged",
             "timestamp": "2026-06-17T13:15:00Z",
-            "audit": {"correlation_id": context["audit"]["correlation_id"]}
+            "audit": {"correlation_id": context["audit"]["correlation_id"]},
+            "requested_side_effects": [],
+            "idempotency_key": "metrics-smoke-outcome-1"
         })),
         None,
     )
@@ -512,13 +514,15 @@ async fn data_quality_hygiene_payload_contract_preserves_review_packet_status_an
         Some(json!({
             "outcome": "completed",
             "actual_minutes": 9,
-            "actor": {"id": "front-desk-lead-17", "persona": "front_desk_lead"},
+            "actor": {"id": "front-desk-lead-17", "persona": "front_desk_lead", "actor_role": "front_desk_lead"},
             "feedback": "Prepared source-grounded cleanup task for manager review without touching Gingr.",
             "source_refs": action["source_refs"],
             "issue_refs": action["issue_refs"],
             "resolution_status_after_review": "acknowledged",
             "timestamp": "2026-06-17T13:15:00Z",
-            "audit": {"correlation_id": context["audit"]["correlation_id"]}
+            "audit": {"correlation_id": context["audit"]["correlation_id"]},
+            "requested_side_effects": [],
+            "idempotency_key": "dto-contract-outcome-1"
         })),
     )
     .await;

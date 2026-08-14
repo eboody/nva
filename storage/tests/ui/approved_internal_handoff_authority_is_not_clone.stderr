@@ -1,0 +1,5 @@
+error[E0599]: no method named `clone` found for struct `ApprovedInternalHandoffAuthority` in the current scope
+ --> tests/ui/approved_internal_handoff_authority_is_not_clone.rs:4:23
+  |
+4 |     let _ = authority.clone();
+  |                       ^^^^^ method not found in `ApprovedInternalHandoffAuthority`

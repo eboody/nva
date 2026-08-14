@@ -14,8 +14,11 @@
     "test:web:e2e": "npm --workspace @pet-resort/staff-web run test:e2e",
     "test:web:standalone": "npm --workspace @pet-resort/staff-web run test:standalone",
     "smoke:local-demo": "./scripts/smoke_local_demo.sh",
-    "test:rust": "cargo test --workspace",
-    "lint:rust": "cargo clippy --workspace --all-targets -- -D warnings",
+    "test:rust": "cargo test --workspace --all-targets --locked",
+    "lint:rust": "cargo clippy --workspace --all-targets --locked -- -D warnings",
+    "lint:rust:release": "cargo clippy --release --workspace --all-targets --locked -- -D warnings",
+    "docs:rust": "RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps --locked",
+    "audit:rust": "cargo audit --deny warnings && cargo deny check",
     "fmt:rust": "cargo fmt --all -- --check",
     "check:workspace": "python scripts/check_workspace_quality.py --repo-root .",
     "demo:pilot": "./scripts/demo_nva_pilot.sh"

@@ -1,5 +1,5 @@
-error[E0616]: field `topic` of struct `OutboxRecord` is private
+error[E0616]: field `topic` of struct `PendingOutboxRecord` is private
  --> tests/ui/outbox_record_fields_are_not_executable_authority.rs:4:12
   |
-4 |     record.topic = "provider.live_write".to_owned();
+4 |     record.topic = InternalHandoffTopic::SiteFinanceReviewedHandoff;
   |            ^^^^^ private field

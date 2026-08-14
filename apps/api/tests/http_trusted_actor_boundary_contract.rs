@@ -135,14 +135,15 @@ fn data_quality_outcome_body(
     json!({
         "outcome": "completed",
         "actual_minutes": 9,
-        "actor": {"id": actor_id_claim, "persona": persona_claim},
+        "actor": {"id": actor_id_claim, "persona": persona_claim, "actor_role": persona_claim},
         "feedback": "Prepared source-grounded cleanup task for manager review without touching Gingr.",
         "source_refs": action["source_refs"],
         "issue_refs": action["issue_refs"],
         "resolution_status_after_review": "acknowledged",
         "timestamp": "2026-06-17T13:15:00Z",
         "audit": {"correlation_id": "trusted-actor-boundary-test"},
-        "requested_side_effects": []
+        "requested_side_effects": [],
+        "idempotency_key": "trusted-actor-boundary-outcome-1"
     })
 }
 

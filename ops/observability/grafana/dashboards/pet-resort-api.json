@@ -1,0 +1,31 @@
+{
+  "uid": "pet-resort-api",
+  "title": "Pet Resort API",
+  "schemaVersion": 40,
+  "version": 1,
+  "refresh": "30s",
+  "time": {"from": "now-6h", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "title": "Request rate",
+      "type": "timeseries",
+      "targets": [{"expr": "sum(rate(pet_resort_api_requests_total[5m]))", "legendFormat": "requests/s"}],
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 0}
+    },
+    {
+      "id": 2,
+      "title": "Server error rate",
+      "type": "timeseries",
+      "targets": [{"expr": "sum(rate(pet_resort_api_requests_total{status_class=\"5xx\"}[5m]))", "legendFormat": "5xx/s"}],
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 0}
+    },
+    {
+      "id": 3,
+      "title": "Request latency",
+      "type": "timeseries",
+      "targets": [{"expr": "histogram_quantile(0.95, sum by (le) (rate(pet_resort_api_request_duration_seconds_bucket[5m])))", "legendFormat": "p95"}],
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 0}
+    }
+  ]
+}

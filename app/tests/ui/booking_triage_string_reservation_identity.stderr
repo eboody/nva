@@ -1,0 +1,5 @@
+error[E0433]: cannot find `Reservation` in `triage`
+ --> tests/ui/booking_triage_string_reservation_identity.rs:5:30
+  |
+5 |         .reservation(triage::Reservation::try_new("arbitrary-reservation-label").unwrap())
+  |                              ^^^^^^^^^^^ could not find `Reservation` in `triage`

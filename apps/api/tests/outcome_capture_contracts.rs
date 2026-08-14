@@ -118,13 +118,15 @@ async fn data_quality_hygiene_outcome_capture_requires_issue_refs_before_storage
                     json!({
                         "outcome": "completed",
                         "actual_minutes": 6,
-                        "actor": {"id": "front-desk-lead-17", "persona": "front_desk_lead"},
+                        "actor": {"id": "front-desk-lead-17", "persona": "front_desk_lead", "actor_role": "front_desk_lead"},
                         "feedback": "Reviewed stale vaccination evidence without hiding ambiguity.",
                         "source_refs": [source_ref],
                         "issue_refs": [],
                         "resolution_status_after_review": "acknowledged",
                         "timestamp": "2026-06-17T12:15:00Z",
-                        "audit": {"correlation_id": "data-quality-hygiene:test"}
+                        "audit": {"correlation_id": "data-quality-hygiene:test"},
+                        "requested_side_effects": [],
+                        "idempotency_key": "outcome-capture-validation-1"
                     })
                     .to_string(),
                 ))
@@ -186,13 +188,15 @@ async fn data_quality_hygiene_outcome_capture_requires_source_refs_before_storag
                     json!({
                         "outcome": "completed",
                         "actual_minutes": 6,
-                        "actor": {"id": "front-desk-lead-17", "persona": "front_desk_lead"},
+                        "actor": {"id": "front-desk-lead-17", "persona": "front_desk_lead", "actor_role": "front_desk_lead"},
                         "feedback": "Reviewed stale vaccination evidence without hiding ambiguity.",
                         "source_refs": [],
                         "issue_refs": ["dq-vaccine-stale-42"],
                         "resolution_status_after_review": "acknowledged",
                         "timestamp": "2026-06-17T12:15:00Z",
-                        "audit": {"correlation_id": "data-quality-hygiene:test"}
+                        "audit": {"correlation_id": "data-quality-hygiene:test"},
+                        "requested_side_effects": [],
+                        "idempotency_key": "outcome-capture-validation-1"
                     })
                     .to_string(),
                 ))
@@ -236,7 +240,7 @@ async fn data_quality_hygiene_outcome_capture_rejects_unbound_or_malformed_prove
     let base = json!({
         "outcome": "completed",
         "actual_minutes": 6,
-        "actor": {"id": "front-desk-lead-17", "persona": "front_desk_lead"},
+        "actor": {"id": "front-desk-lead-17", "persona": "front_desk_lead", "actor_role": "front_desk_lead"},
         "feedback": "Reviewed only the evidence bound to this action.",
         "source_refs": [{
             "system": "unrelated",
@@ -248,7 +252,9 @@ async fn data_quality_hygiene_outcome_capture_rejects_unbound_or_malformed_prove
         "issue_refs": ["invented-issue"],
         "resolution_status_after_review": "acknowledged",
         "timestamp": "2026-06-17T12:15:00Z",
-        "audit": {"correlation_id": "data-quality-hygiene:provenance-test"}
+        "audit": {"correlation_id": "data-quality-hygiene:provenance-test"},
+        "requested_side_effects": [],
+        "idempotency_key": "outcome-provenance-validation-1"
     });
 
     let mismatched = app

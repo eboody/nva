@@ -123,7 +123,7 @@ pub struct DataQualityHygieneWorkerProof {
     side_effect_mode: SideEffectMode,
     outbox_status: OutboxProcessingStatus,
     outbox_candidate_id: Option<String>,
-    outbox_topic: Option<String>,
+    outbox_topic: Option<storage::operations::InternalHandoffTopic>,
     has_reviewed_outcome: bool,
     audit_event_count: usize,
 }
@@ -227,7 +227,7 @@ impl DataQualityHygieneWorkerProof {
             outbox_topic: records
                 .outbox_candidate
                 .as_ref()
-                .map(|candidate| candidate.topic().to_owned()),
+                .map(|candidate| candidate.topic()),
             has_reviewed_outcome: Self::has_reviewed_internal_handoff(records),
             audit_event_count: records.audit_events.len(),
         }
@@ -237,7 +237,8 @@ impl DataQualityHygieneWorkerProof {
         records: &storage::operations::DataQualityHygieneLocalPersistenceRecords,
     ) -> bool {
         use storage::operations::{
-            OutboxStatusCode, ReviewGateCode, ReviewPacketStatusCode, WorkflowResultStatusCode,
+            InternalHandoffTopic, OutboxStatusCode, ReviewGateCode, ReviewPacketStatusCode,
+            WorkflowResultStatusCode,
         };
 
         let Some(candidate) = records.outbox_candidate.as_ref() else {
@@ -251,7 +252,7 @@ impl DataQualityHygieneWorkerProof {
             && records.approval_record.gate == ReviewGateCode::ManagerApproval
             && candidate.review_gate() == ReviewGateCode::ManagerApproval
             && candidate.status() == OutboxStatusCode::Pending
-            && candidate.topic() == "internal.data_quality_hygiene.reviewed_handoff"
+            && candidate.topic() == InternalHandoffTopic::DataQualityHygieneReviewedHandoff
             && candidate
                 .payload()
                 .get("internal_handoff_only")
@@ -305,8 +306,8 @@ impl DataQualityHygieneWorkerProof {
     }
 
     /// Returns the local internal handoff topic, if the reviewed outcome produced one.
-    pub fn outbox_topic(&self) -> Option<&str> {
-        self.outbox_topic.as_deref()
+    pub fn outbox_topic(&self) -> Option<storage::operations::InternalHandoffTopic> {
+        self.outbox_topic
     }
 
     /// True when storage evidence says the local outcome reached reviewed/approved posture.

@@ -86,6 +86,7 @@ pub struct SourceRef {
 
 /// Stable source-record evidence shape used by the v0 workflow routes.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(deny_unknown_fields)]
 pub struct SourceRecordRef {
     pub system: String,
     pub record_type: String,
@@ -232,6 +233,7 @@ pub struct DataQualityHygieneContextResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct DataQualityHygieneSubmittedAction {
     pub action_id: String,
     pub kind: String,
@@ -248,6 +250,7 @@ pub struct DataQualityHygieneSubmittedAction {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct DataQualityHygieneDraftSubmissionRequest {
     pub context_packet_id: String,
     pub correlation_id: String,
@@ -255,22 +258,211 @@ pub struct DataQualityHygieneDraftSubmissionRequest {
     pub idempotency_key: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum DataQualityHygieneOutcome {
+    Completed,
+    Deferred,
+    SuppressedByManager,
+    SourceFactWasWrong,
+    NotActionable,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum DataQualityHygienePersona {
+    GeneralManager,
+    AssistantGeneralManager,
+    FrontDeskLead,
+    FrontDeskAgent,
+    RegionalOperator,
+    OperationsAnalyst,
+}
+
+impl DataQualityHygienePersona {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::GeneralManager => "general_manager",
+            Self::AssistantGeneralManager => "assistant_general_manager",
+            Self::FrontDeskLead => "front_desk_lead",
+            Self::FrontDeskAgent => "front_desk_agent",
+            Self::RegionalOperator => "regional_operator",
+            Self::OperationsAnalyst => "operations_analyst",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum DataQualityResolutionStatus {
+    Open,
+    Acknowledged,
+    Ignored,
+    Repaired,
+}
+
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct DataQualityHygieneOutcomeActor {
+    id: String,
+    persona: DataQualityHygienePersona,
+    actor_role: DataQualityHygienePersona,
+}
+
+impl DataQualityHygieneOutcomeActor {
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    pub const fn persona(&self) -> DataQualityHygienePersona {
+        self.persona
+    }
+
+    pub const fn actor_role(&self) -> DataQualityHygienePersona {
+        self.actor_role
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct OutcomeAudit {
+    correlation_id: String,
+}
+
+impl OutcomeAudit {
+    pub fn correlation_id(&self) -> &str {
+        &self.correlation_id
+    }
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct IdempotencyKey(String);
+
+impl IdempotencyKey {
+    pub fn try_new(raw: impl Into<String>) -> Result<Self, IdempotencyKeyError> {
+        let raw = raw.into();
+        if raw.is_empty() {
+            return Err(IdempotencyKeyError::Empty);
+        }
+        if raw.len() > 128 {
+            return Err(IdempotencyKeyError::TooLong);
+        }
+        if !raw
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b':'))
+        {
+            return Err(IdempotencyKeyError::InvalidCharacter);
+        }
+        Ok(Self(raw))
+    }
+
+    pub(crate) fn expose_for_fingerprint(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Debug for IdempotencyKey {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("IdempotencyKey([REDACTED])")
+    }
+}
+
+impl Serialize for IdempotencyKey {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.0)
+    }
+}
+
+impl<'de> Deserialize<'de> for IdempotencyKey {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = String::deserialize(deserializer)?;
+        Self::try_new(raw).map_err(serde::de::Error::custom)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IdempotencyKeyError {
+    Empty,
+    TooLong,
+    InvalidCharacter,
+}
+
+impl fmt::Display for IdempotencyKeyError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::Empty => "idempotency key must not be empty",
+            Self::TooLong => "idempotency key must not exceed 128 bytes",
+            Self::InvalidCharacter => "idempotency key contains an unsupported character",
+        })
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct DataQualityHygieneOutcomeCaptureRequest {
-    pub outcome: String,
-    pub actual_minutes: u16,
-    pub actor: ActorRef,
-    pub feedback: String,
-    #[serde(default)]
-    pub source_refs: Vec<SourceRecordRef>,
-    #[serde(default)]
-    pub issue_refs: Vec<String>,
-    pub resolution_status_after_review: String,
-    pub timestamp: String,
-    pub audit: OutcomeAudit,
-    #[serde(default)]
-    pub requested_side_effects: Vec<String>,
-    pub idempotency_key: Option<String>,
+    outcome: DataQualityHygieneOutcome,
+    actual_minutes: u16,
+    actor: DataQualityHygieneOutcomeActor,
+    feedback: String,
+    source_refs: Vec<SourceRecordRef>,
+    issue_refs: Vec<String>,
+    resolution_status_after_review: DataQualityResolutionStatus,
+    timestamp: String,
+    audit: OutcomeAudit,
+    requested_side_effects: Vec<String>,
+    idempotency_key: IdempotencyKey,
+}
+
+impl DataQualityHygieneOutcomeCaptureRequest {
+    pub const fn outcome(&self) -> DataQualityHygieneOutcome {
+        self.outcome
+    }
+
+    pub const fn actual_minutes(&self) -> u16 {
+        self.actual_minutes
+    }
+
+    pub fn actor(&self) -> &DataQualityHygieneOutcomeActor {
+        &self.actor
+    }
+
+    pub fn feedback(&self) -> &str {
+        &self.feedback
+    }
+
+    pub fn source_refs(&self) -> &[SourceRecordRef] {
+        &self.source_refs
+    }
+
+    pub fn issue_refs(&self) -> &[String] {
+        &self.issue_refs
+    }
+
+    pub const fn resolution_status_after_review(&self) -> DataQualityResolutionStatus {
+        self.resolution_status_after_review
+    }
+
+    pub fn timestamp(&self) -> &str {
+        &self.timestamp
+    }
+
+    pub fn audit(&self) -> &OutcomeAudit {
+        &self.audit
+    }
+
+    pub fn requested_side_effects(&self) -> &[String] {
+        &self.requested_side_effects
+    }
+
+    pub fn idempotency_key(&self) -> &IdempotencyKey {
+        &self.idempotency_key
+    }
 }
 
 impl fmt::Debug for DataQualityHygieneOutcomeCaptureRequest {
@@ -292,9 +484,4 @@ impl fmt::Debug for DataQualityHygieneOutcomeCaptureRequest {
             .field("sensitive_fields", &"[REDACTED]")
             .finish()
     }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct OutcomeAudit {
-    pub correlation_id: String,
 }

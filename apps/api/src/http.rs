@@ -10,6 +10,7 @@
 use crate::{
     authentication,
     error::{AuthenticationFailure, AuthorizationFailure, ErrorContext, ErrorKind, PublicApiError},
+    observability::ObservabilityRuntime,
     public_contract,
 };
 use app::workflow_repository::OutcomeRepository as _;
@@ -35,7 +36,12 @@ use domain::{
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeMap, env, sync::Arc, time::Duration};
+use std::{
+    collections::BTreeMap,
+    env,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use tokio::sync::Mutex;
 
 use tower_http::trace::TraceLayer;
@@ -53,13 +59,23 @@ static VACCINE_DOCUMENT_STATE: std::sync::OnceLock<VaccineDocumentState> =
 /// live databases, customer messaging, or provider write APIs.
 pub struct VaccineDocumentState {
     store: Arc<Mutex<VaccineDocumentStore>>,
+    observability: ObservabilityRuntime,
 }
 
 impl Default for VaccineDocumentState {
     fn default() -> Self {
         Self {
             store: Arc::new(Mutex::new(VaccineDocumentStore::default())),
+            observability: ObservabilityRuntime::default(),
         }
+    }
+}
+
+impl VaccineDocumentState {
+    /// Replaces the local telemetry runtime while preserving workflow state ownership.
+    pub fn with_observability(mut self, observability: ObservabilityRuntime) -> Self {
+        self.observability = observability;
+        self
     }
 }
 
@@ -79,8 +95,15 @@ struct VaccineDocumentStore {
     >,
     data_quality_hygiene_persistence_records:
         Vec<storage::operations::DataQualityHygieneLocalPersistenceRecords>,
+    data_quality_hygiene_idempotency: BTreeMap<String, DataQualityHygieneReplay>,
     inquiry_intake_records: Vec<InquiryIntakeRecord>,
     audit_events: Vec<AuditEvent>,
+}
+
+#[derive(Debug, Clone)]
+struct DataQualityHygieneReplay {
+    payload_fingerprint: String,
+    response: Value,
 }
 
 impl workflow_repository::Repository for VaccineDocumentStore {
@@ -142,6 +165,10 @@ struct ObservabilityReadinessPayload {
     local_request_metrics: &'static str,
     metrics_scope: &'static str,
     production_gap: &'static str,
+    durable_traces: &'static str,
+    production_metrics: &'static str,
+    dashboard: &'static str,
+    alerting: &'static str,
 }
 
 #[derive(Debug, Serialize)]
@@ -287,6 +314,7 @@ fn api_dto_contract_payload(workflow: &'static str) -> Value {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct VaccineDocumentUploadRequest {
     pet_id: Uuid,
     customer_id: Uuid,
@@ -297,6 +325,7 @@ struct VaccineDocumentUploadRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct VaccineReviewDecisionRequest {
     reviewed_by_staff_id: String,
     reason: Option<String>,
@@ -428,7 +457,8 @@ where
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct InquirySubmissionRequest {
     source_event_key: String,
     source_system: Option<String>,
@@ -446,26 +476,30 @@ struct InquirySubmissionRequest {
     simulated_conversion: Option<InquirySimulatedConversionRequest>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct InquiryCustomerRequest {
     full_name: String,
     email: Option<String>,
     phone: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct InquiryPetRequest {
     name: String,
     species: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct InquiryDateWindowRequest {
     start: String,
     end: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct InquiryContactAttemptRequest {
     attempted_at: DateTime<Utc>,
     channel: String,
@@ -474,7 +508,8 @@ struct InquiryContactAttemptRequest {
     message_ref: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct InquirySimulatedConversionRequest {
     reservation_id: String,
     converted_at: DateTime<Utc>,
@@ -508,6 +543,8 @@ struct InquiryIntakeRecord {
     outcome_attribution: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     replay: Option<Value>,
+    #[serde(skip)]
+    request_fingerprint: String,
     agent_runtime: &'static str,
     policy_boundary: &'static str,
     audit_events: Vec<InquiryAuditEvent>,
@@ -734,11 +771,29 @@ fn workflow_observability_payload(
     }
 }
 
-async fn attach_request_trace(mut request: Request<Body>, next: Next) -> Response<Body> {
+async fn attach_request_trace(
+    State(observability): State<ObservabilityRuntime>,
+    mut request: Request<Body>,
+    next: Next,
+) -> Response<Body> {
+    let started = Instant::now();
+    let method = request.method().as_str().to_owned();
+    let route = request
+        .extensions()
+        .get::<MatchedPath>()
+        .map(MatchedPath::as_str)
+        .unwrap_or("unmatched")
+        .to_owned();
     let request_trace = RequestTraceEvidence::from_request_headers(request.headers());
     request.extensions_mut().insert(request_trace.clone());
 
     let mut response = next.run(request).await;
+    observability.record_request(
+        &method,
+        &route,
+        response.status().as_u16(),
+        started.elapsed(),
+    );
     let request_id = HeaderValue::from_str(request_trace.request_id())
         .expect("generated or validated request id is a header value");
     response
@@ -783,7 +838,6 @@ pub fn router_with_state(state: VaccineDocumentState) -> Router {
 /// library builds lets black-box integration tests exercise authentication without
 /// Cargo feature unification changing whether the test suite compiles.
 #[doc(hidden)]
-#[cfg(debug_assertions)]
 pub fn router_with_test_auth_state(state: VaccineDocumentState) -> Router {
     router_with_authentication(state, AuthenticationSource::SyntheticTestHeaders)
 }
@@ -791,7 +845,6 @@ pub fn router_with_test_auth_state(state: VaccineDocumentState) -> Router {
 #[derive(Clone, Copy)]
 enum AuthenticationSource {
     Production,
-    #[cfg(debug_assertions)]
     SyntheticTestHeaders,
 }
 
@@ -799,11 +852,14 @@ fn router_with_authentication(
     state: VaccineDocumentState,
     authentication_source: AuthenticationSource,
 ) -> Router {
+    let observability = state.observability.clone();
     Router::new()
         .route("/healthz", get(healthz))
         .route("/v0/healthz", get(healthz))
         .route("/readyz", get(readyz))
         .route("/v0/readyz", get(readyz))
+        .route("/metrics", get(prometheus_metrics))
+        .route("/v0/metrics", get(prometheus_metrics))
         .route("/ops/metrics/summary", get(ops_metrics_summary))
         .route("/v0/ops/metrics/summary", get(ops_metrics_summary))
         .route("/inquiries", post(submit_inquiry))
@@ -941,7 +997,10 @@ fn router_with_authentication(
             authentication_source,
             attach_authenticated_actor,
         ))
-        .layer(middleware::from_fn(attach_request_trace))
+        .layer(middleware::from_fn_with_state(
+            observability,
+            attach_request_trace,
+        ))
 }
 
 async fn attach_authenticated_actor(
@@ -951,7 +1010,6 @@ async fn attach_authenticated_actor(
 ) -> Response<Body> {
     let context = match source {
         AuthenticationSource::Production => authentication::Context::missing(),
-        #[cfg(debug_assertions)]
         AuthenticationSource::SyntheticTestHeaders => {
             authentication::Context::from_test_headers(request.headers())
         }
@@ -1425,7 +1483,8 @@ async fn healthz() -> Json<HealthPayload> {
     })
 }
 
-async fn readyz() -> Json<ReadinessPayload> {
+async fn readyz(State(state): State<VaccineDocumentState>) -> Json<ReadinessPayload> {
+    let observability = state.observability.config().readiness();
     Json(ReadinessPayload {
         api_contract: api_dto_contract("runtime_readiness"),
         service: "pet-resort-api",
@@ -1436,13 +1495,32 @@ async fn readyz() -> Json<ReadinessPayload> {
         observability: ObservabilityReadinessPayload {
             request_correlation: "x_request_id_and_x_correlation_id_response_headers_with_workflow_payload_fields",
             workflow_correlation: "local_workflow_correlation_ids_only",
-            local_request_metrics: "api_request_span_fields_and_aggregate_summary_only",
-            metrics_scope: "aggregate_local_counters_and_labor_rollups",
-            production_gap: "no_durable_traces_queue_dashboard_or_alerting",
+            local_request_metrics: "prometheus_bounded_route_status_and_duration_series",
+            metrics_scope: "bounded_route_method_status_class_without_payload_or_actor_labels",
+            production_gap: if state.observability.config().production().is_some() {
+                "external_stack_configured_but_live_health_is_not_verified_by_this_endpoint"
+            } else {
+                "no_durable_traces_queue_dashboard_or_alerting"
+            },
+            durable_traces: observability.durable_traces,
+            production_metrics: observability.production_metrics,
+            dashboard: observability.dashboard,
+            alerting: observability.alerting,
         },
         live_customer_messaging: "disabled",
         live_provider_writes: "disabled",
     })
+}
+
+async fn prometheus_metrics(State(state): State<VaccineDocumentState>) -> axum::response::Response {
+    (
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "text/plain; version=0.0.4; charset=utf-8",
+        )],
+        state.observability.render_prometheus(),
+    )
+        .into_response()
 }
 
 async fn ops_metrics_summary(
@@ -1569,6 +1647,22 @@ fn data_quality_hygiene_labor_rollup(
 }
 
 fn classify_invalid_inquiry(request: &InquirySubmissionRequest) -> Option<Value> {
+    let provenance_field_count = [
+        request.source_system.is_some(),
+        request.provider_model_path.is_some(),
+        request.raw_payload_ref.is_some(),
+        request.received_at.is_some(),
+    ]
+    .into_iter()
+    .filter(|present| *present)
+    .count();
+    if provenance_field_count != 0 && provenance_field_count != 4 {
+        return Some(invalid_inquiry_payload(
+            "incomplete_source_provenance",
+            &request.source_event_key,
+        ));
+    }
+
     let received_at = request.received_at?;
     let mut previous_attempt_at = None;
     for attempt in &request.contact_attempts {
@@ -1615,6 +1709,10 @@ async fn submit_inquiry(
         return PublicApiError::new(rejection.into(), ErrorContext::new("missing_request_id"))
             .into_response();
     }
+    if let Some(error_payload) = classify_invalid_inquiry(&request) {
+        return (StatusCode::UNPROCESSABLE_ENTITY, Json(error_payload)).into_response();
+    }
+    let request_fingerprint = inquiry_request_fingerprint(&request);
     let mut store = state.store.lock().await;
     if let Some(mut record) = store
         .inquiry_intake_records
@@ -1622,7 +1720,7 @@ async fn submit_inquiry(
         .find(|record| record.event.source_event_key == request.source_event_key)
         .cloned()
     {
-        if !inquiry_payload_matches_record(&request, &record) {
+        if record.request_fingerprint != request_fingerprint {
             return (
                 StatusCode::CONFLICT,
                 Json(invalid_inquiry_payload(
@@ -1639,35 +1737,15 @@ async fn submit_inquiry(
         }));
         return (StatusCode::OK, Json(record)).into_response();
     }
-    if let Some(error_payload) = classify_invalid_inquiry(&request) {
-        return (StatusCode::UNPROCESSABLE_ENTITY, Json(error_payload)).into_response();
-    }
     let record = build_inquiry_intake_record(request);
     store.inquiry_intake_records.push(record.clone());
     (StatusCode::CREATED, Json(record)).into_response()
 }
 
-fn inquiry_payload_matches_record(
-    request: &InquirySubmissionRequest,
-    record: &InquiryIntakeRecord,
-) -> bool {
-    record.event.location_id == request.location_id
-        && record.lead.customer_name == request.customer.full_name
-        && record.lead.customer_email == request.customer.email
-        && record.lead.customer_phone == request.customer.phone
-        && record.lead.pet_name == request.pet.name
-        && record.lead.species == request.pet.species
-        && record.lead.service == request.service
-        && record.lead.original_message == request.message
-        && record
-            .lead
-            .requested_dates
-            .as_ref()
-            .map(|dates| (&dates.start, &dates.end))
-            == request
-                .requested_dates
-                .as_ref()
-                .map(|dates| (&dates.start, &dates.end))
+fn inquiry_request_fingerprint(request: &InquirySubmissionRequest) -> String {
+    let canonical_payload = serde_json::to_vec(request)
+        .expect("inquiry request DTO contains only infallibly serializable fields");
+    format!("{:x}", Sha256::digest(canonical_payload))
 }
 
 async fn staff_inquiries(
@@ -1699,12 +1777,14 @@ async fn staff_inquiries(
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ManagerDailyBriefAgentContextQuery {
     location_id: Uuid,
     operating_day: NaiveDate,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ManagerDailyBriefAgentDraftSubmissionRequest {
     context_packet_id: String,
     correlation_id: String,
@@ -1713,6 +1793,7 @@ struct ManagerDailyBriefAgentDraftSubmissionRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ManagerDailyBriefSubmittedAction {
     id: String,
     kind: String,
@@ -1726,6 +1807,7 @@ struct ManagerDailyBriefSubmittedAction {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ManagerDailyBriefOutcomeCaptureRequest {
     outcome: storage::operations::ManagerDailyBriefOutcomeCode,
     actual_minutes: u16,
@@ -1741,29 +1823,34 @@ struct ManagerDailyBriefOutcomeCaptureRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ManagerDailyBriefOutcomeActorRequest {
     id: String,
     persona: storage::operations::ManagerDailyBriefPersonaCode,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ManagerDailyBriefOutcomeAuditRequest {
     correlation_id: String,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ManagerDailyBriefOutcomeReportingRequest {
     location_id: String,
     operating_day: String,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct DataQualityHygieneAgentContextQuery {
     location_id: Uuid,
     operating_day: NaiveDate,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct PermissionedKnowledgeAgentContextQuery {
     location_id: Uuid,
     service: String,
@@ -1772,34 +1859,7 @@ struct PermissionedKnowledgeAgentContextQuery {
 }
 
 #[derive(Debug, Deserialize)]
-struct DataQualityHygieneOutcomeCaptureRequest {
-    outcome: storage::operations::DataQualityHygieneOutcomeCode,
-    actual_minutes: u16,
-    actor: DataQualityHygieneOutcomeActorRequest,
-    feedback: String,
-    #[serde(default)]
-    source_refs: Vec<public_contract::SourceRecordRef>,
-    #[serde(default)]
-    issue_refs: Vec<String>,
-    resolution_status_after_review: storage::operations::DataQualityResolutionStatusCode,
-    timestamp: String,
-    audit: DataQualityHygieneOutcomeAuditRequest,
-    #[serde(default)]
-    requested_side_effects: Vec<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct DataQualityHygieneOutcomeActorRequest {
-    id: String,
-    persona: storage::operations::DataQualityHygienePersonaCode,
-}
-
-#[derive(Debug, Deserialize)]
-struct DataQualityHygieneOutcomeAuditRequest {
-    correlation_id: String,
-}
-
-#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct DataQualityHygieneOutcomeSummaryQuery {
     location_id: Uuid,
     operating_day: NaiveDate,
@@ -2391,20 +2451,58 @@ async fn submit_data_quality_hygiene_agent_draft(
     )
 }
 
+fn data_quality_hygiene_payload_fingerprint(
+    action_id: &str,
+    request: &public_contract::DataQualityHygieneOutcomeCaptureRequest,
+) -> String {
+    let mut canonical_payload =
+        serde_json::to_value(request).expect("public outcome DTO serializes infallibly");
+    canonical_payload
+        .as_object_mut()
+        .expect("public outcome DTO serializes as an object")
+        .remove("idempotency_key");
+    canonical_payload["action_id"] = Value::String(action_id.to_owned());
+    let bytes = serde_json::to_vec(&canonical_payload)
+        .expect("canonical public outcome payload serializes infallibly");
+    format!("{:x}", Sha256::digest(bytes))
+}
+
+fn data_quality_hygiene_idempotency_conflict_payload() -> Value {
+    merge_error_envelope(
+        json!({
+            "api_contract": api_dto_contract_payload("data_quality_hygiene_outcome"),
+            "accepted": false,
+            "outcome_persisted": false,
+            "live_side_effects_allowed": false,
+            "blocked_actions": data_quality_hygiene_blocked_action_codes()
+        }),
+        PublicApiError::new(
+            ErrorKind::IdempotencyConflict,
+            ErrorContext::new("missing_request_id"),
+        ),
+    )
+}
+
 async fn capture_data_quality_hygiene_action_outcome(
     State(state): State<VaccineDocumentState>,
     Authenticated(authentication): Authenticated,
     Path(action_id): Path<String>,
-    Json(request): Json<DataQualityHygieneOutcomeCaptureRequest>,
+    Json(request): Json<public_contract::DataQualityHygieneOutcomeCaptureRequest>,
 ) -> (StatusCode, Json<Value>) {
     if let Err(rejection) = authentication::authorize(
         &authentication,
         authentication::Mutation::DataQualityHygieneOutcome,
-        &request.actor.id,
+        request.actor().id(),
         local_data_quality_hygiene_location_id().0,
     )
     .and_then(|()| {
-        authentication::authorize_persona_claim(&authentication, &request.actor.persona.to_string())
+        authentication::authorize_persona_claim(&authentication, request.actor().persona().as_str())
+            .and_then(|()| {
+                authentication::authorize_persona_claim(
+                    &authentication,
+                    request.actor().actor_role().as_str(),
+                )
+            })
     }) {
         return (
             rejection.status_code(),
@@ -2416,8 +2514,36 @@ async fn capture_data_quality_hygiene_action_outcome(
         );
     }
 
+    let idempotency_key_digest = format!(
+        "{:x}",
+        Sha256::digest(
+            request
+                .idempotency_key()
+                .expose_for_fingerprint()
+                .as_bytes()
+        )
+    );
+    let payload_fingerprint = data_quality_hygiene_payload_fingerprint(&action_id, &request);
+    {
+        let store = state.store.lock().await;
+        if let Some(replay) = store
+            .data_quality_hygiene_idempotency
+            .get(&idempotency_key_digest)
+        {
+            if replay.payload_fingerprint == payload_fingerprint {
+                let mut response = replay.response.clone();
+                response["idempotent_replay"] = Value::Bool(true);
+                return (StatusCode::OK, Json(response));
+            }
+            return (
+                StatusCode::CONFLICT,
+                Json(data_quality_hygiene_idempotency_conflict_payload()),
+            );
+        }
+    }
+
     let reasons = request
-        .requested_side_effects
+        .requested_side_effects()
         .iter()
         .map(|side_effect| data_quality_hygiene_requested_side_effect_rejection_reason(side_effect))
         .collect::<Vec<_>>();
@@ -2435,7 +2561,7 @@ async fn capture_data_quality_hygiene_action_outcome(
         );
     }
 
-    if request.source_refs.is_empty() {
+    if request.source_refs().is_empty() {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(json!({
@@ -2448,7 +2574,7 @@ async fn capture_data_quality_hygiene_action_outcome(
         );
     }
 
-    if request.issue_refs.is_empty() {
+    if request.issue_refs().is_empty() {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(json!({
@@ -2461,9 +2587,9 @@ async fn capture_data_quality_hygiene_action_outcome(
         );
     }
 
-    let Ok(actual_minutes) =
-        storage::operations::StoredDataQualityHygieneLaborMinutes::try_new(request.actual_minutes)
-    else {
+    let Ok(actual_minutes) = storage::operations::StoredDataQualityHygieneLaborMinutes::try_new(
+        request.actual_minutes(),
+    ) else {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(json!({
@@ -2504,10 +2630,10 @@ async fn capture_data_quality_hygiene_action_outcome(
         .map(|issue_ref| issue_ref.as_str().to_owned())
         .collect::<Vec<_>>();
     let mut provenance_reasons = Vec::new();
-    if request.source_refs != expected_source_refs {
+    if request.source_refs() != expected_source_refs {
         provenance_reasons.push("source_refs_do_not_match_action");
     }
-    if request.issue_refs != expected_issue_refs {
+    if request.issue_refs() != expected_issue_refs {
         provenance_reasons.push("issue_refs_do_not_match_action");
     }
     provenance_reasons.sort_unstable();
@@ -2531,23 +2657,27 @@ async fn capture_data_quality_hygiene_action_outcome(
 
     let record = storage::operations::DataQualityHygieneOutcomeRecord::builder()
         .action_id(action_id)
-        .outcome(request.outcome)
+        .outcome(stored_data_quality_hygiene_outcome(request.outcome()))
         .before_minutes(before_minutes)
         .actual_minutes(actual_minutes)
-        .actor_id(request.actor.id)
-        .actor_persona(request.actor.persona)
-        .feedback(request.feedback)
+        .actor_id(request.actor().id().to_owned())
+        .actor_persona(stored_data_quality_hygiene_persona_claim(
+            request.actor().persona(),
+        ))
+        .feedback(request.feedback().to_owned())
         .source_refs(
             request
-                .source_refs
+                .source_refs()
                 .iter()
                 .map(stored_source_record_ref_from_payload)
                 .collect(),
         )
-        .issue_refs(request.issue_refs)
-        .resolution_status_after_review(request.resolution_status_after_review)
-        .recorded_at(request.timestamp)
-        .correlation_id(request.audit.correlation_id)
+        .issue_refs(request.issue_refs().to_vec())
+        .resolution_status_after_review(stored_data_quality_resolution_status(
+            request.resolution_status_after_review(),
+        ))
+        .recorded_at(request.timestamp().to_owned())
+        .correlation_id(request.audit().correlation_id().to_owned())
         .location_id(packet.location_id().0.to_string())
         .operating_day(packet.operating_day().get().to_string())
         .action_kind(stored_data_quality_hygiene_action_kind(action.kind()))
@@ -2566,22 +2696,33 @@ async fn capture_data_quality_hygiene_action_outcome(
         &record.correlation_id,
         &local_persistence_records,
     );
-    let (persisted_outcome_count, persisted_projection_count) = {
+    let response = {
         let mut store = state.store.lock().await;
+        if let Some(replay) = store
+            .data_quality_hygiene_idempotency
+            .get(&idempotency_key_digest)
+        {
+            if replay.payload_fingerprint == payload_fingerprint {
+                let mut response = replay.response.clone();
+                response["idempotent_replay"] = Value::Bool(true);
+                return (StatusCode::OK, Json(response));
+            }
+            return (
+                StatusCode::CONFLICT,
+                Json(data_quality_hygiene_idempotency_conflict_payload()),
+            );
+        }
+
         let persisted_outcome_count = store.data_quality_hygiene_outcomes.record(record.clone());
         store
             .data_quality_hygiene_persistence_records
             .push(local_persistence_records);
         let persisted_projection_count = store.data_quality_hygiene_persistence_records.len();
-        (persisted_outcome_count, persisted_projection_count)
-    };
-
-    (
-        StatusCode::CREATED,
-        Json(json!({
+        let response = json!({
             "api_contract": api_dto_contract_payload("data_quality_hygiene_outcome"),
             "accepted": true,
             "outcome_persisted": true,
+            "idempotent_replay": false,
             "outcome_record": {
                 "action_id": record.action_id,
                 "outcome": record.outcome,
@@ -2621,8 +2762,18 @@ async fn capture_data_quality_hygiene_action_outcome(
                 "event": "data_quality_hygiene_outcome_recorded",
                 "policy_owner": "deterministic_app"
             }
-        })),
-    )
+        });
+        store.data_quality_hygiene_idempotency.insert(
+            idempotency_key_digest,
+            DataQualityHygieneReplay {
+                payload_fingerprint,
+                response: response.clone(),
+            },
+        );
+        response
+    };
+
+    (StatusCode::CREATED, Json(response))
 }
 
 async fn data_quality_hygiene_outcome_summary(
@@ -3492,6 +3643,7 @@ impl VaccineDocumentStore {
 }
 
 fn build_inquiry_intake_record(request: InquirySubmissionRequest) -> InquiryIntakeRecord {
+    let request_fingerprint = inquiry_request_fingerprint(&request);
     let first_name = request
         .customer
         .full_name
@@ -3509,23 +3661,13 @@ fn build_inquiry_intake_record(request: InquirySubmissionRequest) -> InquiryInta
         request.customer.full_name, request.pet.name
     );
     let source_event_key = request.source_event_key.clone();
-    let has_lead_response_fixture = request.source_system.is_some()
-        || request.provider_model_path.is_some()
-        || request.raw_payload_ref.is_some()
+    let has_source_provenance = request.source_system.is_some();
+    let has_lead_response_fixture = has_source_provenance
         || !request.contact_attempts.is_empty()
         || request.simulated_conversion.is_some();
-    let source_system = request
-        .source_system
-        .clone()
-        .unwrap_or_else(|| "local_inquiry_fixture".to_owned());
-    let provider_model_path = request
-        .provider_model_path
-        .clone()
-        .unwrap_or_else(|| "pet_resort_api::InquirySubmissionRequest".to_owned());
-    let raw_payload_ref = request
-        .raw_payload_ref
-        .clone()
-        .unwrap_or_else(|| format!("api://inquiries/{}", request.source_event_key));
+    let source_system = request.source_system.clone();
+    let provider_model_path = request.provider_model_path.clone();
+    let raw_payload_ref = request.raw_payload_ref.clone();
     let received_at = request.received_at;
     let first_attempt = request.contact_attempts.first();
     let simulated_conversion = request.simulated_conversion.as_ref().map(|conversion| {
@@ -3553,7 +3695,7 @@ fn build_inquiry_intake_record(request: InquirySubmissionRequest) -> InquiryInta
             source_event_key: request.source_event_key,
             location_id: request.location_id,
         },
-        provenance: has_lead_response_fixture.then(|| {
+        provenance: has_source_provenance.then(|| {
             json!({
                 "source_system": source_system,
                 "provider_model_path": provider_model_path,
@@ -3562,14 +3704,14 @@ fn build_inquiry_intake_record(request: InquirySubmissionRequest) -> InquiryInta
                 "provider_payload_passthrough": false
             })
         }),
-        data_quality: has_lead_response_fixture.then(|| {
+        data_quality: has_source_provenance.then(|| {
             json!({
                 "classification": "accepted_fixture_evidence",
                 "quality_gate": "source_ref_present_provider_model_declared_no_raw_payload_passthrough",
                 "duplicate_policy": "source_event_key_idempotency"
             })
         }),
-        canonical_lead_event: has_lead_response_fixture.then(|| {
+        canonical_lead_event: has_source_provenance.then(|| {
             json!({
                 "event_type": "lead.website_form_submitted",
                 "source_event_key": source_event_key,
@@ -3652,6 +3794,7 @@ fn build_inquiry_intake_record(request: InquirySubmissionRequest) -> InquiryInta
         simulated_conversion,
         outcome_attribution,
         replay: None,
+        request_fingerprint,
         agent_runtime: "agent.inquiry-intake.fake_deterministic",
         policy_boundary: "draft_only_no_live_send_no_provider_write_no_booking_decision_without_staff_approval",
         audit_events: vec![
@@ -4292,6 +4435,48 @@ fn stored_data_quality_hygiene_persona(
         App::FrontDeskAgent => Stored::FrontDeskAgent,
         App::RegionalOperator => Stored::RegionalOperator,
         App::OperationsAnalyst => Stored::OperationsAnalyst,
+    }
+}
+
+fn stored_data_quality_hygiene_outcome(
+    outcome: public_contract::DataQualityHygieneOutcome,
+) -> storage::operations::DataQualityHygieneOutcomeCode {
+    use public_contract::DataQualityHygieneOutcome as Api;
+    use storage::operations::DataQualityHygieneOutcomeCode as Stored;
+    match outcome {
+        Api::Completed => Stored::Completed,
+        Api::Deferred => Stored::Deferred,
+        Api::SuppressedByManager => Stored::SuppressedByManager,
+        Api::SourceFactWasWrong => Stored::SourceFactWasWrong,
+        Api::NotActionable => Stored::NotActionable,
+    }
+}
+
+fn stored_data_quality_hygiene_persona_claim(
+    persona: public_contract::DataQualityHygienePersona,
+) -> storage::operations::DataQualityHygienePersonaCode {
+    use public_contract::DataQualityHygienePersona as Api;
+    use storage::operations::DataQualityHygienePersonaCode as Stored;
+    match persona {
+        Api::GeneralManager => Stored::GeneralManager,
+        Api::AssistantGeneralManager => Stored::AssistantGeneralManager,
+        Api::FrontDeskLead => Stored::FrontDeskLead,
+        Api::FrontDeskAgent => Stored::FrontDeskAgent,
+        Api::RegionalOperator => Stored::RegionalOperator,
+        Api::OperationsAnalyst => Stored::OperationsAnalyst,
+    }
+}
+
+fn stored_data_quality_resolution_status(
+    status: public_contract::DataQualityResolutionStatus,
+) -> storage::operations::DataQualityResolutionStatusCode {
+    use public_contract::DataQualityResolutionStatus as Api;
+    use storage::operations::DataQualityResolutionStatusCode as Stored;
+    match status {
+        Api::Open => Stored::Open,
+        Api::Acknowledged => Stored::Acknowledged,
+        Api::Ignored => Stored::Ignored,
+        Api::Repaired => Stored::Repaired,
     }
 }
 

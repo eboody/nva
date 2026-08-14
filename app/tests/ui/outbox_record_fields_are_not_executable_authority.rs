@@ -1,7 +1,7 @@
-use storage::operations::OutboxRecord;
+use storage::operations::{InternalHandoffTopic, PendingOutboxRecord};
 
-fn rewrite_persisted_candidate(mut record: OutboxRecord) {
-    record.topic = "provider.live_write".to_owned();
+fn rewrite_admitted_candidate(mut record: PendingOutboxRecord) {
+    record.topic = InternalHandoffTopic::SiteFinanceReviewedHandoff;
 }
 
 fn main() {}

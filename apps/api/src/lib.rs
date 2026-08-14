@@ -20,5 +20,8 @@ mod authentication;
 /// Typed public API failures and their single safe response conversion.
 pub mod error;
 
+/// Production telemetry configuration, readiness evidence, and bounded metrics.
+pub mod observability;
+
 /// Product-owned public DTO/schema contracts for the operations API v0 surface.
 pub mod public_contract;

@@ -21,7 +21,7 @@ fn booking_triage_event() -> workflow::Event {
 #[test]
 fn booking_triage_uses_typestate_for_legal_readiness_progression() {
     let intake = booking_triage::Request::<booking_triage::Intake>::builder()
-        .reservation(booking_triage::Reservation::try_new("REQ-123").unwrap())
+        .reservation(entities::reservation::Id(uuid::Uuid::from_u128(123)))
         .build();
 
     let with_pet_profile = intake.attach_pet_profile(
@@ -33,7 +33,10 @@ fn booking_triage_uses_typestate_for_legal_readiness_progression() {
     );
     let ready = with_policy.mark_ready_for_policy_decision();
 
-    assert_eq!(ready.reservation().clone().into_inner(), "REQ-123");
+    assert_eq!(
+        ready.reservation(),
+        &entities::reservation::Id(uuid::Uuid::from_u128(123))
+    );
 }
 
 #[test]

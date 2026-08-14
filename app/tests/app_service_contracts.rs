@@ -36,6 +36,22 @@ fn reservation_with_hard_stops(hard_stops: Vec<entities::HardStop>) -> entities:
         .unwrap()
 }
 
+fn ready_request(
+    reservation_id: entities::reservation::Id,
+) -> booking_triage::Request<booking_triage::ReadyForPolicyDecision> {
+    booking_triage::Request::<booking_triage::Intake>::builder()
+        .reservation(reservation_id)
+        .build()
+        .attach_pet_profile(
+            domain::pet::Name::try_new("Miso").unwrap(),
+            booking_triage::PetProfileCompleteness::Complete,
+        )
+        .attach_policy_snapshot(
+            booking_triage::PolicySnapshot::try_new("policy:boarding:v1").unwrap(),
+        )
+        .mark_ready_for_policy_decision()
+}
+
 #[test]
 fn booking_triage_service_uses_app_repository_port_and_blocks_missing_vaccine_booking() {
     let reservation =
@@ -46,7 +62,7 @@ fn booking_triage_service_uses_app_repository_port_and_blocks_missing_vaccine_bo
         reservation: reservation.clone(),
     });
 
-    let packet = service.evaluate(reservation.id()).unwrap();
+    let packet = service.evaluate(ready_request(reservation.id())).unwrap();
 
     assert_eq!(
         packet.suggested_status(),
@@ -78,7 +94,7 @@ fn booking_triage_service_routes_special_care_to_review_packet_without_confirmat
         reservation: reservation.clone(),
     });
 
-    let packet = service.evaluate(reservation.id()).unwrap();
+    let packet = service.evaluate(ready_request(reservation.id())).unwrap();
 
     assert_eq!(
         packet.deterministic_result().staff_decision_boundary(),
@@ -124,7 +140,7 @@ fn booking_triage_service_treats_paid_deposit_and_no_hard_stops_as_staff_ready()
         reservation: reservation.clone(),
     });
 
-    let packet = service.evaluate(reservation.id()).unwrap();
+    let packet = service.evaluate(ready_request(reservation.id())).unwrap();
 
     assert_eq!(
         packet.suggested_status(),
@@ -144,7 +160,7 @@ fn booking_triage_service_keeps_repository_misses_as_safe_app_errors() {
     });
 
     let missing_id = entities::reservation::Id(Uuid::from_u128(99));
-    let missing = service.evaluate(missing_id);
+    let missing = service.evaluate(ready_request(missing_id));
 
     assert_eq!(
         missing,
@@ -181,7 +197,7 @@ fn booking_triage_service_maps_care_profile_review_pressure_to_care_team_gate() 
         reservation: reservation.clone(),
     });
 
-    let packet = service.evaluate(reservation.id()).unwrap();
+    let packet = service.evaluate(ready_request(reservation.id())).unwrap();
 
     assert!(
         packet

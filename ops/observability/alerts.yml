@@ -1,0 +1,22 @@
+groups:
+  - name: pet-resort-api
+    rules:
+      - alert: PetResortApiUnavailable
+        expr: up{job="pet-resort-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          owner: nva-platform
+        annotations:
+          summary: Pet Resort API metrics endpoint is unavailable
+          runbook: docs/runbooks/observability.md#api-unavailable
+
+      - alert: PetResortApiElevatedServerErrors
+        expr: sum(rate(pet_resort_api_requests_total{status_class="5xx"}[5m])) / clamp_min(sum(rate(pet_resort_api_requests_total[5m])), 0.001) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          owner: nva-platform
+        annotations:
+          summary: Pet Resort API server error ratio exceeds five percent
+          runbook: docs/runbooks/observability.md#elevated-server-errors

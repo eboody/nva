@@ -3,9 +3,9 @@ use http_body_util::BodyExt;
 use pet_resort_api::{
     http,
     public_contract::{
-        ActorRef, ApiContractMetadata, DataQualityHygieneContextResponse,
-        DataQualityHygieneOutcomeCaptureRequest, LiveSideEffectsMode, OutcomeAudit,
-        ProviderBoundaryMode, SourceRecordRef,
+        ApiContractMetadata, DataQualityHygieneContextResponse,
+        DataQualityHygieneOutcomeCaptureRequest, LiveSideEffectsMode, ProviderBoundaryMode,
+        SourceRecordRef,
     },
 };
 use serde_json::json;
@@ -60,31 +60,30 @@ fn canonical_public_contract_contains_no_known_schema_json_value_fields() {
 
 #[test]
 fn sensitive_outcome_capture_debug_redacts_identity_feedback_and_provenance() {
-    let request = DataQualityHygieneOutcomeCaptureRequest {
-        outcome: "completed".to_owned(),
-        actual_minutes: 7,
-        actor: ActorRef {
-            persona: "front_desk_lead".to_owned(),
-            id: "sensitive-actor-17".to_owned(),
-            actor_role: None,
+    let request = serde_json::from_value::<DataQualityHygieneOutcomeCaptureRequest>(json!({
+        "outcome": "completed",
+        "actual_minutes": 7,
+        "actor": {
+            "persona": "front_desk_lead",
+            "id": "sensitive-actor-17",
+            "actor_role": "front_desk_lead"
         },
-        feedback: "sensitive customer context".to_owned(),
-        source_refs: vec![SourceRecordRef {
-            system: "gingr".to_owned(),
-            record_type: "customer".to_owned(),
-            record_id: "sensitive-record-42".to_owned(),
-            observed_at: "2026-06-17T00:00:00Z".to_owned(),
-            adapter_version: "gingr-v0-readonly".to_owned(),
+        "feedback": "sensitive customer context",
+        "source_refs": [{
+            "system": "gingr",
+            "record_type": "customer",
+            "record_id": "sensitive-record-42",
+            "observed_at": "2026-06-17T00:00:00Z",
+            "adapter_version": "gingr-v0-readonly"
         }],
-        issue_refs: vec!["sensitive-issue-9".to_owned()],
-        resolution_status_after_review: "acknowledged".to_owned(),
-        timestamp: "2026-06-17T12:00:00Z".to_owned(),
-        audit: OutcomeAudit {
-            correlation_id: "sensitive-correlation".to_owned(),
-        },
-        requested_side_effects: Vec::new(),
-        idempotency_key: Some("sensitive-idempotency-key".to_owned()),
-    };
+        "issue_refs": ["sensitive-issue-9"],
+        "resolution_status_after_review": "acknowledged",
+        "timestamp": "2026-06-17T12:00:00Z",
+        "audit": {"correlation_id": "sensitive-correlation"},
+        "requested_side_effects": [],
+        "idempotency_key": "sensitive-idempotency-key"
+    }))
+    .unwrap();
 
     let debug = format!("{request:?}");
     for sensitive in [

@@ -2,8 +2,9 @@ use serde_json::json;
 use storage::operations::{
     ActorKindCode, ApprovalOutboxLineageIds, ApprovalOutboxProjection,
     ApprovalOutboxProjectionInput, ApprovalReviewDisposition, ApprovalTargetBinding,
-    OutboxStatusCode, ReviewGateCode, ReviewPacketStatusCode, SiteFinanceLocalPersistenceRecords,
-    SiteFinanceOutcomeRecord, StoredSourceRecordRef, WorkflowResultStatusCode,
+    InternalHandoff, InternalHandoffTopic, ReviewGateCode, ReviewPacketStatusCode,
+    SiteFinanceLocalPersistenceRecords, SiteFinanceOutcomeRecord, StoredSourceRecordRef,
+    WorkflowResultStatusCode,
 };
 
 #[test]
@@ -51,12 +52,14 @@ fn approval_outbox_projection_preserves_shared_review_lifecycle_for_multiple_sli
                 "action_id": "dq-action-dq-missing-vaccine-42",
                 "live_side_effects_allowed": false
             }))
-            .outbox_topic("internal.data_quality_hygiene.reviewed_handoff".to_owned())
-            .outbox_payload(json!({
-                "action_id": "dq-action-dq-missing-vaccine-42",
-                "internal_handoff_only": true,
-                "live_delivery_allowed": false
-            }))
+            .internal_handoff(InternalHandoff::new(
+                InternalHandoffTopic::DataQualityHygieneReviewedHandoff,
+                json!({
+                    "action_id": "dq-action-dq-missing-vaccine-42",
+                    "internal_handoff_only": true,
+                    "live_delivery_allowed": false
+                }),
+            ))
             .build(),
     );
 
@@ -103,12 +106,14 @@ fn approval_outbox_projection_preserves_shared_review_lifecycle_for_multiple_sli
                 "legal_action": "record_reviewed_recommendation_only",
                 "payment_actions_allowed": false
             }))
-            .outbox_topic("internal.site_finance.reviewed_handoff".to_owned())
-            .outbox_payload(json!({
-                "recommendation_id": "site-finance-review:00c0ffee:2026-06",
-                "internal_handoff_only": true,
-                "live_delivery_allowed": false
-            }))
+            .internal_handoff(InternalHandoff::new(
+                InternalHandoffTopic::SiteFinanceReviewedHandoff,
+                json!({
+                    "recommendation_id": "site-finance-review:00c0ffee:2026-06",
+                    "internal_handoff_only": true,
+                    "live_delivery_allowed": false
+                }),
+            ))
             .build(),
     );
 
@@ -125,17 +130,7 @@ fn approval_outbox_projection_preserves_shared_review_lifecycle_for_multiple_sli
         assert_eq!(records.approval_record.status, "approved");
         assert_eq!(records.audit_events.len(), 2);
 
-        let outbox = records
-            .outbox_candidate
-            .as_ref()
-            .expect("completed reviewed slices should expose only internal handoff candidates");
-        assert_eq!(outbox.status(), OutboxStatusCode::Pending);
-        assert_eq!(outbox.approval_record_id(), records.approval_record.id);
-        assert_eq!(outbox.review_gate(), ReviewGateCode::ManagerApproval);
-        assert!(outbox.topic().starts_with("internal."));
-        assert!(!outbox.topic().contains("customer"));
-        assert!(!outbox.topic().contains("provider"));
-        assert_eq!(outbox.payload()["live_delivery_allowed"], false);
+        assert!(records.outbox_candidate().is_none());
     }
 }
 
@@ -163,8 +158,10 @@ fn approval_outbox_projection_keeps_unapproved_or_deferred_work_out_of_outbox() 
             .result_payload(json!({"reviewable_output_only": true}))
             .audit_action("data_quality_hygiene.review_pending".to_owned())
             .audit_metadata(json!({"live_side_effects_allowed": false}))
-            .outbox_topic("internal.data_quality_hygiene.reviewed_handoff".to_owned())
-            .outbox_payload(json!({"live_delivery_allowed": false}))
+            .internal_handoff(InternalHandoff::new(
+                InternalHandoffTopic::DataQualityHygieneReviewedHandoff,
+                json!({"live_delivery_allowed": false}),
+            ))
             .build(),
     );
 
@@ -180,7 +177,7 @@ fn approval_outbox_projection_keeps_unapproved_or_deferred_work_out_of_outbox() 
     assert_eq!(records.approval_record.decided_by_actor_kind, None);
     assert_eq!(records.approval_record.decided_by_actor_id, None);
     assert_eq!(records.approval_record.decided_at, None);
-    assert!(records.outbox_candidate.is_none());
+    assert!(records.outbox_candidate().is_none());
 }
 
 #[test]
@@ -218,8 +215,10 @@ fn approval_outbox_projection_records_rejection_evidence_without_approved_rows_o
             .result_payload(json!({"reviewable_output_only": true}))
             .audit_action("data_quality_hygiene.review_rejected".to_owned())
             .audit_metadata(json!({"live_side_effects_allowed": false}))
-            .outbox_topic("internal.data_quality_hygiene.reviewed_handoff".to_owned())
-            .outbox_payload(json!({"live_delivery_allowed": false}))
+            .internal_handoff(InternalHandoff::new(
+                InternalHandoffTopic::DataQualityHygieneReviewedHandoff,
+                json!({"live_delivery_allowed": false}),
+            ))
             .build(),
     );
 
@@ -244,7 +243,7 @@ fn approval_outbox_projection_records_rejection_evidence_without_approved_rows_o
         records.approval_record.decided_at.as_deref(),
         Some("2026-06-17T14:35:00Z")
     );
-    assert!(records.outbox_candidate.is_none());
+    assert!(records.outbox_candidate().is_none());
 }
 
 #[test]
@@ -279,12 +278,7 @@ fn site_finance_persistence_records_reuse_approval_outbox_spine_without_payment_
         records.approval_record.id
     );
 
-    let outbox = records
-        .outbox_candidate
-        .as_ref()
-        .expect("reviewed finance outcomes should create internal handoff candidates");
-    assert_eq!(outbox.topic(), "internal.site_finance.reviewed_handoff");
-    assert_eq!(outbox.payload()["live_delivery_allowed"], false);
+    assert!(records.outbox_candidate.is_none());
     assert_eq!(
         records.audit_events[1].metadata["payment_actions_allowed"],
         false
@@ -338,7 +332,7 @@ fn site_finance_value_claim_evidence_does_not_control_workflow_completion_or_man
         ReviewPacketStatusCode::Approved
     );
     assert_eq!(records.approval_record.status, "approved");
-    assert!(records.outbox_candidate.is_some());
+    assert!(records.outbox_candidate.is_none());
     assert_eq!(
         records.workflow_result.result["value_attribution"],
         "correlated_only"

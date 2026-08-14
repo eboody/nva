@@ -60,6 +60,9 @@
 //! # }
 //! ```
 
+#[cfg(test)]
+mod approval_outbox_authority_tests;
+
 use bon::Builder;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
@@ -101,6 +104,33 @@ pub enum Error {
         /// Human-readable reason explaining why the storage projection was unsafe.
         reason: String,
     },
+    #[error("current reviewer capability cannot authorize approval outbox admission: {reason:?}")]
+    /// The current reviewer, approved row, or bound internal handoff did not match.
+    ApprovalOutboxAuthority {
+        /// Stable mismatch category without leaking actor ids or payloads.
+        reason: ApprovalOutboxAuthorityMismatch,
+    },
+    #[error("approval already has a pending outbox admission")]
+    /// One projection attempted to consume more than one admission authority.
+    ApprovalOutboxAlreadyAdmitted,
+    #[error("approval has not admitted a pending outbox record")]
+    /// A worker-facing packet was requested before opaque authority admitted a pending row.
+    ApprovalOutboxNotAdmitted,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Stable reasons an approved persistence row cannot issue outbox admission authority.
+pub enum ApprovalOutboxAuthorityMismatch {
+    /// The supplied current role is not allowed to decide the approval gate.
+    CurrentRole,
+    /// The current actor is not the actor retained by the approval decision.
+    CurrentActor,
+    /// The persisted approval row is not approved.
+    ApprovalStatus,
+    /// Approval id, gate, or target differs across the approval and binding rows.
+    ApprovalRelation,
+    /// The requested closed topic or payload differs from the reviewed binding.
+    InternalHandoff,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -1786,10 +1816,86 @@ pub struct ApprovalOutboxProjectionInput {
     pub audit_action: String,
     /// Audit metadata proving review, source refs, and side-effect posture.
     pub audit_metadata: serde_json::Value,
-    /// Internal outbox topic produced only after approval.
-    pub outbox_topic: String,
-    /// Internal outbox payload produced only after approval.
-    pub outbox_payload: serde_json::Value,
+    /// Closed topic and exact payload reviewed for a possible internal handoff.
+    pub internal_handoff: InternalHandoff,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+/// Closed set of internal-only handoff topics accepted by storage and SQL.
+pub enum InternalHandoffTopic {
+    /// Reviewed data-quality work handed to an internal queue.
+    DataQualityHygieneReviewedHandoff,
+    /// Reviewed site-finance recommendation handed to an internal queue.
+    SiteFinanceReviewedHandoff,
+}
+
+impl InternalHandoffTopic {
+    /// Returns the exact stable SQL topic code.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::DataQualityHygieneReviewedHandoff => {
+                "internal.data_quality_hygiene.reviewed_handoff"
+            }
+            Self::SiteFinanceReviewedHandoff => "internal.site_finance.reviewed_handoff",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Exact closed topic and JSON payload presented to approval review.
+pub struct InternalHandoff {
+    topic: InternalHandoffTopic,
+    payload: serde_json::Value,
+}
+
+impl InternalHandoff {
+    /// Binds a reviewable payload to one closed internal topic.
+    pub const fn new(topic: InternalHandoffTopic, payload: serde_json::Value) -> Self {
+        Self { topic, payload }
+    }
+
+    /// Returns the closed internal handoff topic.
+    pub const fn topic(&self) -> InternalHandoffTopic {
+        self.topic
+    }
+
+    /// Returns the exact review-bound payload.
+    pub const fn payload(&self) -> &serde_json::Value {
+        &self.payload
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+/// Current authenticated reviewer capability projected into the storage boundary.
+///
+/// No production constructor is exposed. Live admission therefore remains
+/// unrepresentable until a trusted authentication adapter owns capability issuance;
+/// persisted approval evidence is deliberately not convertible into this capability.
+pub struct CurrentApprovalReviewerCapability {
+    actor_kind: ActorKindCode,
+    actor_id: String,
+}
+
+impl CurrentApprovalReviewerCapability {
+    /// Promotes a current staff/manager actor context into review capability.
+    #[cfg(test)]
+    fn try_new(actor_kind: ActorKindCode, actor_id: String) -> Result<Self> {
+        if !matches!(actor_kind, ActorKindCode::Staff | ActorKindCode::Manager) {
+            return Err(Error::ApprovalOutboxAuthority {
+                reason: ApprovalOutboxAuthorityMismatch::CurrentRole,
+            });
+        }
+        if actor_id.trim().is_empty() {
+            return Err(Error::ApprovalOutboxAuthority {
+                reason: ApprovalOutboxAuthorityMismatch::CurrentActor,
+            });
+        }
+        Ok(Self {
+            actor_kind,
+            actor_id,
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1881,10 +1987,6 @@ impl ApprovalReviewDisposition {
             Self::Pending => None,
             Self::Approved(evidence) | Self::Rejected(evidence) => Some(evidence),
         }
-    }
-
-    const fn is_approved(&self) -> bool {
-        matches!(self, Self::Approved(_))
     }
 
     fn authorized_for_projection(
@@ -2201,17 +2303,17 @@ pub struct AuditEventRecord {
     pub recorded_at: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Storage-shaped outbox candidate row; it is an approved local/internal handoff candidate, not a send.
-pub struct OutboxRecord {
+#[derive(Debug, PartialEq, Eq)]
+/// Pending storage row admitted by consuming one opaque approved internal-handoff authority.
+pub struct PendingOutboxRecord {
     /// Outbox primary key.
     id: String,
     /// Idempotency key for the candidate.
     idempotency_key: String,
     /// Matching approved approval record id.
     approval_record_id: String,
-    /// Internal topic only; no customer/provider/payment/schedule topics are produced here.
-    topic: String,
+    /// Closed internal topic; customer/provider/payment/schedule topics are unrepresentable.
+    topic: InternalHandoffTopic,
     /// Review gate matching the approval row.
     review_gate: ReviewGateCode,
     /// Aggregate kind matching the approval row.
@@ -2220,13 +2322,18 @@ pub struct OutboxRecord {
     aggregate_id: String,
     /// Candidate payload for local/internal handoff.
     payload: serde_json::Value,
-    /// Candidate status.
+    /// Candidate status, fixed privately at admission.
     status: OutboxStatusCode,
     /// Availability timestamp.
     available_at: String,
 }
 
-impl OutboxRecord {
+impl PendingOutboxRecord {
+    /// Consumes one opaque authority to create exactly one pending persistence row.
+    pub fn admit(authority: ApprovedInternalHandoffAuthority) -> Self {
+        authority.pending
+    }
+
     /// Durable identifier for the persisted internal handoff candidate.
     pub fn id(&self) -> &str {
         &self.id
@@ -2237,9 +2344,9 @@ impl OutboxRecord {
         &self.approval_record_id
     }
 
-    /// Internal-only topic retained by the persistence record.
-    pub fn topic(&self) -> &str {
-        &self.topic
+    /// Closed internal-only topic retained by the persistence record.
+    pub const fn topic(&self) -> InternalHandoffTopic {
+        self.topic
     }
 
     /// Review gate retained by the persistence record.
@@ -2248,7 +2355,7 @@ impl OutboxRecord {
     }
 
     /// Read-only payload retained as historical handoff evidence, not execution authority.
-    pub fn payload(&self) -> &serde_json::Value {
+    pub const fn payload(&self) -> &serde_json::Value {
         &self.payload
     }
 
@@ -2258,7 +2365,42 @@ impl OutboxRecord {
     }
 }
 
+/// Opaque, non-clone, non-serializable, one-shot authority for pending outbox admission.
+#[derive(Debug)]
+pub struct ApprovedInternalHandoffAuthority {
+    pending: PendingOutboxRecord,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Persisted relationship between one approval row and the exact reviewed handoff.
+pub struct ApprovalOutboxBindingRecord {
+    approval_record_id: String,
+    review_gate: ReviewGateCode,
+    aggregate_kind: String,
+    aggregate_id: String,
+    handoff: InternalHandoff,
+}
+
+impl ApprovalOutboxBindingRecord {
+    /// Approval row whose decision controls this binding.
+    pub fn approval_record_id(&self) -> &str {
+        &self.approval_record_id
+    }
+
+    /// Exact closed topic and payload presented during review.
+    pub const fn handoff(&self) -> &InternalHandoff {
+        &self.handoff
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct PendingOutboxIdentity {
+    id: String,
+    idempotency_key: String,
+    available_at: String,
+}
+
+#[derive(Debug, PartialEq, Eq)]
 /// Complete storage projection for one reviewed local Data-Quality Hygiene workflow outcome.
 pub struct DataQualityHygieneLocalPersistenceRecords {
     /// Workflow event row.
@@ -2274,10 +2416,10 @@ pub struct DataQualityHygieneLocalPersistenceRecords {
     /// Append-only audit rows for context creation and reviewed outcome capture.
     pub audit_events: Vec<AuditEventRecord>,
     /// Optional approved internal handoff candidate.
-    pub outbox_candidate: Option<OutboxRecord>,
+    pub outbox_candidate: Option<PendingOutboxRecord>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq)]
 /// Complete storage projection for one reviewed local site-finance workflow outcome.
 pub struct SiteFinanceLocalPersistenceRecords {
     /// Workflow event row.
@@ -2293,10 +2435,10 @@ pub struct SiteFinanceLocalPersistenceRecords {
     /// Append-only audit rows for context creation and reviewed outcome capture.
     pub audit_events: Vec<AuditEventRecord>,
     /// Optional approved internal handoff candidate.
-    pub outbox_candidate: Option<OutboxRecord>,
+    pub outbox_candidate: Option<PendingOutboxRecord>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq)]
 /// Complete shared storage projection for a reviewed local workflow handoff.
 ///
 /// This is the common approval/outbox spine proven by multiple vertical slices. Outcome
@@ -2313,8 +2455,12 @@ pub struct ApprovalOutboxProjection {
     pub approval_record: ApprovalRecordRow,
     /// Append-only audit rows for context creation and reviewed outcome capture.
     pub audit_events: Vec<AuditEventRecord>,
-    /// Optional approved internal handoff candidate.
-    pub outbox_candidate: Option<OutboxRecord>,
+    /// Exact topic/payload relation persisted before any admission is attempted.
+    pub outbox_binding: ApprovalOutboxBindingRecord,
+    /// Optional admitted pending handoff. The field remains private to prevent replacement.
+    outbox_candidate: Option<PendingOutboxRecord>,
+    expected_pending_outbox_identity: PendingOutboxIdentity,
+    admission_authority_available: bool,
 }
 
 impl ApprovalOutboxProjection {
@@ -2330,6 +2476,7 @@ impl ApprovalOutboxProjection {
             input.gate,
         );
         let decision_evidence = disposition.decision_evidence().cloned();
+        let internal_handoff = input.internal_handoff.clone();
         let workflow_event = WorkflowEventRecord {
             id: ids.workflow_event_id.clone(),
             workflow_name: input.workflow_name.clone(),
@@ -2418,18 +2565,18 @@ impl ApprovalOutboxProjection {
             },
         ];
 
-        let outbox_candidate = disposition.is_approved().then(|| OutboxRecord {
-            id: ids.outbox_record_id,
-            idempotency_key: format!("{}:internal-reviewed-handoff", ids.idempotency_key),
-            approval_record_id: ids.approval_record_id,
-            topic: input.outbox_topic,
+        let outbox_binding = ApprovalOutboxBindingRecord {
+            approval_record_id: ids.approval_record_id.clone(),
             review_gate: input.gate,
             aggregate_kind: input.target_kind,
             aggregate_id: ids.subject_id,
-            payload: input.outbox_payload,
-            status: OutboxStatusCode::Pending,
+            handoff: internal_handoff,
+        };
+        let expected_pending_outbox_identity = PendingOutboxIdentity {
+            id: ids.outbox_record_id,
+            idempotency_key: format!("{}:internal-reviewed-handoff", ids.idempotency_key),
             available_at: ids.recorded_at,
-        });
+        };
 
         Self {
             workflow_event,
@@ -2437,7 +2584,113 @@ impl ApprovalOutboxProjection {
             review_packet,
             approval_record,
             audit_events,
-            outbox_candidate,
+            outbox_binding,
+            outbox_candidate: None,
+            expected_pending_outbox_identity,
+            admission_authority_available: true,
+        }
+    }
+
+    /// Issues one opaque admission authority only when every current and persisted fact matches.
+    pub fn authorize_internal_handoff(
+        &mut self,
+        current_reviewer: &CurrentApprovalReviewerCapability,
+        requested_handoff: InternalHandoff,
+    ) -> Result<ApprovedInternalHandoffAuthority> {
+        if self.approval_record.status != "approved" {
+            return Err(Error::ApprovalOutboxAuthority {
+                reason: ApprovalOutboxAuthorityMismatch::ApprovalStatus,
+            });
+        }
+        if !reviewer_role_authorizes_gate(current_reviewer.actor_kind, self.approval_record.gate) {
+            return Err(Error::ApprovalOutboxAuthority {
+                reason: ApprovalOutboxAuthorityMismatch::CurrentRole,
+            });
+        }
+        if self.approval_record.decided_by_actor_kind != Some(current_reviewer.actor_kind)
+            || self.approval_record.decided_by_actor_id.as_deref()
+                != Some(current_reviewer.actor_id.as_str())
+        {
+            return Err(Error::ApprovalOutboxAuthority {
+                reason: ApprovalOutboxAuthorityMismatch::CurrentActor,
+            });
+        }
+        if self.outbox_binding.approval_record_id != self.approval_record.id
+            || self.outbox_binding.review_gate != self.approval_record.gate
+            || self.outbox_binding.aggregate_kind != self.approval_record.target_kind
+            || self.outbox_binding.aggregate_id != self.approval_record.target_id
+        {
+            return Err(Error::ApprovalOutboxAuthority {
+                reason: ApprovalOutboxAuthorityMismatch::ApprovalRelation,
+            });
+        }
+        if requested_handoff != self.outbox_binding.handoff {
+            return Err(Error::ApprovalOutboxAuthority {
+                reason: ApprovalOutboxAuthorityMismatch::InternalHandoff,
+            });
+        }
+        if !self.admission_authority_available {
+            return Err(Error::ApprovalOutboxAlreadyAdmitted);
+        }
+        self.admission_authority_available = false;
+        let identity = &self.expected_pending_outbox_identity;
+        Ok(ApprovedInternalHandoffAuthority {
+            pending: PendingOutboxRecord {
+                id: identity.id.clone(),
+                idempotency_key: identity.idempotency_key.clone(),
+                approval_record_id: self.outbox_binding.approval_record_id.clone(),
+                topic: self.outbox_binding.handoff.topic,
+                review_gate: self.outbox_binding.review_gate,
+                aggregate_kind: self.outbox_binding.aggregate_kind.clone(),
+                aggregate_id: self.outbox_binding.aggregate_id.clone(),
+                payload: self.outbox_binding.handoff.payload.clone(),
+                status: OutboxStatusCode::Pending,
+                available_at: identity.available_at.clone(),
+            },
+        })
+    }
+
+    /// Returns an admitted pending row without exposing replacement or publishing operations.
+    pub const fn outbox_candidate(&self) -> Option<&PendingOutboxRecord> {
+        self.outbox_candidate.as_ref()
+    }
+
+    /// Records the pending row produced by consuming this projection's one-shot authority.
+    pub fn record_pending_outbox(&mut self, pending: PendingOutboxRecord) -> Result<()> {
+        if self.outbox_candidate.is_some() {
+            return Err(Error::ApprovalOutboxAlreadyAdmitted);
+        }
+        if pending.id != self.expected_pending_outbox_identity.id
+            || pending.idempotency_key != self.expected_pending_outbox_identity.idempotency_key
+            || pending.available_at != self.expected_pending_outbox_identity.available_at
+            || pending.approval_record_id != self.outbox_binding.approval_record_id
+            || pending.review_gate != self.outbox_binding.review_gate
+            || pending.aggregate_kind != self.outbox_binding.aggregate_kind
+            || pending.aggregate_id != self.outbox_binding.aggregate_id
+        {
+            return Err(Error::ApprovalOutboxAuthority {
+                reason: ApprovalOutboxAuthorityMismatch::ApprovalRelation,
+            });
+        }
+        if pending.topic != self.outbox_binding.handoff.topic
+            || pending.payload != self.outbox_binding.handoff.payload
+        {
+            return Err(Error::ApprovalOutboxAuthority {
+                reason: ApprovalOutboxAuthorityMismatch::InternalHandoff,
+            });
+        }
+        self.outbox_candidate = Some(pending);
+        Ok(())
+    }
+}
+
+const fn reviewer_role_authorizes_gate(actor_kind: ActorKindCode, gate: ReviewGateCode) -> bool {
+    match gate {
+        ReviewGateCode::ManagerApproval
+        | ReviewGateCode::CustomerMessageApproval
+        | ReviewGateCode::RefundOrDepositException => matches!(actor_kind, ActorKindCode::Manager),
+        ReviewGateCode::MedicalDocumentReview | ReviewGateCode::BehaviorReview => {
+            matches!(actor_kind, ActorKindCode::Staff | ActorKindCode::Manager)
         }
     }
 }
@@ -2490,14 +2743,16 @@ impl SiteFinanceLocalPersistenceRecords {
                     "payment_actions_allowed": false,
                     "accounting_mutations_allowed": false,
                 }))
-                .outbox_topic("internal.site_finance.reviewed_handoff".to_owned())
-                .outbox_payload(json!({
-                    "recommendation_id": outcome.recommendation_id,
-                    "correlation_id": outcome.correlation_id,
-                    "source_refs": outcome.source_refs,
-                    "internal_handoff_only": true,
-                    "live_delivery_allowed": false,
-                }))
+                .internal_handoff(InternalHandoff::new(
+                    InternalHandoffTopic::SiteFinanceReviewedHandoff,
+                    json!({
+                        "recommendation_id": outcome.recommendation_id,
+                        "correlation_id": outcome.correlation_id,
+                        "source_refs": outcome.source_refs,
+                        "internal_handoff_only": true,
+                        "live_delivery_allowed": false,
+                    }),
+                ))
                 .build(),
         );
         let mut workflow_result = projection.workflow_result;
@@ -2514,7 +2769,7 @@ impl SiteFinanceLocalPersistenceRecords {
                 record: outcome,
             },
             audit_events: projection.audit_events,
-            outbox_candidate: projection.outbox_candidate,
+            outbox_candidate: None,
         }
     }
 }
@@ -2526,6 +2781,53 @@ fn data_quality_hygiene_review_disposition(
 }
 
 impl DataQualityHygieneLocalPersistenceRecords {
+    /// Consumes an admitted approval/outbox projection and joins the workflow-owned outcome row.
+    ///
+    /// The relation is checked before the private pending row crosses into the worker-facing
+    /// persistence packet. Callers cannot inject or replace a pending candidate directly.
+    pub fn from_admitted_projection(
+        projection: ApprovalOutboxProjection,
+        outcome: DataQualityHygieneOutcomeRow,
+    ) -> Result<Self> {
+        if outcome.workflow_event_id != projection.workflow_event.id
+            || outcome.approval_record_id != projection.approval_record.id
+        {
+            return Err(Error::ApprovalOutboxAuthority {
+                reason: ApprovalOutboxAuthorityMismatch::ApprovalRelation,
+            });
+        }
+        let expected_handoff = InternalHandoff::new(
+            InternalHandoffTopic::DataQualityHygieneReviewedHandoff,
+            json!({
+                "action_id": outcome.record.action_id,
+                "correlation_id": outcome.record.correlation_id,
+                "issue_refs": outcome.record.issue_refs,
+                "source_refs": outcome.record.source_refs,
+                "internal_handoff_only": true,
+                "live_delivery_allowed": false,
+            }),
+        );
+        if projection.workflow_event.workflow_name != "data-quality-hygiene"
+            || projection.outbox_binding.handoff != expected_handoff
+        {
+            return Err(Error::ApprovalOutboxAuthority {
+                reason: ApprovalOutboxAuthorityMismatch::InternalHandoff,
+            });
+        }
+        let outbox_candidate = projection
+            .outbox_candidate
+            .ok_or(Error::ApprovalOutboxNotAdmitted)?;
+        Ok(Self {
+            workflow_event: projection.workflow_event,
+            workflow_result: projection.workflow_result,
+            review_packet: projection.review_packet,
+            approval_record: projection.approval_record,
+            outcome,
+            audit_events: projection.audit_events,
+            outbox_candidate: Some(outbox_candidate),
+        })
+    }
+
     /// Projects a reviewed Data-Quality Hygiene outcome into storage-shaped MVP rows without enabling live side effects.
     pub fn from_reviewed_outcome(
         ids: DataQualityHygieneLineageIds,
@@ -2578,15 +2880,17 @@ impl DataQualityHygieneLocalPersistenceRecords {
                     "actual_minutes_saved": outcome.actual_minutes_saved(),
                     "live_side_effects_allowed": false,
                 }))
-                .outbox_topic("internal.data_quality_hygiene.reviewed_handoff".to_owned())
-                .outbox_payload(json!({
-                    "action_id": outcome.action_id,
-                    "correlation_id": outcome.correlation_id,
-                    "issue_refs": outcome.issue_refs,
-                    "source_refs": outcome.source_refs,
-                    "internal_handoff_only": true,
-                    "live_delivery_allowed": false,
-                }))
+                .internal_handoff(InternalHandoff::new(
+                    InternalHandoffTopic::DataQualityHygieneReviewedHandoff,
+                    json!({
+                        "action_id": outcome.action_id,
+                        "correlation_id": outcome.correlation_id,
+                        "issue_refs": outcome.issue_refs,
+                        "source_refs": outcome.source_refs,
+                        "internal_handoff_only": true,
+                        "live_delivery_allowed": false,
+                    }),
+                ))
                 .build(),
         );
         let mut workflow_result = projection.workflow_result;
@@ -2609,7 +2913,7 @@ impl DataQualityHygieneLocalPersistenceRecords {
                 record: outcome,
             },
             audit_events: projection.audit_events,
-            outbox_candidate: projection.outbox_candidate,
+            outbox_candidate: None,
         }
     }
 }
