@@ -10,5 +10,7 @@ build/
 .var/
 .artifacts/
 apps/staff-web/.artifacts/
+apps/staff-web/playwright-report/
+apps/staff-web/test-results/
 __pycache__/
 *.py[cod]

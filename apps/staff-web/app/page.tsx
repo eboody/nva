@@ -361,13 +361,13 @@ export default function Home() {
                     </div>
                     <dl className="source-event-proof-list">
                       <div><dt>source ref</dt><dd>{event.sourceRef}</dd></div>
-                      <div><dt>payload preview</dt><dd><pre className="payload-preview">{JSON.stringify(event.payloadPreview, null, 2)}</pre></dd></div>
+                      <div><dt>payload preview</dt><dd><pre className="payload-preview" tabIndex={0} aria-label={`${event.eventLabel} payload preview`}>{JSON.stringify(event.payloadPreview, null, 2)}</pre></dd></div>
                     </dl>
                   </details>
                 </article>
               ))}
             </div>
-            <div className="source-card-list">
+            <div className="source-card-list" tabIndex={0} aria-label="Source evidence cards">
               {sourceEvidenceCards.map((source) => (
                 <article className="source-card" key={source.id}>
                   <div className="source-title"><b>{source.title}</b><i>{source.readOnlyState}</i></div>
@@ -514,7 +514,7 @@ export default function Home() {
             </ol>
             {processorView !== "unavailable" ? (
               <div className="processor-output-grid">
-                <article className="processor-log-panel" aria-label="Structured Hermes processor logs">
+                <article className="processor-log-panel" aria-label="Structured Hermes processor logs" tabIndex={0}>
                   <b>structured log output · correlation_id {hermesProcessorPanel.correlationId}</b>
                   {hermesProcessorPanel.logLines.map((line) => (
                     <pre className={`processor-log-line ${line.level.toLowerCase()}`} key={line.event}>{JSON.stringify({ timestamp: line.timestamp, level: line.level, target: line.target, event: line.event, correlation_id: line.correlationId, summary: line.summary }, null, 2)}</pre>
