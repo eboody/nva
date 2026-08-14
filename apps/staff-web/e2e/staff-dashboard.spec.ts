@@ -44,6 +44,9 @@ test("API failure remains visible and fail-safe", async ({ page }) => {
 
 test("responsive dashboard does not overflow the viewport", async ({ page }) => {
   await page.goto("/");
+  await page.addStyleTag({
+    content: "body, button { font-family: monospace !important; }"
+  });
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 
   const dimensions = await page.evaluate(() => ({
