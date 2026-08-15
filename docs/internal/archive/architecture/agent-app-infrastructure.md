@@ -231,7 +231,7 @@ Hermes submits a draft/recommendation packet:
       "kind": "review_demand_against_staffing_plan",
       "rationale": "...",
       "source_refs": [],
-      "estimated_minutes_saved": 30,
+      "reported_estimated_minutes_difference": 30,
       "requires_review_gate": "manager_approval"
     }
   ]

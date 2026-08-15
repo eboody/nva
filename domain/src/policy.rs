@@ -137,9 +137,7 @@ pub struct VaccineRequirement {
 
 /// Group-play eligibility policies used to protect pet safety while avoiding unnecessary manual triage.
 pub mod play {
-    pub use eligibility::{
-        ConservativePolicy, Decision, Eligibility, IneligibilityReason, Policy, Reason,
-    };
+    pub use eligibility::{ConservativePolicy, Decision, IneligibilityReason, Policy, Reason};
 
     /// Decision record for whether a pet/service combination may enter group-play workflows.
     pub mod eligibility {
@@ -150,28 +148,43 @@ pub mod play {
         use super::super::ReviewGate;
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-        /// Group-play eligibility decision plus any review gate that must be satisfied first.
-        pub struct Decision {
-            /// Policy input eligibility used to explain or enforce an automation gate.
-            pub eligibility: Eligibility,
-            /// Policy input required review used to explain or enforce an automation gate.
-            pub required_review: Option<ReviewGate>,
+        /// Coherent group-play policy state.
+        ///
+        /// Each variant carries exactly the facts legal for that outcome, so persisted decisions
+        /// cannot claim eligibility while simultaneously requiring review.
+        pub enum Decision {
+            /// No conservative hard stop blocks group play.
+            Eligible {
+                /// Positive reason supporting eligibility.
+                reason: Reason,
+            },
+            /// A definitive policy condition blocks group play without a review path.
+            Ineligible {
+                /// Policy reason that blocks group play.
+                reason: IneligibilityReason,
+            },
+            /// Available evidence is insufficient for eligibility until a named review occurs.
+            ReviewRequired {
+                /// Evidence condition that requires review.
+                reason: IneligibilityReason,
+                /// Exact review gate needed before a later policy decision.
+                gate: ReviewGate,
+            },
         }
 
         impl Decision {
-            /// Reports whether the policy outcome allows the pet to be treated as a group-play candidate.
-            pub fn eligible_for_group_play(&self) -> bool {
-                matches!(self.eligibility, Eligibility::Eligible(_))
+            /// Serializable policy decisions remain candidate evidence, never operational eligibility.
+            pub const fn eligible_for_group_play(&self) -> bool {
+                false
             }
-        }
 
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-        /// Eligibility outcome produced by play-safety policy evaluation.
-        pub enum Eligibility {
-            /// Eligible outcome in the automation authority or human-review policy.
-            Eligible(Reason),
-            /// Ineligible outcome in the automation authority or human-review policy.
-            Ineligible(IneligibilityReason),
+            /// Returns the review gate only for the review-required state.
+            pub fn required_review(&self) -> Option<&ReviewGate> {
+                match self {
+                    Self::ReviewRequired { gate, .. } => Some(gate),
+                    Self::Eligible { .. } | Self::Ineligible { .. } => None,
+                }
+            }
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -222,20 +235,14 @@ pub mod play {
         impl Policy for ConservativePolicy {
             fn decide(&self, pet: &Pet, service: &ServiceKind) -> Decision {
                 if !matches!(service, ServiceKind::DayPlay | ServiceKind::Boarding) {
-                    return Decision {
-                        eligibility: Eligibility::Ineligible(
-                            IneligibilityReason::ServiceDoesNotRequireGroupPlay,
-                        ),
-                        required_review: None,
+                    return Decision::Ineligible {
+                        reason: IneligibilityReason::ServiceDoesNotRequireGroupPlay,
                     };
                 }
 
                 if pet.species != Species::Dog {
-                    return Decision {
-                        eligibility: Eligibility::Ineligible(
-                            IneligibilityReason::SpeciesReceivesIndividualPlay,
-                        ),
-                        required_review: None,
+                    return Decision::Ineligible {
+                        reason: IneligibilityReason::SpeciesReceivesIndividualPlay,
                     };
                 }
 
@@ -243,11 +250,9 @@ pub mod play {
                     pet.spay_neuter_status,
                     SpayNeuterStatus::Intact | SpayNeuterStatus::Unknown
                 ) {
-                    return Decision {
-                        eligibility: Eligibility::Ineligible(
-                            IneligibilityReason::SpayNeuterStatusRequiresReview,
-                        ),
-                        required_review: Some(ReviewGate::BehaviorReview),
+                    return Decision::ReviewRequired {
+                        reason: IneligibilityReason::SpayNeuterStatusRequiresReview,
+                        gate: ReviewGate::BehaviorReview,
                     };
                 }
 
@@ -261,17 +266,14 @@ pub mod play {
                 ) || pet.temperament.behavior_observations.iter().any(
                     crate::temperament::BehaviorObservation::indicates_behavior_review_evidence,
                 ) {
-                    return Decision {
-                        eligibility: Eligibility::Ineligible(
-                            IneligibilityReason::BehaviorFlagsRequireReview,
-                        ),
-                        required_review: Some(ReviewGate::BehaviorReview),
+                    return Decision::ReviewRequired {
+                        reason: IneligibilityReason::BehaviorFlagsRequireReview,
+                        gate: ReviewGate::BehaviorReview,
                     };
                 }
 
-                Decision {
-                    eligibility: Eligibility::Eligible(Reason::NoConservativeHardStop),
-                    required_review: None,
+                Decision::Eligible {
+                    reason: Reason::NoConservativeHardStop,
                 }
             }
         }
@@ -343,8 +345,8 @@ mod tests {
 
     fn dog(spay_neuter_status: SpayNeuterStatus) -> Pet {
         Pet {
-            id: PetId(Uuid::new_v4()),
-            customer_id: CustomerId(Uuid::new_v4()),
+            id: PetId::new(Uuid::new_v4()),
+            customer_id: CustomerId::new(Uuid::new_v4()),
             name: crate::pet::Name::try_new("Moose").expect("test pet name is valid"),
             species: Species::Dog,
             birth_date: None,
@@ -361,22 +363,28 @@ mod tests {
             play::ConservativePolicy.decide(&dog(SpayNeuterStatus::Intact), &ServiceKind::DayPlay);
         assert!(!decision.eligible_for_group_play());
         assert_eq!(
-            decision.eligibility,
-            play::Eligibility::Ineligible(
-                play::IneligibilityReason::SpayNeuterStatusRequiresReview
-            )
+            decision,
+            play::Decision::ReviewRequired {
+                reason: play::IneligibilityReason::SpayNeuterStatusRequiresReview,
+                gate: ReviewGate::BehaviorReview,
+            }
         );
-        assert_eq!(decision.required_review, Some(ReviewGate::BehaviorReview));
+        assert_eq!(
+            decision.required_review(),
+            Some(&ReviewGate::BehaviorReview)
+        );
     }
 
     #[test]
     fn neutered_dog_can_be_group_play_candidate() {
         let decision = play::ConservativePolicy
             .decide(&dog(SpayNeuterStatus::Neutered), &ServiceKind::DayPlay);
-        assert!(decision.eligible_for_group_play());
+        assert!(!decision.eligible_for_group_play());
         assert_eq!(
-            decision.eligibility,
-            play::Eligibility::Eligible(play::Reason::NoConservativeHardStop)
+            decision,
+            play::Decision::Eligible {
+                reason: play::Reason::NoConservativeHardStop,
+            }
         );
     }
 
@@ -391,10 +399,16 @@ mod tests {
 
         assert!(!decision.eligible_for_group_play());
         assert_eq!(
-            decision.eligibility,
-            play::Eligibility::Ineligible(play::IneligibilityReason::BehaviorFlagsRequireReview)
+            decision,
+            play::Decision::ReviewRequired {
+                reason: play::IneligibilityReason::BehaviorFlagsRequireReview,
+                gate: ReviewGate::BehaviorReview,
+            }
         );
-        assert_eq!(decision.required_review, Some(ReviewGate::BehaviorReview));
+        assert_eq!(
+            decision.required_review(),
+            Some(&ReviewGate::BehaviorReview)
+        );
     }
 
     #[test]
@@ -408,10 +422,16 @@ mod tests {
 
         assert!(!decision.eligible_for_group_play());
         assert_eq!(
-            decision.eligibility,
-            play::Eligibility::Ineligible(play::IneligibilityReason::BehaviorFlagsRequireReview)
+            decision,
+            play::Decision::ReviewRequired {
+                reason: play::IneligibilityReason::BehaviorFlagsRequireReview,
+                gate: ReviewGate::BehaviorReview,
+            }
         );
-        assert_eq!(decision.required_review, Some(ReviewGate::BehaviorReview));
+        assert_eq!(
+            decision.required_review(),
+            Some(&ReviewGate::BehaviorReview)
+        );
     }
 
     #[test]
@@ -423,10 +443,16 @@ mod tests {
 
         assert!(!decision.eligible_for_group_play());
         assert_eq!(
-            decision.eligibility,
-            play::Eligibility::Ineligible(play::IneligibilityReason::BehaviorFlagsRequireReview)
+            decision,
+            play::Decision::ReviewRequired {
+                reason: play::IneligibilityReason::BehaviorFlagsRequireReview,
+                gate: ReviewGate::BehaviorReview,
+            }
         );
-        assert_eq!(decision.required_review, Some(ReviewGate::BehaviorReview));
+        assert_eq!(
+            decision.required_review(),
+            Some(&ReviewGate::BehaviorReview)
+        );
     }
 
     #[test]
@@ -438,10 +464,16 @@ mod tests {
 
         assert!(!decision.eligible_for_group_play());
         assert_eq!(
-            decision.eligibility,
-            play::Eligibility::Ineligible(play::IneligibilityReason::BehaviorFlagsRequireReview)
+            decision,
+            play::Decision::ReviewRequired {
+                reason: play::IneligibilityReason::BehaviorFlagsRequireReview,
+                gate: ReviewGate::BehaviorReview,
+            }
         );
-        assert_eq!(decision.required_review, Some(ReviewGate::BehaviorReview));
+        assert_eq!(
+            decision.required_review(),
+            Some(&ReviewGate::BehaviorReview)
+        );
     }
 
     #[test]
@@ -451,10 +483,12 @@ mod tests {
 
         let decision = play::ConservativePolicy.decide(&pet, &ServiceKind::DayPlay);
 
-        assert!(decision.eligible_for_group_play());
+        assert!(!decision.eligible_for_group_play());
         assert_eq!(
-            decision.eligibility,
-            play::Eligibility::Eligible(play::Reason::NoConservativeHardStop)
+            decision,
+            play::Decision::Eligible {
+                reason: play::Reason::NoConservativeHardStop,
+            }
         );
     }
 
@@ -478,9 +512,15 @@ mod tests {
 
         assert!(!decision.eligible_for_group_play());
         assert_eq!(
-            decision.eligibility,
-            play::Eligibility::Ineligible(play::IneligibilityReason::BehaviorFlagsRequireReview)
+            decision,
+            play::Decision::ReviewRequired {
+                reason: play::IneligibilityReason::BehaviorFlagsRequireReview,
+                gate: ReviewGate::BehaviorReview,
+            }
         );
-        assert_eq!(decision.required_review, Some(ReviewGate::BehaviorReview));
+        assert_eq!(
+            decision.required_review(),
+            Some(&ReviewGate::BehaviorReview)
+        );
     }
 }

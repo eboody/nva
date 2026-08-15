@@ -87,7 +87,7 @@ Outcome capture is staff evidence only and returns the same blocked external act
 
 The first metric is minutes of manager/front-desk work avoided per operating day:
 
-`minutes_saved = before_minutes - after_minutes`
+`reported_estimated_minutes_difference = before_minutes - after_minutes`
 
 Initial executable contract estimates:
 

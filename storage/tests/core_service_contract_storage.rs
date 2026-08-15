@@ -1,7 +1,7 @@
 #[test]
 fn core_service_contract_records_roundtrip_between_storage_and_domain() {
     let domain_contracts = domain::operations::service_core::ServiceContracts::builder()
-        .location_id(domain::entities::LocationId(uuid::Uuid::nil()))
+        .location_id(domain::entities::LocationId::new(uuid::Uuid::from_u128(1)))
         .boarding(domain::boarding::Contract::standard_petsuites())
         .daycare(domain::daycare::Contract::standard_petsuites())
         .grooming(domain::grooming::Contract::standard_petsuites())

@@ -25,7 +25,7 @@
 //! assert_eq!(draft_request.review, messaging::ReviewPolicy::ManagerApprovalRequired);
 //!
 //! let reservation_update = draft_update::Request {
-//!     reservation_id: entities::reservation::Id(Uuid::from_u128(0x123)),
+//!     reservation_id: entities::reservation::Id::new(Uuid::from_u128(0x123)),
 //!     proposed_status: entities::reservation::Status::SpecialReview,
 //!     rationale: draft_update::Rationale::ManagerReviewRequired,
 //! };
@@ -176,18 +176,11 @@ pub mod availability {
         pub decision: Decision,
     }
 
-    impl Outcome {
-        /// Reports whether capacity was found without implying customer-visible confirmation.
-        pub fn is_available(&self) -> bool {
-            matches!(self.decision, Decision::Available { .. })
-        }
-    }
-
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     /// Availability result used to decide whether staff may review a draft offer.
     pub enum Decision {
         /// Capacity evidence exists for a reviewable booking offer.
-        Available {
+        ReportedAvailability {
             /// Why the adapter considers the requested service/date capacity available.
             reason: SuccessReason,
             /// Snapshot or hold identifier staff can inspect before relying on the result.

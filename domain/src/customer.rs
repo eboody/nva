@@ -214,38 +214,51 @@ pub mod intelligence {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    /// Opaque one-use authority from a trusted review boundary to accept one exact note.
+    pub struct NoteAcceptanceAuthority {
+        note_id: NoteId,
+        customer_id: entities::CustomerId,
+        reviewer: access::ActorId,
+        accepted_for: access::AllowedUse,
+        accepted_at: DateTime<Utc>,
+    }
+
     /// Accepted CRM note proof after review, scope, use, and interval checks.
+    ///
+    /// Accepted notes are intentionally non-cloneable and non-serializable. Historical
+    /// `StructuredNote` values remain observations; they cannot be promoted by rehydration.
     pub struct AcceptedNote {
         note: StructuredNote,
         accepted_for: access::AllowedUse,
+        accepted_at: DateTime<Utc>,
     }
 
     impl AcceptedNote {
-        /// Promotes a reviewed note only when it is accepted, current, scoped, and supports the use.
-        pub fn try_from_reviewed(
-            note: StructuredNote,
-            as_of: DateTime<Utc>,
-            allowed_use: access::AllowedUse,
-        ) -> Result<Self> {
-            if note.review_state() != ReviewState::Accepted || note.reviewed_by().is_none() {
+        /// Consumes exact trusted reviewer authority to promote one reviewed note.
+        pub fn accept(note: StructuredNote, authority: NoteAcceptanceAuthority) -> Result<Self> {
+            if note.id() != &authority.note_id
+                || note.customer_id() != authority.customer_id
+                || note.review_state() != ReviewState::Accepted
+                || note.reviewed_by() != Some(&authority.reviewer)
+            {
                 return Err(Error::NoteNotAccepted);
             }
-            if !note.effective_interval().contains(as_of) {
+            if !note.effective_interval().contains(authority.accepted_at) {
                 return Err(Error::EvidenceExpired);
             }
-            if !note.can_support(allowed_use) {
+            if !note.can_support(authority.accepted_for) {
                 return Err(Error::AllowedUseMismatch);
             }
-            match allowed_use {
+            match authority.accepted_for {
                 access::AllowedUse::MarketingCampaign
                     if note.visibility() != access::VisibilityScope::MarketingEligible =>
                 {
                     Err(Error::VisibilityUseMismatch)
                 }
-                _ => Ok(Self {
+                accepted_for => Ok(Self {
                     note,
-                    accepted_for: allowed_use,
+                    accepted_for,
+                    accepted_at: authority.accepted_at,
                 }),
             }
         }
@@ -262,7 +275,9 @@ pub mod intelligence {
 
         /// Returns whether this accepted note can support the use at the supplied time.
         pub fn supports(&self, allowed_use: access::AllowedUse, as_of: DateTime<Utc>) -> bool {
-            self.accepted_for == allowed_use && self.note.effective_interval().contains(as_of)
+            self.accepted_for == allowed_use
+                && as_of >= self.accepted_at
+                && self.note.effective_interval().contains(as_of)
         }
     }
 
@@ -324,8 +339,8 @@ pub mod intelligence {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
     /// Reviewed segment membership whose use permission must be derived from evidence and consent.
+    /// Membership is accepted state and is therefore non-cloneable and non-serializable.
     pub struct SegmentMembership {
         customer_id: entities::CustomerId,
         definition: SegmentDefinition,
@@ -378,6 +393,11 @@ pub mod intelligence {
             &self.definition
         }
 
+        /// Reviewed evidence bases supporting this membership.
+        pub fn basis(&self) -> &[SegmentBasis] {
+            &self.basis
+        }
+
         /// Accepted note evidence backing this membership.
         pub fn evidence(&self) -> &[AcceptedNote] {
             &self.evidence
@@ -389,45 +409,21 @@ pub mod intelligence {
         }
     }
 
-    impl<'de> Deserialize<'de> for SegmentMembership {
-        fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-        where
-            D: serde::Deserializer<'de>,
-        {
-            #[derive(Deserialize)]
-            struct RawSegmentMembership {
-                customer_id: entities::CustomerId,
-                definition: SegmentDefinition,
-                basis: Vec<SegmentBasis>,
-                effective_interval: EffectiveInterval,
-                evidence: Vec<AcceptedNote>,
-            }
-            let raw = RawSegmentMembership::deserialize(deserializer)?;
-            Self::try_new(
-                raw.customer_id,
-                raw.definition,
-                raw.basis,
-                raw.effective_interval,
-                raw.evidence,
-            )
-            .map_err(serde::de::Error::custom)
-        }
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
     /// Proof that a current segment membership may be used for a declared marketing action.
+    ///
+    /// This executable permission is intentionally opaque, non-cloneable, and non-serializable.
     pub struct MarketingUsePermission {
         customer_id: entities::CustomerId,
         segment: Segment,
         allowed_use: access::AllowedUse,
-        consent: communication::ConsentEvidence,
+        consent: communication::AcceptedConsent,
     }
 
     impl MarketingUsePermission {
         /// Derives marketing-use permission from current membership and exact consent evidence.
         pub fn try_from_membership(
             membership: &SegmentMembership,
-            consent: Option<communication::ConsentEvidence>,
+            consent: Option<communication::AcceptedConsent>,
             allowed_use: access::AllowedUse,
             as_of: DateTime<Utc>,
         ) -> Result<Self> {
@@ -440,9 +436,11 @@ pub mod intelligence {
                 return Err(Error::AllowedUseMismatch);
             }
             let consent = consent.ok_or(Error::MissingMarketingConsentEvidence)?;
-            if !consent.permits(
+            if !consent.permits_customer(
+                membership.customer_id(),
                 communication::Channel::Email,
                 communication::Purpose::MarketingRetention,
+                as_of,
             ) {
                 return Err(Error::MissingMarketingConsentEvidence);
             }
@@ -467,6 +465,97 @@ pub mod intelligence {
         /// Declared allowed use proven by this permission.
         pub const fn allowed_use(&self) -> access::AllowedUse {
             self.allowed_use
+        }
+
+        /// Historical source evidence retained behind this one accepted permission.
+        pub const fn consent_evidence(&self) -> &communication::ConsentEvidence {
+            self.consent.evidence()
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use chrono::{TimeZone, Utc};
+        use uuid::Uuid;
+
+        use super::*;
+        use crate::{consent, source};
+
+        #[test]
+        fn trusted_note_and_consent_acceptance_issue_exact_marketing_permission() {
+            let now = Utc.with_ymd_and_hms(2026, 8, 15, 12, 0, 0).unwrap();
+            let customer_id = entities::CustomerId::new(Uuid::from_u128(1));
+            let reviewer = access::ActorId::try_new("reviewer-1").unwrap();
+            let note_id = NoteId::try_new("note-1").unwrap();
+            let note = StructuredNote::builder()
+                .id(note_id.clone())
+                .customer_id(customer_id)
+                .kind(NoteKind::ServiceRecovery)
+                .body(NoteBody::try_new("Reviewed recovery context").unwrap())
+                .visibility(access::VisibilityScope::MarketingEligible)
+                .allowed_uses(vec![access::AllowedUse::MarketingCampaign])
+                .source(SignalSource::StaffObservation)
+                .confidence(identity::Confidence::High)
+                .review_state(ReviewState::Accepted)
+                .reviewed_by(reviewer.clone())
+                .effective_interval(
+                    EffectiveInterval::try_new(
+                        now - chrono::Duration::hours(1),
+                        Some(now + chrono::Duration::hours(1)),
+                    )
+                    .unwrap(),
+                )
+                .recorded_at(now - chrono::Duration::hours(2))
+                .build();
+            let accepted_note = AcceptedNote::accept(
+                note,
+                NoteAcceptanceAuthority {
+                    note_id,
+                    customer_id,
+                    reviewer,
+                    accepted_for: access::AllowedUse::MarketingCampaign,
+                    accepted_at: now,
+                },
+            )
+            .unwrap();
+            let membership = SegmentMembership::try_new(
+                customer_id,
+                SegmentDefinition::builder()
+                    .segment(Segment::ServiceRecoveryWatchlist)
+                    .version(SegmentVersion::try_new("v1").unwrap())
+                    .allowed_use(access::AllowedUse::MarketingCampaign)
+                    .visibility(access::VisibilityScope::MarketingEligible)
+                    .review_gate(policy::ReviewGate::ManagerApproval)
+                    .build(),
+                vec![SegmentBasis::ComplaintResolvedRecently],
+                EffectiveInterval::try_new(now, Some(now + chrono::Duration::minutes(1))).unwrap(),
+                vec![accepted_note],
+            )
+            .unwrap();
+            let source_record = source::RecordRef::new(
+                source::System::Crm,
+                source::record::Id::try_new("consent-1").unwrap(),
+            );
+            let consent = consent::ConsentEvidence::builder()
+                .channel(consent::Channel::Email)
+                .purpose(consent::Purpose::MarketingRetention)
+                .status(consent::ConsentStatus::Granted)
+                .source(source::System::Crm)
+                .subject(consent::Subject::Customer(customer_id))
+                .source_record(source_record)
+                .source_schema_version(source::SchemaVersion::try_new("v1").unwrap())
+                .effective_from(now - chrono::Duration::hours(1))
+                .build();
+            let accepted_consent = consent::issue_accepted_consent(consent).unwrap();
+
+            let permission = MarketingUsePermission::try_from_membership(
+                &membership,
+                Some(accepted_consent),
+                access::AllowedUse::MarketingCampaign,
+                now,
+            )
+            .unwrap();
+            assert_eq!(permission.customer_id(), customer_id);
         }
     }
 

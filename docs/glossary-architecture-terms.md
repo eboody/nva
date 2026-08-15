@@ -67,7 +67,7 @@ Where it appears: `README.md`; `storage/README.md`; `storage/src/lib.rs`; `stora
 
 Code-derived contract: `storage` owns storage-shaped records, stable persisted code values, JSON codecs, storage-side validated scalars, errors, and explicit promotion/demotion paths between persisted shapes and semantic `domain::*` values.
 
-Pet-resort operational meaning: it is the durable/auditable shape for facts the system needs to save or report: service-offering records, service-line contract records, technology ecosystem records, manager daily brief outcome records, source refs, and labor-savings evidence.
+Pet-resort operational meaning: it is the durable/auditable shape for facts the system needs to save or report: service-offering records, service-line contract records, technology ecosystem records, manager daily brief outcome records, source refs, and reported labor evidence.
 
 Why an operator should care: storage projections make review and reporting repeatable without asking staff to reinterpret raw provider payloads or mixed optional fields every time a workflow needs evidence.
 
@@ -77,7 +77,7 @@ Boundary and authority: persistence/projection boundary. It demotes domain value
 
 Evidence and review hooks: `storage/README.md` explains record/code/codec/error families; `storage/src/operations.rs` and `storage/src/service_line/*` hold the concrete records and conversions; `storage/tests` exercises storage contracts.
 
-Safe example: `storage::operations::ManagerDailyBriefOutcomeRecord` can store labor minutes, outcome, actor, source refs, reporting group, and savings evidence after review, but it is not the manager's policy decision itself.
+Safe example: `storage::operations::ManagerDailyBriefOutcomeRecord` can store labor minutes, outcome, actor, source refs, reporting group, and reported time evidence after review, but it is not the manager's policy decision itself.
 
 Suggested public wording: `storage` is the repo's persisted projection layer. It saves normalized records and stable codes with explicit conversion back to `domain` truth, so reporting and workflow evidence stay durable without turning database rows into policy.
 

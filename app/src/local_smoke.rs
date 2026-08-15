@@ -163,14 +163,14 @@ impl AsRef<str> for ReviewEvidenceRef {
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// Smoke confirmation draft used by the local smoke-test workflow; it exercises the local shell with deterministic fixtures and no external side effects.
 pub struct SmokeConfirmationDraft {
-    draft: booking_triage::ConfirmationDraft,
+    review_gate: booking_triage::ApprovalGate,
 }
 
 impl SmokeConfirmationDraft {
     /// Reports whether the local smoke-test workflow satisfies the requires customer message approval safety condition.
     pub const fn requires_customer_message_approval(&self) -> bool {
         matches!(
-            self.draft.approval_gate(),
+            self.review_gate,
             booking_triage::ApprovalGate::CustomerMessageApproval
         )
     }
@@ -213,10 +213,8 @@ pub struct CheckoutCompletion {
 
 impl CheckoutCompletion {
     /// Returns the status evidence available to local smoke-test review while leaving provider, customer, payment, and schedule systems unchanged.
-    pub fn status(&self) -> entities::reservation::Status {
-        self.packet
-            .suggested_reservation_status()
-            .expect("local smoke checkout completion should suggest checked-out status")
+    pub fn status(&self) -> Option<entities::reservation::Status> {
+        self.packet.suggested_reservation_status()
     }
 
     /// Returns the completion status evidence available to local smoke-test review while leaving provider, customer, payment, and schedule systems unchanged.
@@ -370,11 +368,11 @@ pub fn run_fixture(fixture_json: &str) -> Result<FullChainEvidence> {
     let vaccine_docs = build_vaccine_document(ids, occurred_at)?;
     let booking_packet = build_booking_packet(ids.reservation_id);
     let confirmation_draft = SmokeConfirmationDraft {
-        draft: booking_packet.confirmation_draft().clone(),
+        review_gate: booking_triage::ApprovalGate::CustomerMessageApproval,
     };
     let today_view = TodayView {
         reservation_labels: vec![reservation_label],
-        status: entities::reservation::Status::CheckedIn,
+        status: entities::reservation::Status::Requested,
     };
     let daily_update_preview = build_daily_update_preview(ids, &profile.pet.name, occurred_at)?;
     let checkout_completion = build_checkout_completion(ids, occurred_at)?;
@@ -387,7 +385,7 @@ pub fn run_fixture(fixture_json: &str) -> Result<FullChainEvidence> {
         ReviewEvidenceRef::new("vaccine_docs:medical_document_review_required"),
         ReviewEvidenceRef::new("confirmation:customer_message_approval_required"),
         ReviewEvidenceRef::new("daily_update:send_stub_blocked_until_human_approval"),
-        ReviewEvidenceRef::new("checkout_completion:customer_message_approval_required"),
+        ReviewEvidenceRef::new("checkout_completion:manager_review_required"),
     ];
 
     assert!(vaccine_docs.document.requires_human_review_before_use());
@@ -437,20 +435,22 @@ struct SmokeIds {
 impl SmokeIds {
     fn new() -> Self {
         Self {
-            location_id: entities::LocationId(Uuid::from_u128(
+            location_id: entities::LocationId::new(Uuid::from_u128(
                 0x0051_0CA1_0000_0000_0000_0000_0000_0001,
             )),
-            customer_id: entities::CustomerId(Uuid::from_u128(
+            customer_id: entities::CustomerId::new(Uuid::from_u128(
                 0x0051_0CA1_0000_0000_0000_0000_0000_0002,
             )),
-            pet_id: entities::PetId(Uuid::from_u128(0x0051_0CA1_0000_0000_0000_0000_0000_0003)),
-            reservation_id: entities::reservation::Id(Uuid::from_u128(
+            pet_id: entities::PetId::new(Uuid::from_u128(
+                0x0051_0CA1_0000_0000_0000_0000_0000_0003,
+            )),
+            reservation_id: entities::reservation::Id::new(Uuid::from_u128(
                 0x0051_0CA1_0000_0000_0000_0000_0000_0004,
             )),
-            document_id: entities::DocumentId(Uuid::from_u128(
+            document_id: entities::DocumentId::new(Uuid::from_u128(
                 0x0051_0CA1_0000_0000_0000_0000_0000_0005,
             )),
-            vaccine_record_id: entities::VaccineRecordId(Uuid::from_u128(
+            vaccine_record_id: entities::VaccineRecordId::new(Uuid::from_u128(
                 0x0051_0CA1_0000_0000_0000_0000_0000_0006,
             )),
         }
@@ -582,13 +582,7 @@ fn build_booking_packet(
     )
     .with_ai_recommendation(booking_triage::AiRecommendation::recommend_staff_confirmation(
         booking_triage::RecommendationText::try_new(
-            "Draft-only local smoke: deterministic gates permit staff to review an offer without mutating PMS records.",
-        )
-        .unwrap(),
-    ))
-    .with_confirmation_draft(booking_triage::ConfirmationDraft::new(
-        booking_triage::CustomerMessageDraft::try_new(
-            "Draft only: staff can review this local demo booking confirmation before any customer send.",
+            "Draft-only local smoke: deterministic evidence requires staff review and grants no offer or confirmation authority.",
         )
         .unwrap(),
     ))
@@ -600,7 +594,7 @@ fn build_daily_update_preview(
     occurred_at: DateTime<Utc>,
 ) -> Result<daily_update::MvpPreview> {
     let event = workflow::Event::try_new(
-        workflow::EventId(Uuid::from_u128(0x0051_0CA1_0000_0000_0000_0000_0000_0010)),
+        workflow::EventId::new(Uuid::from_u128(0x0051_0CA1_0000_0000_0000_0000_0000_0010)),
         workflow::EventType::DailyNoteCreated,
         occurred_at,
         entities::ActorRef::Staff {
@@ -619,7 +613,7 @@ fn build_daily_update_preview(
     )
     .map_err(invalid)?;
     let note = entities::CareNote::builder()
-        .id(entities::care_note::Id(Uuid::from_u128(
+        .id(entities::care_note::Id::new(Uuid::from_u128(
             0x0051_0CA1_0000_0000_0000_0000_0000_0011,
         )))
         .subject(entities::care_note::Subject::Reservation(

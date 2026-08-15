@@ -150,7 +150,7 @@ Fields to look for or require:
 - review gates and blocked action reasons;
 - requested side effects and validation result;
 - approval status, reviewer/actor/persona, timestamp, and decision reason;
-- disposition, feedback, actual minutes, before/after minutes, minutes saved or avoided, wrong-source findings, reporting group;
+- disposition, feedback, actual minutes, before/after minutes, reported time spent or estimate differences, wrong-source findings, reporting group;
 - `live_side_effects_allowed: false`, `outcome_persisted: false`, or equivalent proof when a blocked action was rejected.
 
 Recommended table:
@@ -160,7 +160,7 @@ Recommended table:
 | Source evidence | `RecordRef`, `Provenance`, source refs | The recommendation was grounded | Approval or completion |
 | Draft/recommendation | draft id, packet id, safe action list | Work product was prepared | Customer/provider/payment/schedule action happened |
 | Human approval | approval record, reviewer role, gate, status | The sensitive step was reviewed | Authority for unrelated steps |
-| Outcome/value | disposition, actual minutes, minutes saved, feedback, correlation id | Reviewed work and measured value | Guaranteed future ROI |
+| Outcome/value | disposition, actual minutes, reported time difference, feedback, correlation id | Reviewed work and measured value | Guaranteed future ROI |
 
 ## 10. Source/Rustdoc/test evidence links
 

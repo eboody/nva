@@ -17,7 +17,7 @@
 //! ])
 //! .unwrap();
 //! let request = boarding::capacity::Request::new(
-//!     entities::LocationId(Uuid::nil()),
+//!     entities::LocationId::new(uuid::Uuid::from_u128(1)),
 //!     entities::Species::Dog,
 //!     boarding::accommodation::Preference::Specific(boarding::accommodation::Kind::LuxuryDogSuite),
 //! );
@@ -300,9 +300,11 @@ impl Request {
 /// Capacity outcome an agent may present to staff when handling a boarding request.
 pub enum Decision {
     /// A compatible accommodation segment has at least one available room.
-    Available {
+    AvailableForReview {
         /// Accommodation that can be offered from the available source inventory.
         accommodation: accommodation::Kind,
+        /// Human approval required before inventory evidence can become an offer or confirmation.
+        review_gate: policy::ReviewGate,
     },
     /// Compatible accommodation exists but is currently full, so staff should route to waitlist.
     Waitlist {
@@ -329,10 +331,10 @@ impl Decision {
     /// Returns the human review gate required before staff override a denied capacity decision.
     pub fn required_review_gate(&self) -> Option<policy::ReviewGate> {
         match self {
-            Self::Deny { review_gate, .. } | Self::ReconciliationRequired { review_gate, .. } => {
-                Some(review_gate.clone())
-            }
-            Self::Available { .. } | Self::Waitlist { .. } => None,
+            Self::AvailableForReview { review_gate, .. }
+            | Self::Deny { review_gate, .. }
+            | Self::ReconciliationRequired { review_gate, .. } => Some(review_gate.clone()),
+            Self::Waitlist { .. } => None,
         }
     }
 }
@@ -393,8 +395,9 @@ impl Policy {
                 if segment.accommodation == wanted {
                     match segment.occupancy_state() {
                         OccupancyState::Available { .. } => {
-                            return Decision::Available {
+                            return Decision::AvailableForReview {
                                 accommodation: wanted,
+                                review_gate: policy::ReviewGate::ManagerApproval,
                             };
                         }
                         OccupancyState::Full => compatible_but_full = true,

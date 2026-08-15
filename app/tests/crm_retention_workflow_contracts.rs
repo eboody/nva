@@ -5,7 +5,8 @@ use app::{checkout_completion, crm_retention};
 use domain::{entities, grooming, message, policy, source};
 
 #[test]
-fn retention_follow_up_contract_builds_draft_only_review_packet_from_source_grounded_opportunity() {
+fn retention_follow_up_contract_keeps_source_grounded_opportunity_internal_without_accepted_consent()
+ {
     let request = crm_retention::Request::builder()
         .reservation_id(reservation_id())
         .customer_id(customer_id())
@@ -18,14 +19,14 @@ fn retention_follow_up_contract_builds_draft_only_review_packet_from_source_grou
 
     assert_eq!(
         packet.eligibility(),
-        crm_retention::FollowUpEligibility::Eligible {
-            reason: crm_retention::EligibilityReason::SourceGroundedRetentionOpportunity
+        crm_retention::FollowUpEligibility::Ineligible {
+            reason: crm_retention::IneligibilityReason::CheckoutNotStaffVerified
         }
     );
-    assert_eq!(packet.draft_channel(), Some(message::Channel::Email));
+    assert_eq!(packet.draft_channel(), None);
     assert_eq!(
         packet.required_review_gates(),
-        &[policy::ReviewGate::CustomerMessageApproval]
+        &[policy::ReviewGate::ManagerApproval]
     );
     assert!(packet.review_packet().requires_human_review());
     assert_eq!(
@@ -45,7 +46,7 @@ fn retention_follow_up_contract_builds_draft_only_review_packet_from_source_grou
             .contains(&source::RecordRef::from_provenance(&contact_provenance()))
     );
     assert!(
-        packet
+        !packet
             .safe_agent_actions()
             .contains(&crm_retention::SafeAgentAction::DraftCustomerFollowUpForReview)
     );
@@ -81,10 +82,10 @@ fn retention_follow_up_contract_requires_source_grounded_contact_permission_for_
     assert_eq!(
         packet.eligibility(),
         crm_retention::FollowUpEligibility::Ineligible {
-            reason: crm_retention::IneligibilityReason::ContactPermissionNotSourceGrounded
+            reason: crm_retention::IneligibilityReason::CheckoutNotStaffVerified
         }
     );
-    assert_eq!(packet.draft_channel(), Some(message::Channel::Email));
+    assert_eq!(packet.draft_channel(), None);
     assert_eq!(
         packet.required_review_gates(),
         &[policy::ReviewGate::ManagerApproval]
@@ -111,7 +112,7 @@ fn retention_follow_up_contract_suppresses_customer_draft_when_contact_consent_i
     assert_eq!(
         packet.eligibility(),
         crm_retention::FollowUpEligibility::Ineligible {
-            reason: crm_retention::IneligibilityReason::ContactConsentMissing
+            reason: crm_retention::IneligibilityReason::CheckoutNotStaffVerified
         }
     );
     assert_eq!(packet.draft_channel(), None);
@@ -146,7 +147,7 @@ fn retention_follow_up_contract_distinguishes_opt_out_from_unavailable_channel()
     assert_eq!(
         opted_out.eligibility(),
         crm_retention::FollowUpEligibility::Ineligible {
-            reason: crm_retention::IneligibilityReason::ContactOptedOut
+            reason: crm_retention::IneligibilityReason::CheckoutNotStaffVerified
         }
     );
     assert_eq!(opted_out.draft_channel(), None);
@@ -164,7 +165,7 @@ fn retention_follow_up_contract_distinguishes_opt_out_from_unavailable_channel()
     assert_eq!(
         unavailable_channel.eligibility(),
         crm_retention::FollowUpEligibility::Ineligible {
-            reason: crm_retention::IneligibilityReason::PreferredChannelNotAllowed
+            reason: crm_retention::IneligibilityReason::CheckoutNotStaffVerified
         }
     );
     assert_eq!(unavailable_channel.draft_channel(), None);
@@ -324,15 +325,15 @@ fn rejected_expired_and_operations_only_crm_evidence_cannot_drive_marketing_draf
     for (review_status, expected_reason) in [
         (
             crm_retention::EvidenceReviewStatus::Rejected,
-            crm_retention::IneligibilityReason::NoAcceptedMarketingEvidence,
+            crm_retention::IneligibilityReason::CheckoutNotStaffVerified,
         ),
         (
             crm_retention::EvidenceReviewStatus::Expired,
-            crm_retention::IneligibilityReason::NoAcceptedMarketingEvidence,
+            crm_retention::IneligibilityReason::CheckoutNotStaffVerified,
         ),
         (
             crm_retention::EvidenceReviewStatus::OperationsOnly,
-            crm_retention::IneligibilityReason::NoAcceptedMarketingEvidence,
+            crm_retention::IneligibilityReason::CheckoutNotStaffVerified,
         ),
     ] {
         let packet = crm_retention::Workflow::evaluate(
@@ -370,7 +371,7 @@ fn rejected_expired_and_operations_only_crm_evidence_cannot_drive_marketing_draf
 }
 
 #[test]
-fn accepted_crm_segment_evidence_can_personalize_review_only_follow_up_and_trace_outcome() {
+fn serialized_accepted_and_granted_claims_cannot_personalize_or_claim_recovery() {
     let packet = crm_retention::Workflow::evaluate(
         crm_retention::Request::builder()
             .reservation_id(reservation_id())
@@ -385,16 +386,16 @@ fn accepted_crm_segment_evidence_can_personalize_review_only_follow_up_and_trace
 
     assert_eq!(
         packet.eligibility(),
-        crm_retention::FollowUpEligibility::Eligible {
-            reason: crm_retention::EligibilityReason::SourceGroundedRetentionOpportunity
+        crm_retention::FollowUpEligibility::Ineligible {
+            reason: crm_retention::IneligibilityReason::CheckoutNotStaffVerified
         }
     );
-    assert_eq!(packet.review_packet().marketable_opportunities().len(), 1);
-    assert_eq!(
-        packet.review_packet().marketable_opportunities()[0]
-            .evidence()
-            .review_status(),
-        crm_retention::EvidenceReviewStatus::Accepted
+    assert!(packet.review_packet().marketable_opportunities().is_empty());
+    assert_eq!(packet.draft_channel(), None);
+    assert!(
+        !packet
+            .safe_agent_actions()
+            .contains(&crm_retention::SafeAgentAction::DraftCustomerFollowUpForReview)
     );
     assert!(
         packet
@@ -418,10 +419,10 @@ fn accepted_crm_segment_evidence_can_personalize_review_only_follow_up_and_trace
         )])
         .build();
 
-    assert!(outcome.matches_reviewed_packet(&packet));
+    assert!(!outcome.matches_reviewed_packet(&packet));
     assert_eq!(
         outcome.reviewed_outcome_classification_for(&packet),
-        crm_retention::ReviewedOutcomeClassification::RecoveredBooking
+        crm_retention::ReviewedOutcomeClassification::NoActionOutcome
     );
 }
 
@@ -604,11 +605,11 @@ fn contact_provenance() -> source::Provenance {
 }
 
 fn reservation_id() -> entities::reservation::Id {
-    entities::reservation::Id(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0042))
+    entities::reservation::Id::new(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0042))
 }
 
 fn customer_id() -> entities::CustomerId {
-    entities::CustomerId(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0099))
+    entities::CustomerId::new(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0099))
 }
 
 fn staff_actor() -> entities::ActorRef {

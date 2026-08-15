@@ -2,7 +2,6 @@ use std::collections::BTreeMap;
 
 use chrono::{TimeZone, Utc};
 use domain::{agent, audit, entities};
-use uuid::Uuid;
 
 #[test]
 fn audit_events_are_owned_by_the_audit_module_and_extension_labels_are_validated() {
@@ -19,7 +18,7 @@ fn audit_events_are_owned_by_the_audit_module_and_extension_labels_are_validated
         actor: entities::ActorRef::Agent {
             workflow: agent::Name::try_new("daily-update").unwrap(),
         },
-        subject: audit::Subject::Message(entities::MessageId(Uuid::from_u128(1))),
+        subject: audit::Subject::Message(entities::MessageId::new(uuid::Uuid::from_u128(1))),
         action,
         metadata,
     };

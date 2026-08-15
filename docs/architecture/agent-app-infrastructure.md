@@ -189,7 +189,7 @@ The app returns a typed context packet:
     "summarize_source_evidence",
     "rank_manager_actions",
     "draft_internal_tasks",
-    "estimate_labor_minutes_saved"
+    "report_labor_estimate_difference"
   ],
   "blocked_actions": [
     "change_staff_schedule",
@@ -231,7 +231,7 @@ Hermes submits a draft/recommendation packet:
       "kind": "review_demand_against_staffing_plan",
       "rationale": "...",
       "source_refs": [],
-      "estimated_minutes_saved": 30,
+      "reported_estimated_minutes_difference": 30,
       "requires_review_gate": "manager_approval"
     }
   ]
@@ -368,7 +368,7 @@ Concrete work:
    - draft is submitted;
    - app validates review gates/source refs;
    - outcome is captured;
-   - report shows estimated vs actual minutes saved.
+   - report shows reported estimates and reported actual minutes spent without deriving realized savings.
 
 ## Safety and ownership rules
 
@@ -405,7 +405,7 @@ This infrastructure is exactly that. It gives the repo reusable rails for:
 - regional exception reporting;
 - data-quality hygiene.
 
-The first workflow should be the one with the strongest current repo support: **Manager Daily Brief + labor minutes saved**. The broader product crosswalk lives in [../design/labor-cost-reduction-crosswalk.md](../design/labor-cost-reduction-crosswalk.md): use it to decide which future workflows deserve source/read-model work, deterministic app contracts, and review-gated agent loops next.
+The first workflow should be the one with the strongest current repo support: **Manager Daily Brief + labor reported time difference**. The broader product crosswalk lives in [../design/labor-cost-reduction-crosswalk.md](../design/labor-cost-reduction-crosswalk.md): use it to decide which future workflows deserve source/read-model work, deterministic app contracts, and review-gated agent loops next.
 
 ## Acceptance criteria for the infrastructure
 
@@ -430,7 +430,7 @@ Do not build:
 - unreviewed live customer sends;
 - unreviewed provider/PMS writes;
 - refund, discount, payment, or schedule mutation by agent output;
-- labor-savings claims without outcome capture.
+- labor-savings claims from serialized estimates or outcome capture.
 
 ## Future implementation plan sketch
 

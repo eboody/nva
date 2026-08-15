@@ -907,7 +907,7 @@ pub mod operating_window {
 /// use chrono::{NaiveDate, TimeZone, Utc};
 /// use domain::{entities, location, operations};
 ///
-/// let location_id = entities::LocationId(uuid::Uuid::nil());
+/// let location_id = entities::LocationId::new(uuid::Uuid::from_u128(1));
 /// let timezone = location::Timezone::try_new("America/Los_Angeles").unwrap();
 /// let local = operations::reporting_period::Period::local_operating_dates(
 ///     location_id,

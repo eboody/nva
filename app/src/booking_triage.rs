@@ -51,7 +51,7 @@
 //! assert!(deterministic.blocked_actions().contains(&triage::BlockedAction::MutateProviderRecord));
 //!
 //! let packet = triage::StaffEvaluationPacket::new(
-//!     domain::entities::reservation::Id(uuid::Uuid::from_u128(123)),
+//!     domain::entities::reservation::Id::new(uuid::Uuid::from_u128(123)),
 //!     deterministic,
 //! );
 //! let draft = triage::ConfirmationDraft::new(
@@ -633,6 +633,14 @@ impl DeterministicResult {
             .collect();
         approval_gates.sort_unstable();
         approval_gates.dedup();
+        if matches!(
+            recommended_status,
+            ReadinessBucket::ReadyForStaffApproval | ReadinessBucket::Offered
+        ) && !approval_gates.contains(&ApprovalGate::StaffApproval)
+        {
+            approval_gates.push(ApprovalGate::StaffApproval);
+            approval_gates.sort_unstable();
+        }
 
         let mut blocked_actions = vec![
             BlockedAction::ConfirmBooking,
@@ -712,22 +720,14 @@ impl DeterministicResult {
         &self.blocker_evidence
     }
 
-    /// Returns the staff may confirm without human gate value kept on this booking-readiness workflow object for staff review and agent context.
-    pub fn staff_may_confirm_without_human_gate(&self) -> bool {
-        matches!(
-            self.recommended_status,
-            ReadinessBucket::ReadyForStaffApproval
-        ) && self.approval_gates.is_empty()
+    /// Serializable rule results never authorize confirmation without an authenticated issuer.
+    pub const fn staff_may_confirm_without_human_gate(&self) -> bool {
+        false
     }
 
-    /// Returns the staff decision gate value kept on this booking-readiness workflow object for staff review and agent context.
+    /// Serializable readiness evidence remains review-packet-only.
     pub const fn staff_decision_boundary(&self) -> StaffDecisionBoundary {
-        match self.recommended_status {
-            ReadinessBucket::ReadyForStaffApproval | ReadinessBucket::Offered => {
-                StaffDecisionBoundary::DraftConfirmationAllowed
-            }
-            _ => StaffDecisionBoundary::ReviewPacketOnly,
-        }
+        StaffDecisionBoundary::ReviewPacketOnly
     }
 }
 
@@ -968,13 +968,14 @@ impl StaffEvaluationPacket {
     /// Returns the suggested status value kept on this booking-readiness workflow object for staff review and agent context.
     pub const fn suggested_status(&self) -> reservation_entity::Status {
         match self.deterministic_result.recommended_status {
-            ReadinessBucket::ReadyForStaffApproval => reservation_entity::Status::Offered,
+            ReadinessBucket::ReadyForStaffApproval | ReadinessBucket::Offered => {
+                reservation_entity::Status::Requested
+            }
             ReadinessBucket::MissingInfo => reservation_entity::Status::MissingInfo,
             ReadinessBucket::VaccinePending => reservation_entity::Status::VaccinePending,
             ReadinessBucket::SpecialReview => reservation_entity::Status::SpecialReview,
             ReadinessBucket::Waitlisted => reservation_entity::Status::Waitlisted,
-            ReadinessBucket::Offered => reservation_entity::Status::Offered,
-            ReadinessBucket::Confirmed => reservation_entity::Status::Offered,
+            ReadinessBucket::Confirmed => reservation_entity::Status::Requested,
             ReadinessBucket::Rejected => reservation_entity::Status::SpecialReview,
             ReadinessBucket::FailedSafely => reservation_entity::Status::SpecialReview,
         }
@@ -1046,47 +1047,29 @@ where
 }
 
 fn evaluate_reservation(reservation: &entities::Reservation) -> Vec<rule::Evaluation> {
-    if reservation.hard_stops().is_empty() && reservation.deposit_is_satisfied() {
-        return vec![rule::Evaluation::pass(
+    let mut evaluations = Vec::new();
+    if reservation.hard_stops().is_empty() {
+        evaluations.push(rule::Evaluation::pass(
             rule::Id::DateRangeAndServiceSupported,
             vec![
                 EvidenceRef::try_new("reservation:requested-without-hard-stops")
                     .expect("static evidence ref is valid"),
             ],
-        )];
+        ));
+    } else {
+        for hard_stop in reservation.hard_stops() {
+            evaluations.push(evaluate_hard_stop(hard_stop));
+        }
     }
 
-    let mut evaluations = Vec::new();
-    for hard_stop in reservation.hard_stops() {
-        evaluations.push(evaluate_hard_stop(hard_stop));
-    }
-    if !reservation.deposit_is_satisfied() {
-        evaluations.push(rule::Evaluation::needs_human_approval(review_finding(
-            rule::Id::DepositAndPricingRequirements,
-            FailureCode::DepositNotSatisfied,
-            ReadinessBucket::SpecialReview,
-            ApprovalGate::PaymentManagerApproval,
-            "deposit:missing-or-unverified",
-        )));
-    }
+    evaluations.push(rule::Evaluation::needs_human_approval(review_finding(
+        rule::Id::DepositAndPricingRequirements,
+        FailureCode::DepositNotSatisfied,
+        ReadinessBucket::SpecialReview,
+        ApprovalGate::PaymentManagerApproval,
+        "deposit:serialized-status-requires-authenticated-payment-authority",
+    )));
     evaluations
-}
-
-trait ReservationDepositReadiness {
-    fn deposit_is_satisfied(&self) -> bool;
-}
-
-impl ReservationDepositReadiness for entities::Reservation {
-    fn deposit_is_satisfied(&self) -> bool {
-        self.deposit().is_some_and(|deposit| {
-            matches!(
-                deposit.status(),
-                domain::payment::DepositStatus::Paid
-                    | domain::payment::DepositStatus::NotRequired
-                    | domain::payment::DepositStatus::WaivedByManager
-            )
-        })
-    }
 }
 
 fn evaluate_hard_stop(hard_stop: &entities::HardStop) -> rule::Evaluation {

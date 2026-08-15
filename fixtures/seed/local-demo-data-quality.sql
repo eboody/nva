@@ -15,7 +15,7 @@ WITH location_row AS (
         timezone = EXCLUDED.timezone,
         updated_at = now()
     RETURNING id
-), workflow_row AS (
+), workflow_row_inserted AS (
     INSERT INTO workflow_events (
         id,
         workflow_name,
@@ -28,13 +28,23 @@ WITH location_row AS (
     )
     VALUES (
         '10c0ffee-0000-0000-0000-000000000001',
-        'data-quality-hygiene',
+        'data_quality_hygiene',
         'context_created',
         'location',
         '00c0ffee-0000-0000-0000-000000000001',
         'local-demo:data-quality-hygiene:2026-06-17',
         jsonb_build_object(
             'correlation_id', 'data-quality-hygiene:local-demo:2026-06-17',
+            'location_id', '00c0ffee-0000-0000-0000-000000000001',
+            'operating_day', '2026-06-17',
+            'issue_refs', jsonb_build_array('synthetic-dq-001'),
+            'source_refs', jsonb_build_array(jsonb_build_object(
+                'system', 'gingr_snapshot_synthetic',
+                'record_type', 'vaccine_record',
+                'record_id', 'redacted-vaccine-row-001',
+                'observed_at', '2026-06-17T11:55:00Z',
+                'adapter_version', 'local-demo-adapter-v1'
+            )),
             'request_id', 'local-demo-read-model-seed',
             'safe_synthetic_data', true,
             'provider_writes_allowed', false,
@@ -42,10 +52,15 @@ WITH location_row AS (
         ),
         '2026-06-17T12:00:00Z'
     )
-    ON CONFLICT (idempotency_key) DO UPDATE
-    SET payload = EXCLUDED.payload
+    ON CONFLICT (idempotency_key) DO NOTHING
     RETURNING id
-), review_packet_row AS (
+), workflow_row AS (
+    SELECT id FROM workflow_row_inserted
+    UNION ALL
+    SELECT id FROM workflow_events
+    WHERE idempotency_key = 'local-demo:data-quality-hygiene:2026-06-17'
+    LIMIT 1
+), review_packet_row_inserted AS (
     INSERT INTO review_packets (
         id,
         subject_kind,
@@ -53,25 +68,30 @@ WITH location_row AS (
         gate,
         status,
         workflow_event_id,
+        reviewed_action_id,
         created_by_actor_kind,
         created_by_actor_id
     )
     VALUES (
         '20c0ffee-0000-0000-0000-000000000001',
-        'location',
-        '00c0ffee-0000-0000-0000-000000000001',
+        'message',
+        '40c0ffee-0000-0000-0000-000000000001',
         'manager_approval',
         'approved',
         (SELECT id FROM workflow_row),
+        'synthetic-data-quality-action-001',
         'manager',
         'synthetic-general-manager'
     )
-    ON CONFLICT (id) DO UPDATE
-    SET status = EXCLUDED.status,
-        workflow_event_id = EXCLUDED.workflow_event_id,
-        updated_at = now()
+    ON CONFLICT (id) DO NOTHING
     RETURNING id
-), approval_row AS (
+), review_packet_row AS (
+    SELECT id FROM review_packet_row_inserted
+    UNION ALL
+    SELECT id FROM review_packets
+    WHERE id = '20c0ffee-0000-0000-0000-000000000001'
+    LIMIT 1
+), approval_row_inserted AS (
     INSERT INTO approval_records (
         id,
         target_kind,
@@ -83,6 +103,7 @@ WITH location_row AS (
         requested_at,
         decided_by_actor_kind,
         decided_by_actor_id,
+        decided_by_actor_persona,
         decided_at,
         review_packet_id
     )
@@ -97,14 +118,18 @@ WITH location_row AS (
         '2026-06-17T12:05:00Z',
         'manager',
         'synthetic-general-manager',
+        'general_manager',
         '2026-06-17T12:10:00Z',
         (SELECT id FROM review_packet_row)
     )
-    ON CONFLICT (id) DO UPDATE
-    SET status = EXCLUDED.status,
-        review_packet_id = EXCLUDED.review_packet_id,
-        updated_at = now()
+    ON CONFLICT (id) DO NOTHING
     RETURNING id
+), approval_row AS (
+    SELECT id FROM approval_row_inserted
+    UNION ALL
+    SELECT id FROM approval_records
+    WHERE id = '30c0ffee-0000-0000-0000-000000000001'
+    LIMIT 1
 )
 INSERT INTO audit_events (
     id,
@@ -199,7 +224,7 @@ VALUES
         'front_desk_lead',
         'manager_approval',
         'open',
-        '[{"source_system":"gingr_snapshot_synthetic","source_record_ref":"redacted-vaccine-row-001","raw_payload":"redacted"}]'::jsonb,
+        '[{"system":"gingr_snapshot_synthetic","record_type":"vaccine_record","record_id":"redacted-vaccine-row-001","observed_at":"2026-06-17T11:55:00Z","adapter_version":"local-demo-adapter-v1"}]'::jsonb,
         '10c0ffee-0000-0000-0000-000000000001'
     ),
     (
@@ -218,7 +243,7 @@ VALUES
         'front_desk_agent',
         'manager_approval',
         'acknowledged',
-        '[{"source_system":"gingr_snapshot_synthetic","source_record_ref":"redacted-customer-row-014","raw_payload":"redacted"}]'::jsonb,
+        '[{"system":"gingr_snapshot_synthetic","record_type":"customer_profile","record_id":"redacted-customer-row-014","observed_at":"2026-06-17T11:55:00Z","adapter_version":"local-demo-adapter-v1"}]'::jsonb,
         '10c0ffee-0000-0000-0000-000000000001'
     )
 ON CONFLICT (issue_ref) DO UPDATE
@@ -241,7 +266,7 @@ INSERT INTO data_quality_hygiene_outcomes (
     action_kind,
     before_minutes,
     actual_minutes,
-    estimated_minutes_saved,
+    reported_estimated_minutes_difference,
     location_id,
     operating_day,
     source_refs,
@@ -254,8 +279,8 @@ VALUES (
     '30c0ffee-0000-0000-0000-000000000001',
     'synthetic-data-quality-action-001',
     'completed',
-    'front-desk-lead-synthetic',
-    'front_desk_lead',
+    'synthetic-general-manager',
+    'general_manager',
     'Prepared manager-reviewed cleanup handoff without mutating Gingr or messaging a customer.',
     '["synthetic-dq-001"]'::jsonb,
     'acknowledged',
@@ -266,15 +291,11 @@ VALUES (
     21,
     '00c0ffee-0000-0000-0000-000000000001',
     '2026-06-17',
-    '[{"source_system":"gingr_snapshot_synthetic","source_record_ref":"redacted-vaccine-row-001","raw_payload":"redacted"}]'::jsonb,
+    '[{"system":"gingr_snapshot_synthetic","record_type":"vaccine_record","record_id":"redacted-vaccine-row-001","observed_at":"2026-06-17T11:55:00Z","adapter_version":"local-demo-adapter-v1"}]'::jsonb,
     'data-quality-hygiene:local-demo:2026-06-17',
     '2026-06-17T13:15:00Z'
 )
-ON CONFLICT (action_id) DO UPDATE
-SET outcome = EXCLUDED.outcome,
-    actual_minutes = EXCLUDED.actual_minutes,
-    issue_refs = EXCLUDED.issue_refs,
-    source_refs = EXCLUDED.source_refs;
+ON CONFLICT (action_id) DO NOTHING;
 
 INSERT INTO sync_gaps (
     id,

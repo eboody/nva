@@ -44,7 +44,7 @@ The current runnable slice is Data-Quality Hygiene. From the repo root, run the 
 ./scripts/demo_owned_operations_api.sh
 ```
 
-Expected anchors include `openapi_title=NVA Pet Resorts Owned Operations API`, `openapi_paths=8`, `contract_lane_ok live_side_effects_allowed=false`, `context_ok workflow=data-quality-hygiene actions=1 estimated_minutes_saved=15 live_side_effects_allowed=false`, `draft_validation_ok accepted_actions=1 requested_side_effects=0`, `blocked_draft_validation_ok blocked_side_effect=send_customer_message`, `outcome_ok estimated_minutes_saved=15 actual_minutes_saved=17 live_side_effects_allowed=false`, `smoke_assertions_ok estimated_minutes_saved=15 actual_minutes_saved=17`, the worker test summary `test result: ok. 5 passed; 0 failed`, and `demo_owned_operations_api_ok local_fixture_only=true live_side_effects_allowed=false`.
+Expected anchors include `openapi_title=NVA Pet Resorts Owned Operations API`, `openapi_paths=8`, `contract_lane_ok live_side_effects_allowed=false`, `context_ok workflow=data-quality-hygiene actions=1 reported_estimated_minutes_difference=15 live_side_effects_allowed=false`, `draft_validation_ok accepted_actions=1 requested_side_effects=0`, `blocked_draft_validation_ok blocked_side_effect=send_customer_message`, `outcome_ok reported_estimated_minutes_difference=15 actual_minutes_saved=17 live_side_effects_allowed=false`, `smoke_assertions_ok reported_estimated_minutes_difference=15 actual_minutes_saved=17`, the worker test summary `test result: ok. 5 passed; 0 failed`, and `demo_owned_operations_api_ok local_fixture_only=true live_side_effects_allowed=false`.
 
 If you want to run the workflow and operations lanes separately:
 

@@ -3,7 +3,7 @@ use domain::{analytics, data_quality, entities, operations, source};
 use uuid::Uuid;
 
 fn location_id() -> entities::LocationId {
-    entities::LocationId(Uuid::parse_str("11111111-1111-4111-8111-111111111111").unwrap())
+    entities::LocationId::new(Uuid::parse_str("11111111-1111-4111-8111-111111111111").unwrap())
 }
 
 #[test]

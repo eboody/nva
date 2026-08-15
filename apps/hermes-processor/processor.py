@@ -107,9 +107,9 @@ def _build_output(data: dict[str, Any], hermes_cli_path: str | None, mode: str) 
     inputs = data["calculation_inputs"]
     before = int(inputs["manual_morning_scan_minutes"])
     after = int(inputs["reviewed_packet_minutes"])
-    minutes_saved = before - after
-    if minutes_saved <= 0:
-        raise ProcessorError("estimated_labor_minutes_saved_must_be_positive")
+    reported_estimated_minutes_difference = before - after
+    if reported_estimated_minutes_difference <= 0:
+        raise ProcessorError("reported_estimated_labor_minutes_difference_must_be_positive")
 
     runtime_status = "hermes_cli_available" if hermes_cli_path else "hermes_cli_unavailable_explicit_fallback"
     simulation_label = None if hermes_cli_path else (
@@ -144,7 +144,7 @@ def _build_output(data: dict[str, Any], hermes_cli_path: str | None, mode: str) 
             "normalized_facts": inputs["normalized_fact_count"],
             "workflow_packets": inputs["workflow_packet_count"],
             "review_gates": inputs["review_gate_count"],
-            "estimated_labor_minutes_saved": minutes_saved,
+            "reported_estimated_labor_minutes_difference": reported_estimated_minutes_difference,
             "expression": f"{before} minute manual morning scan - {after} minute reviewed packet",
         },
         "review_gates": [
@@ -160,7 +160,7 @@ def _build_output(data: dict[str, Any], hermes_cli_path: str | None, mode: str) 
                 f"{inputs['normalized_fact_count']} normalized facts, "
                 f"{inputs['workflow_packet_count']} workflow packet, "
                 f"{inputs['review_gate_count']} review locks, "
-                f"{minutes_saved} estimated labor minutes saved"
+                f"{reported_estimated_minutes_difference} reported estimated labor minute difference"
             ),
             "manager_actions": [
                 {
@@ -218,7 +218,7 @@ def _write_logs(path: Path, data: dict[str, Any], output: dict[str, Any]) -> Non
             "correlation_id": data["correlation_id"],
             "event": "manager_daily_report_enriched",
             "artifact_ref": output["final_report"]["artifact_ref"],
-            "estimated_labor_minutes_saved": output["calculations"]["estimated_labor_minutes_saved"],
+            "reported_estimated_labor_minutes_difference": output["calculations"]["reported_estimated_labor_minutes_difference"],
         },
     ]
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -253,7 +253,7 @@ def main() -> int:
             "output": str(output_path),
             "logs": str(log_path),
             "runtime_status": output["processor"]["runtime_status"],
-            "estimated_labor_minutes_saved": output["calculations"]["estimated_labor_minutes_saved"],
+            "reported_estimated_labor_minutes_difference": output["calculations"]["reported_estimated_labor_minutes_difference"],
         }), end="")
         return 0
     except ProcessorError as exc:

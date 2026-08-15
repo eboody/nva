@@ -12,7 +12,7 @@
 //!
 //! let brief = daily_brief::Resort {
 //!     operating_day: daily_brief::ResortOperatingDay {
-//!         location_id: entities::LocationId(uuid::Uuid::nil()),
+//!         location_id: entities::LocationId::new(uuid::Uuid::from_u128(1)),
 //!         date: chrono::NaiveDate::from_ymd_opt(2026, 6, 18).unwrap(),
 //!         snapshot_id: daily_brief::snapshot::Id::try_new("loc-1-2026-06-18").unwrap(),
 //!     },

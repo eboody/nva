@@ -3,7 +3,7 @@ use domain::{entities, location, money, operations, strategic_ai_ops as ops};
 use uuid::Uuid;
 
 fn location_id() -> entities::LocationId {
-    entities::LocationId(Uuid::from_u128(0x170))
+    entities::LocationId::new(Uuid::from_u128(0x170))
 }
 
 #[test]
@@ -85,17 +85,20 @@ fn basis_points_confidence_and_outcome_values_reject_wrong_units_and_invalid_bou
         ops::identity::Confidence::Low
     );
 
-    let minutes =
-        ops::outcome::MetricValue::labor_minutes_saved(ops::labor::Minutes::try_new(15).unwrap());
+    let minutes = ops::outcome::MetricValue::reported_labor_minutes_difference(
+        ops::labor::Minutes::try_new(15).unwrap(),
+    );
     let revenue = ops::outcome::MetricValue::revenue(money::Money::usd(12_500).unwrap());
     let utilization = ops::outcome::MetricValue::utilization_basis_points(
         money::BasisPoints::try_new(125).unwrap(),
     );
 
-    assert!(minutes.matches_metric(ops::outcome::Metric::LaborMinutesSaved));
-    assert!(revenue.matches_metric(ops::outcome::Metric::Revenue));
-    assert!(utilization.matches_metric(ops::outcome::Metric::UtilizationBasisPoints));
-    assert!(!revenue.matches_metric(ops::outcome::Metric::LaborMinutesSaved));
+    assert!(minutes.matches_metric(ops::outcome::Metric::ReportedLaborMinutesDifference));
+    assert!(revenue.matches_metric(ops::outcome::Metric::ReportedRevenueObservation));
+    assert!(
+        utilization.matches_metric(ops::outcome::Metric::ReportedUtilizationBasisPointsObservation)
+    );
+    assert!(!revenue.matches_metric(ops::outcome::Metric::ReportedLaborMinutesDifference));
 }
 
 #[test]
@@ -128,10 +131,10 @@ fn strategic_outcome_records_reject_metric_value_unit_mismatches() {
         ops::outcome::Id::try_new("outcome-labor-42").unwrap(),
         ops::outcome::Workstream::CapacityLabor,
         location_id(),
-        ops::outcome::Metric::LaborMinutesSaved,
+        ops::outcome::Metric::ReportedLaborMinutesDifference,
         ops::outcome::MetricValue::revenue(money::Money::usd(25_000).unwrap()),
         ops::outcome::MetricValue::revenue(money::Money::usd(30_000).unwrap()),
-        ops::outcome::Attribution::ReviewedAction,
+        ops::outcome::Attribution::ReportedReviewedAction,
         ops::source::System::Crm,
         Utc.with_ymd_and_hms(2026, 8, 12, 16, 0, 0).unwrap(),
     );

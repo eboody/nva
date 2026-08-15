@@ -6,15 +6,15 @@ use domain::{
 use uuid::Uuid;
 
 fn location_id() -> entities::LocationId {
-    entities::LocationId(Uuid::from_u128(0x170))
+    entities::LocationId::new(Uuid::from_u128(0x170))
 }
 
 fn customer_id() -> entities::CustomerId {
-    entities::CustomerId(Uuid::from_u128(0xc0570))
+    entities::CustomerId::new(Uuid::from_u128(0xc0570))
 }
 
 fn pet_id() -> entities::PetId {
-    entities::PetId(Uuid::from_u128(0x0d06))
+    entities::PetId::new(Uuid::from_u128(0x0d06))
 }
 
 #[test]
@@ -59,17 +59,15 @@ fn realtime_lead_model_tracks_sla_contact_attempts_consent_and_conversion_attrib
     let packet = lead::response::ResponsePacket::builder()
         .event(event)
         .sla(sla)
-        .consent(
-            consent::ConsentEvidence::builder()
-                .channel(consent::Channel::Sms)
-                .purpose(consent::Purpose::TransactionalLeadResponse)
-                .status(consent::ConsentStatus::Granted)
-                .source(source::System::Crm)
-                .build(),
-        )
+        .consent(lead_consent(
+            received_at,
+            consent::Channel::Sms,
+            consent::Purpose::TransactionalLeadResponse,
+            consent::ConsentStatus::Granted,
+        ))
         .attempts(vec![attempt])
         .attribution(
-            lead::response::ConversionAttribution::builder()
+            lead::response::ConversionObservation::builder()
                 .source(lead::response::AttributionSource::MissedCall)
                 .estimated_value(money(45_000))
                 .build(),
@@ -131,12 +129,12 @@ fn lead_response_packet_rejects_channel_purpose_mismatch_or_opt_out() {
     assert!(matches!(
         lead_response_packet_with_consent(
             received_at,
-            consent::ConsentEvidence::builder()
-                .channel(consent::Channel::Email)
-                .purpose(consent::Purpose::TransactionalLeadResponse)
-                .status(consent::ConsentStatus::Granted)
-                .source(source::System::Crm)
-                .build(),
+            lead_consent(
+                received_at,
+                consent::Channel::Email,
+                consent::Purpose::TransactionalLeadResponse,
+                consent::ConsentStatus::Granted,
+            ),
             vec![attempt.clone()],
         ),
         Err(lead::response::Error::ConsentDoesNotCoverAttempt)
@@ -144,12 +142,12 @@ fn lead_response_packet_rejects_channel_purpose_mismatch_or_opt_out() {
     assert!(matches!(
         lead_response_packet_with_consent(
             received_at,
-            consent::ConsentEvidence::builder()
-                .channel(consent::Channel::Sms)
-                .purpose(consent::Purpose::TransactionalLeadResponse)
-                .status(consent::ConsentStatus::OptedOut)
-                .source(source::System::Crm)
-                .build(),
+            lead_consent(
+                received_at,
+                consent::Channel::Sms,
+                consent::Purpose::TransactionalLeadResponse,
+                consent::ConsentStatus::OptedOut,
+            ),
             vec![attempt],
         ),
         Err(lead::response::Error::ConsentDoesNotCoverAttempt)
@@ -179,7 +177,7 @@ fn lead_response_packet_rejects_empty_attempts_at_builder_and_serde_boundaries()
 }
 
 #[test]
-fn lead_response_queueable_contact_requires_matching_review_and_message_linkage() {
+fn lead_response_review_evidence_remains_serializable_without_queue_authority() {
     let received_at = Utc.with_ymd_and_hms(2026, 8, 12, 14, 0, 0).unwrap();
     let message_ref = domain::message::BodyRef::try_new("draft-body-42").unwrap();
     let packet = lead_response_packet_with(
@@ -191,22 +189,7 @@ fn lead_response_queueable_contact_requires_matching_review_and_message_linkage(
     )
     .unwrap();
 
-    let wrong_review = lead::response::ReviewApproval::builder()
-        .gate(policy::ReviewGate::CustomerMessageApproval)
-        .location_id(location_id())
-        .customer_id(customer_id())
-        .service_intent(entities::ServiceKind::Boarding)
-        .channel(consent::Channel::Email)
-        .purpose(consent::Purpose::TransactionalLeadResponse)
-        .message_ref(message_ref.clone())
-        .build();
-
-    assert!(matches!(
-        lead::response::QueueableContact::try_from_review(&packet, wrong_review),
-        Err(lead::response::Error::ReviewApprovalDoesNotMatchPacket)
-    ));
-
-    let approved = lead::response::ReviewApproval::builder()
+    let review_evidence = lead::response::ReviewApprovalEvidence::builder()
         .gate(policy::ReviewGate::CustomerMessageApproval)
         .location_id(location_id())
         .customer_id(customer_id())
@@ -216,18 +199,14 @@ fn lead_response_queueable_contact_requires_matching_review_and_message_linkage(
         .message_ref(message_ref)
         .build();
 
-    let queueable = lead::response::QueueableContact::try_from_review(&packet, approved).unwrap();
-    assert_eq!(
-        queueable.action(),
-        lead::response::LegalContactAction::QueueOnly
-    );
-    assert!(queueable.live_send_is_unavailable());
+    assert!(serde_json::to_value(review_evidence).is_ok());
+    assert!(packet.requires_customer_message_approval());
 }
 
 #[test]
-fn lead_response_conversion_attribution_requires_converted_reservation_evidence() {
+fn lead_response_booking_observation_requires_reservation_evidence_and_stays_nonclaimable() {
     assert!(matches!(
-        lead::response::ConversionAttribution::try_converted(
+        lead::response::ConversionObservation::try_reported_booking_observation(
             lead::response::AttributionSource::MissedCall,
             None,
             None,
@@ -235,6 +214,15 @@ fn lead_response_conversion_attribution_requires_converted_reservation_evidence(
         ),
         Err(lead::response::Error::ConvertedLeadRequiresReservation)
     ));
+
+    let observation = lead::response::ConversionObservation::try_reported_booking_observation(
+        lead::response::AttributionSource::MissedCall,
+        None,
+        Some(entities::reservation::Id::new(Uuid::from_u128(99))),
+        Some(money(45_000)),
+    )
+    .unwrap();
+    assert!(!observation.can_support_value_claim());
 }
 
 #[test]
@@ -310,186 +298,47 @@ fn crm_intelligence_model_separates_operations_personalization_from_marketing_se
         .recorded_at(now)
         .build();
 
-    let accepted = customer::intelligence::AcceptedNote::try_from_reviewed(
-        note.clone(),
-        now,
-        access::AllowedUse::ServicePersonalization,
-    )
-    .unwrap();
-    let segment = customer::intelligence::SegmentMembership::try_new(
-        customer_id(),
-        customer::intelligence::SegmentDefinition::builder()
-            .segment(customer::intelligence::Segment::ServiceRecoveryWatchlist)
-            .version(
-                customer::intelligence::SegmentVersion::try_new("ops-service-recovery-v1").unwrap(),
-            )
-            .allowed_use(access::AllowedUse::ServicePersonalization)
-            .visibility(access::VisibilityScope::OperationsOnly)
-            .review_gate(policy::ReviewGate::ManagerApproval)
-            .build(),
-        vec![customer::intelligence::SegmentBasis::ComplaintResolvedRecently],
-        active_interval(now),
-        vec![accepted],
-    )
-    .unwrap();
-
     assert!(note.can_support(access::AllowedUse::ServicePersonalization));
     assert!(!note.can_support(access::AllowedUse::MarketingCampaign));
-    assert!(matches!(
-        customer::intelligence::MarketingUsePermission::try_from_membership(
-            &segment,
-            Some(marketing_consent()),
-            access::AllowedUse::MarketingCampaign,
-            now,
-        ),
-        Err(customer::intelligence::Error::AllowedUseMismatch)
-    ));
+    assert_eq!(
+        note.review_state(),
+        customer::intelligence::ReviewState::Accepted
+    );
     assert!(!format!("{note:?}").contains("Bella prefers"));
 }
 
 #[test]
-fn crm_segment_membership_requires_accepted_current_same_customer_evidence() {
+fn crm_segment_membership_requires_opaque_accepted_evidence() {
     let now = Utc.with_ymd_and_hms(2026, 8, 12, 15, 0, 0).unwrap();
-    let definition = marketing_segment_definition();
-    let evidence = accepted_marketing_note(now);
 
     assert!(matches!(
         customer::intelligence::SegmentMembership::try_new(
             customer_id(),
-            definition.clone(),
+            marketing_segment_definition(),
             vec![customer::intelligence::SegmentBasis::ComplaintResolvedRecently],
             active_interval(now),
             vec![],
         ),
         Err(customer::intelligence::Error::MissingEvidence)
     ));
-
-    assert!(matches!(
-        customer::intelligence::SegmentMembership::try_new(
-            entities::CustomerId(Uuid::from_u128(0xc0571)),
-            definition.clone(),
-            vec![customer::intelligence::SegmentBasis::ComplaintResolvedRecently],
-            active_interval(now),
-            vec![evidence.clone()],
-        ),
-        Err(customer::intelligence::Error::EvidenceCustomerMismatch)
-    ));
-
-    assert!(matches!(
-        customer::intelligence::AcceptedNote::try_from_reviewed(
-            rejected_marketing_note(now),
-            now,
-            access::AllowedUse::MarketingCampaign,
-        ),
-        Err(customer::intelligence::Error::NoteNotAccepted)
-    ));
-
-    assert!(matches!(
-        customer::intelligence::AcceptedNote::try_from_reviewed(
-            superseded_marketing_note(now),
-            now,
-            access::AllowedUse::MarketingCampaign,
-        ),
-        Err(customer::intelligence::Error::NoteNotAccepted)
-    ));
-
-    assert!(matches!(
-        customer::intelligence::AcceptedNote::try_from_reviewed(
-            expired_marketing_note(now),
-            now,
-            access::AllowedUse::MarketingCampaign,
-        ),
-        Err(customer::intelligence::Error::EvidenceExpired)
-    ));
-
-    let membership = customer::intelligence::SegmentMembership::try_new(
-        customer_id(),
-        definition,
-        vec![customer::intelligence::SegmentBasis::ComplaintResolvedRecently],
-        active_interval(now),
-        vec![evidence],
-    )
-    .unwrap();
-
-    assert_eq!(membership.customer_id(), customer_id());
-    assert_eq!(
-        membership.definition().version().as_ref(),
-        "service-recovery-v1"
-    );
-    assert!(!membership.evidence().is_empty());
 }
 
 #[test]
-fn crm_marketing_use_permission_is_derived_from_membership_consent_scope_and_current_interval() {
+fn consent_observation_binds_exact_customer_scope_and_current_interval() {
     let now = Utc.with_ymd_and_hms(2026, 8, 12, 15, 0, 0).unwrap();
-    let membership = customer::intelligence::SegmentMembership::try_new(
+    let evidence = marketing_consent();
+    assert!(evidence.permits_customer(
         customer_id(),
-        marketing_segment_definition(),
-        vec![customer::intelligence::SegmentBasis::ComplaintResolvedRecently],
-        active_interval(now),
-        vec![accepted_marketing_note(now)],
-    )
-    .unwrap();
-
-    assert!(matches!(
-        customer::intelligence::MarketingUsePermission::try_from_membership(
-            &membership,
-            None,
-            access::AllowedUse::MarketingCampaign,
-            now,
-        ),
-        Err(customer::intelligence::Error::MissingMarketingConsentEvidence)
-    ));
-
-    assert!(matches!(
-        customer::intelligence::MarketingUsePermission::try_from_membership(
-            &membership,
-            Some(
-                consent::ConsentEvidence::builder()
-                    .channel(consent::Channel::Email)
-                    .purpose(consent::Purpose::TransactionalLeadResponse)
-                    .status(consent::ConsentStatus::Granted)
-                    .source(source::System::Crm)
-                    .build()
-            ),
-            access::AllowedUse::MarketingCampaign,
-            now,
-        ),
-        Err(customer::intelligence::Error::MissingMarketingConsentEvidence)
-    ));
-
-    let permission = customer::intelligence::MarketingUsePermission::try_from_membership(
-        &membership,
-        Some(marketing_consent()),
-        access::AllowedUse::MarketingCampaign,
+        consent::Channel::Email,
+        consent::Purpose::MarketingRetention,
         now,
-    )
-    .unwrap();
-
-    assert_eq!(permission.customer_id(), customer_id());
-    assert_eq!(
-        permission.allowed_use(),
-        access::AllowedUse::MarketingCampaign
-    );
-    assert_eq!(
-        permission.segment(),
-        customer::intelligence::Segment::ServiceRecoveryWatchlist
-    );
-}
-
-#[test]
-fn crm_personalization_allows_accepted_operations_evidence_without_marketing_consent() {
-    let now = Utc.with_ymd_and_hms(2026, 8, 12, 15, 0, 0).unwrap();
-    let accepted = customer::intelligence::AcceptedNote::try_from_reviewed(
-        operations_personalization_note(now),
+    ));
+    assert!(!evidence.permits_customer(
+        entities::CustomerId::new(Uuid::from_u128(999)),
+        consent::Channel::Email,
+        consent::Purpose::MarketingRetention,
         now,
-        access::AllowedUse::ServicePersonalization,
-    )
-    .unwrap();
-
-    assert_eq!(accepted.customer_id(), customer_id());
-    assert_eq!(accepted.pet_id(), Some(pet_id()));
-    assert!(accepted.supports(access::AllowedUse::ServicePersonalization, now));
+    ));
 }
 
 #[test]
@@ -591,7 +440,7 @@ fn capacity_labor_recommendation_requires_same_grain_source_evidence_feasibility
             operations::capacity::OptimizationObjective::ReduceFrontDeskBottleneck,
             demand.clone(),
             scheduled_coverage_for(
-                entities::LocationId(Uuid::from_u128(0x171)),
+                entities::LocationId::new(Uuid::from_u128(0x171)),
                 operations::labor::Role::FrontDesk,
                 bucket,
                 240,
@@ -697,11 +546,12 @@ fn capacity_labor_recommendation_requires_same_grain_source_evidence_feasibility
 }
 
 #[test]
-fn knowledge_assistant_model_requires_role_location_scope_fresh_citations_and_escalation() {
+fn knowledge_metadata_remains_serializable_evidence_without_retrieval_authority() {
     let now = Utc.with_ymd_and_hms(2026, 8, 12, 15, 0, 0).unwrap();
+    let section = agent::knowledge::SectionRef::try_new("check-in.required-documents").unwrap();
     let document = agent::knowledge::Document::builder()
         .id(agent::knowledge::DocumentId::try_new("sop-boarding-v1").unwrap())
-        .title(agent::knowledge::Title::try_new("Boarding check-in SOP").unwrap())
+        .title(agent::knowledge::Title::try_new("Boarding Check-in SOP").unwrap())
         .kind(agent::knowledge::DocumentKind::Sop)
         .status(agent::knowledge::ApprovalStatus::Approved)
         .applicability(
@@ -711,218 +561,45 @@ fn knowledge_assistant_model_requires_role_location_scope_fresh_citations_and_es
                 .roles(vec![access::ActorRole::FrontDesk])
                 .build(),
         )
-        .sections(vec![
-            agent::knowledge::SectionRef::try_new("check-in.required-documents").unwrap(),
-        ])
+        .sections(vec![section.clone()])
         .effective_at(Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap())
         .review_due_at(Utc.with_ymd_and_hms(2027, 1, 1, 0, 0, 0).unwrap())
         .build();
-
-    let context = agent::assistant::ActorContext::builder()
-        .actor_id(access::ActorId::try_new("front-desk-alice").unwrap())
-        .role(access::ActorRole::FrontDesk)
-        .title(access::Title::try_new("Front Desk Lead").unwrap())
-        .location_id(location_id())
-        .purpose(agent::assistant::Purpose::SopLookup)
-        .allowed_uses(vec![access::AllowedUse::InternalDecisionSupport])
-        .build();
-
-    let citation = agent::knowledge::Citation::builder()
-        .document_id(document.id().clone())
-        .section(agent::knowledge::SectionRef::try_new("check-in.required-documents").unwrap())
-        .build();
-    let evidence = agent::knowledge::AuthorizedEvidence::try_from_retrieval(
-        &document,
-        agent::knowledge::PassageId::try_new("retrieval-passages/sop-boarding-v1#1").unwrap(),
-        citation.section().clone(),
-        now,
-        &context,
-        entities::ServiceKind::Boarding,
-    )
-    .unwrap();
-    let answer = agent::assistant::AnswerPacket::try_cited(
-        context.clone(),
-        agent::assistant::AnswerText::try_new(
-            "Use the boarding check-in checklist and route vaccine ambiguity to manager review.",
-        )
-        .unwrap(),
-        vec![
-            agent::assistant::Claim::builder()
-                .id(agent::assistant::ClaimId::try_new("claim-checkin-docs").unwrap())
-                .citation(citation.clone())
-                .build(),
-        ],
-        vec![evidence.clone()],
-        vec![citation.clone()],
-        identity::Confidence::High,
-    )
-    .unwrap();
-
+    let context = agent_context_for(
+        access::ActorRole::FrontDesk,
+        location_id(),
+        agent::assistant::Purpose::SopLookup,
+        vec![access::AllowedUse::InternalDecisionSupport],
+    );
     assert!(document.applies_to(
         location_id(),
         entities::ServiceKind::Boarding,
         access::ActorRole::FrontDesk
     ));
-    assert!(!document.applies_to(
-        entities::LocationId(Uuid::from_u128(0x171)),
-        entities::ServiceKind::Boarding,
-        access::ActorRole::FrontDesk
-    ));
-    assert!(answer.is_cited());
-    assert_eq!(answer.state(), agent::assistant::AnswerState::Cited);
-    assert_eq!(answer.authorized_evidence().len(), 1);
-    assert!(!format!("{answer:?}").contains("boarding check-in checklist"));
+    assert!(document.is_current_at(now));
+    assert!(context.allows_use(access::AllowedUse::InternalDecisionSupport));
+    assert!(serde_json::to_value(&document).is_ok());
+    assert!(serde_json::to_value(&context).is_ok());
 
-    let arbitrary_citation_answer = agent::assistant::AnswerPacket::builder()
-        .context(context.clone())
-        .answer(
-            agent::assistant::AnswerText::try_new("Looks cited but has no authorized evidence.")
-                .unwrap(),
-        )
-        .citations(vec![citation.clone()])
-        .confidence(identity::Confidence::High)
+    let citation = agent::knowledge::Citation::builder()
+        .document_id(document.id().clone())
+        .section(section)
         .build();
-    assert!(!arbitrary_citation_answer.is_cited());
-
+    let claim = agent::assistant::Claim::builder()
+        .id(agent::assistant::ClaimId::try_new("claim-checkin-docs").unwrap())
+        .citation(citation.clone())
+        .build();
     assert!(matches!(
         agent::assistant::AnswerPacket::try_cited(
-            context.clone(),
-            agent::assistant::AnswerText::try_new("Uncited claim.").unwrap(),
+            context,
+            agent::assistant::AnswerText::try_new("Unaccepted metadata cannot answer.").unwrap(),
+            vec![claim],
             vec![],
-            vec![evidence.clone()],
-            vec![citation.clone()],
-            identity::Confidence::High,
-        ),
-        Err(agent::assistant::Error::UncitedClaim)
-    ));
-
-    assert!(matches!(
-        agent::knowledge::AuthorizedEvidence::try_from_retrieval(
-            &document,
-            agent::knowledge::PassageId::try_new("retrieval-passages/sop-boarding-v1#2").unwrap(),
-            agent::knowledge::SectionRef::try_new("check-in.missing-section").unwrap(),
-            now,
-            &context,
-            entities::ServiceKind::Boarding,
-        ),
-        Err(agent::knowledge::Error::SectionNotFound)
-    ));
-
-    assert!(matches!(
-        agent::knowledge::AuthorizedEvidence::try_from_retrieval(
-            &expired_knowledge_document(now),
-            agent::knowledge::PassageId::try_new("retrieval-passages/expired#1").unwrap(),
-            citation.section().clone(),
-            now,
-            &context,
-            entities::ServiceKind::Boarding,
-        ),
-        Err(agent::knowledge::Error::DocumentNotApprovedOrCurrent)
-    ));
-
-    assert!(matches!(
-        agent::knowledge::AuthorizedEvidence::try_from_retrieval(
-            &draft_knowledge_document(now),
-            agent::knowledge::PassageId::try_new("retrieval-passages/draft#1").unwrap(),
-            citation.section().clone(),
-            now,
-            &context,
-            entities::ServiceKind::Boarding,
-        ),
-        Err(agent::knowledge::Error::DocumentNotApprovedOrCurrent)
-    ));
-
-    assert!(matches!(
-        agent::knowledge::AuthorizedEvidence::try_from_retrieval(
-            &document,
-            agent::knowledge::PassageId::try_new("retrieval-passages/wrong-location#1").unwrap(),
-            citation.section().clone(),
-            now,
-            &agent_context_for(
-                access::ActorRole::FrontDesk,
-                entities::LocationId(Uuid::from_u128(0x171)),
-                agent::assistant::Purpose::SopLookup,
-                vec![access::AllowedUse::InternalDecisionSupport],
-            ),
-            entities::ServiceKind::Boarding,
-        ),
-        Err(agent::knowledge::Error::ApplicabilityMismatch)
-    ));
-
-    assert!(matches!(
-        agent::knowledge::AuthorizedEvidence::try_from_retrieval(
-            &document,
-            agent::knowledge::PassageId::try_new("retrieval-passages/wrong-service#1").unwrap(),
-            citation.section().clone(),
-            now,
-            &context,
-            entities::ServiceKind::Grooming,
-        ),
-        Err(agent::knowledge::Error::ApplicabilityMismatch)
-    ));
-
-    assert!(matches!(
-        agent::knowledge::AuthorizedEvidence::try_from_retrieval(
-            &document,
-            agent::knowledge::PassageId::try_new("retrieval-passages/wrong-role#1").unwrap(),
-            citation.section().clone(),
-            now,
-            &agent_context_for(
-                access::ActorRole::Marketing,
-                location_id(),
-                agent::assistant::Purpose::SopLookup,
-                vec![access::AllowedUse::InternalDecisionSupport],
-            ),
-            entities::ServiceKind::Boarding,
-        ),
-        Err(agent::knowledge::Error::ApplicabilityMismatch)
-    ));
-
-    assert!(matches!(
-        agent::knowledge::AuthorizedEvidence::try_from_retrieval(
-            &document,
-            agent::knowledge::PassageId::try_new("retrieval-passages/wrong-purpose#1").unwrap(),
-            citation.section().clone(),
-            now,
-            &agent_context_for(
-                access::ActorRole::FrontDesk,
-                location_id(),
-                agent::assistant::Purpose::SopLookup,
-                vec![],
-            ),
-            entities::ServiceKind::Boarding,
-        ),
-        Err(agent::knowledge::Error::PurposeNotAuthorized)
-    ));
-
-    assert!(matches!(
-        agent::assistant::AnswerPacket::try_cited(
-            context.clone(),
-            agent::assistant::AnswerText::try_new("Conflict should escalate, not cite.").unwrap(),
-            vec![
-                agent::assistant::Claim::builder()
-                    .id(agent::assistant::ClaimId::try_new("claim-conflict").unwrap())
-                    .citation(citation.clone())
-                    .build()
-            ],
-            vec![evidence.with_source_conflict()],
             vec![citation],
             identity::Confidence::High,
         ),
-        Err(agent::assistant::Error::ConflictingPolicyEvidence)
+        Err(agent::assistant::Error::MissingAuthorizedEvidence)
     ));
-
-    let escalated = agent::assistant::AnswerPacket::escalated(
-        context,
-        agent::assistant::AnswerText::try_new(
-            "Escalate conflicting policy evidence to manager review.",
-        )
-        .unwrap(),
-        identity::Confidence::Medium,
-        agent::assistant::EscalationReason::ConflictingSources,
-    );
-    assert!(!escalated.is_cited());
-    assert_eq!(escalated.state(), agent::assistant::AnswerState::Escalated);
 }
 
 #[test]
@@ -993,44 +670,6 @@ fn agent_context_for(
         .location_id(location_id)
         .purpose(purpose)
         .allowed_uses(allowed_uses)
-        .build()
-}
-
-fn expired_knowledge_document(now: chrono::DateTime<Utc>) -> agent::knowledge::Document {
-    knowledge_document_with_status_and_review_due(
-        agent::knowledge::ApprovalStatus::Approved,
-        now - chrono::Duration::days(1),
-    )
-}
-
-fn draft_knowledge_document(now: chrono::DateTime<Utc>) -> agent::knowledge::Document {
-    knowledge_document_with_status_and_review_due(
-        agent::knowledge::ApprovalStatus::Draft,
-        now + chrono::Duration::days(30),
-    )
-}
-
-fn knowledge_document_with_status_and_review_due(
-    status: agent::knowledge::ApprovalStatus,
-    review_due_at: chrono::DateTime<Utc>,
-) -> agent::knowledge::Document {
-    agent::knowledge::Document::builder()
-        .id(agent::knowledge::DocumentId::try_new("sop-boarding-v1").unwrap())
-        .title(agent::knowledge::Title::try_new("Boarding check-in SOP").unwrap())
-        .kind(agent::knowledge::DocumentKind::Sop)
-        .status(status)
-        .applicability(
-            agent::knowledge::Applicability::builder()
-                .locations(vec![location_id()])
-                .services(vec![entities::ServiceKind::Boarding])
-                .roles(vec![access::ActorRole::FrontDesk])
-                .build(),
-        )
-        .sections(vec![
-            agent::knowledge::SectionRef::try_new("check-in.required-documents").unwrap(),
-        ])
-        .effective_at(Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap())
-        .review_due_at(review_due_at)
         .build()
 }
 
@@ -1146,12 +785,12 @@ fn lead_response_packet_with(
 ) -> Result<lead::response::ResponsePacket, lead::response::Error> {
     lead_response_packet_with_consent(
         received_at,
-        consent::ConsentEvidence::builder()
-            .channel(consent::Channel::Sms)
-            .purpose(consent::Purpose::TransactionalLeadResponse)
-            .status(consent::ConsentStatus::Granted)
-            .source(source::System::Crm)
-            .build(),
+        lead_consent(
+            received_at,
+            consent::Channel::Sms,
+            consent::Purpose::TransactionalLeadResponse,
+            consent::ConsentStatus::Granted,
+        ),
         attempts,
     )
 }
@@ -1174,11 +813,35 @@ fn lead_response_packet_with_consent(
         .unwrap(),
         consent,
         attempts,
-        lead::response::ConversionAttribution::builder()
+        lead::response::ConversionObservation::builder()
             .source(lead::response::AttributionSource::MissedCall)
             .estimated_value(money(45_000))
             .build(),
     )
+}
+
+fn lead_consent(
+    received_at: chrono::DateTime<Utc>,
+    channel: consent::Channel,
+    purpose: consent::Purpose,
+    status: consent::ConsentStatus,
+) -> consent::ConsentEvidence {
+    consent::ConsentEvidence::builder()
+        .channel(channel)
+        .purpose(purpose)
+        .status(status)
+        .source(source::System::Crm)
+        .subject(consent::Subject::SourceRecord(
+            lead_response_event(received_at).source_record(),
+        ))
+        .source_record(source::RecordRef::new(
+            source::System::Crm,
+            source::record::Id::try_new("consent-lead-missed-call-42").unwrap(),
+        ))
+        .source_schema_version(source::SchemaVersion::try_new("crm-consent-v1").unwrap())
+        .effective_from(received_at - chrono::Duration::days(1))
+        .effective_until(received_at + chrono::Duration::days(1))
+        .build()
 }
 
 fn marketing_segment_definition() -> customer::intelligence::SegmentDefinition {
@@ -1199,110 +862,20 @@ fn active_interval(now: chrono::DateTime<Utc>) -> customer::intelligence::Effect
     .unwrap()
 }
 
-fn accepted_marketing_note(now: chrono::DateTime<Utc>) -> customer::intelligence::AcceptedNote {
-    customer::intelligence::AcceptedNote::try_from_reviewed(
-        marketing_note(
-            customer_id(),
-            customer::intelligence::ReviewState::Accepted,
-            access::VisibilityScope::MarketingEligible,
-            vec![access::AllowedUse::MarketingCampaign],
-            active_interval(now),
-            now,
-        ),
-        now,
-        access::AllowedUse::MarketingCampaign,
-    )
-    .unwrap()
-}
-
-fn rejected_marketing_note(now: chrono::DateTime<Utc>) -> customer::intelligence::StructuredNote {
-    marketing_note(
-        customer_id(),
-        customer::intelligence::ReviewState::Rejected,
-        access::VisibilityScope::MarketingEligible,
-        vec![access::AllowedUse::MarketingCampaign],
-        active_interval(now),
-        now,
-    )
-}
-
-fn superseded_marketing_note(now: chrono::DateTime<Utc>) -> customer::intelligence::StructuredNote {
-    marketing_note(
-        customer_id(),
-        customer::intelligence::ReviewState::Superseded,
-        access::VisibilityScope::MarketingEligible,
-        vec![access::AllowedUse::MarketingCampaign],
-        active_interval(now),
-        now,
-    )
-}
-
-fn expired_marketing_note(now: chrono::DateTime<Utc>) -> customer::intelligence::StructuredNote {
-    marketing_note(
-        customer_id(),
-        customer::intelligence::ReviewState::Accepted,
-        access::VisibilityScope::MarketingEligible,
-        vec![access::AllowedUse::MarketingCampaign],
-        customer::intelligence::EffectiveInterval::try_new(
-            now - chrono::Duration::days(30),
-            Some(now - chrono::Duration::days(1)),
-        )
-        .unwrap(),
-        now,
-    )
-}
-
-fn operations_personalization_note(
-    now: chrono::DateTime<Utc>,
-) -> customer::intelligence::StructuredNote {
-    marketing_note(
-        customer_id(),
-        customer::intelligence::ReviewState::Accepted,
-        access::VisibilityScope::OperationsOnly,
-        vec![access::AllowedUse::ServicePersonalization],
-        active_interval(now),
-        now,
-    )
-}
-
-fn marketing_note(
-    customer_id: entities::CustomerId,
-    review_state: customer::intelligence::ReviewState,
-    visibility: access::VisibilityScope,
-    allowed_uses: Vec<access::AllowedUse>,
-    effective_interval: customer::intelligence::EffectiveInterval,
-    recorded_at: chrono::DateTime<Utc>,
-) -> customer::intelligence::StructuredNote {
-    customer::intelligence::StructuredNote::builder()
-        .id(customer::intelligence::NoteId::try_new(format!(
-            "note-{}-{:?}",
-            customer_id.0, review_state
-        ))
-        .unwrap())
-        .customer_id(customer_id)
-        .pet_id(pet_id())
-        .kind(customer::intelligence::NoteKind::ServiceRecovery)
-        .body(
-            customer::intelligence::NoteBody::try_new("Resolved service recovery context.")
-                .unwrap(),
-        )
-        .visibility(visibility)
-        .allowed_uses(allowed_uses)
-        .source(customer::intelligence::SignalSource::CheckoutReviewForm)
-        .confidence(identity::Confidence::High)
-        .review_state(review_state)
-        .effective_interval(effective_interval)
-        .reviewed_by(access::ActorId::try_new("manager-approval-1").unwrap())
-        .recorded_at(recorded_at)
-        .build()
-}
-
 fn marketing_consent() -> consent::ConsentEvidence {
+    let source_record = source::RecordRef::new(
+        source::System::Crm,
+        source::record::Id::try_new("consent-customer-1").unwrap(),
+    );
     consent::ConsentEvidence::builder()
         .channel(consent::Channel::Email)
         .purpose(consent::Purpose::MarketingRetention)
         .status(consent::ConsentStatus::Granted)
         .source(source::System::Crm)
+        .subject(consent::Subject::Customer(customer_id()))
+        .source_record(source_record)
+        .source_schema_version(source::SchemaVersion::try_new("crm-consent-v1").unwrap())
+        .effective_from(Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap())
         .build()
 }
 
@@ -1377,7 +950,7 @@ fn financial_insight_model_is_site_period_source_backed_and_blocks_price_discoun
         .build()
         .unwrap();
 
-    let fact = analytics::finance::RevenueFact::builder()
+    let fact = analytics::finance::ReportedRevenueObservationFact::builder()
         .period(period)
         .service(entities::ServiceKind::Grooming)
         .gross_revenue(money(900_000))
@@ -1408,7 +981,7 @@ fn financial_insight_requires_manager_review_gate_before_recommendation_use() {
         .end(Utc.with_ymd_and_hms(2026, 8, 31, 23, 59, 59).unwrap())
         .build()
         .unwrap();
-    let fact = analytics::finance::RevenueFact::builder()
+    let fact = analytics::finance::ReportedRevenueObservationFact::builder()
         .period(period)
         .service(entities::ServiceKind::Grooming)
         .gross_revenue(money(900_000))
@@ -1485,7 +1058,7 @@ fn financial_net_revenue_reports_deductions_exceeding_gross_without_panic() {
         .build()
         .unwrap();
 
-    let fact = analytics::finance::RevenueFact::builder()
+    let fact = analytics::finance::ReportedRevenueObservationFact::builder()
         .period(period)
         .service(entities::ServiceKind::Grooming)
         .gross_revenue(money(50_000))
@@ -1508,15 +1081,17 @@ fn generalized_outcome_attribution_links_recommendations_to_measured_business_re
         .workstream(analytics::outcome::Workstream::LeadResponse)
         .location_id(location_id())
         .change(analytics::outcome::MeasuredChange::booking_converted(0, 1))
-        .attribution(analytics::outcome::AttributionEvidence::reviewed_action(
-            analytics::outcome::RecommendationRef::try_new("lead-response-review-42").unwrap(),
-            analytics::outcome::EvidenceRef::try_new("crm-reservation-42").unwrap(),
-        ))
+        .attribution(
+            analytics::outcome::AttributionEvidence::reported_reviewed_action(
+                analytics::outcome::RecommendationRef::try_new("lead-response-review-42").unwrap(),
+                analytics::outcome::EvidenceRef::try_new("crm-reservation-42").unwrap(),
+            ),
+        )
         .source(source::System::Crm)
         .recorded_at(Utc.with_ymd_and_hms(2026, 8, 12, 16, 0, 0).unwrap())
         .build();
 
-    assert!(outcome.can_support_value_claim());
+    assert!(!outcome.can_support_value_claim());
     assert_eq!(
         outcome.workstream(),
         analytics::outcome::Workstream::LeadResponse
@@ -1524,7 +1099,7 @@ fn generalized_outcome_attribution_links_recommendations_to_measured_business_re
 }
 
 #[test]
-fn outcome_value_claims_require_reviewed_action_and_strong_evidence_not_enum_only() {
+fn serialized_outcome_evidence_cannot_issue_value_claim_authority() {
     let weakly_correlated = analytics::outcome::Record::builder()
         .id(analytics::outcome::Id::try_new("outcome-revenue-weak").unwrap())
         .workstream(analytics::outcome::Workstream::FinancialInsights)
@@ -1550,18 +1125,20 @@ fn outcome_value_claims_require_reviewed_action_and_strong_evidence_not_enum_onl
             money(900_000),
             money(950_000),
         ))
-        .attribution(analytics::outcome::AttributionEvidence::reviewed_action(
-            analytics::outcome::RecommendationRef::try_new("discount-review-42").unwrap(),
-            analytics::outcome::EvidenceRef::try_new("reviewed-finance-export-42").unwrap(),
-        ))
+        .attribution(
+            analytics::outcome::AttributionEvidence::reported_reviewed_action(
+                analytics::outcome::RecommendationRef::try_new("discount-review-42").unwrap(),
+                analytics::outcome::EvidenceRef::try_new("reviewed-finance-export-42").unwrap(),
+            ),
+        )
         .source(source::System::FinanceAccounting)
         .recorded_at(Utc.with_ymd_and_hms(2026, 8, 31, 23, 59, 59).unwrap())
         .build();
 
-    assert!(reviewed_strong.can_support_value_claim());
+    assert!(!reviewed_strong.can_support_value_claim());
     assert_eq!(
         reviewed_strong.metric(),
-        analytics::outcome::Metric::Revenue
+        analytics::outcome::Metric::ReportedRevenueObservation
     );
 }
 

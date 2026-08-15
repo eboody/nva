@@ -233,7 +233,7 @@ impl ReviewRequirement {
     /// Maps the grooming review lane to the workflow gate that must approve scheduling.
     pub const fn calendar_execution_gate(self) -> Option<crate::policy::ReviewGate> {
         match self {
-            Self::None => None,
+            Self::None => Some(crate::policy::ReviewGate::ManagerApproval),
             Self::StaffReview | Self::GroomerReview | Self::ManagerReview => {
                 Some(crate::policy::ReviewGate::ManagerApproval)
             }
@@ -427,7 +427,10 @@ pub mod no_show {
     /// Grooming rebooking outcome that tells staff whether to clear, collect a deposit, or seek manager review.
     pub enum Decision {
         /// Staff can see the clear to rebook grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
-        ClearToRebook,
+        RebookingCandidate {
+            /// Human approval required before history evidence can become a live calendar action.
+            gate: crate::policy::ReviewGate,
+        },
         /// Review gate that must clear before this grooming decision can trigger a live schedule, deposit, or message action.
         DepositRequired {
             /// Approval gate staff must clear before acting on this variant.
@@ -476,13 +479,17 @@ pub mod no_show {
                 history,
             };
             match self.rule {
-                Rule::NoteHistoryOnly => Decision::ClearToRebook,
+                Rule::NoteHistoryOnly => Decision::RebookingCandidate {
+                    gate: crate::policy::ReviewGate::ManagerApproval,
+                },
                 Rule::RequireDepositForRebooking if history.repeat_behavior_count() > 0 => {
                     Decision::DepositRequired {
                         gate: crate::policy::ReviewGate::RefundOrDepositException,
                     }
                 }
-                Rule::RequireDepositForRebooking => Decision::ClearToRebook,
+                Rule::RequireDepositForRebooking => Decision::RebookingCandidate {
+                    gate: crate::policy::ReviewGate::ManagerApproval,
+                },
                 Rule::ManagerReviewBeforeRebooking => Decision::ManagerReviewRequired {
                     gate: crate::policy::ReviewGate::ManagerApproval,
                 },
@@ -564,9 +571,9 @@ pub mod history {
     }
 
     impl ApprovalState {
-        /// Reports whether care-team review is needed before proceeding.
+        /// Serializable grooming approval history always remains review-required.
         pub const fn requires_review(&self) -> bool {
-            matches!(self, Self::Draft | Self::ReviewRequired { .. })
+            true
         }
     }
 
@@ -865,14 +872,9 @@ pub mod reminder {
             self.boundary
         }
 
-        /// Returns the customer-message approval gate required before this grooming reminder is sent.
+        /// Serializable reminder history always requires customer-message approval.
         pub const fn customer_message_gate(&self) -> Option<crate::policy::ReviewGate> {
-            match self.boundary {
-                SendBoundary::DraftRequiresApproval => {
-                    Some(crate::policy::ReviewGate::CustomerMessageApproval)
-                }
-                SendBoundary::ReadyForApprovedSend | SendBoundary::SuppressedUntilConsent => None,
-            }
+            Some(crate::policy::ReviewGate::CustomerMessageApproval)
         }
     }
 

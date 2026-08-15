@@ -26,6 +26,9 @@ pub const REVIEW_QUEUE_SCHEMA_VERSION: u32 = 2;
 
 /// Promotes a private storage row into the app review queue item.
 pub fn review_queue_item(row: &ReviewQueueItemRow) -> Option<hygiene::ReviewQueueItem> {
+    if row.schema_version != REVIEW_QUEUE_SCHEMA_VERSION {
+        return None;
+    }
     let action_id = hygiene::ActionId::try_new(row.action_id.clone()).ok()?;
     let location_id = crate::authz::parse_location_id(&row.location_id)?;
     let required_review_gates = row
@@ -140,7 +143,6 @@ pub fn staff_outcome_card(row: HygieneOutcomeRow) -> HygieneOutcomeCardRow {
         row.action_id,
         row.recorded_by,
         row.outcome,
-        row.before_minutes,
         row.actual_minutes,
         row.source_record_refs,
         row.issue_refs,
@@ -213,7 +215,7 @@ pub fn labor_minutes(value: u32) -> Result<hygiene::LaborMinutes, String> {
 /// Stable actor representation used in storage/read-model rows.
 pub fn actor_ref_column(actor: &entities::ActorRef) -> ActorRefColumn {
     match actor {
-        entities::ActorRef::Customer(id) => ActorRefColumn::Customer(id.0.to_string()),
+        entities::ActorRef::Customer(id) => ActorRefColumn::Customer(id.get().to_string()),
         entities::ActorRef::Staff { staff_id } => {
             ActorRefColumn::Staff(staff_id.clone().into_inner())
         }
@@ -231,7 +233,7 @@ pub fn actor_ref_column(actor: &entities::ActorRef) -> ActorRefColumn {
 pub fn actor_ref(actor: &ActorRefColumn) -> Option<entities::ActorRef> {
     Some(match actor {
         ActorRefColumn::Customer(id) => {
-            entities::ActorRef::Customer(entities::CustomerId(uuid::Uuid::parse_str(id).ok()?))
+            entities::ActorRef::Customer(entities::CustomerId::new(uuid::Uuid::parse_str(id).ok()?))
         }
         ActorRefColumn::Staff(id) => entities::ActorRef::Staff {
             staff_id: entities::StaffId::try_new(id.clone()).ok()?,

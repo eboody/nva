@@ -200,7 +200,7 @@ Visible card copy candidate:
 
 Proof-mode copy candidate:
 
-`draft_validation_ok; blocked_draft_validation_ok; live_side_effects_allowed=false; outcome estimated_minutes_saved and actual_minutes_saved.`
+`draft_validation_ok; blocked_draft_validation_ok; live_side_effects_allowed=false; outcome reported_estimated_minutes_difference and actual_minutes_saved.`
 
 ### Intake / Booking Triage
 

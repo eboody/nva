@@ -165,7 +165,7 @@ async fn readiness_endpoint_reports_present_runtime_env_as_configured_but_unveri
 }
 
 #[tokio::test]
-async fn site_finance_agent_context_exposes_review_audit_and_nonclaimable_weak_attribution() {
+async fn site_finance_agent_context_exposes_review_audit_without_value_claim_authority() {
     let response = http::router_with_test_auth_state(http::VaccineDocumentState::default())
         .oneshot(
             axum_http::request::Builder::new()
@@ -205,8 +205,11 @@ async fn site_finance_agent_context_exposes_review_audit_and_nonclaimable_weak_a
         payload["action"]["audit_event_id"],
         "audit:site-finance-review:00c0ffee:2026-06"
     );
-    assert_eq!(payload["outcome"]["strong_attribution_claimable"], true);
-    assert_eq!(payload["outcome"]["weak_attribution_claimable"], false);
+    assert_eq!(
+        payload["outcome"]["reviewed_action_evidence_claimable"],
+        false
+    );
+    assert_eq!(payload["outcome"]["correlated_evidence_claimable"], false);
     assert_eq!(payload["safety"]["financial_mutations_allowed"], false);
 }
 
@@ -631,7 +634,7 @@ async fn request_trace_echoes_safe_request_and_correlation_ids_without_payload_l
 }
 
 #[tokio::test]
-async fn permissioned_knowledge_context_returns_cited_redacted_packet_after_authorization() {
+async fn permissioned_knowledge_context_fails_closed_without_authenticated_document_authority() {
     let response = http::router_with_test_auth_state(http::VaccineDocumentState::default())
         .oneshot(
             axum_http::request::Builder::new()
@@ -658,13 +661,13 @@ async fn permissioned_knowledge_context_returns_cited_redacted_packet_after_auth
         payload["api_contract"]["workflow"],
         "permissioned_knowledge_assistant_packet"
     );
-    assert_eq!(payload["answer_packet"]["state"], "Cited");
+    assert_eq!(payload["answer_packet"]["state"], "Escalated");
     assert_eq!(
         payload["retrieval"]["safe_to_enter_assistant_context"],
-        true
+        false
     );
-    assert_eq!(payload["retrieval"]["authorized_passage_count"], 1);
-    assert_eq!(payload["retrieval"]["citation_count"], 1);
+    assert_eq!(payload["retrieval"]["authorized_passage_count"], 0);
+    assert_eq!(payload["retrieval"]["citation_count"], 0);
     assert_eq!(payload["safety"]["live_side_effects_allowed"], false);
     assert!(
         payload["safety"]["forbidden_actions"]

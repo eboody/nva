@@ -5,9 +5,22 @@
 
 #![allow(missing_docs)]
 
-use core::fmt;
+use core::{fmt, num::NonZeroU16};
 
-use serde::{Deserialize, Serialize};
+use chrono::{DateTime, NaiveDate, Utc};
+use serde::{Deserialize, Deserializer, Serialize};
+use uuid::Uuid;
+
+fn deserialize_non_nil_uuid<'de, D>(deserializer: D) -> Result<Uuid, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = Uuid::deserialize(deserializer)?;
+    if value.is_nil() {
+        return Err(serde::de::Error::custom("UUID must not be nil"));
+    }
+    Ok(value)
+}
 
 pub const OWNED_OPERATIONS_API_VERSION: &str = "pet_resort_api.runtime.v0";
 pub const OWNED_OPERATIONS_API_BOUNDARY: &str = "api_runtime_dto";
@@ -65,12 +78,14 @@ pub enum PayloadLogging {
     RedactedSummaryOnly,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct ActorRef {
-    #[serde(alias = "actor_kind")]
+    /// Product persona asserted for this operation.
     pub persona: String,
-    #[serde(alias = "actor_id")]
+    /// Stable actor identity authenticated by the runtime boundary.
     pub id: String,
+    /// Optional narrower role claim when a workflow requires one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub actor_role: Option<String>,
 }
@@ -85,14 +100,99 @@ pub struct SourceRef {
 }
 
 /// Stable source-record evidence shape used by the v0 workflow routes.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(deny_unknown_fields)]
 pub struct SourceRecordRef {
     pub system: String,
     pub record_type: String,
     pub record_id: String,
-    pub observed_at: String,
+    pub observed_at: DateTime<Utc>,
     pub adapter_version: String,
+}
+
+/// Manager Daily Brief outcome request owned by the runtime API contract.
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ManagerDailyBriefOutcomeCaptureRequest {
+    /// Reviewed outcome classification.
+    pub outcome: storage::operations::ManagerDailyBriefOutcomeCode,
+    /// Actual staff minutes spent completing the action.
+    pub actual_minutes: NonZeroU16,
+    /// Authenticated actor identity and persona claim.
+    pub actor: ActorRef,
+    /// Staff-authored evidence describing what happened.
+    pub feedback: String,
+    /// Exact source records bound to the recommended action.
+    pub source_refs: Vec<SourceRecordRef>,
+    /// Timestamp at which the reviewed outcome was recorded.
+    pub timestamp: DateTime<Utc>,
+    /// Correlation evidence for this workflow operation.
+    pub audit: ManagerDailyBriefOutcomeAudit,
+    /// Reporting dimensions used for the labor-value claim.
+    pub reporting: ManagerDailyBriefOutcomeReporting,
+    /// Requested effects; runtime policy currently requires this list to be empty.
+    pub requested_side_effects: Vec<String>,
+    /// Required replay identity for atomic outcome recording.
+    pub idempotency_key: IdempotencyKey,
+}
+
+/// Correlation evidence nested in a Manager Daily Brief outcome request.
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ManagerDailyBriefOutcomeAudit {
+    /// Workflow correlation id connecting context, action, and outcome.
+    pub correlation_id: IdempotencyKey,
+}
+
+/// Labor-reporting dimensions nested in a Manager Daily Brief outcome request.
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ManagerDailyBriefOutcomeReporting {
+    /// Location whose operation produced the outcome.
+    #[serde(deserialize_with = "deserialize_non_nil_uuid")]
+    pub location_id: Uuid,
+    /// Operating day whose brief contained the action.
+    pub operating_day: NaiveDate,
+}
+
+impl fmt::Debug for ActorRef {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("ActorRef([REDACTED])")
+    }
+}
+
+impl fmt::Debug for SourceRecordRef {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("SourceRecordRef([REDACTED])")
+    }
+}
+
+impl fmt::Debug for ManagerDailyBriefOutcomeAudit {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("ManagerDailyBriefOutcomeAudit([REDACTED])")
+    }
+}
+
+impl fmt::Debug for ManagerDailyBriefOutcomeReporting {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("ManagerDailyBriefOutcomeReporting([REDACTED])")
+    }
+}
+
+impl fmt::Debug for ManagerDailyBriefOutcomeCaptureRequest {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ManagerDailyBriefOutcomeCaptureRequest")
+            .field("outcome", &self.outcome)
+            .field("actual_minutes", &self.actual_minutes)
+            .field("source_ref_count", &self.source_refs.len())
+            .field(
+                "requested_side_effect_count",
+                &self.requested_side_effects.len(),
+            )
+            .field("sensitive_fields", &"[REDACTED]")
+            .finish()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -155,10 +255,10 @@ pub struct WorkflowDescriptor {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct LaborSavingsEstimate {
+pub struct ReportedLaborEstimateEvidence {
     pub before_minutes: u16,
     pub after_minutes: u16,
-    pub estimated_minutes_saved: u16,
+    pub reported_estimated_minutes_difference: u16,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -211,7 +311,7 @@ pub struct DataQualityAction {
     pub source_refs: Vec<SourceRecordRef>,
     pub issue_refs: Vec<String>,
     pub review_gates: Vec<String>,
-    pub labor_impact: LaborSavingsEstimate,
+    pub labor_impact: ReportedLaborEstimateEvidence,
     pub live_side_effects_allowed: bool,
 }
 
@@ -224,7 +324,7 @@ pub struct DataQualityHygieneContextResponse {
     pub prepared_for: String,
     pub candidates: Vec<DataQualityCandidate>,
     pub hygiene_actions: Vec<DataQualityAction>,
-    pub labor_savings_estimate: LaborSavingsEstimate,
+    pub reported_labor_estimate_evidence: ReportedLaborEstimateEvidence,
     pub allowed_agent_actions: Vec<String>,
     pub blocked_actions: Vec<String>,
     pub live_side_effects_allowed: bool,
@@ -407,13 +507,13 @@ impl fmt::Display for IdempotencyKeyError {
 #[serde(deny_unknown_fields)]
 pub struct DataQualityHygieneOutcomeCaptureRequest {
     outcome: DataQualityHygieneOutcome,
-    actual_minutes: u16,
+    actual_minutes: NonZeroU16,
     actor: DataQualityHygieneOutcomeActor,
     feedback: String,
     source_refs: Vec<SourceRecordRef>,
     issue_refs: Vec<String>,
     resolution_status_after_review: DataQualityResolutionStatus,
-    timestamp: String,
+    timestamp: DateTime<Utc>,
     audit: OutcomeAudit,
     requested_side_effects: Vec<String>,
     idempotency_key: IdempotencyKey,
@@ -425,7 +525,7 @@ impl DataQualityHygieneOutcomeCaptureRequest {
     }
 
     pub const fn actual_minutes(&self) -> u16 {
-        self.actual_minutes
+        self.actual_minutes.get()
     }
 
     pub fn actor(&self) -> &DataQualityHygieneOutcomeActor {
@@ -448,8 +548,8 @@ impl DataQualityHygieneOutcomeCaptureRequest {
         self.resolution_status_after_review
     }
 
-    pub fn timestamp(&self) -> &str {
-        &self.timestamp
+    pub const fn timestamp(&self) -> DateTime<Utc> {
+        self.timestamp
     }
 
     pub fn audit(&self) -> &OutcomeAudit {
@@ -484,4 +584,297 @@ impl fmt::Debug for DataQualityHygieneOutcomeCaptureRequest {
             .field("sensitive_fields", &"[REDACTED]")
             .finish()
     }
+}
+
+/// One field in the canonical runtime-to-OpenAPI structural mapping.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RuntimeFieldContract {
+    /// Runtime serde field name.
+    pub name: &'static str,
+    /// Whether explicit JSON `null` is accepted.
+    pub nullable: bool,
+    /// Nested component reference, including array item references.
+    pub nested_ref: Option<&'static str>,
+    /// Exhaustive stable wire values when the field is an enum.
+    pub enum_values: &'static [&'static str],
+    /// OpenAPI scalar format that runtime deserialization enforces.
+    pub format: Option<&'static str>,
+    /// Inclusive numeric minimum enforced by runtime deserialization.
+    pub minimum: Option<u64>,
+    /// Inclusive minimum string length enforced by runtime deserialization.
+    pub min_length: Option<u64>,
+}
+
+/// Canonical structural description of a runtime serde DTO.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RuntimeSchemaContract {
+    /// OpenAPI component name mapped to the runtime type.
+    pub name: &'static str,
+    /// Fields required by runtime deserialization, in canonical declaration order.
+    pub required: &'static [&'static str],
+    /// Exhaustive runtime field contracts.
+    pub fields: &'static [RuntimeFieldContract],
+}
+
+const fn field(
+    name: &'static str,
+    nullable: bool,
+    nested_ref: Option<&'static str>,
+    enum_values: &'static [&'static str],
+) -> RuntimeFieldContract {
+    RuntimeFieldContract {
+        name,
+        nullable,
+        nested_ref,
+        enum_values,
+        format: None,
+        minimum: None,
+        min_length: None,
+    }
+}
+
+const fn date_time_field(name: &'static str) -> RuntimeFieldContract {
+    RuntimeFieldContract {
+        name,
+        nullable: false,
+        nested_ref: None,
+        enum_values: &[],
+        format: Some("date-time"),
+        minimum: None,
+        min_length: None,
+    }
+}
+
+const fn formatted_field(name: &'static str, format: &'static str) -> RuntimeFieldContract {
+    RuntimeFieldContract {
+        name,
+        nullable: false,
+        nested_ref: None,
+        enum_values: &[],
+        format: Some(format),
+        minimum: None,
+        min_length: None,
+    }
+}
+
+const fn positive_integer_field(name: &'static str) -> RuntimeFieldContract {
+    RuntimeFieldContract {
+        name,
+        nullable: false,
+        nested_ref: None,
+        enum_values: &[],
+        format: None,
+        minimum: Some(1),
+        min_length: None,
+    }
+}
+
+const fn nonnegative_integer_field(name: &'static str) -> RuntimeFieldContract {
+    RuntimeFieldContract {
+        name,
+        nullable: false,
+        nested_ref: None,
+        enum_values: &[],
+        format: None,
+        minimum: Some(0),
+        min_length: None,
+    }
+}
+
+const fn nonempty_string_field(name: &'static str) -> RuntimeFieldContract {
+    RuntimeFieldContract {
+        name,
+        nullable: false,
+        nested_ref: None,
+        enum_values: &[],
+        format: None,
+        minimum: None,
+        min_length: Some(1),
+    }
+}
+
+/// Returns the exhaustive DTO mapping checked against the owned OpenAPI artifact.
+///
+/// Adding or changing any listed serde field requires changing this owner and the
+/// checked artifact together; parity tests compare names, requiredness,
+/// nullability, enum values, nested references, and unknown-field posture.
+pub fn runtime_schema_contracts() -> &'static [RuntimeSchemaContract] {
+    const CONTRACTS: &[RuntimeSchemaContract] = &[
+        RuntimeSchemaContract {
+            name: "ActorRef",
+            required: &["persona", "id"],
+            fields: &[
+                field("persona", false, None, &[]),
+                field("id", false, None, &[]),
+                field("actor_role", true, None, &[]),
+            ],
+        },
+        RuntimeSchemaContract {
+            name: "SourceRecordRef",
+            required: &[
+                "system",
+                "record_type",
+                "record_id",
+                "observed_at",
+                "adapter_version",
+            ],
+            fields: &[
+                field("system", false, None, &[]),
+                field("record_type", false, None, &[]),
+                field("record_id", false, None, &[]),
+                date_time_field("observed_at"),
+                field("adapter_version", false, None, &[]),
+            ],
+        },
+        RuntimeSchemaContract {
+            name: "DataQualityHygieneOutcomeCaptureRequest",
+            required: &[
+                "outcome",
+                "actual_minutes",
+                "actor",
+                "feedback",
+                "source_refs",
+                "issue_refs",
+                "resolution_status_after_review",
+                "timestamp",
+                "audit",
+                "requested_side_effects",
+                "idempotency_key",
+            ],
+            fields: &[
+                field(
+                    "outcome",
+                    false,
+                    None,
+                    &[
+                        "completed",
+                        "deferred",
+                        "suppressed_by_manager",
+                        "source_fact_was_wrong",
+                        "not_actionable",
+                    ],
+                ),
+                positive_integer_field("actual_minutes"),
+                field("actor", false, Some("#/components/schemas/ActorRef"), &[]),
+                field("feedback", false, None, &[]),
+                field(
+                    "source_refs",
+                    false,
+                    Some("#/components/schemas/SourceRecordRef"),
+                    &[],
+                ),
+                field("issue_refs", false, None, &[]),
+                field(
+                    "resolution_status_after_review",
+                    false,
+                    None,
+                    &["open", "acknowledged", "ignored", "repaired"],
+                ),
+                date_time_field("timestamp"),
+                field(
+                    "audit",
+                    false,
+                    Some("#/components/schemas/OutcomeAudit"),
+                    &[],
+                ),
+                field("requested_side_effects", false, None, &[]),
+                nonempty_string_field("idempotency_key"),
+            ],
+        },
+        RuntimeSchemaContract {
+            name: "ManagerDailyBriefOutcomeAudit",
+            required: &["correlation_id"],
+            fields: &[nonempty_string_field("correlation_id")],
+        },
+        RuntimeSchemaContract {
+            name: "ReportedLaborEstimateEvidence",
+            required: &[
+                "before_minutes",
+                "after_minutes",
+                "reported_estimated_minutes_difference",
+            ],
+            fields: &[
+                nonnegative_integer_field("before_minutes"),
+                nonnegative_integer_field("after_minutes"),
+                nonnegative_integer_field("reported_estimated_minutes_difference"),
+            ],
+        },
+        RuntimeSchemaContract {
+            name: "ManagerDailyBriefOutcomeReporting",
+            required: &["location_id", "operating_day"],
+            fields: &[
+                formatted_field("location_id", "uuid"),
+                formatted_field("operating_day", "date"),
+            ],
+        },
+        RuntimeSchemaContract {
+            name: "ManagerDailyBriefOutcomeCaptureRequest",
+            required: &[
+                "outcome",
+                "actual_minutes",
+                "actor",
+                "feedback",
+                "source_refs",
+                "timestamp",
+                "audit",
+                "reporting",
+                "requested_side_effects",
+                "idempotency_key",
+            ],
+            fields: &[
+                field(
+                    "outcome",
+                    false,
+                    None,
+                    &[
+                        "completed",
+                        "deferred",
+                        "suppressed_by_manager",
+                        "source_fact_was_wrong",
+                    ],
+                ),
+                positive_integer_field("actual_minutes"),
+                field("actor", false, Some("#/components/schemas/ActorRef"), &[]),
+                field("feedback", false, None, &[]),
+                field(
+                    "source_refs",
+                    false,
+                    Some("#/components/schemas/SourceRecordRef"),
+                    &[],
+                ),
+                date_time_field("timestamp"),
+                field(
+                    "audit",
+                    false,
+                    Some("#/components/schemas/ManagerDailyBriefOutcomeAudit"),
+                    &[],
+                ),
+                field(
+                    "reporting",
+                    false,
+                    Some("#/components/schemas/ManagerDailyBriefOutcomeReporting"),
+                    &[],
+                ),
+                field("requested_side_effects", false, None, &[]),
+                nonempty_string_field("idempotency_key"),
+            ],
+        },
+    ];
+    CONTRACTS
+}
+
+/// Returns every canonical v0 route implemented by this runtime slice.
+pub fn owned_v0_routes() -> &'static [&'static str] {
+    &[
+        "/v0/healthz",
+        "/v0/readyz",
+        "/v0/ops/metrics/summary",
+        "/v0/agent/context/manager-daily-brief",
+        "/v0/manager-daily-brief/actions/{action_id}/outcome",
+        "/v0/agent/context/data-quality-hygiene",
+        "/v0/agent/drafts/data-quality-hygiene",
+        "/v0/data-quality-hygiene/actions/{action_id}/outcome",
+        "/v0/data-quality-hygiene/outcomes/summary",
+        "/v0/read-models/source-quality-backlog",
+    ]
 }

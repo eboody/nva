@@ -79,6 +79,55 @@ pub enum StoredCadenceWeeksError {
     ZeroWeeks,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+/// Stable discriminator preserving why a grooming cadence does or does not carry weeks.
+pub enum StoredCadenceKind {
+    /// A positive interval is stored separately in `grooming_cadence_weeks`.
+    EveryWeeks,
+    /// Rebooking is driven by need rather than a fixed interval.
+    AsNeeded,
+    /// A groomer must recommend the next interval.
+    GroomerRecommended,
+    /// Source evidence did not establish a cadence kind.
+    Unknown,
+}
+
+impl StoredCadenceKind {
+    /// Converts a domain cadence into its lossless stable kind and optional interval columns.
+    pub fn from_domain(
+        cadence: rebooking::Cadence,
+    ) -> operations::Result<(Self, Option<StoredCadenceWeeks>)> {
+        match cadence {
+            rebooking::Cadence::EveryWeeks(weeks) => {
+                Ok((Self::EveryWeeks, Some(weeks.try_into()?)))
+            }
+            rebooking::Cadence::AsNeeded => Ok((Self::AsNeeded, None)),
+            rebooking::Cadence::GroomerRecommended => Ok((Self::GroomerRecommended, None)),
+            rebooking::Cadence::Unknown => Ok((Self::Unknown, None)),
+        }
+    }
+
+    /// Rehydrates a domain cadence only when the discriminator and interval columns agree.
+    pub fn into_domain(
+        self,
+        weeks: Option<StoredCadenceWeeks>,
+    ) -> operations::Result<rebooking::Cadence> {
+        match (self, weeks) {
+            (Self::EveryWeeks, Some(weeks)) => {
+                Ok(rebooking::Cadence::EveryWeeks(weeks.try_into()?))
+            }
+            (Self::AsNeeded, None) => Ok(rebooking::Cadence::AsNeeded),
+            (Self::GroomerRecommended, None) => Ok(rebooking::Cadence::GroomerRecommended),
+            (Self::Unknown, None) => Ok(rebooking::Cadence::Unknown),
+            _ => Err(operations::Error::StorageShapeMismatch {
+                record: operations::RecordKind::ServiceOffering,
+                reason: operations::ShapeMismatchReason::FieldBelongsToDifferentVariant,
+            }),
+        }
+    }
+}
+
 impl TryFrom<rebooking::CadenceWeeks> for StoredCadenceWeeks {
     type Error = operations::Error;
 

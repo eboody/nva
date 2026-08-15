@@ -5,8 +5,8 @@
 //! use uuid::Uuid;
 //!
 //! let evidence = daycare::package_opportunity::Evidence::builder()
-//!     .customer_id(entities::CustomerId(Uuid::nil()))
-//!     .pet_id(entities::PetId(Uuid::nil()))
+//!     .customer_id(entities::CustomerId::new(uuid::Uuid::from_u128(1)))
+//!     .pet_id(entities::PetId::new(uuid::Uuid::from_u128(1)))
 //!     .attendance_visits(daycare::package_opportunity::AttendanceVisitCount::new(8))
 //!     .eligibility(daycare::package_opportunity::CareEligibility::Cleared)
 //!     .package_state(daycare::package_opportunity::PackageState::PayPerVisit)
@@ -233,7 +233,7 @@ impl Policy {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-/// Estimated staff minutes saved by a source-backed daycare package opportunity packet.
+/// Caller-reported estimate difference in a source-backed daycare packet; never realized savings.
 pub struct EstimatedLaborMinutes(u16);
 
 impl EstimatedLaborMinutes {
@@ -357,10 +357,8 @@ impl OutcomeRecord {
         !self.source_record_refs.is_empty()
     }
 
-    /// Computes saved staff minutes without allowing negative labor-savings claims.
-    pub const fn minutes_saved(&self) -> u16 {
-        self.before_minutes
-            .get()
-            .saturating_sub(self.actual_minutes.get())
+    /// Serializable outcome history cannot publish saved labor minutes.
+    pub const fn reported_estimated_minutes_difference(&self) -> u16 {
+        0
     }
 }

@@ -20,7 +20,7 @@
 //! use uuid::Uuid;
 //!
 //! let evidence = daycare::eligibility::Evidence::builder()
-//!     .pet_id(entities::PetId(Uuid::nil()))
+//!     .pet_id(entities::PetId::new(uuid::Uuid::from_u128(1)))
 //!     .species(entities::Species::Dog)
 //!     .service(daycare::ServiceVariant::AllDayPlay)
 //!     .temperament(daycare::eligibility::TemperamentAssessmentFreshness::Missing)

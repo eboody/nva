@@ -72,7 +72,7 @@ Writers may say an agent can prepare, draft, rank, validate, flag, route, summar
 
 - Source evidence is not approval. A `domain::source::RecordRef`, `Provenance`, provider fixture, OCR result, or read-model fact explains where a recommendation came from; it does not authorize the live resort action.
 - Draft creation is not completion. A message draft, internal task draft, booking triage packet, manager brief action, or tool-port draft must still pass the named review gate before any sensitive downstream action.
-- Value is measured after review. Use outcome fields such as disposition, actual minutes, before/after minutes, minutes saved or avoided, wrong-source findings, data-quality issue refs, reviewer/actor, and correlation id. Do not claim realized ROI from intent or estimates alone.
+- Value is measured after review. Use outcome fields such as disposition, actual minutes, before/after minutes, reported time spent or estimate differences, wrong-source findings, data-quality issue refs, reviewer/actor, and correlation id. Do not claim realized ROI from intent or estimates alone.
 - Markdown is orientation. Behavioral authority stays in source/Rustdoc/tests such as `../../../app/src/agents.rs`, `../../../domain/src/policy.rs`, `../../../domain/src/workflow.rs`, `../../../domain/src/source.rs`, and `../../../storage/src/operations.rs`.
 
 ## Source anchors most overlays should cite

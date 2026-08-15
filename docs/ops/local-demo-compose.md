@@ -31,7 +31,7 @@ Proof artifacts are written to `.var/information-lifespan/` for processor files 
 Expected success anchors include:
 
 ```text
-processor_contract_ok correlation_id=info-lifespan-demo-2026-06-29 ... estimated_labor_minutes_saved=42
+processor_contract_ok correlation_id=info-lifespan-demo-2026-06-29 ... reported_estimated_labor_minutes_difference=42
 api_run_ok correlation_id=info-lifespan-demo-2026-06-29
 api_report_replay_ok final_report=artifact://manager-daily-report/synthetic-2026-06-29
 [smoke-local-demo] core_demo_ok local_fixture_only=true live_side_effects_allowed=false optional_agent_infra_required=0

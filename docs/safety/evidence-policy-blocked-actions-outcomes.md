@@ -28,7 +28,7 @@ Source evidence is the set of facts the app can point to when it explains why a 
 - Normalized domain facts: provider facts promoted into domain language such as `domain::source`, `domain::policy`, `domain::workflow`, `domain::daily_brief`, reservation status, vaccine requirements, or service-demand facts. The workspace glossary links these boundaries in [`README.md`](../../README.md), especially `domain::source`, `domain::policy`, `domain::workflow`, and manager daily brief truths.
 - Provenance and source refs: trace data that says where a fact came from, which source system or endpoint produced it, which record it refers to, when it was extracted, and which raw or batch reference supports it. The source/provenance vocabulary lives in [`domain::source`](../../domain/src/source.rs).
 - Prompt packets: app-owned packets that pass workflow identity, input, triggering event, policies, and expected output shape to an agent. The packet can ask for a summary, ranking, classification, or draft, but the packet is not live operational authority. See [`app::agents::AgentPromptPacket`](../../app/src/agents.rs) and the architecture draft on [agent prompt packets](../architecture/agent-prompt-packet.md).
-- Prior outcomes: records of what staff or managers did after reviewing a packet or draft, including disposition, actor, source refs, before/actual labor minutes, and estimated minutes saved. Outcome persistence is represented in [`storage::operations`](../../storage/src/operations.rs) and connected to labor measurement in the [labor-cost reduction crosswalk](../design/labor-cost-reduction-crosswalk.md).
+- Prior outcomes: records of what staff or managers did after reviewing a packet or draft, including disposition, actor, source refs, before/actual labor minutes, and reported estimated minute difference. Outcome persistence is represented in [`storage::operations`](../../storage/src/operations.rs) and connected to labor measurement in the [labor-cost reduction crosswalk](../design/labor-cost-reduction-crosswalk.md).
 
 A good workflow does not ask an agent to “figure out the truth” from scratch. It gives the agent a packet built from source evidence and asks for a constrained draft or recommendation that the app can validate.
 
@@ -74,7 +74,7 @@ A useful outcome record captures:
 - Estimated manual minutes before the workflow and actual minutes after review, when labor measurement applies.
 - Any caveat that should be visible next time, such as wrong source data, missing vaccine evidence, contact suppression, or manager override.
 
-[`storage::operations::ManagerDailyBriefOutcomeRecord`](../../storage/src/operations.rs) is the clearest current storage example: it persists action id, outcome, before/actual minutes, actor, source refs, reporting dimensions, and estimated minutes saved. The [labor-cost reduction crosswalk](../design/labor-cost-reduction-crosswalk.md) says labor-savings claims must be measured with outcome capture, not merely asserted.
+[`storage::operations::ManagerDailyBriefOutcomeRecord`](../../storage/src/operations.rs) is the clearest current storage example: it persists action id, outcome, before/actual minutes, actor, source refs, reporting dimensions, and reported estimated minute difference. The [labor-cost reduction crosswalk](../design/labor-cost-reduction-crosswalk.md) says outcome capture retains reported labor evidence but cannot establish a labor-savings claim.
 
 Outcome capture is what prevents repeated manual reconstruction. If a manager already reviewed a demand-versus-staffing action and recorded that the source was wrong or the task saved 30 minutes, the next brief should start from that record instead of asking another person to re-check every dashboard.
 
@@ -125,7 +125,7 @@ Flow:
 2. The app builds a prioritized brief.
    - `app::manager_daily_brief::Request` scopes evidence to a location, operating day, and manager persona.
    - `Packet` and `BriefAction` carry source facts, action kind, priority, rationale, and labor impact estimate.
-   - Safe agent work is internal: summarize evidence, rank manager actions, draft internal tasks, record feedback, and estimate labor minutes saved.
+   - Safe agent work is internal: summarize evidence, rank manager actions, draft internal tasks, record feedback, and estimate labor reported time difference.
 
 3. The manager chooses the action.
    - The manager sees a ranked queue instead of manually reconciling demand, checkout, retention, and source-quality dashboards.
@@ -137,7 +137,7 @@ Flow:
    - If action requires a schedule edit, provider write, customer outreach, payment movement, or policy exception, the brief stops at recommendation/draft and asks the manager or approved downstream process.
 
 5. Outcome and labor minutes are captured.
-   - `OutcomeRecord` and `ManagerDailyBriefOutcomeRecord` capture action id, outcome, actor, before minutes, actual minutes, source refs, reporting group, and estimated minutes saved.
+   - `OutcomeRecord` and `ManagerDailyBriefOutcomeRecord` capture action id, outcome, actor, before minutes, actual minutes, source refs, reporting group, and reported estimated minute difference.
    - The next brief can use those records to avoid rediscovering the same facts and to support measured labor-savings claims.
 
 Labor-saving effect: the manager starts the day with a source-backed action queue instead of scanning multiple dashboards and asking staff to reconstruct context. Safety effect: the system ranks and drafts only; it does not edit schedules, provider records, customer messages, or money.

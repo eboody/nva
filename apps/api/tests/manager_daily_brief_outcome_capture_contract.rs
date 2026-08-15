@@ -11,7 +11,9 @@ async fn post_outcome(
     let actor_id = body["actor"]["id"].as_str().map(str::to_owned);
     let mut builder = axum_http::request::Builder::new()
         .method(axum_http::Method::POST)
-        .uri(format!("/manager-daily-brief/actions/{action_id}/outcome"))
+        .uri(format!(
+            "/v0/manager-daily-brief/actions/{action_id}/outcome"
+        ))
         .header(axum_http::header::CONTENT_TYPE, "application/json");
     if let Some(actor_id) = actor_id {
         builder = builder
@@ -39,7 +41,17 @@ async fn post_outcome(
         .await
         .expect("body collects")
         .to_bytes();
-    let payload = serde_json::from_slice(&body).expect("json outcome response payload");
+    let payload: serde_json::Value =
+        serde_json::from_slice(&body).expect("json outcome response payload");
+    if status == axum_http::StatusCode::UNPROCESSABLE_ENTITY {
+        assert!(payload["error"]["code"].is_string());
+        assert!(payload["error"]["message"].is_string());
+        assert!(payload["error"]["safe_error_class"].is_string());
+        assert!(payload["error"]["details"].is_array());
+        assert!(payload["request_id"].is_string());
+        assert!(payload.get("correlation_id").is_some());
+        assert_eq!(payload["live_side_effects"], "disabled");
+    }
 
     (status, payload)
 }
@@ -113,12 +125,89 @@ fn outcome_body() -> serde_json::Value {
             "location_id": "00c0ffee-0000-0000-0000-000000000001",
             "operating_day": "2026-06-17"
         },
-        "requested_side_effects": []
+        "requested_side_effects": [],
+        "idempotency_key": "manager-daily-brief-outcome-1"
     })
 }
 
+async fn post_outcome_with_state(
+    state: http::VaccineDocumentState,
+    action_id: &str,
+    body: serde_json::Value,
+) -> (axum_http::StatusCode, serde_json::Value) {
+    let actor_id = body["actor"]["id"].as_str().expect("actor id");
+    let response = http::router_with_test_auth_state(state)
+        .oneshot(
+            axum_http::request::Builder::new()
+                .method(axum_http::Method::POST)
+                .uri(format!(
+                    "/v0/manager-daily-brief/actions/{action_id}/outcome"
+                ))
+                .header(axum_http::header::CONTENT_TYPE, "application/json")
+                .header("x-test-auth-actor-id", actor_id)
+                .header("x-test-auth-role", "front_desk_lead")
+                .header(
+                    "x-test-auth-location-id",
+                    "00c0ffee-0000-0000-0000-000000000001",
+                )
+                .body(Body::from(body.to_string()))
+                .expect("request builds"),
+        )
+        .await
+        .expect("outcome request succeeds");
+    let status = response.status();
+    let bytes = response
+        .into_body()
+        .collect()
+        .await
+        .expect("body collects")
+        .to_bytes();
+    (
+        status,
+        serde_json::from_slice(&bytes).expect("json response"),
+    )
+}
+
 #[tokio::test]
-async fn manager_daily_brief_outcome_capture_persists_staff_feedback_as_labor_savings_evidence() {
+async fn manager_daily_brief_outcome_replay_reuses_the_atomic_record() {
+    let state = http::VaccineDocumentState::default();
+    let action = manager_daily_brief_action_by_kind("resolve_checkout_exception").await;
+    let action_id = action["id"].as_str().expect("action id");
+    let mut body = outcome_body();
+    body["source_refs"] = action["source_refs"].clone();
+
+    let first = post_outcome_with_state(state.clone(), action_id, body.clone()).await;
+    let replay = post_outcome_with_state(state, action_id, body).await;
+
+    assert_eq!(first.0, axum_http::StatusCode::CREATED);
+    assert_eq!(replay.0, axum_http::StatusCode::OK);
+    assert_eq!(replay.1["idempotent_replay"], true);
+    assert_eq!(
+        replay.1["reported_labor_evidence"]["persisted_outcome_count"],
+        1
+    );
+}
+
+#[tokio::test]
+async fn manager_daily_brief_outcome_key_reuse_with_payload_drift_conflicts() {
+    let state = http::VaccineDocumentState::default();
+    let action = manager_daily_brief_action_by_kind("resolve_checkout_exception").await;
+    let action_id = action["id"].as_str().expect("action id");
+    let mut body = outcome_body();
+    body["source_refs"] = action["source_refs"].clone();
+    let mut drift = body.clone();
+    drift["feedback"] = json!("Different semantic outcome payload.");
+
+    let first = post_outcome_with_state(state.clone(), action_id, body).await;
+    let conflict = post_outcome_with_state(state, action_id, drift).await;
+
+    assert_eq!(first.0, axum_http::StatusCode::CREATED);
+    assert_eq!(conflict.0, axum_http::StatusCode::CONFLICT);
+    assert_eq!(conflict.1["error"]["code"], "idempotency_conflict");
+}
+
+#[tokio::test]
+async fn manager_daily_brief_outcome_capture_persists_staff_feedback_as_reported_labor_evidence() {
     let action = manager_daily_brief_action_by_kind("resolve_checkout_exception").await;
     let action_id = action["id"].as_str().expect("action id");
     let mut body = outcome_body();
@@ -145,24 +234,27 @@ async fn manager_daily_brief_outcome_capture_persists_staff_feedback_as_labor_sa
     );
 
     assert_eq!(
-        payload["labor_savings_evidence"]["estimated_minutes_saved"],
-        action["labor_impact"]["minutes_saved"]
+        payload["reported_labor_evidence"]["reported_estimated_minutes_difference"],
+        action["labor_impact"]["reported_estimated_minutes_difference"]
     );
-    assert_eq!(payload["labor_savings_evidence"]["actual_minutes_saved"], 8);
     assert_eq!(
-        payload["labor_savings_evidence"]["grouping"]["location_id"],
+        payload["reported_labor_evidence"]["reported_actual_minutes_spent"],
+        12
+    );
+    assert_eq!(
+        payload["reported_labor_evidence"]["grouping"]["location_id"],
         "00c0ffee-0000-0000-0000-000000000001"
     );
     assert_eq!(
-        payload["labor_savings_evidence"]["grouping"]["operating_day"],
+        payload["reported_labor_evidence"]["grouping"]["operating_day"],
         "2026-06-17"
     );
     assert_eq!(
-        payload["labor_savings_evidence"]["grouping"]["action_kind"],
+        payload["reported_labor_evidence"]["grouping"]["action_kind"],
         "resolve_checkout_exception"
     );
     assert_eq!(
-        payload["labor_savings_evidence"]["grouping"]["owner_persona"],
+        payload["reported_labor_evidence"]["grouping"]["owner_persona"],
         "front_desk_lead"
     );
     assert_eq!(payload["live_side_effects_allowed"], false);
@@ -253,6 +345,36 @@ async fn manager_daily_brief_outcome_capture_rejects_unknown_side_effects_fail_c
 }
 
 #[tokio::test]
+async fn manager_daily_brief_outcome_capture_rejects_nil_reporting_location() {
+    let action = manager_daily_brief_action_by_kind("resolve_checkout_exception").await;
+    let mut body = outcome_body();
+    body["source_refs"] = action["source_refs"].clone();
+    body["reporting"]["location_id"] = json!("00000000-0000-0000-0000-000000000000");
+
+    let (status, payload) =
+        post_outcome(action["id"].as_str().expect("action id is string"), body).await;
+
+    assert_eq!(status, axum_http::StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(payload["live_side_effects"], "disabled");
+    assert_eq!(payload["error"]["safe_error_class"], "validation_failed");
+    assert!(payload.get("outcome_persisted").is_none());
+}
+
+#[tokio::test]
+async fn manager_daily_brief_outcome_capture_rejects_non_rfc3339_timestamps() {
+    let action = manager_daily_brief_action_by_kind("resolve_checkout_exception").await;
+    let mut body = outcome_body();
+    body["source_refs"] = action["source_refs"].clone();
+    body["timestamp"] = json!("2026-06-17 13:15:00");
+
+    let (status, payload) =
+        post_outcome(action["id"].as_str().expect("action id is string"), body).await;
+
+    assert_eq!(status, axum_http::StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(payload["live_side_effects"], "disabled");
+}
+
+#[tokio::test]
 async fn manager_daily_brief_outcome_capture_rejects_zero_actual_minutes() {
     let action = manager_daily_brief_action_by_kind("resolve_checkout_exception").await;
     let action_id = action["id"].as_str().expect("action id");
@@ -262,12 +384,10 @@ async fn manager_daily_brief_outcome_capture_rejects_zero_actual_minutes() {
     let (status, payload) = post_outcome(action_id, body).await;
 
     assert_eq!(status, axum_http::StatusCode::UNPROCESSABLE_ENTITY);
-    assert_eq!(payload["accepted"], false);
-    assert_eq!(payload["outcome_persisted"], false);
-    assert_eq!(
-        payload["reasons"],
-        json!(["actual_minutes_must_be_greater_than_zero"])
-    );
+    assert_eq!(payload["live_side_effects"], "disabled");
+    assert_eq!(payload["error"]["safe_error_class"], "validation_failed");
+    assert!(payload.get("accepted").is_none());
+    assert!(payload.get("outcome_persisted").is_none());
 }
 
 #[tokio::test]

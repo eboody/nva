@@ -10,14 +10,14 @@ use crate::{
     storage::review_queue::{
         BlockedActionAttemptRow, HygieneAuditEventRow, HygieneOutcomeRow, ReviewQueueItemRow, codec,
     },
-    tables::{LocationScopeRow, RoleAssignmentRow, StaffActorRow},
+    tables::{LocationScopeV1Row, RoleAssignmentRow, StaffActorRow},
 };
 
 /// Read-side actor directory backed by SpacetimeDB rows loaded at reducer entry.
 pub struct ActorDirectoryAdapter {
     actors: Vec<StaffActorRow>,
     roles: Vec<RoleAssignmentRow>,
-    scopes: Vec<LocationScopeRow>,
+    scopes: Vec<LocationScopeV1Row>,
 }
 
 impl ActorDirectoryAdapter {
@@ -25,7 +25,7 @@ impl ActorDirectoryAdapter {
     pub fn new(
         actors: Vec<StaffActorRow>,
         roles: Vec<RoleAssignmentRow>,
-        scopes: Vec<LocationScopeRow>,
+        scopes: Vec<LocationScopeV1Row>,
     ) -> Self {
         Self {
             actors,
@@ -38,8 +38,12 @@ impl ActorDirectoryAdapter {
 impl hygiene::ActorDirectory for ActorDirectoryAdapter {
     fn resolve_actor(&self, actor_id: &hygiene::ActorId) -> Option<hygiene::ActorAssignment> {
         let actor_id = actor_id.as_ref();
-        let row = self.actors.iter().find(|row| row.actor_id == actor_id)?;
-        authz::actor_assignment_from_rows(row, self.roles.iter(), self.scopes.iter())
+        let mut matching_actors = self.actors.iter().filter(|row| row.actor_id == actor_id);
+        let row = matching_actors.next()?;
+        if matching_actors.next().is_some() {
+            return None;
+        }
+        authz::actor_assignment_from_rows(row, self.roles.iter(), self.scopes.iter()).ok()
     }
 }
 

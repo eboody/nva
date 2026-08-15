@@ -30,9 +30,17 @@ fn customer_pet_and_retail_promotions_require_source_backed_mapping_version_befo
     }))
     .unwrap();
 
-    let owner_provenance = provenance("501", "GET /owners/{id}", "gingr-owner-v1");
-    let animal_provenance = provenance("902", "GET /animals/{id}", "gingr-animal-v1");
-    let item_provenance = provenance("41", "GET /retail/items/{id}", "gingr-retail-item-v1");
+    let owner_provenance = provenance("501", "opaque://fixture/owner", "unverified-owner-fixture");
+    let animal_provenance = provenance(
+        "902",
+        "opaque://fixture/animal",
+        "unverified-animal-fixture",
+    );
+    let item_provenance = provenance(
+        "41",
+        "opaque://fixture/retail-item",
+        "unverified-retail-fixture",
+    );
 
     let customer = mapping::customer::contact_candidate(&owner, owner_provenance).unwrap();
     let pet = mapping::pet::name_candidate(&animal, animal_provenance).unwrap();
@@ -41,7 +49,7 @@ fn customer_pet_and_retail_promotions_require_source_backed_mapping_version_befo
     assert_eq!(customer.record_ref().record_id().as_str(), "501");
     assert_eq!(
         customer.provenance().schema_version().as_str(),
-        "gingr-owner-v1"
+        "unverified-owner-fixture"
     );
     assert_eq!(
         customer.mapping_version(),
@@ -74,7 +82,11 @@ fn promotions_reject_provenance_for_another_source_record() {
 
     let error = mapping::pet::name_candidate(
         &animal,
-        provenance("different-animal", "GET /animals/{id}", "gingr-animal-v1"),
+        provenance(
+            "different-animal",
+            "opaque://fixture/animal",
+            "unverified-animal-fixture",
+        ),
     )
     .unwrap_err();
 
@@ -88,7 +100,7 @@ fn promotions_reject_provenance_for_another_source_record() {
 }
 
 #[test]
-fn promotions_reject_provenance_from_the_wrong_endpoint_or_schema_contract() {
+fn promotions_preserve_opaque_unverified_provider_contract_labels() {
     let animal = response::AnimalRecord {
         id: endpoint::AnimalId::new(902),
         owner_id: None,
@@ -98,25 +110,33 @@ fn promotions_reject_provenance_from_the_wrong_endpoint_or_schema_contract() {
         unknown: BTreeMap::new(),
     };
 
-    let wrong_endpoint = mapping::pet::name_candidate(
+    let first_observation = mapping::pet::name_candidate(
         &animal,
-        provenance("902", "GET /owners/{id}", "gingr-animal-v1"),
+        provenance("902", "opaque://capture/source-a", "unverified-shape-a"),
     )
-    .unwrap_err();
-    assert!(matches!(
-        wrong_endpoint,
-        mapping::Error::SourceContractMismatch { .. }
-    ));
+    .unwrap();
+    assert_eq!(
+        first_observation.provenance().endpoint().as_str(),
+        "opaque://capture/source-a"
+    );
+    assert_eq!(
+        first_observation.provenance().schema_version().as_str(),
+        "unverified-shape-a"
+    );
 
-    let wrong_schema = mapping::pet::name_candidate(
+    let later_observation = mapping::pet::name_candidate(
         &animal,
-        provenance("902", "GET /animals/{id}", "gingr-owner-v1"),
+        provenance("902", "opaque://capture/source-b", "unverified-shape-b"),
     )
-    .unwrap_err();
-    assert!(matches!(
-        wrong_schema,
-        mapping::Error::SourceContractMismatch { .. }
-    ));
+    .unwrap();
+    assert_eq!(
+        later_observation.provenance().endpoint().as_str(),
+        "opaque://capture/source-b"
+    );
+    assert_eq!(
+        later_observation.provenance().schema_version().as_str(),
+        "unverified-shape-b"
+    );
 }
 
 fn provenance(record_id: &str, endpoint: &str, schema_version: &str) -> source::Provenance {

@@ -64,7 +64,7 @@ fn booking_triage_rule_contract_composes_boarding_deposit_decision_without_ownin
 }
 
 #[test]
-fn booking_triage_rule_contract_treats_paid_boarding_deposit_as_ready_service_evidence() {
+fn booking_triage_rule_contract_treats_paid_boarding_deposit_as_reviewable_evidence_only() {
     let amount = money::Money::new(
         money::MinorUnits::try_new(2_500).unwrap(),
         money::Currency::Usd,
@@ -79,20 +79,36 @@ fn booking_triage_rule_contract_treats_paid_boarding_deposit_as_ready_service_ev
     )
     .readiness_for_confirmation(Some(&paid));
 
-    assert_eq!(readiness, boarding::deposit::ConfirmationReadiness::Ready);
+    assert_eq!(
+        readiness,
+        boarding::deposit::ConfirmationReadiness::Blocked {
+            blocker: boarding::deposit::Blocker::ReferenceMissing,
+            review_gate: policy::ReviewGate::RefundOrDepositException,
+        }
+    );
 
-    let evaluation = booking_triage::DeterministicResult::evaluate(vec![
-        booking_triage::rule::Evaluation::pass(
+    let rule = match readiness {
+        boarding::deposit::ConfirmationReadiness::Ready => booking_triage::rule::Evaluation::pass(
             booking_triage::rule::Id::DepositAndPricingRequirements,
             vec![evidence("payment:gingr-payment-123")],
         ),
-    ]);
+        boarding::deposit::ConfirmationReadiness::Blocked { review_gate, .. } => {
+            booking_triage::rule::Evaluation::needs_human_approval(finding(
+                booking_triage::rule::Id::DepositAndPricingRequirements,
+                booking_triage::FailureCode::DepositNotSatisfied,
+                booking_triage::ReadinessBucket::SpecialReview,
+                triage_gate_for(review_gate),
+                vec![evidence("payment:gingr-payment-123")],
+            ))
+        }
+    };
+    let evaluation = booking_triage::DeterministicResult::evaluate(vec![rule]);
 
     assert_eq!(
         evaluation.recommended_status(),
-        booking_triage::ReadinessBucket::ReadyForStaffApproval
+        booking_triage::ReadinessBucket::SpecialReview
     );
-    assert!(!evaluation.requires(booking_triage::ApprovalGate::PaymentManagerApproval));
+    assert!(evaluation.requires(booking_triage::ApprovalGate::PaymentManagerApproval));
 }
 
 fn triage_gate_for(gate: policy::ReviewGate) -> booking_triage::ApprovalGate {

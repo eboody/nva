@@ -45,7 +45,7 @@ fn local_demo_smoke_proves_review_gated_inquiry_to_retention_chain() {
     );
     assert_eq!(
         evidence.booking_packet().suggested_status(),
-        domain::entities::reservation::Status::Offered
+        domain::entities::reservation::Status::Requested
     );
     assert!(
         evidence
@@ -56,19 +56,16 @@ fn local_demo_smoke_proves_review_gated_inquiry_to_retention_chain() {
     );
     assert_eq!(
         *evidence.today_view().status(),
-        domain::entities::reservation::Status::CheckedIn
+        domain::entities::reservation::Status::Requested
     );
-    assert_eq!(
-        evidence.checkout_completion().status(),
-        domain::entities::reservation::Status::CheckedOut
-    );
+    assert_eq!(evidence.checkout_completion().status(), None);
     assert_eq!(
         evidence.checkout_completion().completion_status(),
-        app::checkout_completion::CompletionStatus::StaffVerifiedCheckout
+        app::checkout_completion::CompletionStatus::NeedsStaffHandoffReview
     );
     assert_eq!(
         evidence.checkout_completion().required_review_gates(),
-        &[domain::policy::ReviewGate::CustomerMessageApproval]
+        &[domain::policy::ReviewGate::ManagerApproval]
     );
     assert!(
         evidence
@@ -100,6 +97,6 @@ fn local_demo_smoke_proves_review_gated_inquiry_to_retention_chain() {
         evidence
             .review_gated_evidence_refs()
             .iter()
-            .any(|e| { e.as_ref() == "checkout_completion:customer_message_approval_required" })
+            .any(|e| { e.as_ref() == "checkout_completion:manager_review_required" })
     );
 }

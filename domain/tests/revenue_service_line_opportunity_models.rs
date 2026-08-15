@@ -13,8 +13,8 @@ fn training_package_opportunity_carries_source_review_blocked_actions_and_outcom
     let package_id = training::package::Id::try_new("pkg-123").unwrap();
     let ledger = training::package::Ledger::open(training::package::OpeningLedger {
         package_id: package_id.clone(),
-        customer_id: entities::CustomerId(Uuid::new_v4()),
-        pet_id: entities::PetId(Uuid::new_v4()),
+        customer_id: entities::CustomerId::new(Uuid::new_v4()),
+        pet_id: entities::PetId::new(Uuid::new_v4()),
         policy: training::package::Policy::MultiSessionPackage {
             sessions: training::SessionCount::try_new(1).unwrap(),
         },
@@ -55,14 +55,14 @@ fn training_package_opportunity_carries_source_review_blocked_actions_and_outcom
     );
     assert_eq!(outcome.before_minutes().get(), 7);
     assert_eq!(outcome.actual_minutes().get(), 3);
-    assert_eq!(outcome.minutes_saved(), 4);
+    assert_eq!(outcome.reported_estimated_minutes_difference(), 0);
 }
 
 #[test]
 fn retail_reorder_decision_exposes_review_gate_and_blocks_vendor_orders() {
     let sku = retail::product::Sku::try_new("CALM-CARE-30").unwrap();
     let position = retail::inventory::Position::record(retail::inventory::Stock {
-        location_id: entities::LocationId(Uuid::new_v4()),
+        location_id: entities::LocationId::new(Uuid::new_v4()),
         sku,
         on_hand: retail::inventory::OnHandUnits::new(3),
         reserved: retail::inventory::ReservedUnits::new(1),
@@ -90,8 +90,8 @@ fn retail_reorder_decision_exposes_review_gate_and_blocks_vendor_orders() {
 #[test]
 fn daycare_package_opportunity_keeps_source_refs_and_records_labor_outcome() {
     let evidence = daycare::package_opportunity::Evidence::builder()
-        .customer_id(entities::CustomerId(Uuid::new_v4()))
-        .pet_id(entities::PetId(Uuid::new_v4()))
+        .customer_id(entities::CustomerId::new(Uuid::new_v4()))
+        .pet_id(entities::PetId::new(Uuid::new_v4()))
         .attendance_visits(daycare::package_opportunity::AttendanceVisitCount::new(8))
         .eligibility(daycare::package_opportunity::CareEligibility::Cleared)
         .package_state(daycare::package_opportunity::PackageState::PayPerVisit)
@@ -117,6 +117,6 @@ fn daycare_package_opportunity_keeps_source_refs_and_records_labor_outcome() {
         daycare::package_opportunity::ActualLaborMinutes::try_new(2).unwrap(),
         evidence.source_record_refs().to_vec(),
     );
-    assert_eq!(outcome.minutes_saved(), 4);
+    assert_eq!(outcome.reported_estimated_minutes_difference(), 0);
     assert!(outcome.has_source_evidence());
 }

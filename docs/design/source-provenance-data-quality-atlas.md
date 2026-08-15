@@ -117,7 +117,7 @@ A source fact must not authorize customer sends, booking/check-in/checkout chang
 
 ### Safe-use evidence and outcome fields
 
-Safe use requires at least the source system, record id/source ref, provenance receipt where available, source freshness or pull/import time, issue status when quality is poor, review gate/reviewer role for sensitive decisions, audit id for operational decisions, and outcome record when claiming labor savings.
+Safe use requires source identity/provenance, freshness, issue status, review gates, audit ids, and outcome records labeled as nonclaimable evidence. These records do not establish labor savings.
 
 ### Examples and non-examples
 
@@ -413,7 +413,7 @@ Data-quality issues are adjacent to field paths, provenance, source refs, source
 
 ### Allowed actions
 
-The workflow may summarize source evidence, rank hygiene actions, draft internal cleanup tasks, preserve ambiguity for review, estimate reconciliation minutes saved, validate that drafts carry source refs/issue refs/review gates, and record reviewed outcomes.
+The workflow may summarize source evidence, rank hygiene actions, draft internal cleanup tasks, preserve ambiguity for review, estimate reconciliation reported time difference, validate that drafts carry source refs/issue refs/review gates, and record reviewed outcomes.
 
 ### Blocked actions and review gates
 
@@ -558,7 +558,7 @@ Unless a later linked contract explicitly authorizes the action through determin
 - payment, refund, discount, deposit, package, subscription, or payroll movement;
 - vaccine, medical, incident, temperament, safety, compliance, or policy approvals;
 - exposure of quarantined sensitive payloads or unredacted PII;
-- labor-savings claims without outcome records and source refs.
+- labor-savings claims from serialized outcome records, estimates, or source refs.
 
 ## Source-contract tests and evidence locations
 

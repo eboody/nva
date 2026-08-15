@@ -140,20 +140,13 @@ pub struct LocationOffering {
 }
 
 impl LocationOffering {
-    /// Reports whether the product is active and customer-sellable at this location.
-    pub fn can_be_sold_to_customer(&self) -> bool {
-        matches!(self.status, OfferingStatus::Active)
-            && matches!(
-                self.usage,
-                Usage::CustomerSellable | Usage::SellableAndInHouseConsumable
-            )
+    /// Serializable catalog history cannot authorize a customer sale.
+    pub const fn can_be_sold_to_customer(&self) -> bool {
+        false
     }
 
-    /// Checks tracked inventory before allowing a POS sale draft for the requested quantity.
-    pub fn has_available_sale_units(&self, quantity: pos::Quantity) -> bool {
-        match self.inventory {
-            inventory::Policy::NotTracked => true,
-            inventory::Policy::Tracked { on_hand, .. } => on_hand.get() >= quantity.get(),
-        }
+    /// Serializable inventory history cannot authorize a POS sale draft.
+    pub const fn has_available_sale_units(&self, _quantity: pos::Quantity) -> bool {
+        false
     }
 }

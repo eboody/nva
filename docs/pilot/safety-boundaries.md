@@ -1,6 +1,6 @@
 # Pilot safety boundaries
 
-This repository should be presented as a local, review-gated pilot scaffold.
+This repository should be presented as a local, review-gated pilot proof with fixture-only inputs and disabled live side effects.
 
 Current hard boundaries in code and tests:
 
@@ -12,7 +12,7 @@ Current hard boundaries in code and tests:
 - Schedule changes are blocked.
 - Raw provider payload passthrough is avoided in public API contracts.
 - Secrets and sensitive provider parameters are redacted in debug/display surfaces.
-- Labor-savings claims require outcome records and source evidence.
+- Serialized outcome records and source evidence remain nonclaimable; no labor-savings claim issuer exists.
 
 Recommended external framing:
 

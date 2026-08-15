@@ -5,7 +5,7 @@
 //! use uuid::Uuid;
 //!
 //! let context = daycare::front_desk::ReadinessContext::builder()
-//!     .reservation_id(entities::reservation::Id(Uuid::nil()))
+//!     .reservation_id(entities::reservation::Id::new(uuid::Uuid::from_u128(1)))
 //!     .service(daycare::ServiceVariant::DayBoarding)
 //!     .eligibility(daycare::front_desk::EligibilityReadiness::IndividualCareReady)
 //!     .coverage(daycare::coverage::Decision::Sufficient)
@@ -167,7 +167,7 @@ impl QueueTicket {
     /// Maps the readiness decision to the operational queue lane staff should use.
     pub const fn lane(&self) -> QueueLane {
         match self.decision {
-            ReadinessDecision::ReadyToCheckIn => QueueLane::FastLane,
+            ReadinessDecision::ReadyToCheckIn => QueueLane::ManagerReviewLane,
             ReadinessDecision::NeedsFrontDeskCollection => QueueLane::CollectionLane,
             ReadinessDecision::NeedsCareTeamReview { .. } => QueueLane::CareTeamReviewLane,
             ReadinessDecision::NeedsManagerReview { .. } => QueueLane::ManagerReviewLane,

@@ -336,6 +336,28 @@ async fn inquiry_intake_rejects_missing_trusted_actor_context_before_mutating_ru
 }
 
 #[tokio::test]
+async fn inquiry_intake_rejects_explicit_nil_location_identity() {
+    let (status, payload) = request_json_on(
+        http::router_with_test_auth_state(http::VaccineDocumentState::default()),
+        axum_http::Method::POST,
+        "/inquiries",
+        json!({
+            "source_event_key": "nil-location-inquiry",
+            "location_id": "00000000-0000-0000-0000-000000000000",
+            "customer": {"full_name": "Casey", "email": "casey@example.test"},
+            "pet": {"name": "Miso", "species": "dog"},
+            "service": "boarding",
+            "message": "Need boarding details."
+        }),
+        Some(front_desk_lead()),
+    )
+    .await;
+
+    assert_eq!(status, axum_http::StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(payload["error"]["code"], "invalid_location_id");
+}
+
+#[tokio::test]
 async fn production_router_never_promotes_client_supplied_test_headers_into_trusted_identity() {
     let app = http::router_with_state(http::VaccineDocumentState::default());
 

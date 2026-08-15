@@ -40,7 +40,7 @@ Each `BriefAction` names:
 - rationale;
 - source facts;
 - review gates;
-- labor impact estimate with before minutes, after minutes, and minutes saved.
+- labor impact estimate with before minutes, after minutes, and reported time difference.
 
 The current action kinds are:
 
@@ -57,7 +57,7 @@ Allowed AI actions are internal/draft-only:
 - rank manager actions;
 - draft internal tasks for review;
 - record manager feedback;
-- estimate labor minutes saved.
+- estimate labor reported time difference.
 
 Blocked actions remain explicit no-go areas:
 
@@ -81,13 +81,13 @@ Retention actions preserve `CustomerMessageApproval`. Checkout/data-quality exce
 - optional manager feedback explaining the human/system-of-record disposition;
 - source record refs.
 
-Outcome capture is staff evidence only and returns the same blocked external actions. It records whether the loop actually reduced work without mutating provider systems. `Completed` outcomes can produce a supported `LaborSavingsClaim` only through the action-aware claim path that verifies the outcome matches the reviewable `BriefAction` and cites all source records behind that action's `SourceFact` evidence. Completed raw outcomes with no action/source proof, deferred outcomes, suppressed outcomes, and wrong-source outcomes stay auditable feedback but intentionally do not count as realized labor savings.
+Outcome capture is reported staff evidence only and returns the same blocked external actions. `Completed` is a caller-serializable label, not proof that the loop reduced work. `LaborSavingsClaim` has no supported state, and both raw and action-aware claim paths remain nonclaimable until a future opaque authenticated value-authority issuer exists. Completed, deferred, suppressed, and wrong-source outcomes stay auditable feedback and never count as realized labor savings.
 
 ## Before/after labor metric
 
 The first metric is minutes of manager/front-desk work avoided per operating day:
 
-`minutes_saved = before_minutes - after_minutes`
+`reported_estimated_minutes_difference = before_minutes - after_minutes`
 
 Initial executable contract estimates:
 
@@ -95,7 +95,7 @@ Initial executable contract estimates:
 - checkout exception audit: 20 min before, 8 min after;
 - retention follow-up prioritization: 30 min before, 10 min after.
 
-The packet also totals before/after minutes across ranked actions. Tests prove a source-grounded demand + retention brief produces 75 minutes before, 25 minutes after, and 50 minutes saved.
+The packet also totals before/after minutes across ranked actions. Tests prove a source-grounded demand + retention brief produces 75 minutes before, 25 minutes after, and 50 reported time difference.
 
 ## Verification
 
@@ -105,4 +105,4 @@ Executable coverage lives in `app/tests/manager_daily_brief_workflow_contracts.r
 - removed manual work is explicit;
 - review gates and blocked actions are preserved;
 - nonblocking data-quality issues remain visible;
-- outcome capture records actual minutes saved without external mutation.
+- outcome capture records reported actual minutes spent as nonclaimable evidence without external mutation.

@@ -33,17 +33,66 @@ use crate::{
     temperament, vaccine,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Stable identifier for a resort location across source imports, policies, reports, and workflows.
-pub struct LocationId(pub Uuid);
+/// Error returned when a sentinel UUID is offered as a production domain identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("domain identity UUID cannot be nil")]
+pub struct NilIdentityError;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Stable identifier for the customer/account responsible for pets, reservations, messages, and payments.
-pub struct CustomerId(pub Uuid);
+macro_rules! non_nil_uuid_id {
+    ($name:ident, $doc:literal) => {
+        #[doc = $doc]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+        #[serde(transparent)]
+        pub struct $name(Uuid);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Stable identifier for a pet whose care, temperament, vaccine, and reservation facts drive safety decisions.
-pub struct PetId(pub Uuid);
+        impl $name {
+            /// Constructs an identity for trusted static/programmatic values and rejects nil.
+            #[track_caller]
+            pub fn new(value: Uuid) -> Self {
+                Self::try_new(value).expect("domain identity UUID cannot be nil")
+            }
+
+            /// Promotes an untrusted UUID only when it is not the nil sentinel.
+            pub const fn try_new(
+                value: Uuid,
+            ) -> std::result::Result<Self, $crate::entities::NilIdentityError> {
+                if value.is_nil() {
+                    Err($crate::entities::NilIdentityError)
+                } else {
+                    Ok(Self(value))
+                }
+            }
+
+            /// Returns the validated UUID representation.
+            pub const fn get(self) -> Uuid {
+                self.0
+            }
+        }
+
+        impl<'de> Deserialize<'de> for $name {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                let value = Uuid::deserialize(deserializer)?;
+                Self::try_new(value).map_err(serde::de::Error::custom)
+            }
+        }
+    };
+}
+
+non_nil_uuid_id!(
+    LocationId,
+    "Stable non-nil identifier for a resort location across source imports, policies, reports, and workflows."
+);
+non_nil_uuid_id!(
+    CustomerId,
+    "Stable non-nil identifier for the customer/account responsible for pets, reservations, messages, and payments."
+);
+non_nil_uuid_id!(
+    PetId,
+    "Stable non-nil identifier for a pet whose care, temperament, vaccine, and reservation facts drive safety decisions."
+);
 
 impl std::fmt::Display for PetId {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -60,9 +109,10 @@ pub mod reservation {
 
     use super::{PetId, PortalProvider};
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-    /// Provider or source identifier retained as the stable join key.
-    pub struct Id(pub Uuid);
+    non_nil_uuid_id!(
+        Id,
+        "Stable non-nil provider or source reservation identifier retained as a join key."
+    );
 
     impl fmt::Display for Id {
         fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -847,13 +897,14 @@ pub enum HardStop {
     DepositRequired,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Stable identifier for a document artifact used as vaccine, waiver, medical, or incident evidence.
-pub struct DocumentId(pub Uuid);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Stable identifier for a vaccine compliance record tied to a pet and proof document.
-pub struct VaccineRecordId(pub Uuid);
+non_nil_uuid_id!(
+    DocumentId,
+    "Stable non-nil identifier for a document artifact used as vaccine, waiver, medical, or incident evidence."
+);
+non_nil_uuid_id!(
+    VaccineRecordId,
+    "Stable non-nil identifier for a vaccine compliance record tied to a pet and proof document."
+);
 
 /// Care-note vocabulary for staff-visible, customer-visible, and internal handoff notes.
 pub mod care_note {
@@ -864,9 +915,10 @@ pub mod care_note {
 
     use super::{IncidentId, PetId, reservation};
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-    /// Provider or source identifier retained as the stable join key.
-    pub struct Id(pub Uuid);
+    non_nil_uuid_id!(
+        Id,
+        "Stable non-nil provider or source reservation identifier retained as a join key."
+    );
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     /// Subject that a care, document, incident, audit, or message record is about.
@@ -927,13 +979,14 @@ pub mod care_note {
     pub struct Body(String);
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Stable identifier for a pet, customer, or operational incident requiring evidence and follow-up.
-pub struct IncidentId(pub Uuid);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Stable identifier for a customer or internal message workflow.
-pub struct MessageId(pub Uuid);
+non_nil_uuid_id!(
+    IncidentId,
+    "Stable non-nil identifier for a pet, customer, or operational incident requiring evidence and follow-up."
+);
+non_nil_uuid_id!(
+    MessageId,
+    "Stable non-nil identifier for a customer or internal message workflow."
+);
 
 /// Approval record vocabulary for review-gated automation outcomes.
 pub mod approval {
@@ -945,9 +998,10 @@ pub mod approval {
         ActorRef, DocumentId, IncidentId, MessageId, VaccineRecordId, policy, reservation,
     };
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-    /// Provider or source identifier retained as the stable join key.
-    pub struct Id(pub Uuid);
+    non_nil_uuid_id!(
+        Id,
+        "Stable non-nil provider or source reservation identifier retained as a join key."
+    );
 
     /// Approval aggregate construction and rehydration failures.
     #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -1879,13 +1933,137 @@ pub struct CareNote {
 }
 
 impl CareNote {
-    /// Reports whether this care note may be surfaced to customers without an additional approval gate.
-    pub fn is_customer_visible_without_review(&self) -> bool {
-        matches!(self.visibility, care_note::Visibility::CustomerVisible)
-            && !matches!(
-                self.kind,
-                care_note::Kind::Medication | care_note::Kind::Medical | care_note::Kind::Behavior
-            )
+    /// Serializable care-note history never bypasses review for customer-facing context.
+    pub const fn is_customer_visible_without_review(&self) -> bool {
+        false
+    }
+}
+
+/// Checked evidence used to close an incident lifecycle.
+pub mod incident_record {
+    use chrono::{DateTime, Utc};
+    use serde::Serialize;
+
+    use super::{ActorRef, IncidentError, IncidentId, approval, policy};
+
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+    /// Serializable historical proof that an exact incident received manager approval for closure.
+    pub struct ClosureEvidence {
+        approval_id: approval::Id,
+        incident_id: IncidentId,
+        decided_by: ActorRef,
+        decided_at: DateTime<Utc>,
+    }
+
+    /// Opaque one-use permission to close one exact incident.
+    pub struct IncidentClosureAuthority {
+        pub(super) evidence: ClosureEvidence,
+    }
+
+    impl ClosureEvidence {
+        /// Promotes an exact approved incident decision into closure evidence.
+        pub fn try_from_approval(
+            approval: &approval::Record,
+            incident_id: IncidentId,
+        ) -> Result<Self, IncidentError> {
+            if approval.target() != &approval::Target::Incident(incident_id)
+                || approval.gate() != &policy::ReviewGate::ManagerApproval
+            {
+                return Err(IncidentError::ClosureApprovalMismatch);
+            }
+            let approval::Lifecycle::Approved {
+                decided_by,
+                decided_at,
+            } = approval.lifecycle()
+            else {
+                return Err(IncidentError::ClosureApprovalMismatch);
+            };
+            Ok(Self {
+                approval_id: approval.id(),
+                incident_id,
+                decided_by: decided_by.clone(),
+                decided_at: *decided_at,
+            })
+        }
+
+        /// Exact incident target approved for closure.
+        pub const fn incident_id(&self) -> IncidentId {
+            self.incident_id
+        }
+
+        /// Reviewer identity recorded by the accepted historical decision.
+        pub const fn decided_by(&self) -> &ActorRef {
+            &self.decided_by
+        }
+    }
+
+    /// Test-only issuer for the incident closure capability protocol.
+    ///
+    /// Production issuance is deliberately absent until a real authenticated reviewer boundary
+    /// owns current actor, role, and scope validation.
+    #[cfg(test)]
+    pub(crate) fn issue_incident_closure_authority(
+        approval: &approval::Record,
+        incident_id: IncidentId,
+        current_reviewer: &ActorRef,
+    ) -> Result<IncidentClosureAuthority, IncidentError> {
+        let evidence = ClosureEvidence::try_from_approval(approval, incident_id)?;
+        if evidence.decided_by() != current_reviewer {
+            return Err(IncidentError::ClosureApprovalMismatch);
+        }
+        Ok(IncidentClosureAuthority { evidence })
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use chrono::{TimeZone, Utc};
+        use uuid::Uuid;
+
+        use super::{super::Incident, *};
+        use crate::{entities, incident, policy};
+
+        #[test]
+        fn current_reviewer_authority_issues_one_incident_bound_closure_capability() {
+            let incident_id = IncidentId::new(uuid::Uuid::from_u128(1));
+            let reviewer = ActorRef::Manager {
+                manager_id: entities::ManagerId::try_new("manager-1").unwrap(),
+            };
+            let decided_at = Utc.with_ymd_and_hms(2026, 8, 15, 1, 0, 0).unwrap();
+            let approval = approval::Record::builder()
+                .id(approval::Id::new(Uuid::from_u128(2)))
+                .target(approval::Target::Incident(incident_id))
+                .gate(policy::ReviewGate::ManagerApproval)
+                .lifecycle(approval::Lifecycle::Approved {
+                    decided_by: reviewer.clone(),
+                    decided_at,
+                })
+                .requested_by(ActorRef::System)
+                .requested_at(decided_at)
+                .build()
+                .unwrap();
+            let incident = Incident::builder()
+                .id(incident_id)
+                .location_id(entities::LocationId::new(Uuid::from_u128(3)))
+                .primary_subject(entities::IncidentSubject::Pet(entities::PetId::new(
+                    Uuid::from_u128(4),
+                )))
+                .category(incident::Category::Medication)
+                .severity(incident::Severity::High)
+                .status(incident::Status::NeedsManagerReview)
+                .reported_by(ActorRef::System)
+                .reported_at(decided_at)
+                .summary(incident::Summary::try_new("missed dose").unwrap())
+                .required_review_gates(vec![policy::ReviewGate::ManagerApproval])
+                .build()
+                .unwrap();
+
+            let authority =
+                issue_incident_closure_authority(&approval, incident_id, &reviewer).unwrap();
+            let closed = incident.close_with(authority).unwrap();
+
+            assert_eq!(closed.status(), incident::Status::Closed);
+            assert!(closed.closure_evidence().is_some());
+        }
     }
 }
 
@@ -1925,6 +2103,18 @@ pub enum IncidentError {
     #[error("customer-message incident requires customer message approval review gate")]
     /// Represents the `CustomerMessageIncidentRequiresCustomerMessageApprovalReviewGate` semantic case.
     CustomerMessageIncidentRequiresCustomerMessageApprovalReviewGate,
+    #[error("closed incident requires exact manager closure evidence")]
+    /// A gate label or observed closed status cannot substitute for exact closure proof.
+    ClosedRequiresClosureEvidence,
+    #[error("incident closure evidence is bound to a different target or decision")]
+    /// Closure approval was not an approved manager decision for this incident.
+    ClosureApprovalMismatch,
+    #[error("only a closed incident may carry closure evidence")]
+    /// Historical closure evidence cannot be attached to an active incident state.
+    ClosureEvidenceRequiresClosedStatus,
+    #[error("closed incident rehydration requires a trusted approval aggregate")]
+    /// Generic serde cannot promote historical closure fields into a closed lifecycle.
+    ClosedRehydrationRequiresTrustedApproval,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1940,6 +2130,7 @@ pub struct Incident {
     reported_at: DateTime<Utc>,
     summary: incident::Summary,
     required_review_gates: Vec<policy::ReviewGate>,
+    closure_evidence: Option<incident_record::ClosureEvidence>,
     audit_refs: Vec<crate::audit::EventId>,
 }
 
@@ -1956,6 +2147,8 @@ struct RawIncident {
     summary: incident::Summary,
     #[serde(default)]
     required_review_gates: Vec<policy::ReviewGate>,
+    #[serde(default)]
+    closure_evidence: Option<serde::de::IgnoredAny>,
     #[serde(default)]
     audit_refs: Vec<crate::audit::EventId>,
 }
@@ -1980,6 +2173,11 @@ impl RawIncident {
                 IncidentError::CustomerMessageIncidentRequiresCustomerMessageApprovalReviewGate,
             );
         }
+        if matches!(self.status, incident::Status::Closed) {
+            return Err(IncidentError::ClosedRehydrationRequiresTrustedApproval);
+        } else if self.closure_evidence.is_some() {
+            return Err(IncidentError::ClosureEvidenceRequiresClosedStatus);
+        }
         Ok(Incident {
             id: self.id,
             location_id: self.location_id,
@@ -1991,6 +2189,7 @@ impl RawIncident {
             reported_at: self.reported_at,
             summary: self.summary,
             required_review_gates: self.required_review_gates,
+            closure_evidence: None,
             audit_refs: self.audit_refs,
         })
     }
@@ -2012,6 +2211,25 @@ impl Incident {
     pub fn builder() -> IncidentBuilder {
         IncidentBuilder::default()
     }
+    /// Closes this incident only by consuming opaque current authority for this exact target.
+    pub fn close_with(
+        mut self,
+        authority: incident_record::IncidentClosureAuthority,
+    ) -> std::result::Result<Self, IncidentError> {
+        let evidence = authority.evidence;
+        if evidence.incident_id() != self.id {
+            return Err(IncidentError::ClosureApprovalMismatch);
+        }
+        self.status = incident::Status::Closed;
+        self.closure_evidence = Some(evidence);
+        Ok(self)
+    }
+
+    /// Returns persisted historical closure evidence, when the incident is closed.
+    pub const fn closure_evidence(&self) -> Option<&incident_record::ClosureEvidence> {
+        self.closure_evidence.as_ref()
+    }
+
     /// Returns the aggregate id.
     pub fn id(&self) -> IncidentId {
         self.id
@@ -2156,6 +2374,7 @@ impl IncidentBuilder {
             reported_at: self.reported_at.ok_or(IncidentError::ReportedAtRequired)?,
             summary: self.summary.ok_or(IncidentError::SummaryRequired)?,
             required_review_gates: self.required_review_gates,
+            closure_evidence: None,
             audit_refs: self.audit_refs,
         }
         .try_into_incident()
@@ -2178,7 +2397,7 @@ pub enum IncidentSubject {
 /// Message aggregate vocabulary and checked lifecycle evidence.
 pub mod message_record {
     use chrono::{DateTime, Utc};
-    use serde::{Deserialize, Serialize};
+    use serde::Serialize;
 
     use super::{ActorRef, MessageId, approval, message, policy};
 
@@ -2220,6 +2439,9 @@ pub mod message_record {
         )]
         /// Represents the `ApprovalEvidenceMismatch` semantic case.
         ApprovalEvidenceMismatch,
+        #[error("trusted reviewer authority does not match the approval decision")]
+        /// Opaque reviewer authority was issued for another actor, target, gate, or approval.
+        ReviewerAuthorityMismatch,
         #[error("message queue capability does not satisfy the draft approval gate")]
         /// Represents the `QueueCapabilityGateMismatch` semantic case.
         QueueCapabilityGateMismatch,
@@ -2229,13 +2451,16 @@ pub mod message_record {
         #[error("only approval-requested outbound drafts can be queued")]
         /// Represents the `OnlyApprovalRequestedDraftsCanBeQueued` semantic case.
         OnlyApprovalRequestedDraftsCanBeQueued,
+        #[error("queued or sent message rehydration requires opaque queue authorization")]
+        /// Generic serde cannot promote historical approval fields into executable lifecycle state.
+        ExecutableRehydrationRequiresQueueAuthorization,
     }
 
     /// Result alias for message aggregate construction and lifecycle promotion.
     pub type Result<T> = std::result::Result<T, Error>;
 
     /// Serializable historical approval evidence for a message lifecycle.
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
     pub struct ApprovalEvidence {
         /// Approval decision id when the evidence came from an owned approval record.
         approval_id: Option<approval::Id>,
@@ -2297,6 +2522,36 @@ pub mod message_record {
         }
     }
 
+    /// Opaque, non-serializable proof that the trusted application authorization boundary
+    /// admitted one reviewer for one approval, message target, and review gate.
+    #[derive(Debug)]
+    pub struct ReviewerAuthority {
+        approval_id: approval::Id,
+        message_id: MessageId,
+        gate: policy::ReviewGate,
+        reviewer: ActorRef,
+    }
+
+    /// Test-only issuer for the capability protocol.
+    ///
+    /// Production issuance is intentionally absent in the pre-data phase. A future authenticated
+    /// actor adapter must own that root of trust; raw actor labels and persisted approvals are not
+    /// substitutes. Until then the executable message-queue path remains fail-closed.
+    #[cfg(test)]
+    pub(crate) fn issue_reviewer_authority(
+        approval_id: approval::Id,
+        message_id: MessageId,
+        gate: policy::ReviewGate,
+        reviewer: ActorRef,
+    ) -> ReviewerAuthority {
+        ReviewerAuthority {
+            approval_id,
+            message_id,
+            gate,
+            reviewer,
+        }
+    }
+
     /// Opaque, target-bound, non-serializable authority to admit one approved message to a queue.
     #[derive(Debug)]
     pub struct QueueAuthorization {
@@ -2304,18 +2559,68 @@ pub mod message_record {
         pub(super) evidence: ApprovalEvidence,
     }
 
-    /// Promotes an owned approval decision into separate historical evidence and one-shot authority.
+    /// Combines historical approval evidence with current, opaque reviewer authority.
     pub fn authorize_queue(
         approval: &approval::Record,
-        message_id: MessageId,
-        gate: policy::ReviewGate,
+        reviewer_authority: ReviewerAuthority,
     ) -> Result<(ApprovalEvidence, QueueAuthorization)> {
+        let message_id = reviewer_authority.message_id;
+        let gate = reviewer_authority.gate;
+        let approval::Lifecycle::Approved { decided_by, .. } = approval.lifecycle() else {
+            return Err(Error::ReviewerAuthorityMismatch);
+        };
+        if approval.id() != reviewer_authority.approval_id
+            || approval.target() != &approval::Target::Message(message_id)
+            || approval.gate() != &gate
+            || decided_by != &reviewer_authority.reviewer
+        {
+            return Err(Error::ReviewerAuthorityMismatch);
+        }
         let evidence = ApprovalEvidence::try_from_approval(approval, message_id, gate)?;
         let authorization = QueueAuthorization {
             message_id,
             evidence: evidence.clone(),
         };
         Ok((evidence, authorization))
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use chrono::{TimeZone, Utc};
+        use uuid::Uuid;
+
+        use super::*;
+
+        #[test]
+        fn matching_trusted_reviewer_authority_issues_one_target_bound_queue_capability() {
+            let message_id = MessageId::new(Uuid::from_u128(500));
+            let approval_id = approval::Id::new(Uuid::from_u128(501));
+            let reviewer = ActorRef::Manager {
+                manager_id: super::super::ManagerId::try_new("trusted-reviewer").unwrap(),
+            };
+            let approval = approval::Record::builder()
+                .id(approval_id)
+                .target(approval::Target::Message(message_id))
+                .gate(policy::ReviewGate::CustomerMessageApproval)
+                .lifecycle(approval::Lifecycle::Approved {
+                    decided_by: reviewer.clone(),
+                    decided_at: Utc.with_ymd_and_hms(2026, 8, 15, 10, 0, 0).unwrap(),
+                })
+                .requested_by(ActorRef::System)
+                .requested_at(Utc.with_ymd_and_hms(2026, 8, 15, 9, 0, 0).unwrap())
+                .build()
+                .unwrap();
+            let authority = issue_reviewer_authority(
+                approval_id,
+                message_id,
+                policy::ReviewGate::CustomerMessageApproval,
+                reviewer,
+            );
+
+            let (evidence, authorization) = authorize_queue(&approval, authority).unwrap();
+            assert_eq!(evidence.message_id(), message_id);
+            assert_eq!(authorization.message_id, message_id);
+        }
     }
 
     /// Checked message lifecycle; variants carry exactly the evidence legal for their phase.
@@ -2507,7 +2812,7 @@ pub struct Message {
     audit_refs: Vec<crate::audit::EventId>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize)]
 struct RawMessage {
     id: MessageId,
     subject: MessageSubject,
@@ -2516,10 +2821,24 @@ struct RawMessage {
     status: message::Status,
     body_ref: message::BodyRef,
     approval_gate: Option<policy::ReviewGate>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    approval_evidence: Option<message_record::ApprovalEvidence>,
+    #[serde(default)]
+    approval_evidence: Option<serde::de::IgnoredAny>,
     #[serde(default)]
     audit_refs: Vec<crate::audit::EventId>,
+}
+
+#[derive(Serialize)]
+struct SerializedMessage<'a> {
+    id: MessageId,
+    subject: &'a MessageSubject,
+    direction: message::Direction,
+    channel: message::Channel,
+    status: message::Status,
+    body_ref: &'a message::BodyRef,
+    approval_gate: Option<policy::ReviewGate>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    approval_evidence: Option<&'a message_record::ApprovalEvidence>,
+    audit_refs: &'a [crate::audit::EventId],
 }
 
 impl Serialize for Message {
@@ -2527,16 +2846,17 @@ impl Serialize for Message {
     where
         S: serde::Serializer,
     {
-        RawMessage {
+        let approval_evidence = self.lifecycle.approval_evidence();
+        SerializedMessage {
             id: self.id,
-            subject: self.subject.clone(),
+            subject: &self.subject,
             direction: self.direction(),
             channel: self.channel,
             status: self.status(),
-            body_ref: self.body_ref.clone(),
+            body_ref: &self.body_ref,
             approval_gate: self.approval_gate(),
-            approval_evidence: self.lifecycle.approval_evidence(),
-            audit_refs: self.audit_refs.clone(),
+            approval_evidence: approval_evidence.as_ref(),
+            audit_refs: &self.audit_refs,
         }
         .serialize(serializer)
     }
@@ -2554,12 +2874,23 @@ impl<'de> Deserialize<'de> for Message {
 
 impl Message {
     fn try_from_persisted(raw: RawMessage) -> message_record::Result<Self> {
+        if raw.approval_evidence.is_some()
+            || matches!(
+                raw.status,
+                message::Status::ApprovedToQueue
+                    | message::Status::Queued
+                    | message::Status::SendAttempted
+                    | message::Status::Delivered
+            )
+        {
+            return Err(message_record::Error::ExecutableRehydrationRequiresQueueAuthorization);
+        }
         let lifecycle = message_record::Lifecycle::try_from_persisted(
             raw.id,
             raw.direction,
             raw.status,
             raw.approval_gate,
-            raw.approval_evidence,
+            None,
         )?;
         Ok(Self {
             id: raw.id,

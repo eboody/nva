@@ -4,7 +4,7 @@ use domain::{daily_brief, entities, lead, operations, reputation, staff, workflo
 fn operations_call_sites_keep_service_owner_modules_visible() {
     let brief = daily_brief::Resort {
         operating_day: daily_brief::ResortOperatingDay {
-            location_id: entities::LocationId(uuid::Uuid::nil()),
+            location_id: entities::LocationId::new(uuid::Uuid::from_u128(1)),
             date: chrono::NaiveDate::from_ymd_opt(2026, 7, 1).unwrap(),
             snapshot_id: daily_brief::snapshot::Id::try_new("owner-brief").unwrap(),
         },
@@ -23,9 +23,9 @@ fn operations_call_sites_keep_service_owner_modules_visible() {
     assert!(brief.has_manager_attention_required());
 
     let task = staff::Task::builder()
-        .location_id(entities::LocationId(uuid::Uuid::nil()))
+        .location_id(entities::LocationId::new(uuid::Uuid::from_u128(1)))
         .kind(staff::task::Kind::CustomerFollowUp {
-            customer_id: entities::CustomerId(uuid::Uuid::nil()),
+            customer_id: entities::CustomerId::new(uuid::Uuid::from_u128(1)),
             reason: daily_brief::FollowUpReason::LeadNeedsResponse,
         })
         .title(workflow::task::Title::try_new("Call lead").unwrap())
@@ -33,8 +33,8 @@ fn operations_call_sites_keep_service_owner_modules_visible() {
         .priority(staff::task::Priority::Normal)
         .due_at(chrono::DateTime::<chrono::Utc>::UNIX_EPOCH)
         .assignment(staff::task::Assignment::Role(staff::Role::FrontDesk))
-        .source(staff::task::Source::Customer(entities::CustomerId(
-            uuid::Uuid::nil(),
+        .source(staff::task::Source::Customer(entities::CustomerId::new(
+            uuid::Uuid::from_u128(1),
         )))
         .build()
         .unwrap();
@@ -52,7 +52,7 @@ fn operations_call_sites_keep_service_owner_modules_visible() {
     assert_eq!(lead.intent, lead::Intent::DaycareTrial);
 
     let reputation_signal = reputation::Signal {
-        location_id: entities::LocationId(uuid::Uuid::nil()),
+        location_id: entities::LocationId::new(uuid::Uuid::from_u128(1)),
         platform: reputation::PlatformName::try_new("Google").unwrap(),
         review_id: reputation::Id::try_new("review-owner").unwrap(),
         sentiment: reputation::Sentiment::Mixed,

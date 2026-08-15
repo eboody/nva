@@ -56,7 +56,7 @@ Ownership defaults:
 | `strategic_ai_ops::assistant::{ActorContext, AnswerPacket}` | Bridge | `app::agents` / future assistant app workflow; domain owns only policy/access/citation primitives | Assistant packets are runtime/use-case envelopes, not domain aggregates, unless they become durable audited decisions. |
 | `strategic_ai_ops::financial::MoneyCents` | Delete | `domain::money::{Money, MinorUnits, Currency}` | Use checked money/currency values. No panicking arithmetic; no negative serde bypass. |
 | `strategic_ai_ops::financial::{SitePeriod, RevenueFact, Insight}` | Migrate | future `domain::finance` or `domain::analytics::finance` | Facts need site/service/period/source refs and checked net arithmetic; insights are review-gated recommendations, not price/payment authority. |
-| `strategic_ai_ops::outcome::Record` | Bridge then Migrate | app outcome records now; future `domain::outcome` after vertical slices | General outcome must cite reviewed action and source refs before supporting value claims. |
+| `strategic_ai_ops::outcome::Record` | Bridge then Migrate | app outcome records now; future `domain::outcome` after vertical slices | General outcome records must cite reviewed action and source refs, but remain nonclaimable evidence. |
 
 ## Consequences
 

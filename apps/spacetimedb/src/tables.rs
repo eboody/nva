@@ -52,7 +52,10 @@ pub struct RoleAssignmentRow {
     pub schema_version: u32,
 }
 
-/// One location scope for an actor.
+/// One legacy location scope for an actor.
+///
+/// This declaration preserves the deployed `location_scope` table shape exactly. Authorization
+/// never reads it; only `location_scope_v1` can promote rows into runtime authority.
 #[spacetimedb::table(accessor = location_scope)]
 #[derive(Clone, Debug)]
 pub struct LocationScopeRow {
@@ -63,9 +66,30 @@ pub struct LocationScopeRow {
     /// App actor id.
     #[index(btree)]
     pub actor_id: String,
+    /// Location id this historical row covered.
+    #[index(btree)]
+    pub location_id: String,
+}
+
+/// Version-one location scope for an actor.
+///
+/// A new table identity avoids unsupported in-place column addition to the
+/// legacy `location_scope` table during module upgrades.
+#[spacetimedb::table(accessor = location_scope_v1)]
+#[derive(Clone, Debug)]
+pub struct LocationScopeV1Row {
+    /// Synthetic row id because SpacetimeDB does not support composite primary keys.
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    /// App actor id.
+    #[index(btree)]
+    pub actor_id: String,
     /// Location id this actor covers.
     #[index(btree)]
     pub location_id: String,
+    /// Schema version for authorization-scope row evolution.
+    pub schema_version: u32,
 }
 
 /// Actor kind encoded in storage, not a domain entity.

@@ -168,10 +168,16 @@ async fn data_quality_hygiene_context_returns_source_grounded_internal_cleanup_p
     assert_eq!(payload["prepared_for"], "general_manager");
     assert!(payload["candidates"].as_array().unwrap().len() >= 2);
     assert!(payload["hygiene_actions"].as_array().unwrap().len() >= 2);
-    assert_eq!(payload["labor_savings_estimate"]["before_minutes"], 55);
-    assert_eq!(payload["labor_savings_estimate"]["after_minutes"], 22);
     assert_eq!(
-        payload["labor_savings_estimate"]["estimated_minutes_saved"],
+        payload["reported_labor_estimate_evidence"]["before_minutes"],
+        55
+    );
+    assert_eq!(
+        payload["reported_labor_estimate_evidence"]["after_minutes"],
+        22
+    );
+    assert_eq!(
+        payload["reported_labor_estimate_evidence"]["reported_estimated_minutes_difference"],
         33
     );
 
@@ -391,11 +397,9 @@ async fn data_quality_hygiene_outcome_capture_records_labor_evidence_without_pro
             .unwrap()
             .contains(&json!("mutate_provider_or_pms_record"))
     );
-    assert!(
-        payload["labor_savings_evidence"]["actual_minutes_saved"]
-            .as_u64()
-            .unwrap()
-            > 0
+    assert_eq!(
+        payload["reported_labor_evidence"]["reported_actual_minutes_spent"],
+        9
     );
     assert_eq!(payload["local_demo_readiness"]["mode"], "local_demo_only");
     assert_eq!(
@@ -537,7 +541,7 @@ async fn data_quality_hygiene_outcome_summary_reports_reviewed_minutes_and_prove
     )
     .await;
     assert_eq!(status, axum_http::StatusCode::CREATED);
-    let grouping = &capture_payload["labor_savings_evidence"]["grouping"];
+    let grouping = &capture_payload["reported_labor_evidence"]["grouping"];
     let correlation_id = capture_payload["outcome_record"]["audit"]["correlation_id"]
         .as_str()
         .unwrap();
@@ -552,21 +556,15 @@ async fn data_quality_hygiene_outcome_summary_reports_reviewed_minutes_and_prove
 
     assert_eq!(status, axum_http::StatusCode::OK);
     assert_eq!(payload["summary"]["reviewed_outcome_count"], 1);
-    assert_eq!(payload["summary"]["completed_count"], 1);
+    assert_eq!(payload["summary"]["reported_completed_outcome_count"], 1);
     assert_eq!(payload["summary"]["deferred_count"], 0);
     assert_eq!(payload["summary"]["wrong_source_count"], 0);
     assert_eq!(payload["summary"]["not_actionable_count"], 0);
     assert_eq!(
-        payload["summary"]["total_estimated_minutes_saved"],
-        action["labor_impact"]["estimated_minutes_saved"]
+        payload["summary"]["total_reported_estimated_minutes_difference"],
+        0
     );
     assert_eq!(payload["summary"]["total_actual_minutes_spent"], 9);
-    assert!(
-        payload["summary"]["completed_actual_minutes_saved"]
-            .as_u64()
-            .unwrap()
-            > 0
-    );
     assert_eq!(
         payload["summary"]["source_refs"][0]["system"],
         action["source_refs"][0]["system"]

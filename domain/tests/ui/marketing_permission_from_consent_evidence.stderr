@@ -1,0 +1,33 @@
+warning: unreachable statement
+  --> tests/ui/marketing_permission_from_consent_evidence.rs:22:5
+   |
+20 |       let membership: customer::intelligence::SegmentMembership = todo!();
+   |                                                                   ------- any code following this expression is unreachable
+21 |
+22 | /     let _ = customer::intelligence::MarketingUsePermission::try_from_membership(
+23 | |         &membership,
+24 | |         Some(evidence),
+25 | |         access::AllowedUse::MarketingCampaign,
+26 | |         now,
+27 | |     );
+   | |______^ unreachable statement
+   |
+   = note: `#[warn(unreachable_code)]` (part of `#[warn(unused)]`) on by default
+
+error[E0308]: mismatched types
+  --> tests/ui/marketing_permission_from_consent_evidence.rs:24:14
+   |
+24 |         Some(evidence),
+   |         ---- ^^^^^^^^ expected `AcceptedConsent`, found `ConsentEvidence`
+   |         |
+   |         arguments to this enum variant are incorrect
+   |
+help: the type constructed contains `ConsentEvidence` due to the type of the argument passed
+  --> tests/ui/marketing_permission_from_consent_evidence.rs:24:9
+   |
+24 |         Some(evidence),
+   |         ^^^^^--------^
+   |              |
+   |              this argument influences the type of `Some`
+note: tuple variant defined here
+  --> $RUST/core/src/option.rs

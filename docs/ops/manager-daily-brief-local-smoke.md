@@ -1,144 +1,63 @@
-# Manager Daily Brief local smoke loop
+# Manager Daily Brief local smoke
 
-Purpose: prove the first local agent/app loop for the NVA Pet Resorts labor-cost reduction platform without live customer, PMS/provider, schedule, payment, refund, or discount side effects.
+This smoke proves two separate properties without conflating evidence with authority:
 
-The smoke keeps the deterministic app in charge of facts, source refs, validation, review gates, persistence, audit, and outcome reporting. Hermes/tool scripts only read typed context and submit draft/outcome packets through app-owned endpoints.
+1. The production API fails closed because no authenticated trusted-actor issuer is currently wired into the local production router.
+2. The deterministic app-owned Manager Daily Brief workflow contracts still pass independently of production authority issuance.
 
-## Prerequisites
+Serializable actor labels, review history, outcome rows, bearer-shaped strings, and local fixture metadata are not accepted as authority.
 
-- Docker with Compose support.
-- Rust/Cargo available if images need to build.
-- Python 3 and curl.
-- Ports available, or override host ports with environment variables.
+## Command
 
-Default host ports:
-
-- pet-resort-api: `127.0.0.1:3001`
-- postgres: `127.0.0.1:54329`
-- minio: `127.0.0.1:9000` and console `127.0.0.1:9001`
-- OpenViking: `127.0.0.1:1933`
-
-If another local stack already owns a default port, override only the colliding port, for example:
-
-```bash
-PET_RESORT_POSTGRES_HOST_PORT=55432 ./scripts/smoke_manager_daily_brief_local_loop.sh
-```
-
-## One-command smoke
+From the repository root:
 
 ```bash
 ./scripts/smoke_manager_daily_brief_local_loop.sh
 ```
 
-This command starts:
+The script starts local PostgreSQL, MinIO, API, and worker containers. It waits for `/healthz`, then calls the protected Manager Daily Brief context bridge without a token or trusted actor issuer. Success requires a secret-safe HTTP 401 response and no context payload. It then runs:
 
 ```bash
-docker compose --profile agent-infra up --build -d \
-  postgres minio pet-resort-api pet-resort-worker
+cargo test -p app --test manager_daily_brief_workflow_contracts --locked --quiet
 ```
 
-Then it executes the Manager Daily Brief loop:
+This separation is deliberate. Application policy can be exercised with fixture evidence, while the production route remains unusable until an authenticated root of trust can issue actor authority.
 
-1. Waits for the app API health endpoint.
-2. Checks OpenViking health. If OpenViking is not initialized, the script records a precise blocker and continues because OpenViking is agent-side context infrastructure, not the app source of truth for this smoke.
-3. Reads app-owned Manager Daily Brief context through `scripts/hermes-tools/get_manager_daily_brief_context`.
-4. Builds a Hermes-authored draft packet from app source refs.
-5. Submits the draft through `scripts/hermes-tools/submit_manager_daily_brief_draft` and verifies app validation accepts only source-grounded, review-gated, no-side-effect recommendations.
-6. Submits an intentionally unsafe draft requesting `change_staff_schedule` and verifies the app returns HTTP 422 through the bridge instead of allowing the side effect.
-7. Records a fake reviewed staff outcome through `scripts/hermes-tools/record_manager_daily_brief_outcome`.
-8. Verifies the app reports estimated vs actual labor minutes saved.
+## Expected proof
 
-Expected success lines look like:
+A passing run includes:
 
 ```text
-context_ok actions=3 minutes_saved=62
-draft_validation_ok accepted_actions=1 live_side_effects_allowed=false
-blocked_draft_validation_ok http_422_secret_safe_error=true
-outcome_ok estimated_minutes_saved=12 actual_minutes_saved=8
-full local Manager Daily Brief loop passed without live customer/PMS/payment side effects
+authority_boundary_ok http_401=true trusted_actor_issuer_available=false live_side_effects_allowed=false
+production API stayed fail closed; deterministic workflow contracts passed without live side effects
 ```
 
-The script writes JSON artifacts to a temp directory and prints the path.
+The script must fail if:
 
-## Manual command sequence
+- the protected route returns Manager Daily Brief context without authenticated authority;
+- the unauthorized request returns a payload;
+- the error is not a secret-safe HTTP 401;
+- deterministic workflow contracts fail; or
+- any local service needed for the smoke cannot start.
 
-Use this when debugging individual contracts.
+## Reported labor evidence
+
+App/API outcome contracts retain `reported_labor_evidence.reported_estimated_minutes_difference` and `reported_labor_evidence.reported_actual_minutes_spent` as nonclaimable evidence. Serializable outcomes cannot establish realized savings, workflow completion, or execution authority. No production value-claim issuer exists.
+
+## Side-effect posture
+
+The local stack keeps customer messaging, provider writes, payments, refunds, discounts, and schedule changes disabled. Passing this smoke does not establish pilot or production readiness. Production usability requires a separately reviewed authenticated actor issuer bound to exact subject, action, scope, gate, and provenance.
+
+## Custom ports
+
+If local ports are occupied, set the compose variables before running:
 
 ```bash
-export PET_RESORT_API_URL=http://127.0.0.1:3001
-docker compose --profile agent-infra up --build -d \
-  postgres minio pet-resort-api pet-resort-worker
-curl -fsS "$PET_RESORT_API_URL/healthz"
-
-scripts/hermes-tools/get_manager_daily_brief_context \
-  --location-id 00c0ffee-0000-0000-0000-000000000001 \
-  --operating-day 2026-06-17 \
-  > /tmp/manager-daily-brief-context.json
+export PET_RESORT_POSTGRES_HOST_PORT=55441
+export PET_RESORT_MINIO_HOST_PORT=19000
+export PET_RESORT_MINIO_CONSOLE_HOST_PORT=19001
+export PET_RESORT_API_HOST_PORT=13001
+./scripts/smoke_manager_daily_brief_local_loop.sh
 ```
 
-Create a draft that cites source refs from the context packet and requests no side effects:
-
-```bash
-python - /tmp/manager-daily-brief-context.json /tmp/manager-daily-brief-draft.json <<'PY'
-import json, sys
-context = json.load(open(sys.argv[1], encoding="utf-8"))
-source_refs = context["manager_brief_actions"][0].get("source_refs") or context["source_refs"][:1]
-draft = {
-    "context_packet_id": context["audit"]["context_packet_id"],
-    "correlation_id": context["audit"]["correlation_id"],
-    "submitted_by": "hermes-agent-local-smoke",
-    "actions": [{
-        "id": "smoke-demand-staffing-1",
-        "kind": "review_demand_against_staffing_plan",
-        "recommendation": "Review boarding demand against the staffing plan before morning drop-off.",
-        "source_refs": source_refs,
-        "review_gates": ["manager_approval"],
-        "requested_side_effects": []
-    }]
-}
-json.dump(draft, open(sys.argv[2], "w", encoding="utf-8"), indent=2)
-PY
-
-scripts/hermes-tools/submit_manager_daily_brief_draft \
-  --draft-file /tmp/manager-daily-brief-draft.json
-```
-
-Record a fake reviewed outcome for the checkout exception action:
-
-```bash
-python - /tmp/manager-daily-brief-context.json /tmp/manager-daily-brief-outcome.json /tmp/manager-daily-brief-action-id.txt <<'PY'
-import json, sys
-context = json.load(open(sys.argv[1], encoding="utf-8"))
-action = next(a for a in context["manager_brief_actions"] if a["kind"] == "resolve_checkout_exception")
-source_refs = []
-for ref in action.get("source_refs") or context["source_refs"][:1]:
-    normalized = dict(ref)
-    normalized.setdefault("record_type", "reservation")
-    normalized.setdefault("observed_at", "2026-06-17T12:00:00Z")
-    normalized.setdefault("adapter_version", "local-manager-daily-brief-smoke-v1")
-    source_refs.append(normalized)
-outcome = {
-    "outcome": "completed",
-    "actual_minutes": 12,
-    "actor": {"id": "front-desk-lead-local-smoke", "persona": "front_desk_lead"},
-    "feedback": "Fake reviewed outcome; no live external side effect attempted.",
-    "source_refs": source_refs,
-    "timestamp": "2026-06-17T13:15:00Z",
-    "audit": {"correlation_id": context["audit"]["correlation_id"]},
-    "reporting": {"location_id": context["location_id"], "operating_day": context["operating_day"]},
-    "requested_side_effects": []
-}
-json.dump(outcome, open(sys.argv[2], "w", encoding="utf-8"), indent=2)
-open(sys.argv[3], "w", encoding="utf-8").write(action["id"])
-PY
-
-scripts/hermes-tools/record_manager_daily_brief_outcome \
-  --action-id "$(cat /tmp/manager-daily-brief-action-id.txt)" \
-  --outcome-file /tmp/manager-daily-brief-outcome.json
-```
-
-The outcome response includes `labor_savings_evidence.estimated_minutes_saved` and `labor_savings_evidence.actual_minutes_saved`.
-
-## OpenViking preflight
-
-OpenViking is no longer part of the default Manager Daily Brief smoke path; the smoke uses the core local stack only.
+The script does not stop containers automatically. Operators running a disposable smoke can clean up with the same compose project and environment using `docker compose down -v`.

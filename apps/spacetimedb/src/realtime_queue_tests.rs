@@ -9,7 +9,8 @@ use crate::{
         codec, transition,
     },
     tables::{
-        ActorKindColumn, LocationScopeRow, ReviewerRoleColumn, RoleAssignmentRow, StaffActorRow,
+        ActorKindColumn, LocationScopeRow, LocationScopeV1Row, ReviewerRoleColumn,
+        RoleAssignmentRow, StaffActorRow,
     },
 };
 use app::data_quality_hygiene as hygiene;
@@ -63,6 +64,108 @@ fn reviewed_outcome_provenance_is_derived_from_the_authorized_queue_row() {
 }
 
 #[test]
+fn review_queue_codec_rejects_unsupported_schema_versions() {
+    let mut row = pending_location_101_issue();
+    row.schema_version = codec::REVIEW_QUEUE_SCHEMA_VERSION + 1;
+
+    assert!(codec::review_queue_item(&row).is_none());
+}
+
+#[test]
+fn authenticated_legacy_scope_migration_is_actor_bound_atomic_and_idempotent() {
+    let actors = vec![StaffActorRow {
+        actor_id: "alice".to_owned(),
+        identity: "identity-alice".to_owned(),
+        actor_kind: ActorKindColumn::Staff,
+        actor_ref: "staff-alice".to_owned(),
+        schema_version: codec::REVIEW_QUEUE_SCHEMA_VERSION,
+    }];
+    let roles = vec![RoleAssignmentRow {
+        id: 1,
+        actor_id: "alice".to_owned(),
+        review_role: ReviewerRoleColumn::FrontDeskAgent,
+        schema_version: codec::REVIEW_QUEUE_SCHEMA_VERSION,
+    }];
+    let legacy = vec![
+        LocationScopeRow {
+            id: 1,
+            actor_id: "alice".to_owned(),
+            location_id: "101".to_owned(),
+        },
+        LocationScopeRow {
+            id: 2,
+            actor_id: "alice".to_owned(),
+            location_id: "101".to_owned(),
+        },
+        LocationScopeRow {
+            id: 3,
+            actor_id: "bob".to_owned(),
+            location_id: "102".to_owned(),
+        },
+    ];
+    let alice = hygiene::ActorId::try_new("alice").unwrap();
+
+    let pending = authz::authenticated_legacy_scope_migration(
+        "identity-alice",
+        &alice,
+        &actors,
+        &roles,
+        &legacy,
+        &[],
+    )
+    .unwrap();
+    assert_eq!(pending.len(), 1);
+    assert_eq!(pending[0].actor_id, "alice");
+    assert_eq!(pending[0].location_id, "101");
+    assert_eq!(
+        pending[0].schema_version,
+        codec::REVIEW_QUEUE_SCHEMA_VERSION
+    );
+
+    let second = authz::authenticated_legacy_scope_migration(
+        "identity-alice",
+        &alice,
+        &actors,
+        &roles,
+        &legacy,
+        &pending,
+    )
+    .unwrap();
+    assert!(second.is_empty());
+
+    let bob = hygiene::ActorId::try_new("bob").unwrap();
+    assert!(matches!(
+        authz::authenticated_legacy_scope_migration(
+            "identity-alice",
+            &bob,
+            &actors,
+            &roles,
+            &legacy,
+            &[],
+        ),
+        Err(authz::RehydrationError::AuthenticatedActorMismatch)
+    ));
+
+    let mut malformed = legacy;
+    malformed.push(LocationScopeRow {
+        id: 4,
+        actor_id: "alice".to_owned(),
+        location_id: "00000000-0000-0000-0000-000000000000".to_owned(),
+    });
+    assert!(matches!(
+        authz::authenticated_legacy_scope_migration(
+            "identity-alice",
+            &alice,
+            &actors,
+            &roles,
+            &malformed,
+            &[],
+        ),
+        Err(authz::RehydrationError::MalformedLocationScope)
+    ));
+}
+
+#[test]
 fn staff_queue_projection_keeps_location_source_and_claim_state_visible() {
     let item: StaffQueueItemRow = codec::staff_queue_item(&pending_location_101_issue());
 
@@ -113,10 +216,11 @@ fn split_actor_role_and_scope_rows_promote_into_app_authorization_policy() {
             review_role: ReviewerRoleColumn::FrontDeskLead,
             schema_version: codec::REVIEW_QUEUE_SCHEMA_VERSION,
         }],
-        vec![LocationScopeRow {
+        vec![LocationScopeV1Row {
             id: 0,
             actor_id: "alice".to_owned(),
             location_id: location_101(),
+            schema_version: codec::REVIEW_QUEUE_SCHEMA_VERSION,
         }],
     );
 
@@ -125,6 +229,12 @@ fn split_actor_role_and_scope_rows_promote_into_app_authorization_policy() {
         .expect("alice should promote from split rows");
 
     assert!(alice.covers_location(authz::parse_location_id("101").unwrap()));
+}
+
+#[test]
+fn location_scope_parser_rejects_nil_and_zero_sentinels() {
+    assert!(authz::parse_location_id("0").is_none());
+    assert!(authz::parse_location_id("00000000-0000-0000-0000-000000000000").is_none());
 }
 
 #[test]
@@ -186,7 +296,85 @@ fn unknown_identity_is_not_promoted_into_a_business_actor() {
 
     assert_eq!(
         authz::actor_id_for_identity("identity-anonymous", actors.iter()),
-        None
+        Ok(None)
+    );
+}
+
+#[test]
+fn duplicate_identity_rows_fail_closed_instead_of_selecting_by_iteration_order() {
+    let actors = [
+        staff_actor(
+            "alice",
+            "shared-identity",
+            ActorKindColumn::Staff,
+            "staff-alice",
+        ),
+        staff_actor(
+            "morgan",
+            "shared-identity",
+            ActorKindColumn::Manager,
+            "manager-morgan",
+        ),
+    ];
+
+    assert_eq!(
+        authz::actor_id_for_identity("shared-identity", actors.iter()),
+        Err(authz::RehydrationError::DuplicateIdentity)
+    );
+}
+
+#[test]
+fn conflicting_role_rows_fail_closed_without_inventing_multi_role_policy() {
+    let actor = staff_actor(
+        "alice",
+        "identity-alice",
+        ActorKindColumn::Staff,
+        "staff-alice",
+    );
+    let roles = [
+        role_assignment("alice", ReviewerRoleColumn::FrontDeskLead),
+        role_assignment("alice", ReviewerRoleColumn::GeneralManager),
+    ];
+    let scopes = [location_scope("alice", "101")];
+
+    assert_eq!(
+        authz::actor_assignment_from_rows(&actor, roles.iter(), scopes.iter()),
+        Err(authz::RehydrationError::ConflictingRoles)
+    );
+}
+
+#[test]
+fn malformed_location_scope_fails_the_whole_authority_rehydration() {
+    let actor = staff_actor(
+        "alice",
+        "identity-alice",
+        ActorKindColumn::Staff,
+        "staff-alice",
+    );
+    let roles = [role_assignment("alice", ReviewerRoleColumn::FrontDeskLead)];
+    let scopes = [location_scope("alice", "not-a-location")];
+
+    assert_eq!(
+        authz::actor_assignment_from_rows(&actor, roles.iter(), scopes.iter()),
+        Err(authz::RehydrationError::MalformedLocationScope)
+    );
+}
+
+#[test]
+fn unsupported_authority_schema_versions_fail_closed() {
+    let mut actor = staff_actor(
+        "alice",
+        "identity-alice",
+        ActorKindColumn::Staff,
+        "staff-alice",
+    );
+    actor.schema_version = codec::REVIEW_QUEUE_SCHEMA_VERSION + 1;
+    let roles = [role_assignment("alice", ReviewerRoleColumn::FrontDeskLead)];
+    let scopes = [location_scope("alice", "101")];
+
+    assert_eq!(
+        authz::actor_assignment_from_rows(&actor, roles.iter(), scopes.iter()),
+        Err(authz::RehydrationError::UnsupportedSchemaVersion)
     );
 }
 
@@ -216,7 +404,6 @@ fn ai_service_actor_can_draft_but_outcome_cards_never_allow_live_delivery() {
         "dq-action-location-101".to_owned(),
         ActorRefColumn::System,
         FeedbackOutcomeColumn::Completed,
-        25,
         9,
         vec![SourceRecordRefColumn {
             system: SourceSystemColumn::Gingr,
@@ -225,6 +412,7 @@ fn ai_service_actor_can_draft_but_outcome_cards_never_allow_live_delivery() {
         vec!["dq-issue-location-101".to_owned()],
     );
     assert!(!outcome_card.live_delivery_allowed);
+    assert_eq!(outcome_card.reported_actual_minutes_spent, 9);
 }
 
 #[test]
@@ -299,10 +487,9 @@ fn review_queue_rows_round_trip_source_refs_review_gate_and_status_without_boole
 #[test]
 fn actor_and_outcome_codecs_round_trip_every_supported_variant() {
     use domain::{agent, entities};
-    use uuid::Uuid;
 
     let actors = [
-        entities::ActorRef::Customer(entities::CustomerId(Uuid::nil())),
+        entities::ActorRef::Customer(entities::CustomerId::new(uuid::Uuid::from_u128(1))),
         entities::ActorRef::Staff {
             staff_id: entities::StaffId::try_new("staff-1").unwrap(),
         },
@@ -542,10 +729,11 @@ fn role_assignment(actor_id: &str, review_role: ReviewerRoleColumn) -> RoleAssig
     }
 }
 
-fn location_scope(actor_id: &str, location_id: &str) -> LocationScopeRow {
-    LocationScopeRow {
+fn location_scope(actor_id: &str, location_id: &str) -> LocationScopeV1Row {
+    LocationScopeV1Row {
         id: 0,
         actor_id: actor_id.to_owned(),
         location_id: location_id.to_owned(),
+        schema_version: codec::REVIEW_QUEUE_SCHEMA_VERSION,
     }
 }

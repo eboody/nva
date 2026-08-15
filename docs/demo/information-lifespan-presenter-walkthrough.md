@@ -107,7 +107,7 @@ Suggested line:
 Success anchors from the script:
 
 ```text
-processor_contract_ok correlation_id=info-lifespan-demo-2026-06-29 ... estimated_labor_minutes_saved=42
+processor_contract_ok correlation_id=info-lifespan-demo-2026-06-29 ... reported_estimated_labor_minutes_difference=42
 api_run_ok correlation_id=info-lifespan-demo-2026-06-29
 api_report_replay_ok final_report=artifact://manager-daily-report/synthetic-2026-06-29
 ```
@@ -125,7 +125,7 @@ Point to the network-visible run card:
 - browser route: `/api/local-demo/v0/demo/information-lifespan/run`
 - upstream route: `/v0/demo/information-lifespan/run`
 - replay route: `/v0/demo/information-lifespan/{correlation_id}/report`
-- response preview fields: `correlation_id`, `artifact_ref`, `stage_count`, `estimated_labor_minutes_saved`, `review_gate_count`, `live_side_effects_allowed=false`
+- response preview fields: `correlation_id`, `artifact_ref`, `stage_count`, `reported_estimated_labor_minutes_difference`, `review_gate_count`, `live_side_effects_allowed=false`
 
 Suggested line:
 
@@ -144,7 +144,7 @@ Point to the final report card:
 
 - `Manager Daily Report — synthetic 2026-06-29`
 - `artifact://manager-daily-report/synthetic-2026-06-29`
-- value proof: `3 sources`, `3 facts`, `6 DB refs`, `5 locks`, `42 estimated minutes saved`
+- value proof: `3 sources`, `3 facts`, `6 DB refs`, `5 locks`, `42 reported estimated minute difference`
 - ranked actions, source lineage, calculations, review requirements, and locked side effects
 
 Suggested line:

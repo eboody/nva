@@ -34,8 +34,8 @@ fn ordinary_domain_structs_have_compile_checked_bon_builders() {
 #[test]
 fn core_pet_entity_uses_validated_pet_name() {
     let pet = entities::Pet {
-        id: entities::PetId(uuid::Uuid::nil()),
-        customer_id: entities::CustomerId(uuid::Uuid::nil()),
+        id: entities::PetId::new(uuid::Uuid::from_u128(1)),
+        customer_id: entities::CustomerId::new(uuid::Uuid::from_u128(1)),
         name: pet::Name::try_new("  Moose  ").unwrap(),
         species: entities::Species::Dog,
         birth_date: None,
@@ -212,7 +212,7 @@ fn location_policy_refs_use_policy_ids_not_raw_strings() {
 #[test]
 fn location_identity_uses_validated_location_values() {
     let location = entities::Location {
-        id: entities::LocationId(uuid::Uuid::nil()),
+        id: entities::LocationId::new(uuid::Uuid::from_u128(1)),
         brand: entities::Brand::NeighborhoodPetResort {
             name: location::Name::try_new("  Pine Hollow Pet Resort  ").unwrap(),
         },
@@ -235,7 +235,7 @@ fn location_identity_uses_validated_location_values() {
 #[test]
 fn customer_contact_and_portal_identity_use_validated_values() {
     let customer = entities::Customer {
-        id: entities::CustomerId(uuid::Uuid::nil()),
+        id: entities::CustomerId::new(uuid::Uuid::from_u128(1)),
         full_name: customer::Name::try_new("  Ana Rivera  ").unwrap(),
         email: Some(customer::Email::try_new("  ana@example.com  ").unwrap()),
         mobile_phone: Some(customer::Phone::try_new("  +1 555 0100  ").unwrap()),
@@ -304,7 +304,9 @@ fn audit_events_use_typed_subject_action_and_metadata_contracts() {
         actor: entities::ActorRef::Manager {
             manager_id: entities::ManagerId::try_new("mgr-1").unwrap(),
         },
-        subject: audit::Subject::Reservation(entities::reservation::Id(uuid::Uuid::nil())),
+        subject: audit::Subject::Reservation(entities::reservation::Id::new(
+            uuid::Uuid::from_u128(1),
+        )),
         action: audit::Action::ReservationStatusSuggested,
         metadata: [(
             audit::MetadataKey::try_new("  source_workflow  ").unwrap(),
@@ -316,7 +318,7 @@ fn audit_events_use_typed_subject_action_and_metadata_contracts() {
 
     assert_eq!(
         event.subject,
-        audit::Subject::Reservation(entities::reservation::Id(uuid::Uuid::nil()))
+        audit::Subject::Reservation(entities::reservation::Id::new(uuid::Uuid::from_u128(1)))
     );
     assert_eq!(
         event.metadata.keys().next().unwrap().clone().into_inner(),
@@ -413,8 +415,8 @@ fn policy_surfaces_use_semantic_vaccine_and_play_eligibility_reasons() {
     assert!(policy::VaccineName::try_new("   ").is_err());
 
     let mut pet = entities::Pet {
-        id: entities::PetId(uuid::Uuid::nil()),
-        customer_id: entities::CustomerId(uuid::Uuid::nil()),
+        id: entities::PetId::new(uuid::Uuid::from_u128(1)),
+        customer_id: entities::CustomerId::new(uuid::Uuid::from_u128(1)),
         name: pet::Name::try_new("Moose").unwrap(),
         species: entities::Species::Dog,
         birth_date: None,
@@ -429,10 +431,11 @@ fn policy_surfaces_use_semantic_vaccine_and_play_eligibility_reasons() {
         &entities::ServiceKind::DayPlay,
     );
     assert_eq!(
-        decision.eligibility,
-        policy::play::Eligibility::Ineligible(
-            policy::play::IneligibilityReason::SpayNeuterStatusRequiresReview
-        )
+        decision,
+        policy::play::Decision::ReviewRequired {
+            reason: policy::play::IneligibilityReason::SpayNeuterStatusRequiresReview,
+            gate: policy::ReviewGate::BehaviorReview,
+        }
     );
 
     pet.spay_neuter_status = entities::SpayNeuterStatus::Neutered;
@@ -442,8 +445,10 @@ fn policy_surfaces_use_semantic_vaccine_and_play_eligibility_reasons() {
         &entities::ServiceKind::DayPlay,
     );
     assert_eq!(
-        decision.eligibility,
-        policy::play::Eligibility::Eligible(policy::play::Reason::NoConservativeHardStop)
+        decision,
+        policy::play::Decision::Eligible {
+            reason: policy::play::Reason::NoConservativeHardStop,
+        }
     );
 }
 
@@ -563,7 +568,7 @@ fn workflow_status_update_reasons_are_semantic_transition_contracts() {
 fn nva_context_expands_daily_brief_contracts_for_resort_operations() {
     let brief = daily_brief::Resort {
         operating_day: daily_brief::ResortOperatingDay {
-            location_id: entities::LocationId(uuid::Uuid::nil()),
+            location_id: entities::LocationId::new(uuid::Uuid::from_u128(1)),
             date: chrono::NaiveDate::from_ymd_opt(2026, 7, 1).unwrap(),
             snapshot_id: daily_brief::snapshot::Id::try_new("  morning-brief-001  ").unwrap(),
         },
@@ -591,12 +596,12 @@ fn nva_context_expands_daily_brief_contracts_for_resort_operations() {
                 labor_risk: daily_brief::LaborRisk::OnPlan,
             }),
             daily_brief::Section::PetCareWatchlist(vec![daily_brief::PetCareWatch {
-                pet_id: entities::PetId(uuid::Uuid::nil()),
+                pet_id: entities::PetId::new(uuid::Uuid::from_u128(1)),
                 reason: daily_brief::PetCareWatchReason::MedicationDue,
             }]),
             daily_brief::Section::RevenueOpportunities(vec![daily_brief::RevenueOpportunity {
-                customer_id: Some(entities::CustomerId(uuid::Uuid::nil())),
-                pet_id: Some(entities::PetId(uuid::Uuid::nil())),
+                customer_id: Some(entities::CustomerId::new(uuid::Uuid::from_u128(1))),
+                pet_id: Some(entities::PetId::new(uuid::Uuid::from_u128(1))),
                 service: entities::ServiceKind::Grooming,
                 opportunity: daily_brief::RevenueOpportunityKind::GroomingRebookingDue,
             }]),
@@ -654,7 +659,7 @@ fn nva_context_expands_lead_and_reputation_triage_contracts() {
     }
 
     let review = reputation::Signal {
-        location_id: entities::LocationId(uuid::Uuid::nil()),
+        location_id: entities::LocationId::new(uuid::Uuid::from_u128(1)),
         platform: reputation::PlatformName::try_new("  Google  ").unwrap(),
         review_id: reputation::Id::try_new("  review-123  ").unwrap(),
         sentiment: reputation::Sentiment::Negative,
@@ -675,18 +680,18 @@ fn nva_context_expands_lead_and_reputation_triage_contracts() {
 #[test]
 fn staff_operations_tasks_encode_due_evidence_and_manager_attention() {
     let task = staff::Task::builder()
-        .location_id(entities::LocationId(uuid::Uuid::nil()))
+        .location_id(entities::LocationId::new(uuid::Uuid::from_u128(1)))
         .kind(staff::task::Kind::MedicationAdministration {
-            pet_id: entities::PetId(uuid::Uuid::nil()),
+            pet_id: entities::PetId::new(uuid::Uuid::from_u128(1)),
         })
         .title(workflow::task::Title::try_new("  Give evening medication  ").unwrap())
         .status(staff::task::Status::Open)
         .priority(staff::task::Priority::High)
         .due_at(chrono::DateTime::<chrono::Utc>::UNIX_EPOCH)
         .assignment(staff::task::Assignment::Role(staff::Role::KennelTechnician))
-        .source(staff::task::Source::Reservation(entities::reservation::Id(
-            uuid::Uuid::nil(),
-        )))
+        .source(staff::task::Source::Reservation(
+            entities::reservation::Id::new(uuid::Uuid::from_u128(1)),
+        ))
         .build()
         .unwrap();
 
@@ -694,18 +699,18 @@ fn staff_operations_tasks_encode_due_evidence_and_manager_attention() {
     assert_eq!(task.title().clone().into_inner(), "Give evening medication");
 
     let completed_without_builder_evidence = staff::Task::builder()
-        .location_id(entities::LocationId(uuid::Uuid::nil()))
+        .location_id(entities::LocationId::new(uuid::Uuid::from_u128(1)))
         .kind(staff::task::Kind::MedicationAdministration {
-            pet_id: entities::PetId(uuid::Uuid::nil()),
+            pet_id: entities::PetId::new(uuid::Uuid::from_u128(1)),
         })
         .title(workflow::task::Title::try_new("Give evening medication").unwrap())
         .status(staff::task::Status::Completed)
         .priority(staff::task::Priority::High)
         .due_at(chrono::DateTime::<chrono::Utc>::UNIX_EPOCH)
         .assignment(staff::task::Assignment::Role(staff::Role::KennelTechnician))
-        .source(staff::task::Source::Reservation(entities::reservation::Id(
-            uuid::Uuid::nil(),
-        )))
+        .source(staff::task::Source::Reservation(
+            entities::reservation::Id::new(uuid::Uuid::from_u128(1)),
+        ))
         .build()
         .expect_err("ordinary staff task construction must require completed evidence");
     assert!(
@@ -733,14 +738,14 @@ fn staff_operations_tasks_encode_due_evidence_and_manager_attention() {
     assert!(staff::completion_evidence::Evidence::try_new("   ").is_err());
 
     let completed_without_evidence = serde_json::json!({
-        "location_id": entities::LocationId(uuid::Uuid::nil()),
-        "kind": { "MedicationAdministration": { "pet_id": entities::PetId(uuid::Uuid::nil()) } },
+        "location_id": entities::LocationId::new(uuid::Uuid::from_u128(1)),
+        "kind": { "MedicationAdministration": { "pet_id": entities::PetId::new(uuid::Uuid::from_u128(1)) } },
         "title": "Give evening medication",
         "status": "Completed",
         "priority": "High",
         "due_at": chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
         "assignment": { "Role": "KennelTechnician" },
-        "source": { "Reservation": entities::reservation::Id(uuid::Uuid::nil()) },
+        "source": { "Reservation": entities::reservation::Id::new(uuid::Uuid::from_u128(1)) },
         "completion_evidence": null
     });
     let error = serde_json::from_value::<staff::Task>(completed_without_evidence)
@@ -909,7 +914,7 @@ fn nva_context_pack_operating_vocabulary_and_data_hygiene_are_typed() {
 #[test]
 fn entity_builders_keep_optional_and_collection_defaults_semantic() {
     let customer = entities::Customer::builder()
-        .id(entities::CustomerId(uuid::Uuid::nil()))
+        .id(entities::CustomerId::new(uuid::Uuid::from_u128(1)))
         .full_name(customer::Name::try_new("  Ana Rivera  ").unwrap())
         .preferred_contact(entities::ContactChannel::Email)
         .build();
@@ -920,10 +925,10 @@ fn entity_builders_keep_optional_and_collection_defaults_semantic() {
     assert_eq!(customer.portal_account, None);
 
     let reservation = entities::Reservation::builder()
-        .id(entities::reservation::Id(uuid::Uuid::nil()))
-        .location_id(entities::LocationId(uuid::Uuid::nil()))
-        .customer_id(entities::CustomerId(uuid::Uuid::nil()))
-        .pet_ids(vec![entities::PetId(uuid::Uuid::nil())])
+        .id(entities::reservation::Id::new(uuid::Uuid::from_u128(1)))
+        .location_id(entities::LocationId::new(uuid::Uuid::from_u128(1)))
+        .customer_id(entities::CustomerId::new(uuid::Uuid::from_u128(1)))
+        .pet_ids(vec![entities::PetId::new(uuid::Uuid::from_u128(1))])
         .service(entities::ServiceKind::Boarding)
         .status(entities::reservation::Status::Requested)
         .starts_at(chrono::DateTime::<chrono::Utc>::UNIX_EPOCH)
@@ -937,8 +942,8 @@ fn entity_builders_keep_optional_and_collection_defaults_semantic() {
     assert!(reservation.hard_stops().is_empty());
 
     let pet = entities::Pet::builder()
-        .id(entities::PetId(uuid::Uuid::nil()))
-        .customer_id(entities::CustomerId(uuid::Uuid::nil()))
+        .id(entities::PetId::new(uuid::Uuid::from_u128(1)))
+        .customer_id(entities::CustomerId::new(uuid::Uuid::from_u128(1)))
         .name(pet::Name::try_new("  Moose  ").unwrap())
         .species(entities::Species::Dog)
         .spay_neuter_status(entities::SpayNeuterStatus::Neutered)

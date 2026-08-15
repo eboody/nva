@@ -1,5 +1,4 @@
 use domain::{boarding, daycare, entities, grooming, money, operations, retail, training};
-use uuid::Uuid;
 
 #[test]
 fn boarding_contract_encodes_capacity_stay_payment_housekeeping_handoff_and_upsell_rules() {
@@ -74,7 +73,7 @@ fn boarding_capacity_policy_never_uses_cat_condo_for_dog_request() {
     ])
     .unwrap();
     let request = boarding::capacity::Request::new(
-        entities::LocationId(Uuid::nil()),
+        entities::LocationId::new(uuid::Uuid::from_u128(1)),
         entities::Species::Dog,
         boarding::accommodation::Preference::Specific(boarding::accommodation::Kind::CatCondo),
     );
@@ -95,7 +94,7 @@ fn boarding_capacity_policy_never_uses_cat_condo_for_dog_request() {
 }
 
 #[test]
-fn boarding_deposit_policy_requires_due_at_booking_collection_before_confirmation() {
+fn boarding_deposit_policy_keeps_missing_deposit_history_blocked_for_review() {
     let rule = boarding::DepositRule::Required {
         amount: money::Money::new(
             money::MinorUnits::try_new(2_500).unwrap(),
@@ -108,14 +107,14 @@ fn boarding_deposit_policy_requires_due_at_booking_collection_before_confirmatio
     assert!(matches!(
         decision,
         boarding::deposit::ConfirmationReadiness::Blocked {
-            blocker: boarding::deposit::Blocker::DepositRequired,
+            blocker: boarding::deposit::Blocker::ReferenceMissing,
             review_gate: domain::policy::ReviewGate::RefundOrDepositException,
         }
     ));
 }
 
 #[test]
-fn boarding_deposit_policy_treats_paid_deposit_with_reference_as_satisfied() {
+fn boarding_deposit_policy_keeps_serialized_paid_deposit_evidence_blocked_for_review() {
     let amount = money::Money::new(
         money::MinorUnits::try_new(2_500).unwrap(),
         money::Currency::Usd,
@@ -131,13 +130,22 @@ fn boarding_deposit_policy_treats_paid_deposit_with_reference_as_satisfied() {
     let decision = boarding::deposit::Policy::new(rule, boarding::PaymentTiming::DueAtBooking)
         .readiness_for_confirmation(Some(&paid));
 
-    assert_eq!(decision, boarding::deposit::ConfirmationReadiness::Ready);
+    assert_eq!(
+        decision,
+        boarding::deposit::ConfirmationReadiness::Blocked {
+            blocker: boarding::deposit::Blocker::ReferenceMissing,
+            review_gate: domain::policy::ReviewGate::RefundOrDepositException,
+        }
+    );
 }
 
 #[test]
 fn boarding_care_policy_flags_missing_feeding_instruction_for_staff_review() {
     let care_profile = entities::CareProfile::default();
-    let plan = boarding::care::Policy.plan_for_pet(entities::PetId(Uuid::nil()), &care_profile);
+    let plan = boarding::care::Policy.plan_for_pet(
+        entities::PetId::new(uuid::Uuid::from_u128(1)),
+        &care_profile,
+    );
 
     assert_eq!(plan.readiness(), boarding::care::Readiness::Blocked);
     assert!(plan.gates().contains(&boarding::care::ReviewGate::new(
@@ -154,8 +162,8 @@ fn boarding_upsell_policy_recommends_exit_bath_only_when_eligible_and_not_care_u
         .push(domain::care::AllergyName::try_new("sensitive shampoo").unwrap());
 
     let recommendation = boarding::upsell::Policy.evaluate_exit_bath(
-        entities::reservation::Id(Uuid::nil()),
-        entities::PetId(Uuid::nil()),
+        entities::reservation::Id::new(uuid::Uuid::from_u128(1)),
+        entities::PetId::new(uuid::Uuid::from_u128(1)),
         &care_profile,
     );
 
@@ -221,7 +229,7 @@ fn daycare_service_variants_preserve_group_boarding_plus_room_and_cat_care_modes
 #[test]
 fn daycare_group_play_eligibility_routes_intact_dogs_to_behavior_review_not_ready() {
     let evidence = daycare::eligibility::Evidence::builder()
-        .pet_id(entities::PetId(Uuid::nil()))
+        .pet_id(entities::PetId::new(uuid::Uuid::from_u128(1)))
         .species(entities::Species::Dog)
         .service(daycare::ServiceVariant::AllDayPlay)
         .temperament(daycare::eligibility::TemperamentAssessmentFreshness::Current)
@@ -267,7 +275,7 @@ fn daycare_staff_coverage_policy_rejects_rosters_that_exceed_contract_ratio() {
 #[test]
 fn daycare_assignment_requires_group_play_eligibility_and_staff_coverage() {
     let request = daycare::assignment::Request::builder()
-        .pet_id(entities::PetId(Uuid::nil()))
+        .pet_id(entities::PetId::new(uuid::Uuid::from_u128(1)))
         .service(daycare::ServiceVariant::HalfDayPlay)
         .eligibility(daycare::eligibility::GroupPlayDecision::Eligible {
             basis: daycare::eligibility::EligibleBasis::CurrentEvidence,
@@ -293,14 +301,14 @@ fn daycare_assignment_requires_group_play_eligibility_and_staff_coverage() {
 #[test]
 fn daycare_incident_policy_suspends_group_play_for_safety_incidents_until_manager_review() {
     let disposition = daycare::incident::Classifier.classify(
-        entities::PetId(Uuid::nil()),
+        entities::PetId::new(uuid::Uuid::from_u128(1)),
         daycare::incident::Severity::SuspendGroupPlay,
     );
 
     assert_eq!(
         disposition.restriction(),
         daycare::incident::Restriction::SuspendedPendingManagerReview {
-            pet_id: entities::PetId(Uuid::nil()),
+            pet_id: entities::PetId::new(uuid::Uuid::from_u128(1)),
         }
     );
     assert_eq!(
@@ -342,8 +350,8 @@ fn daycare_recurring_attendance_materializes_only_requested_days_and_preserves_e
 #[test]
 fn daycare_package_opportunity_never_overrides_safety_or_payment_review() {
     let evidence = daycare::package_opportunity::Evidence::builder()
-        .customer_id(entities::CustomerId(Uuid::nil()))
-        .pet_id(entities::PetId(Uuid::nil()))
+        .customer_id(entities::CustomerId::new(uuid::Uuid::from_u128(1)))
+        .pet_id(entities::PetId::new(uuid::Uuid::from_u128(1)))
         .attendance_visits(daycare::package_opportunity::AttendanceVisitCount::new(12))
         .eligibility(daycare::package_opportunity::CareEligibility::BlockedBySafetyReview)
         .package_state(daycare::package_opportunity::PackageState::PayPerVisit)
@@ -362,9 +370,9 @@ fn daycare_package_opportunity_never_overrides_safety_or_payment_review() {
 }
 
 #[test]
-fn daycare_front_desk_throughput_routes_ready_pets_to_fast_lane_without_customer_send() {
+fn daycare_front_desk_throughput_routes_positive_readiness_evidence_to_manager_review() {
     let context = daycare::front_desk::ReadinessContext::builder()
-        .reservation_id(entities::reservation::Id(Uuid::nil()))
+        .reservation_id(entities::reservation::Id::new(uuid::Uuid::from_u128(1)))
         .service(daycare::ServiceVariant::AllDayPlay)
         .eligibility(daycare::front_desk::EligibilityReadiness::GroupPlay(
             daycare::eligibility::GroupPlayDecision::Eligible {
@@ -387,7 +395,10 @@ fn daycare_front_desk_throughput_routes_ready_pets_to_fast_lane_without_customer
         decision,
         daycare::front_desk::ReadinessDecision::ReadyToCheckIn
     );
-    assert_eq!(ticket.lane(), daycare::front_desk::QueueLane::FastLane);
+    assert_eq!(
+        ticket.lane(),
+        daycare::front_desk::QueueLane::ManagerReviewLane
+    );
     assert_eq!(decision.customer_message_gate(), None);
 }
 
@@ -422,7 +433,7 @@ fn grooming_contract_encodes_calendar_estimates_no_shows_rebooking_reminders_and
 fn grooming_duration_estimate_requires_positive_minutes_and_explains_basis() {
     let estimate = grooming::EstimationPolicy.estimate(
         grooming::EstimationRequest::builder()
-            .pet_id(entities::PetId(Uuid::nil()))
+            .pet_id(entities::PetId::new(uuid::Uuid::from_u128(1)))
             .service(grooming::Service::FullGroom)
             .breed(grooming::breed_coat::BreedCategory::Doodle)
             .coat(grooming::breed_coat::CoatCondition::Maintained)
@@ -434,14 +445,17 @@ fn grooming_duration_estimate_requires_positive_minutes_and_explains_basis() {
     assert_eq!(estimate.minutes().get(), 180);
     assert_eq!(estimate.basis(), grooming::EstimateBasis::BreedCoatPolicy);
     assert_eq!(estimate.review(), grooming::ReviewRequirement::None);
-    assert_eq!(estimate.calendar_execution_gate(), None);
+    assert_eq!(
+        estimate.calendar_execution_gate(),
+        Some(domain::policy::ReviewGate::ManagerApproval)
+    );
 }
 
 #[test]
 fn matted_or_sensitive_coat_estimate_requires_staff_review_before_auto_scheduling() {
     let estimate = grooming::EstimationPolicy.estimate(
         grooming::EstimationRequest::builder()
-            .pet_id(entities::PetId(Uuid::nil()))
+            .pet_id(entities::PetId::new(uuid::Uuid::from_u128(1)))
             .service(grooming::Service::FullGroom)
             .breed(grooming::breed_coat::BreedCategory::Doodle)
             .coat(grooming::breed_coat::CoatCondition::Matted)
@@ -473,8 +487,8 @@ fn grooming_no_show_policy_requires_deposit_or_manager_review_for_repeat_no_show
     let decision =
         grooming::no_show::Policy::new(grooming::no_show::Rule::RequireDepositForRebooking)
             .evaluate(
-                entities::CustomerId(Uuid::nil()),
-                entities::PetId(Uuid::nil()),
+                entities::CustomerId::new(uuid::Uuid::from_u128(1)),
+                entities::PetId::new(uuid::Uuid::from_u128(1)),
                 grooming::no_show::History::new(
                     grooming::no_show::Count::try_new(2).unwrap(),
                     grooming::no_show::LateCancelCount::try_new(1).unwrap(),
@@ -492,8 +506,8 @@ fn grooming_no_show_policy_requires_deposit_or_manager_review_for_repeat_no_show
 #[test]
 fn grooming_rebooking_policy_marks_pet_overdue_from_last_service_history_and_cadence() {
     let history_entry = grooming::history::ServiceHistoryEntry::builder()
-        .pet_id(entities::PetId(Uuid::nil()))
-        .location_id(entities::LocationId(Uuid::nil()))
+        .pet_id(entities::PetId::new(uuid::Uuid::from_u128(1)))
+        .location_id(entities::LocationId::new(uuid::Uuid::from_u128(1)))
         .service(grooming::Service::FullGroom)
         .completed_on(chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap())
         .outcome(grooming::history::ServiceOutcome::Completed)
@@ -503,7 +517,7 @@ fn grooming_rebooking_policy_marks_pet_overdue_from_last_service_history_and_cad
         .build();
 
     let recommendation = grooming::rebooking::Policy.recommend_from_history(
-        entities::PetId(Uuid::nil()),
+        entities::PetId::new(uuid::Uuid::from_u128(1)),
         &[history_entry],
         grooming::rebooking::Cadence::EveryWeeks(
             grooming::rebooking::CadenceWeeks::try_new(6).unwrap(),
@@ -521,7 +535,7 @@ fn grooming_rebooking_policy_marks_pet_overdue_from_last_service_history_and_cad
 #[test]
 fn grooming_reminder_plan_requires_customer_consent_before_member_facing_send() {
     let plan = grooming::reminder::Policy.plan(
-        entities::CustomerId(Uuid::nil()),
+        entities::CustomerId::new(uuid::Uuid::from_u128(1)),
         grooming::reminder::Kind::RebookingDue,
         grooming::reminder::Consent::NotGranted,
     );
@@ -530,14 +544,17 @@ fn grooming_reminder_plan_requires_customer_consent_before_member_facing_send() 
         plan.send_boundary(),
         grooming::reminder::SendBoundary::SuppressedUntilConsent
     );
-    assert_eq!(plan.customer_message_gate(), None);
+    assert_eq!(
+        plan.customer_message_gate(),
+        Some(domain::policy::ReviewGate::CustomerMessageApproval)
+    );
 }
 
 #[test]
 fn grooming_history_entry_separates_style_notes_from_care_or_medical_handling_refs() {
     let entry = grooming::history::ServiceHistoryEntry::builder()
-        .pet_id(entities::PetId(Uuid::nil()))
-        .location_id(entities::LocationId(Uuid::nil()))
+        .pet_id(entities::PetId::new(uuid::Uuid::from_u128(1)))
+        .location_id(entities::LocationId::new(uuid::Uuid::from_u128(1)))
         .service(grooming::Service::MiniGroom)
         .completed_on(chrono::NaiveDate::from_ymd_opt(2026, 3, 1).unwrap())
         .outcome(grooming::history::ServiceOutcome::Completed)
@@ -588,10 +605,10 @@ fn training_contract_encodes_program_curriculum_progress_outcomes_availability_p
 }
 
 #[test]
-fn trainer_availability_waitlists_when_named_trainer_has_no_capacity() {
+fn trainer_availability_keeps_serialized_readiness_under_manager_review() {
     let request = training::availability::Request::builder()
         .enrollment_id(training::enrollment::Id::try_new("enroll-123").unwrap())
-        .pet_id(entities::PetId(Uuid::nil()))
+        .pet_id(entities::PetId::new(uuid::Uuid::from_u128(1)))
         .program(training::Program::PrivateLesson)
         .requirement(training::trainer::Requirement::NamedTrainer {
             trainer_id: entities::StaffId::try_new("trainer-7").unwrap(),
@@ -604,8 +621,8 @@ fn trainer_availability_waitlists_when_named_trainer_has_no_capacity() {
 
     assert_eq!(
         decision,
-        training::availability::Decision::Waitlist {
-            reason: training::availability::WaitlistReason::RequestedTrainerUnavailable,
+        training::availability::Decision::ReviewRequired {
+            reason: training::availability::ReviewReason::EnrollmentNotReady,
             gate: domain::policy::ReviewGate::ManagerApproval,
         }
     );
@@ -690,8 +707,8 @@ fn outcome_documentation_builder_returns_typed_errors_for_missing_fields_and_cla
     let missing_claims = training::outcome::Documentation::builder()
         .documentation_id(training::OutcomeDocumentationId::try_new("outcome-empty").unwrap())
         .enrollment_id(training::enrollment::Id::try_new("enroll-123").unwrap())
-        .pet_id(entities::PetId(Uuid::nil()))
-        .location_id(entities::LocationId(Uuid::nil()))
+        .pet_id(entities::PetId::new(uuid::Uuid::from_u128(1)))
+        .location_id(entities::LocationId::new(uuid::Uuid::from_u128(1)))
         .build();
 
     assert_eq!(missing_claims, Err(training::Error::OutcomeClaimRequired));
@@ -718,8 +735,8 @@ fn achieved_outcome_claim_requires_evidence_before_documentation_can_be_member_f
     let documentation = training::outcome::Documentation::builder()
         .documentation_id(training::OutcomeDocumentationId::try_new("outcome-1").unwrap())
         .enrollment_id(training::enrollment::Id::try_new("enroll-123").unwrap())
-        .pet_id(entities::PetId(Uuid::nil()))
-        .location_id(entities::LocationId(Uuid::nil()))
+        .pet_id(entities::PetId::new(uuid::Uuid::from_u128(1)))
+        .location_id(entities::LocationId::new(uuid::Uuid::from_u128(1)))
         .claims(vec![claim])
         .review(training::OutcomeReviewState::TrainerApproved {
             trainer_id: entities::StaffId::try_new("trainer-7").unwrap(),
@@ -740,8 +757,8 @@ fn training_package_ledger_exposes_remaining_sessions_without_callers_recomputin
     let package_id = training::package::Id::try_new("pkg-1").unwrap();
     let ledger = training::package::Ledger::open(training::package::OpeningLedger {
         package_id: package_id.clone(),
-        customer_id: entities::CustomerId(Uuid::nil()),
-        pet_id: entities::PetId(Uuid::nil()),
+        customer_id: entities::CustomerId::new(uuid::Uuid::from_u128(1)),
+        pet_id: entities::PetId::new(uuid::Uuid::from_u128(1)),
         policy: training::package::Policy::MultiSessionPackage {
             sessions: training::SessionCount::try_new(4).unwrap(),
         },
@@ -810,7 +827,7 @@ fn retail_contract_encodes_product_pos_inventory_recommendation_and_reorder_rule
 #[test]
 fn retail_inventory_position_derives_available_units_and_rejects_over_reserved_stock() {
     let position = retail::inventory::Position::record(retail::inventory::Stock {
-        location_id: entities::LocationId(Uuid::nil()),
+        location_id: entities::LocationId::new(uuid::Uuid::from_u128(1)),
         sku: retail::Sku::try_new("CALM-CARE-30").unwrap(),
         on_hand: retail::inventory::OnHandUnits::new(8),
         reserved: retail::inventory::ReservedUnits::new(3),
@@ -824,7 +841,7 @@ fn retail_inventory_position_derives_available_units_and_rejects_over_reserved_s
     );
     assert_eq!(
         retail::inventory::Position::record(retail::inventory::Stock {
-            location_id: entities::LocationId(Uuid::nil()),
+            location_id: entities::LocationId::new(uuid::Uuid::from_u128(1)),
             sku: retail::Sku::try_new("CALM-CARE-30").unwrap(),
             on_hand: retail::inventory::OnHandUnits::new(2),
             reserved: retail::inventory::ReservedUnits::new(3),
@@ -838,7 +855,7 @@ fn retail_inventory_position_derives_available_units_and_rejects_over_reserved_s
 fn retail_reorder_policy_routes_below_threshold_stock_to_reviewable_staff_task() {
     let sku = retail::Sku::try_new("CALM-CARE-30").unwrap();
     let position = retail::inventory::Position::record(retail::inventory::Stock {
-        location_id: entities::LocationId(Uuid::nil()),
+        location_id: entities::LocationId::new(uuid::Uuid::from_u128(1)),
         sku: sku.clone(),
         on_hand: retail::inventory::OnHandUnits::new(4),
         reserved: retail::inventory::ReservedUnits::new(0),
@@ -851,7 +868,7 @@ fn retail_reorder_policy_routes_below_threshold_stock_to_reviewable_staff_task()
     assert_eq!(
         decision,
         retail::reorder::Decision::CreateStaffTask {
-            location_id: entities::LocationId(Uuid::nil()),
+            location_id: entities::LocationId::new(uuid::Uuid::from_u128(1)),
             sku,
             reason: retail::reorder::Reason::AtOrBelowThreshold,
             gate: domain::policy::ReviewGate::ManagerApproval,
@@ -862,7 +879,7 @@ fn retail_reorder_policy_routes_below_threshold_stock_to_reviewable_staff_task()
 #[test]
 fn retail_pos_policy_requires_manager_approval_for_comps_discounts_and_refunds() {
     let offering = retail::LocationOffering::builder()
-        .location_id(entities::LocationId(Uuid::nil()))
+        .location_id(entities::LocationId::new(uuid::Uuid::from_u128(1)))
         .product(retail::Product::new(
             retail::Sku::try_new("CALM-CARE-30").unwrap(),
             retail::product::Category::Supplement,
@@ -880,7 +897,7 @@ fn retail_pos_policy_requires_manager_approval_for_comps_discounts_and_refunds()
         .offering(offering)
         .quantity(retail::pos::Quantity::try_new(1).unwrap())
         .source(retail::pos::Source::ReservationCheckout {
-            reservation_id: entities::reservation::Id(Uuid::nil()),
+            reservation_id: entities::reservation::Id::new(uuid::Uuid::from_u128(1)),
         })
         .price_adjustment(retail::pos::PriceAdjustment::ManagerComp {
             reason: retail::pos::PriceExceptionReason::ComplaintRecovery,
@@ -891,9 +908,8 @@ fn retail_pos_policy_requires_manager_approval_for_comps_discounts_and_refunds()
 
     assert_eq!(
         decision,
-        retail::pos::Decision::ReviewRequired {
-            reason: retail::pos::ReviewReason::PriceException,
-            gate: domain::policy::ReviewGate::ManagerApproval,
+        retail::pos::Decision::Denied {
+            reason: retail::pos::DenialReason::OfferingNotSellable,
         }
     );
 }
@@ -901,9 +917,9 @@ fn retail_pos_policy_requires_manager_approval_for_comps_discounts_and_refunds()
 #[test]
 fn retail_recommendation_policy_routes_care_sensitive_supplement_candidates_to_staff_review() {
     let candidate = retail::recommendation::Candidate::builder()
-        .customer_id(entities::CustomerId(Uuid::nil()))
-        .pet_id(entities::PetId(Uuid::nil()))
-        .location_id(entities::LocationId(Uuid::nil()))
+        .customer_id(entities::CustomerId::new(uuid::Uuid::from_u128(1)))
+        .pet_id(entities::PetId::new(uuid::Uuid::from_u128(1)))
+        .location_id(entities::LocationId::new(uuid::Uuid::from_u128(1)))
         .product(retail::Product::new(
             retail::Sku::try_new("CALM-CARE-30").unwrap(),
             retail::product::Category::Supplement,
@@ -952,7 +968,7 @@ fn retail_customer_copy_policy_forbids_medical_claims_in_customer_drafts() {
 #[test]
 fn core_service_contract_groups_all_petsuites_lines_without_raw_field_flags() {
     let service_contracts = operations::service_core::ServiceContracts::builder()
-        .location_id(entities::LocationId(uuid::Uuid::nil()))
+        .location_id(entities::LocationId::new(uuid::Uuid::from_u128(1)))
         .boarding(boarding::Contract::standard_petsuites())
         .daycare(daycare::Contract::standard_petsuites())
         .grooming(grooming::Contract::standard_petsuites())

@@ -18,15 +18,15 @@ fn manager_daily_brief_contract_builds_source_grounded_actions_with_labor_delta(
 
     let packet = manager_daily_brief::Workflow::evaluate(request);
 
-    assert_eq!(packet.actions().len(), 2);
+    assert_eq!(packet.actions().len(), 1);
     assert!(packet.all_actions_are_source_grounded());
-    assert_eq!(packet.before_minutes().get(), 75);
-    assert_eq!(packet.after_minutes().get(), 25);
-    assert_eq!(packet.minutes_saved(), 50);
+    assert_eq!(packet.before_minutes().get(), 45);
+    assert_eq!(packet.after_minutes().get(), 15);
+    assert_eq!(packet.reported_estimated_minutes_difference(), 30);
     assert!(
         packet
             .safe_agent_actions()
-            .contains(&manager_daily_brief::SafeAgentAction::EstimateLaborMinutesSaved)
+            .contains(&manager_daily_brief::SafeAgentAction::ReportLaborEstimateDifference)
     );
     assert!(
         packet
@@ -59,31 +59,20 @@ fn manager_daily_brief_contract_builds_source_grounded_actions_with_labor_delta(
         demand_action.removed_manual_work(),
         manager_daily_brief::RemovedManualWork::DemandVersusStaffingScan
     );
-    assert_eq!(demand_action.labor_impact().minutes_saved(), 30);
+    assert_eq!(
+        demand_action
+            .labor_impact()
+            .reported_estimated_minutes_difference(),
+        30
+    );
     assert_eq!(
         demand_action.source_facts()[0].kind(),
         manager_daily_brief::SourceFactKind::ServiceDemandForecast
     );
 
-    let retention_action = packet
-        .actions()
-        .iter()
-        .find(|action| {
-            action.kind() == manager_daily_brief::BriefActionKind::ApproveRetentionFollowUpDraft
-        })
-        .expect("retention action exists");
-    assert_eq!(
-        retention_action.owner_persona(),
-        manager_daily_brief::ManagerBriefPersona::FrontDeskLead
-    );
-    assert_eq!(
-        retention_action.removed_manual_work(),
-        manager_daily_brief::RemovedManualWork::RetentionFollowUpQueuePrioritization
-    );
-    assert_eq!(
-        retention_action.required_review_gates(),
-        &[policy::ReviewGate::CustomerMessageApproval]
-    );
+    assert!(!packet.actions().iter().any(|action| {
+        action.kind() == manager_daily_brief::BriefActionKind::ApproveRetentionFollowUpDraft
+    }));
 }
 
 #[test]
@@ -162,7 +151,9 @@ fn manager_daily_brief_turns_capacity_labor_recommendation_into_reviewed_source_
 
     assert_eq!(
         outcome.labor_savings_claim_for_action(action),
-        manager_daily_brief::LaborSavingsClaim::Supported { minutes: 32 }
+        manager_daily_brief::LaborSavingsClaim::NotClaimed {
+            reason: manager_daily_brief::LaborSavingsNotClaimedReason::MissingReviewableActionTrace
+        }
     );
     assert!(outcome.records_feedback_without_external_mutation());
 }
@@ -268,7 +259,7 @@ fn manager_daily_brief_contract_preserves_review_boundaries_and_data_quality_vis
 #[test]
 fn manager_daily_brief_ignores_service_demand_outside_requested_location_or_day() {
     let other_location =
-        entities::LocationId(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0002));
+        entities::LocationId::new(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0002));
     let other_day =
         operations::operating_day::Date::try_new(NaiveDate::from_ymd_opt(2026, 6, 18).unwrap())
             .unwrap();
@@ -294,7 +285,12 @@ fn manager_daily_brief_ignores_service_demand_outside_requested_location_or_day(
         })
         .collect::<Vec<_>>();
     assert_eq!(demand_actions.len(), 1);
-    assert_eq!(demand_actions[0].labor_impact().minutes_saved(), 30);
+    assert_eq!(
+        demand_actions[0]
+            .labor_impact()
+            .reported_estimated_minutes_difference(),
+        30
+    );
     assert_eq!(packet.before_minutes().get(), 45);
     assert_eq!(packet.after_minutes().get(), 15);
 }
@@ -302,7 +298,7 @@ fn manager_daily_brief_ignores_service_demand_outside_requested_location_or_day(
 #[test]
 fn manager_daily_brief_ignores_checkout_and_retention_packets_outside_requested_scope() {
     let other_location =
-        entities::LocationId(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0002));
+        entities::LocationId::new(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0002));
     let request = manager_daily_brief::Request::builder()
         .location_id(location_id())
         .operating_day(operating_day())
@@ -324,9 +320,9 @@ fn manager_daily_brief_ignores_checkout_and_retention_packets_outside_requested_
 
     let packet = manager_daily_brief::Workflow::evaluate(request);
 
-    assert_eq!(packet.actions().len(), 2);
-    assert_eq!(packet.before_minutes().get(), 50);
-    assert_eq!(packet.after_minutes().get(), 18);
+    assert_eq!(packet.actions().len(), 1);
+    assert_eq!(packet.before_minutes().get(), 20);
+    assert_eq!(packet.after_minutes().get(), 8);
 }
 
 #[test]
@@ -343,7 +339,7 @@ fn manager_daily_brief_empty_brief_reports_zero_labor_delta_and_all_safety_block
     assert!(packet.actions().is_empty());
     assert_eq!(packet.before_minutes().get(), 0);
     assert_eq!(packet.after_minutes().get(), 0);
-    assert_eq!(packet.minutes_saved(), 0);
+    assert_eq!(packet.reported_estimated_minutes_difference(), 0);
     assert!(
         packet
             .blocked_actions()
@@ -357,7 +353,7 @@ fn manager_daily_brief_empty_brief_reports_zero_labor_delta_and_all_safety_block
 }
 
 #[test]
-fn manager_daily_brief_retention_action_includes_checkout_and_consent_source_evidence() {
+fn manager_daily_brief_does_not_promote_serialized_retention_claims_into_draft_authority() {
     let request = manager_daily_brief::Request::builder()
         .location_id(location_id())
         .operating_day(operating_day())
@@ -367,21 +363,7 @@ fn manager_daily_brief_retention_action_includes_checkout_and_consent_source_evi
         .build();
 
     let packet = manager_daily_brief::Workflow::evaluate(request);
-    let retention_action = packet
-        .actions()
-        .iter()
-        .find(|action| {
-            action.kind() == manager_daily_brief::BriefActionKind::ApproveRetentionFollowUpDraft
-        })
-        .expect("retention action exists");
-
-    assert!(
-        retention_action.source_facts()[0]
-            .source_record_refs()
-            .len()
-            >= 3,
-        "retention action should include opportunity evidence, checkout provenance, and contact/consent provenance"
-    );
+    assert!(packet.actions().is_empty());
 }
 
 #[test]
@@ -439,7 +421,7 @@ fn manager_daily_brief_outcome_capture_records_feedback_without_external_mutatio
         )])
         .build();
 
-    assert_eq!(outcome.actual_minutes_saved(), 33);
+    assert!(!outcome.counts_as_labor_savings());
     assert!(outcome.records_feedback_without_external_mutation());
     assert!(
         outcome
@@ -509,9 +491,11 @@ fn manager_daily_brief_trace_links_source_fact_reviewable_action_and_completed_o
     assert!(outcome.cites_action_source_evidence(action));
     assert_eq!(
         outcome.labor_savings_claim_for_action(action),
-        manager_daily_brief::LaborSavingsClaim::Supported { minutes: 33 }
+        manager_daily_brief::LaborSavingsClaim::NotClaimed {
+            reason: manager_daily_brief::LaborSavingsNotClaimedReason::MissingReviewableActionTrace
+        }
     );
-    assert!(outcome.counts_as_labor_savings_for_action(action));
+    assert!(!outcome.counts_as_labor_savings_for_action(action));
     assert_eq!(
         outcome.labor_savings_claim(),
         manager_daily_brief::LaborSavingsClaim::NotClaimed {
@@ -520,7 +504,7 @@ fn manager_daily_brief_trace_links_source_fact_reviewable_action_and_completed_o
     );
     assert_eq!(
         outcome.review_disposition(),
-        manager_daily_brief::ReviewDisposition::CompletedWithMeasuredLaborSavings
+        manager_daily_brief::ReviewDisposition::CompletedEvidenceOnly
     );
     assert!(outcome.records_feedback_without_external_mutation());
     assert!(
@@ -578,7 +562,7 @@ fn manager_daily_brief_completed_outcome_needs_matching_action_and_source_trace_
     assert_eq!(
         missing_source_record.labor_savings_claim_for_action(action),
         manager_daily_brief::LaborSavingsClaim::NotClaimed {
-            reason: manager_daily_brief::LaborSavingsNotClaimedReason::MissingActionSourceEvidence
+            reason: manager_daily_brief::LaborSavingsNotClaimedReason::MissingReviewableActionTrace
         }
     );
 }
@@ -619,7 +603,7 @@ fn manager_daily_brief_wrong_source_deferred_and_suppressed_outcomes_do_not_clai
                 reason: expected_reason
             }
         );
-        assert_eq!(record.actual_minutes_saved(), 33);
+        assert!(!record.counts_as_labor_savings());
         assert!(!record.counts_as_labor_savings());
         assert!(record.records_feedback_without_external_mutation());
     }
@@ -919,15 +903,15 @@ fn contact_provenance() -> source::Provenance {
 }
 
 fn location_id() -> entities::LocationId {
-    entities::LocationId(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0001))
+    entities::LocationId::new(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0001))
 }
 
 fn customer_id() -> entities::CustomerId {
-    entities::CustomerId(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0099))
+    entities::CustomerId::new(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0099))
 }
 
 fn reservation_id() -> entities::reservation::Id {
-    entities::reservation::Id(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0042))
+    entities::reservation::Id::new(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0042))
 }
 
 fn operating_day() -> operations::operating_day::Date {

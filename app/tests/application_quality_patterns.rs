@@ -3,12 +3,12 @@ use domain::{agent, entities, money, pet, policy, workflow};
 
 fn booking_triage_event() -> workflow::Event {
     workflow::Event::try_new(
-        workflow::EventId(uuid::Uuid::nil()),
+        workflow::EventId::new(uuid::Uuid::from_u128(1)),
         workflow::EventType::BookingTriageNeeded,
         chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
         entities::ActorRef::System,
-        entities::LocationId(uuid::Uuid::nil()),
-        workflow::Subject::Reservation(entities::reservation::Id(uuid::Uuid::nil())),
+        entities::LocationId::new(uuid::Uuid::from_u128(1)),
+        workflow::Subject::Reservation(entities::reservation::Id::new(uuid::Uuid::from_u128(1))),
         workflow::PolicyContext {
             allowed_actions: vec![workflow::AllowedAction::ExtractStructuredData],
             automation_level: policy::automation::Level::DraftOnly,
@@ -21,7 +21,7 @@ fn booking_triage_event() -> workflow::Event {
 #[test]
 fn booking_triage_uses_typestate_for_legal_readiness_progression() {
     let intake = booking_triage::Request::<booking_triage::Intake>::builder()
-        .reservation(entities::reservation::Id(uuid::Uuid::from_u128(123)))
+        .reservation(entities::reservation::Id::new(uuid::Uuid::from_u128(123)))
         .build();
 
     let with_pet_profile = intake.attach_pet_profile(
@@ -35,7 +35,7 @@ fn booking_triage_uses_typestate_for_legal_readiness_progression() {
 
     assert_eq!(
         ready.reservation(),
-        &entities::reservation::Id(uuid::Uuid::from_u128(123))
+        &entities::reservation::Id::new(uuid::Uuid::from_u128(123))
     );
 }
 
@@ -78,14 +78,13 @@ fn agent_prompt_packet_semantics_are_reexported_from_application_agent_boundary(
 #[test]
 fn tool_and_policy_results_use_semantic_decisions_not_bool_string_pairs() {
     let availability = tools::availability::Outcome {
-        decision: tools::availability::Decision::Available {
+        decision: tools::availability::Decision::ReportedAvailability {
             reason: tools::availability::SuccessReason::CapacityHeld,
             capacity_snapshot_id: tools::availability::CapacitySnapshotId::try_new("  cap-123  ")
                 .unwrap(),
         },
     };
-    assert!(availability.is_available());
-    let tools::availability::Decision::Available {
+    let tools::availability::Decision::ReportedAvailability {
         capacity_snapshot_id,
         ..
     } = availability.decision
@@ -95,8 +94,8 @@ fn tool_and_policy_results_use_semantic_decisions_not_bool_string_pairs() {
     assert_eq!(capacity_snapshot_id.into_inner(), "cap-123");
 
     let availability_request = tools::availability::Request {
-        location_id: entities::LocationId(uuid::Uuid::nil()),
-        reservation_id: Some(entities::reservation::Id(uuid::Uuid::nil())),
+        location_id: entities::LocationId::new(uuid::Uuid::from_u128(1)),
+        reservation_id: Some(entities::reservation::Id::new(uuid::Uuid::from_u128(1))),
         service_notes: tools::availability::ServiceNotes::try_new(
             "  boarding suite with medication watch  ",
         )
@@ -109,7 +108,7 @@ fn tool_and_policy_results_use_semantic_decisions_not_bool_string_pairs() {
     assert!(tools::availability::ServiceNotes::try_new("   ").is_err());
 
     let draft = tools::draft_update::Request {
-        reservation_id: entities::reservation::Id(uuid::Uuid::nil()),
+        reservation_id: entities::reservation::Id::new(uuid::Uuid::from_u128(1)),
         proposed_status: entities::reservation::Status::Waitlisted,
         rationale: tools::draft_update::Rationale::CapacityUnavailable,
     };
@@ -130,16 +129,16 @@ fn external_integration_contracts_are_application_tool_port_types() {
     let lookup = tools::portal::lookup::Request {
         provider: tools::portal::Provider::Gingr,
         account: tools::portal::AccountId::try_new("  gingr-east-1  ").unwrap(),
-        criteria: tools::portal::lookup::Criteria::Reservation(entities::reservation::Id(
-            uuid::Uuid::nil(),
+        criteria: tools::portal::lookup::Criteria::Reservation(entities::reservation::Id::new(
+            uuid::Uuid::from_u128(1),
         )),
         include: vec![tools::portal::Include::PetProfile],
     };
     assert_eq!(lookup.account.into_inner(), "gingr-east-1");
 
     let authorization = tools::payment::authorization::Request {
-        subject: tools::payment::Subject::ReservationDeposit(entities::reservation::Id(
-            uuid::Uuid::nil(),
+        subject: tools::payment::Subject::ReservationDeposit(entities::reservation::Id::new(
+            uuid::Uuid::from_u128(1),
         )),
         amount: money::Money::new(
             money::MinorUnits::try_new(5_000).unwrap(),
@@ -156,7 +155,9 @@ fn external_integration_contracts_are_application_tool_port_types() {
 
     let message = tools::messaging::draft::Request {
         channel: tools::messaging::DeliveryChannel::Email,
-        recipient: tools::messaging::Recipient::Customer(entities::CustomerId(uuid::Uuid::nil())),
+        recipient: tools::messaging::Recipient::Customer(entities::CustomerId::new(
+            uuid::Uuid::from_u128(1),
+        )),
         body: tools::messaging::message_body::Body::try_new(
             "  Please upload updated rabies records.  ",
         )
@@ -177,9 +178,11 @@ fn external_integration_contracts_are_application_tool_port_types() {
     assert_eq!(intake.document.into_inner(), "file/vaccine.pdf");
 
     let snapshot = tools::media::SnapshotRequest {
-        location_id: entities::LocationId(uuid::Uuid::nil()),
+        location_id: entities::LocationId::new(uuid::Uuid::from_u128(1)),
         camera_id: tools::media::CameraId::try_new("  lobby-cam-1  ").unwrap(),
-        purpose: tools::media::CapturePurpose::PetStatusCheck(entities::PetId(uuid::Uuid::nil())),
+        purpose: tools::media::CapturePurpose::PetStatusCheck(entities::PetId::new(
+            uuid::Uuid::from_u128(1),
+        )),
     };
     assert_eq!(snapshot.camera_id.into_inner(), "lobby-cam-1");
 
@@ -242,5 +245,8 @@ fn application_prelude_consolidates_agent_and_tool_boundaries() {
     };
 
     assert_eq!(spec.workflow_name.into_inner(), "booking-triage");
-    assert!(!availability.is_available());
+    assert!(matches!(
+        availability.decision,
+        tools::availability::Decision::Unavailable { .. }
+    ));
 }

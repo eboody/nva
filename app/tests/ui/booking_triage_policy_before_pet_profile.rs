@@ -2,7 +2,7 @@ use app::booking_triage as triage;
 
 fn main() {
     let request = triage::Request::<triage::Intake>::builder()
-        .reservation(domain::entities::reservation::Id(uuid::Uuid::from_u128(
+        .reservation(domain::entities::reservation::Id::new(uuid::Uuid::from_u128(
             123,
         )))
         .build();

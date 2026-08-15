@@ -56,7 +56,7 @@ Keep these caveats visible when reusing crosswalk claims in public or non-coder 
 5. Webhook verification is modeled, but no live webhook receiver or webhook-payload-to-domain-workflow mapper is wired in this package.
 6. Worker runtime is a safe shell with fake/disabled agent runtime and stubbed side-effect posture; no durable queue/scheduler consumer is implemented yet.
 7. Staff web and API surfaces are local/demo contract surfaces. They may show review gates, drafts, outcome forms, and audit-visible concepts, but they are not live systems of record.
-8. Labor-savings claims must stay tied to reviewed outcome records, actual/estimated minutes, disposition, and reporting group fields. Hypotheses should remain labeled as planned metrics until outcome proof exists.
+8. Reviewed outcome records, reported estimates/time spent, dispositions, and reporting groups remain nonclaimable evidence. Hypotheses stay planned metrics; serialized outcome proof does not issue labor-savings claim authority.
 9. Many atlas/docs/source changes were produced by parallel board work in a shared directory workspace. Treat this README as the closeout/navigation artifact for the crosswalk package, not as a clean diff claim over every modified file in the checkout.
 
 ## How this feeds the Entity Atlas and public docs

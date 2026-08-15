@@ -101,7 +101,8 @@ fn deterministic_trace_fixture_covers_full_information_lifespan() {
             && entry.proof_ref().contains("info-lifespan-demo-2026-06-29")
     }));
     assert!(envelope.calculations().iter().any(|calculation| {
-        calculation.name() == "estimated_labor_minutes_saved" && calculation.result() == "42"
+        calculation.name() == "reported_estimated_labor_minutes_difference"
+            && calculation.result() == "42"
     }));
     assert!(envelope.safety_gates().iter().all(|gate| gate.locked()));
     assert!(envelope.safety_gates().iter().any(|gate| {

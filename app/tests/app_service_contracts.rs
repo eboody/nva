@@ -15,10 +15,10 @@ impl booking_triage::reservation::Repository for FakeReservationContext {
 
 fn reservation_with_hard_stops(hard_stops: Vec<entities::HardStop>) -> entities::Reservation {
     entities::Reservation::builder()
-        .id(entities::reservation::Id(Uuid::from_u128(1)))
-        .location_id(entities::LocationId(Uuid::from_u128(2)))
-        .customer_id(entities::CustomerId(Uuid::from_u128(3)))
-        .pet_ids(vec![entities::PetId(Uuid::from_u128(4))])
+        .id(entities::reservation::Id::new(uuid::Uuid::from_u128(1)))
+        .location_id(entities::LocationId::new(Uuid::from_u128(2)))
+        .customer_id(entities::CustomerId::new(Uuid::from_u128(3)))
+        .pet_ids(vec![entities::PetId::new(Uuid::from_u128(4))])
         .service(entities::ServiceKind::Boarding)
         .status(entities::reservation::Status::Requested)
         .starts_at(chrono::DateTime::<chrono::Utc>::UNIX_EPOCH)
@@ -66,12 +66,17 @@ fn booking_triage_service_uses_app_repository_port_and_blocks_missing_vaccine_bo
 
     assert_eq!(
         packet.suggested_status(),
-        entities::reservation::Status::VaccinePending
+        entities::reservation::Status::SpecialReview
     );
     assert!(
         packet
             .deterministic_result()
             .requires(booking_triage::ApprovalGate::MedicalDocumentReview)
+    );
+    assert!(
+        packet
+            .deterministic_result()
+            .requires(booking_triage::ApprovalGate::PaymentManagerApproval)
     );
     assert!(
         packet
@@ -114,7 +119,7 @@ fn booking_triage_service_routes_special_care_to_review_packet_without_confirmat
 }
 
 #[test]
-fn booking_triage_service_treats_paid_deposit_and_no_hard_stops_as_staff_ready() {
+fn booking_triage_service_keeps_paid_deposit_and_no_hard_stops_under_staff_review() {
     let amount = domain::money::Money::new(
         domain::money::MinorUnits::try_new(2_500).unwrap(),
         domain::money::Currency::Usd,
@@ -144,10 +149,10 @@ fn booking_triage_service_treats_paid_deposit_and_no_hard_stops_as_staff_ready()
 
     assert_eq!(
         packet.suggested_status(),
-        entities::reservation::Status::Offered
+        entities::reservation::Status::SpecialReview
     );
     assert!(
-        packet
+        !packet
             .deterministic_result()
             .staff_may_confirm_without_human_gate()
     );
@@ -159,7 +164,7 @@ fn booking_triage_service_keeps_repository_misses_as_safe_app_errors() {
         reservation: reservation_with_hard_stops(Vec::new()),
     });
 
-    let missing_id = entities::reservation::Id(Uuid::from_u128(99));
+    let missing_id = entities::reservation::Id::new(Uuid::from_u128(99));
     let missing = service.evaluate(ready_request(missing_id));
 
     assert_eq!(

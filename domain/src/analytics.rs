@@ -110,7 +110,7 @@ pub mod finance {
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
     /// Source-backed site/service financial fact.
-    pub struct RevenueFact {
+    pub struct ReportedRevenueObservationFact {
         period: SitePeriod,
         service: entities::ServiceKind,
         gross_revenue: money::Money,
@@ -120,7 +120,7 @@ pub mod finance {
         source_system: source::System,
     }
 
-    impl RevenueFact {
+    impl ReportedRevenueObservationFact {
         /// Net revenue after discounts and refunds, with checked currency-aware arithmetic.
         pub fn net_revenue(&self) -> money::Result<money::Money> {
             self.gross_revenue
@@ -158,7 +158,7 @@ pub mod finance {
     #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
     /// Review-gated site financial insight.
     pub struct Insight {
-        fact: RevenueFact,
+        fact: ReportedRevenueObservationFact,
         kind: InsightKind,
         expected_impact: money::Money,
         recommendation: Recommendation,
@@ -168,7 +168,7 @@ pub mod finance {
     impl Insight {
         /// Creates a financial insight only when the recommendation remains behind manager review.
         pub fn try_new(
-            fact: RevenueFact,
+            fact: ReportedRevenueObservationFact,
             kind: InsightKind,
             expected_impact: money::Money,
             recommendation: Recommendation,
@@ -209,7 +209,7 @@ pub mod finance {
         {
             #[derive(Deserialize)]
             struct RawInsight {
-                fact: RevenueFact,
+                fact: ReportedRevenueObservationFact,
                 kind: InsightKind,
                 expected_impact: money::Money,
                 recommendation: Recommendation,
@@ -231,7 +231,7 @@ pub mod finance {
     #[derive(Debug, Clone, Default)]
     /// Builder for a review-gated site financial insight.
     pub struct InsightBuilder {
-        fact: Option<RevenueFact>,
+        fact: Option<ReportedRevenueObservationFact>,
         kind: Option<InsightKind>,
         expected_impact: Option<money::Money>,
         recommendation: Option<Recommendation>,
@@ -251,7 +251,7 @@ pub mod finance {
         }
 
         /// Sets the financial fact.
-        pub fn fact(mut self, value: RevenueFact) -> Self {
+        pub fn fact(mut self, value: ReportedRevenueObservationFact) -> Self {
             self.fact = Some(value);
             self
         }
@@ -407,22 +407,22 @@ pub mod outcome {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Value metric tracked by an outcome.
+    /// Caller-reported metric-evidence category; never value-claim authority.
     pub enum Metric {
-        /// Booking converted.
-        BookingConverted,
-        /// Labor minutes saved.
-        LaborMinutesSaved,
-        /// Utilization basis points improved.
-        UtilizationBasisPoints,
-        /// Revenue improved using canonical currency-aware money.
-        Revenue,
-        /// Revenue cents improved.
-        RevenueCents,
-        /// Customer retained.
-        CustomerRetained,
-        /// Handle time reduced.
-        HandleTimeMinutesReduced,
+        /// Reported booking-conversion observation.
+        ReportedBookingConversionObservation,
+        /// Reported labor-minute estimate difference; not realized savings.
+        ReportedLaborMinutesDifference,
+        /// Reported utilization basis-points observation.
+        ReportedUtilizationBasisPointsObservation,
+        /// Reported revenue observation using canonical currency-aware money.
+        ReportedRevenueObservation,
+        /// Legacy reported revenue-cents observation.
+        ReportedRevenueCentsObservation,
+        /// Reported customer-retention observation.
+        ReportedCustomerRetentionObservation,
+        /// Reported handle-time estimate difference.
+        ReportedHandleTimeEstimateDifference,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -432,10 +432,10 @@ pub mod outcome {
         Count(i64),
         /// Positive labor-minute value.
         LaborMinutes(labor::Minutes),
-        /// Money value with explicit currency.
-        Revenue(money::Money),
+        /// Reported money evidence with explicit currency.
+        ReportedRevenueObservation(money::Money),
         /// Basis-points value.
-        UtilizationBasisPoints(money::BasisPoints),
+        ReportedUtilizationBasisPointsObservation(money::BasisPoints),
         /// Legacy minutes value retained for bridge compatibility.
         Minutes(i64),
         /// Legacy cents value retained for bridge compatibility.
@@ -445,19 +445,19 @@ pub mod outcome {
     }
 
     impl MetricValue {
-        /// Builds a labor-minutes-saved metric value.
-        pub const fn labor_minutes_saved(value: labor::Minutes) -> Self {
+        /// Builds a reported labor-minute estimate-difference value.
+        pub const fn reported_labor_minutes_difference(value: labor::Minutes) -> Self {
             Self::LaborMinutes(value)
         }
 
         /// Builds a currency-aware revenue metric value.
         pub fn revenue(value: money::Money) -> Self {
-            Self::Revenue(value)
+            Self::ReportedRevenueObservation(value)
         }
 
         /// Builds a utilization metric value in validated basis points.
         pub const fn utilization_basis_points(value: money::BasisPoints) -> Self {
-            Self::UtilizationBasisPoints(value)
+            Self::ReportedUtilizationBasisPointsObservation(value)
         }
 
         /// Returns whether this value carries the unit required by the metric.
@@ -465,64 +465,82 @@ pub mod outcome {
             matches!(
                 (metric, self),
                 (
-                    Metric::BookingConverted | Metric::CustomerRetained,
+                    Metric::ReportedBookingConversionObservation
+                        | Metric::ReportedCustomerRetentionObservation,
                     Self::Count(_)
-                ) | (Metric::LaborMinutesSaved, Self::LaborMinutes(_))
-                    | (Metric::LaborMinutesSaved, Self::Minutes(_))
-                    | (Metric::HandleTimeMinutesReduced, Self::LaborMinutes(_))
-                    | (Metric::HandleTimeMinutesReduced, Self::Minutes(_))
-                    | (Metric::Revenue, Self::Revenue(_))
-                    | (Metric::RevenueCents, Self::Revenue(_))
-                    | (Metric::RevenueCents, Self::Cents(_))
+                ) | (
+                    Metric::ReportedLaborMinutesDifference,
+                    Self::LaborMinutes(_)
+                ) | (Metric::ReportedLaborMinutesDifference, Self::Minutes(_))
                     | (
-                        Metric::UtilizationBasisPoints,
-                        Self::UtilizationBasisPoints(_)
+                        Metric::ReportedHandleTimeEstimateDifference,
+                        Self::LaborMinutes(_)
                     )
-                    | (Metric::UtilizationBasisPoints, Self::BasisPoints(_))
+                    | (
+                        Metric::ReportedHandleTimeEstimateDifference,
+                        Self::Minutes(_)
+                    )
+                    | (
+                        Metric::ReportedRevenueObservation,
+                        Self::ReportedRevenueObservation(_)
+                    )
+                    | (
+                        Metric::ReportedRevenueCentsObservation,
+                        Self::ReportedRevenueObservation(_)
+                    )
+                    | (Metric::ReportedRevenueCentsObservation, Self::Cents(_))
+                    | (
+                        Metric::ReportedUtilizationBasisPointsObservation,
+                        Self::ReportedUtilizationBasisPointsObservation(_)
+                    )
+                    | (
+                        Metric::ReportedUtilizationBasisPointsObservation,
+                        Self::BasisPoints(_)
+                    )
             )
         }
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Before/after values whose variants own the metric-compatible unit.
+    /// Caller-reported before/after evidence whose variants own the metric-compatible unit.
     pub enum MeasuredChange {
         /// Booking conversion count change.
-        BookingConverted {
+        ReportedBookingConversionObservation {
             /// Conversion count before the reviewed action.
             before: i64,
             /// Conversion count after the reviewed action.
             after: i64,
         },
-        /// Labor-minutes-saved change.
-        LaborMinutesSaved {
+        /// Reported labor-minute estimate difference.
+        ReportedLaborMinutesDifference {
             /// Labor minutes before the reviewed action.
             before: labor::Minutes,
             /// Labor minutes after the reviewed action.
             after: labor::Minutes,
         },
         /// Utilization basis-points change.
-        UtilizationBasisPoints {
+        ReportedUtilizationBasisPointsObservation {
             /// Utilization basis points before the reviewed action.
             before: money::BasisPoints,
             /// Utilization basis points after the reviewed action.
             after: money::BasisPoints,
         },
-        /// Revenue change using canonical currency-aware money.
-        Revenue {
-            /// Revenue before the reviewed action.
+        /// Reported revenue observation using canonical currency-aware money.
+        ReportedRevenueObservation {
+            /// Reported revenue before the reviewed action.
             before: money::Money,
-            /// Revenue after the reviewed action.
+            /// Reported revenue after the reviewed action.
             after: money::Money,
         },
         /// Customer retention count change.
-        CustomerRetained {
+        ReportedCustomerRetentionObservation {
             /// Retained-customer count before the reviewed action.
             before: i64,
             /// Retained-customer count after the reviewed action.
             after: i64,
         },
         /// Handle-time reduction change.
-        HandleTimeMinutesReduced {
+        ReportedHandleTimeEstimateDifference {
             /// Handle minutes before the reviewed action.
             before: labor::Minutes,
             /// Handle minutes after the reviewed action.
@@ -533,30 +551,42 @@ pub mod outcome {
     impl MeasuredChange {
         /// Builds a booking-conversion count change.
         pub const fn booking_converted(before: i64, after: i64) -> Self {
-            Self::BookingConverted { before, after }
+            Self::ReportedBookingConversionObservation { before, after }
         }
 
         /// Builds a currency-aware revenue change.
         pub fn revenue(before: money::Money, after: money::Money) -> Self {
-            Self::Revenue { before, after }
+            Self::ReportedRevenueObservation { before, after }
         }
 
         /// Metric carried by this measured change.
         pub const fn metric(&self) -> Metric {
             match self {
-                Self::BookingConverted { .. } => Metric::BookingConverted,
-                Self::LaborMinutesSaved { .. } => Metric::LaborMinutesSaved,
-                Self::UtilizationBasisPoints { .. } => Metric::UtilizationBasisPoints,
-                Self::Revenue { .. } => Metric::Revenue,
-                Self::CustomerRetained { .. } => Metric::CustomerRetained,
-                Self::HandleTimeMinutesReduced { .. } => Metric::HandleTimeMinutesReduced,
+                Self::ReportedBookingConversionObservation { .. } => {
+                    Metric::ReportedBookingConversionObservation
+                }
+                Self::ReportedLaborMinutesDifference { .. } => {
+                    Metric::ReportedLaborMinutesDifference
+                }
+                Self::ReportedUtilizationBasisPointsObservation { .. } => {
+                    Metric::ReportedUtilizationBasisPointsObservation
+                }
+                Self::ReportedRevenueObservation { .. } => Metric::ReportedRevenueObservation,
+                Self::ReportedCustomerRetentionObservation { .. } => {
+                    Metric::ReportedCustomerRetentionObservation
+                }
+                Self::ReportedHandleTimeEstimateDifference { .. } => {
+                    Metric::ReportedHandleTimeEstimateDifference
+                }
             }
         }
 
         /// Returns whether before/after values share required relationship-level context.
         pub fn relationship_context_is_consistent(&self) -> bool {
             match self {
-                Self::Revenue { before, after } => before.currency() == after.currency(),
+                Self::ReportedRevenueObservation { before, after } => {
+                    before.currency() == after.currency()
+                }
                 _ => true,
             }
         }
@@ -568,36 +598,40 @@ pub mod outcome {
         ) -> Result<Self> {
             match (metric, before_value, after_value) {
                 (
-                    Metric::BookingConverted,
+                    Metric::ReportedBookingConversionObservation,
                     MetricValue::Count(before),
                     MetricValue::Count(after),
-                ) => Ok(Self::BookingConverted { before, after }),
+                ) => Ok(Self::ReportedBookingConversionObservation { before, after }),
                 (
-                    Metric::CustomerRetained,
+                    Metric::ReportedCustomerRetentionObservation,
                     MetricValue::Count(before),
                     MetricValue::Count(after),
-                ) => Ok(Self::CustomerRetained { before, after }),
+                ) => Ok(Self::ReportedCustomerRetentionObservation { before, after }),
                 (
-                    Metric::LaborMinutesSaved,
+                    Metric::ReportedLaborMinutesDifference,
                     MetricValue::LaborMinutes(before),
                     MetricValue::LaborMinutes(after),
-                ) => Ok(Self::LaborMinutesSaved { before, after }),
+                ) => Ok(Self::ReportedLaborMinutesDifference { before, after }),
                 (
-                    Metric::HandleTimeMinutesReduced,
+                    Metric::ReportedHandleTimeEstimateDifference,
                     MetricValue::LaborMinutes(before),
                     MetricValue::LaborMinutes(after),
-                ) => Ok(Self::HandleTimeMinutesReduced { before, after }),
+                ) => Ok(Self::ReportedHandleTimeEstimateDifference { before, after }),
                 (
-                    Metric::UtilizationBasisPoints,
-                    MetricValue::UtilizationBasisPoints(before),
-                    MetricValue::UtilizationBasisPoints(after),
-                ) => Ok(Self::UtilizationBasisPoints { before, after }),
-                (Metric::Revenue, MetricValue::Revenue(before), MetricValue::Revenue(after))
+                    Metric::ReportedUtilizationBasisPointsObservation,
+                    MetricValue::ReportedUtilizationBasisPointsObservation(before),
+                    MetricValue::ReportedUtilizationBasisPointsObservation(after),
+                ) => Ok(Self::ReportedUtilizationBasisPointsObservation { before, after }),
+                (
+                    Metric::ReportedRevenueObservation,
+                    MetricValue::ReportedRevenueObservation(before),
+                    MetricValue::ReportedRevenueObservation(after),
+                )
                 | (
-                    Metric::RevenueCents,
-                    MetricValue::Revenue(before),
-                    MetricValue::Revenue(after),
-                ) => Ok(Self::Revenue { before, after }),
+                    Metric::ReportedRevenueCentsObservation,
+                    MetricValue::ReportedRevenueObservation(before),
+                    MetricValue::ReportedRevenueObservation(after),
+                ) => Ok(Self::ReportedRevenueObservation { before, after }),
                 _ => Err(Error::MetricValueUnitMismatch),
             }
         }
@@ -606,8 +640,8 @@ pub mod outcome {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
     /// Legacy attribution strength for compatibility constructors.
     pub enum Attribution {
-        /// Human-reviewed action can support value claims.
-        ReviewedAction,
+        /// Serializable evidence reports that a human reviewed an action; it does not authorize a value claim.
+        ReportedReviewedAction,
         /// Correlated with recommendation but not enough for strong claims.
         CorrelatedOnly,
         /// Source was wrong, so no value claim is allowed.
@@ -617,8 +651,8 @@ pub mod outcome {
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     /// Evidence bundle that explains attribution sufficiency.
     pub enum AttributionEvidence {
-        /// Human-reviewed action and supporting evidence can support value claims.
-        ReviewedAction {
+        /// Serializable evidence reports a reviewed action but cannot authorize value attribution.
+        ReportedReviewedAction {
             /// Reviewed recommendation or action identifier.
             recommendation_ref: RecommendationRef,
             /// Source/review evidence identifier.
@@ -637,12 +671,12 @@ pub mod outcome {
     }
 
     impl AttributionEvidence {
-        /// Builds strong attribution from a reviewed recommendation/action and evidence reference.
-        pub const fn reviewed_action(
+        /// Builds historical reviewed-action evidence without issuing value-claim authority.
+        pub const fn reported_reviewed_action(
             recommendation_ref: RecommendationRef,
             evidence_ref: EvidenceRef,
         ) -> Self {
-            Self::ReviewedAction {
+            Self::ReportedReviewedAction {
                 recommendation_ref,
                 evidence_ref,
             }
@@ -653,16 +687,18 @@ pub mod outcome {
             Self::CorrelatedOnly { evidence_ref }
         }
 
-        /// Returns whether the evidence suffices for a measured value claim.
+        /// Returns whether serialized evidence suffices for a measured value claim.
+        ///
+        /// It never does: accepted value attribution requires a future opaque, authenticated issuer.
         pub const fn can_support_value_claim(&self) -> bool {
-            matches!(self, Self::ReviewedAction { .. })
+            false
         }
 
         fn from_legacy(attribution: Attribution) -> Self {
             let evidence_ref = EvidenceRef::try_new("legacy-outcome-attribution")
                 .expect("static legacy outcome evidence ref is valid");
             match attribution {
-                Attribution::ReviewedAction => Self::ReviewedAction {
+                Attribution::ReportedReviewedAction => Self::ReportedReviewedAction {
                     recommendation_ref: RecommendationRef::try_new("legacy-reviewed-action")
                         .expect("static legacy recommendation ref is valid"),
                     evidence_ref,

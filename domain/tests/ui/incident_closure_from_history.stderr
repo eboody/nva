@@ -1,0 +1,13 @@
+error[E0308]: mismatched types
+  --> tests/ui/incident_closure_from_history.rs:35:33
+   |
+35 |     let _ = incident.close_with(approval);
+   |                      ---------- ^^^^^^^^ expected `IncidentClosureAuthority`, found `Record`
+   |                      |
+   |                      arguments to this method are incorrect
+   |
+note: method defined here
+  --> src/entities.rs
+   |
+   |     pub fn close_with(
+   |            ^^^^^^^^^^

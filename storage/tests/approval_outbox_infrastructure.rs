@@ -373,9 +373,9 @@ fn site_finance_manager_approval_and_completion_do_not_manufacture_value_claim_a
 
     assert_eq!(
         records.outcome.record.value_attribution,
-        storage::operations::SiteFinanceValueAttribution::ReviewedAction
+        storage::operations::SiteFinanceValueAttribution::ReportedReviewedAction
     );
-    assert!(records.outcome.record.can_support_value_claim);
+    assert!(!records.outcome.record.can_support_value_claim());
     assert_eq!(
         records.workflow_result.status,
         WorkflowResultStatusCode::NeedsReview
@@ -389,7 +389,7 @@ fn site_finance_manager_approval_and_completion_do_not_manufacture_value_claim_a
     assert!(records.outbox_candidate.is_none());
     assert_eq!(
         records.workflow_result.result["can_support_value_claim"],
-        true
+        false
     );
     assert_eq!(
         records.workflow_result.result["workflow_completion"],
@@ -412,7 +412,7 @@ fn site_finance_outcome() -> SiteFinanceOutcomeRecord {
         .review_packet_id("site-finance-review:00c0ffee:2026-06".to_owned())
         .audit_event_id("audit:site-finance-review:00c0ffee:2026-06".to_owned())
         .legal_action("record_reviewed_recommendation_only".to_owned())
-        .value_attribution(storage::operations::SiteFinanceValueAttribution::ReviewedAction)
+        .value_attribution(storage::operations::SiteFinanceValueAttribution::ReportedReviewedAction)
         .workflow_completion(storage::operations::SiteFinanceWorkflowCompletion::Completed)
         .manager_approval(
             storage::operations::SiteFinanceManagerApproval::approved_by_manager(
@@ -424,7 +424,6 @@ fn site_finance_outcome() -> SiteFinanceOutcomeRecord {
                 "00c0ffee-0000-0000-0000-000000000001".to_owned(),
             ),
         )
-        .can_support_value_claim(true)
         .currency("usd".to_owned())
         .net_revenue_minor_units(159_000)
         .variance_minor_units(9_000)

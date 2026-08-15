@@ -93,7 +93,7 @@ export default function Home() {
     correlation_id: payload?.correlation_id ?? "unavailable",
     artifact_ref: payload?.final_report?.artifact_ref ?? payload?.processor_proof?.final_report?.artifact_ref ?? "unavailable",
     stage_count: Array.isArray(payload?.trace?.stages) ? payload.trace.stages.length : 0,
-    estimated_labor_minutes_saved: Number(payload?.processor_proof?.calculations?.estimated_labor_minutes_saved ?? 42),
+    reported_estimated_labor_minutes_difference: Number(payload?.processor_proof?.calculations?.reported_estimated_labor_minutes_difference ?? 42),
     review_gate_count: Array.isArray(payload?.safety?.review_gates) ? payload.safety.review_gates.length : 0,
     live_side_effects_allowed: payload?.safety?.live_side_effects_allowed ?? payload?.live_side_effects_allowed ?? false,
     processor_fallback_labeled: Boolean(payload?.processor_proof?.simulated)
@@ -552,8 +552,8 @@ export default function Home() {
                 <small>{managerDailyReportArtifact.generatedBy} · correlation_id {managerDailyReportArtifact.correlationId}</small>
               </div>
               <aside className="report-value-card">
-                <span>estimated minutes saved</span>
-                <strong>{managerDailyReportArtifact.valueProof.estimatedMinutesSaved}</strong>
+                <span>reported estimated minute difference</span>
+                <strong>{managerDailyReportArtifact.valueProof.reportedEstimatedMinutesDifference}</strong>
                 <small>{managerDailyReportArtifact.valueProof.sourceSnapshots} sources · {managerDailyReportArtifact.valueProof.normalizedFacts} facts · {managerDailyReportArtifact.valueProof.dbProofRefs} DB refs · {managerDailyReportArtifact.valueProof.reviewLocks} locks</small>
               </aside>
             </div>
@@ -564,7 +564,7 @@ export default function Home() {
                     <span>#{action.rank}</span>
                     <div>
                       <h3>{action.title}</h3>
-                      <small>{action.owner} · {action.urgency} · {action.estimatedMinutesSaved}m modeled</small>
+                      <small>{action.owner} · {action.urgency} · {action.reportedEstimatedMinutesDifference}m modeled</small>
                     </div>
                   </div>
                   <p>{action.recommendation}</p>

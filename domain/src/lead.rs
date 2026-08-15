@@ -23,9 +23,9 @@ use crate::{
 /// customer sends, provider writes, booking promises, or schedule mutations.
 ///
 /// The promotion chain is deliberately narrow: a source event plus SLA evidence, exact
-/// channel/purpose consent, and an ordered reviewed attempt can become a packet; only a matching
-/// customer-message approval can produce a queueable action, and that proof token still exposes no
-/// live-send method.
+/// channel/purpose consent, and an ordered reviewed attempt can become a packet. Review rows and
+/// conversion observations remain serializable evidence; no production queue or value-attribution
+/// capability is issued until an authenticated acceptance boundary exists.
 ///
 /// ```
 /// use chrono::{TimeZone, Utc};
@@ -36,16 +36,17 @@ use crate::{
 /// let event = lead::response::Event::builder()
 ///     .id(lead::response::EventId::try_new("missed-call-42")?)
 ///     .idempotency_key(lead::response::IdempotencyKey::try_new("masked-source-key")?)
-///     .location_id(entities::LocationId(uuid::Uuid::nil()))
+///     .location_id(entities::LocationId::new(uuid::Uuid::from_u128(1)))
 ///     .kind(lead::response::EventKind::MissedCall)
 ///     .received_at(received_at)
 ///     .source_system(source::System::Telephony)
 ///     .customer_match(identity::Match::Candidate {
-///         customer_id: entities::CustomerId(uuid::Uuid::from_u128(42)),
+///         customer_id: entities::CustomerId::new(uuid::Uuid::from_u128(42)),
 ///         confidence: identity::Confidence::High,
 ///     })
 ///     .service_intent(entities::ServiceKind::Boarding)
 ///     .build();
+/// let consent_subject = event.source_record();
 /// let sla = lead::response::ResponseSla::try_new(
 ///     lead::response::SlaTarget::FirstResponseWithinMinutes(
 ///         lead::response::Minutes::try_new(5)?,
@@ -70,25 +71,22 @@ use crate::{
 ///         .purpose(consent::Purpose::TransactionalLeadResponse)
 ///         .status(consent::ConsentStatus::Granted)
 ///         .source(source::System::Crm)
+///         .subject(consent::Subject::SourceRecord(consent_subject))
+///         .source_record(source::RecordRef::new(
+///             source::System::Crm,
+///             source::record::Id::try_new("consent-missed-call-42")?,
+///         ))
+///         .source_schema_version(source::SchemaVersion::try_new("crm-consent-v1")?)
+///         .effective_from(received_at - chrono::Duration::days(1))
+///         .effective_until(received_at + chrono::Duration::days(1))
 ///         .build(),
 ///     vec![attempt],
-///     lead::response::ConversionAttribution::builder()
+///     lead::response::ConversionObservation::builder()
 ///         .source(lead::response::AttributionSource::MissedCall)
 ///         .estimated_value(money::Money::usd(45_000)?)
 ///         .build(),
 /// )?;
-/// let approval = lead::response::ReviewApproval::builder()
-///     .gate(policy::ReviewGate::CustomerMessageApproval)
-///     .location_id(entities::LocationId(uuid::Uuid::nil()))
-///     .customer_id(entities::CustomerId(uuid::Uuid::from_u128(42)))
-///     .service_intent(entities::ServiceKind::Boarding)
-///     .channel(consent::Channel::Sms)
-///     .purpose(consent::Purpose::TransactionalLeadResponse)
-///     .message_ref(message_ref)
-///     .build();
-/// let queueable = lead::response::QueueableContact::try_from_review(&packet, approval)?;
-/// assert_eq!(queueable.action(), lead::response::LegalContactAction::QueueOnly);
-/// assert!(queueable.live_send_is_unavailable());
+/// assert!(packet.requires_customer_message_approval());
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 pub mod response {
@@ -232,6 +230,15 @@ pub mod response {
         /// Source system that supplied this lead event.
         pub const fn source_system(&self) -> source::System {
             self.source_system
+        }
+
+        /// Stable source record that owns this lead event and must match consent evidence.
+        pub fn source_record(&self) -> source::RecordRef {
+            source::RecordRef::new(
+                self.source_system,
+                source::record::Id::try_new(self.id.clone().into_inner())
+                    .expect("validated lead event ids satisfy source record id bounds"),
+            )
         }
     }
 
@@ -471,17 +478,17 @@ pub mod response {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
-    /// Conversion attribution retained for lead-response value proof.
-    pub struct ConversionAttribution {
+    /// Caller-reported booking observation retained as evidence, never accepted value attribution.
+    pub struct ConversionObservation {
         source: AttributionSource,
         campaign: Option<Campaign>,
         converted_reservation_id: Option<entities::reservation::Id>,
         estimated_value: Option<money::Money>,
     }
 
-    impl ConversionAttribution {
-        /// Creates attribution for a converted lead; conversion claims require reservation evidence.
-        pub fn try_converted(
+    impl ConversionObservation {
+        /// Creates a reported booking observation; this remains non-claimable serializable evidence.
+        pub fn try_reported_booking_observation(
             source: AttributionSource,
             campaign: Option<Campaign>,
             converted_reservation_id: Option<entities::reservation::Id>,
@@ -497,6 +504,11 @@ pub mod response {
                 estimated_value,
             })
         }
+
+        /// Serializable booking observations never support conversion or revenue attribution claims.
+        pub const fn can_support_value_claim(&self) -> bool {
+            false
+        }
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -506,7 +518,7 @@ pub mod response {
         sla: ResponseSla,
         consent: communication::ConsentEvidence,
         attempts: Vec<ContactAttempt>,
-        attribution: ConversionAttribution,
+        attribution: ConversionObservation,
     }
 
     impl ResponsePacket {
@@ -516,7 +528,7 @@ pub mod response {
             sla: ResponseSla,
             consent: communication::ConsentEvidence,
             attempts: Vec<ContactAttempt>,
-            attribution: ConversionAttribution,
+            attribution: ConversionObservation,
         ) -> Result<Self, Error> {
             if sla.received_at() != event.received_at() {
                 return Err(Error::SlaReceiptDoesNotMatchEvent);
@@ -532,7 +544,12 @@ pub mod response {
                 if previous_attempt_at.is_some_and(|previous| attempt.attempted_at() < previous) {
                     return Err(Error::ContactAttemptsOutOfOrder);
                 }
-                if !consent.permits(attempt.channel(), attempt.purpose()) {
+                if !consent.permits_source_record(
+                    &event.source_record(),
+                    attempt.channel(),
+                    attempt.purpose(),
+                    attempt.attempted_at(),
+                ) {
                     return Err(Error::ConsentDoesNotCoverAttempt);
                 }
                 previous_attempt_at = Some(attempt.attempted_at());
@@ -578,7 +595,12 @@ pub mod response {
             channel: communication::Channel,
             purpose: communication::Purpose,
         ) -> bool {
-            self.consent.permits(channel, purpose)
+            self.consent.permits_source_record(
+                &self.event.source_record(),
+                channel,
+                purpose,
+                self.event.received_at(),
+            )
         }
     }
 
@@ -588,7 +610,7 @@ pub mod response {
         sla: Option<ResponseSla>,
         consent: Option<communication::ConsentEvidence>,
         attempts: Option<Vec<ContactAttempt>>,
-        attribution: Option<ConversionAttribution>,
+        attribution: Option<ConversionObservation>,
     }
 
     impl Default for ResponsePacketBuilder {
@@ -629,7 +651,7 @@ pub mod response {
             self
         }
         /// Sets conversion attribution evidence.
-        pub fn attribution(mut self, attribution: ConversionAttribution) -> Self {
+        pub fn attribution(mut self, attribution: ConversionObservation) -> Self {
             self.attribution = Some(attribution);
             self
         }
@@ -657,7 +679,7 @@ pub mod response {
                 sla: ResponseSla,
                 consent: communication::ConsentEvidence,
                 attempts: Vec<ContactAttempt>,
-                attribution: ConversionAttribution,
+                attribution: ConversionObservation,
             }
             let raw = RawResponsePacket::deserialize(deserializer)?;
             Self::try_new(
@@ -679,8 +701,8 @@ pub mod response {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
-    /// Review proof that can promote a packet into a queueable, not live-sendable, contact action.
-    pub struct ReviewApproval {
+    /// Serializable historical review evidence; it cannot promote a packet into queue authority.
+    pub struct ReviewApprovalEvidence {
         gate: policy::ReviewGate,
         location_id: entities::LocationId,
         customer_id: entities::CustomerId,
@@ -690,46 +712,19 @@ pub mod response {
         message_ref: message::BodyRef,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-    /// Proof token for an approved outbound draft that can only enter a queue.
+    /// Opaque proof token for an outbound draft that may only enter an internal queue.
+    ///
+    /// No production issuer exists until an authenticated root of trust can accept exact review
+    /// evidence. Serializable [`ReviewApprovalEvidence`] cannot construct this capability.
     pub struct QueueableContact {
         action: LegalContactAction,
-        approval: ReviewApproval,
+        _authority: QueueContactAuthority,
     }
 
-    impl QueueableContact {
-        /// Promotes a packet only when review approval matches location, customer, service, channel, purpose, and message draft.
-        pub fn try_from_review(
-            packet: &ResponsePacket,
-            approval: ReviewApproval,
-        ) -> Result<Self, Error> {
-            let event_customer_id = match packet.event().customer_match() {
-                identity::Match::Candidate { customer_id, .. } => *customer_id,
-                identity::Match::None | identity::Match::Ambiguous { .. } => {
-                    return Err(Error::ReviewApprovalDoesNotMatchPacket);
-                }
-            };
-            let matched_attempt = packet.attempts().iter().any(|attempt| {
-                attempt.channel() == approval.channel
-                    && attempt.purpose() == approval.purpose
-                    && attempt.review_gate() == approval.gate
-                    && attempt.message_ref() == Some(&approval.message_ref)
-            });
-            if approval.gate != policy::ReviewGate::CustomerMessageApproval
-                || approval.location_id != packet.event().location_id()
-                || approval.customer_id != event_customer_id
-                || approval.service_intent != packet.event().service_intent()
-                || !matched_attempt
-            {
-                return Err(Error::ReviewApprovalDoesNotMatchPacket);
-            }
-            Ok(Self {
-                action: LegalContactAction::QueueOnly,
-                approval,
-            })
-        }
+    struct QueueContactAuthority;
 
-        /// Action exposed by the proof token.
+    impl QueueableContact {
+        /// Action exposed by the opaque proof token.
         pub const fn action(&self) -> LegalContactAction {
             self.action
         }
@@ -760,11 +755,6 @@ pub mod response {
         #[error("consent must cover the exact attempt channel and purpose")]
         /// Consent was missing, opted out, or mismatched for attempt channel/purpose.
         ConsentDoesNotCoverAttempt,
-        #[error(
-            "review approval does not match packet location, customer, service, channel, purpose, gate, or message"
-        )]
-        /// Review proof did not bind to the same packet facts and message draft.
-        ReviewApprovalDoesNotMatchPacket,
         #[error("converted lead attribution requires a converted reservation id")]
         /// Conversion attribution cannot claim conversion without reservation evidence.
         ConvertedLeadRequiresReservation,

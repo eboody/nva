@@ -71,13 +71,13 @@ async fn manager_daily_brief_agent_context_returns_source_grounded_read_only_pac
             .as_array()
             .unwrap()
             .len(),
-        1
+        0
     );
     assert_eq!(
         payload["manager_brief_actions"].as_array().unwrap().len(),
-        3
+        2
     );
-    assert!(payload["source_refs"].as_array().unwrap().len() >= 3);
+    assert!(payload["source_refs"].as_array().unwrap().len() >= 2);
 
     assert!(
         payload["allowed_agent_actions"]
@@ -89,7 +89,7 @@ async fn manager_daily_brief_agent_context_returns_source_grounded_read_only_pac
         payload["allowed_agent_actions"]
             .as_array()
             .unwrap()
-            .contains(&serde_json::json!("estimate_labor_minutes_saved"))
+            .contains(&serde_json::json!("report_labor_estimate_difference"))
     );
     assert!(
         payload["blocked_actions"]

@@ -15,6 +15,9 @@ pub enum Error {
     #[error("daily update preview requires a DailyNoteCreated or DailyUpdateNeeded workflow event")]
     /// Identifies unsupported workflow event as the reason the workflow must stop, retry, or request review.
     UnsupportedWorkflowEvent,
+    #[error("daily update preview requires a reservation workflow subject")]
+    /// Rejects pet, customer, document, and external subjects rather than rebinding them to a sentinel reservation identity.
+    ReservationSubjectRequired,
     #[error("daily update preview requires at least one staff note")]
     /// Identifies missing staff notes as the reason the workflow must stop, retry, or request review.
     MissingStaffNotes,
@@ -468,6 +471,7 @@ pub struct FactSummary(String);
 /// Builds the mvp preview output for the daily update workflow.
 pub fn build_mvp_preview(request: MvpPreviewRequest) -> Result<MvpPreview> {
     validate_request(&request)?;
+    let reservation_id = reservation_subject(&request.event)?;
 
     let input = daily_care_update::Input {
         pet_name: request.pet_name,
@@ -483,20 +487,18 @@ pub fn build_mvp_preview(request: MvpPreviewRequest) -> Result<MvpPreview> {
     let review_gate = review_gate_for(&output);
 
     let message_id =
-        entities::MessageId(Uuid::from_u128(0xDA17_0000_0000_0000_0000_0000_0000_0001));
+        entities::MessageId::new(Uuid::from_u128(0xDA17_0000_0000_0000_0000_0000_0000_0001));
     let approval_id =
-        entities::approval::Id(Uuid::from_u128(0xDA17_0000_0000_0000_0000_0000_0000_0002));
+        entities::approval::Id::new(Uuid::from_u128(0xDA17_0000_0000_0000_0000_0000_0000_0002));
     let _owner_message_record = entities::Message::builder()
         .id(message_id)
-        .subject(entities::MessageSubject::Reservation(
-            subject_reservation_id(&request.event),
-        ))
+        .subject(entities::MessageSubject::Reservation(reservation_id))
         .direction(message::Direction::OutboundDraft)
         .channel(message::Channel::Portal)
         .status(message::Status::ApprovalRequested)
         .body_ref(output.customer_message.body_ref.clone())
         .approval_gate(review_gate.clone())
-        .audit_refs(vec![audit::EventId(Uuid::from_u128(
+        .audit_refs(vec![audit::EventId::new(Uuid::from_u128(
             0xDA17_0000_0000_0000_0000_0000_0000_0003,
         ))])
         .build();
@@ -506,7 +508,7 @@ pub fn build_mvp_preview(request: MvpPreviewRequest) -> Result<MvpPreview> {
         .target(approval_target_for(
             &review_gate,
             message_id,
-            subject_reservation_id(&request.event),
+            reservation_id,
         ))
         .gate(review_gate.clone())
         .lifecycle(entities::approval::Lifecycle::ApprovalRequested)
@@ -514,7 +516,7 @@ pub fn build_mvp_preview(request: MvpPreviewRequest) -> Result<MvpPreview> {
             workflow: agent_name()?,
         })
         .requested_at(request.event.occurred_at())
-        .audit_refs(vec![audit::EventId(Uuid::from_u128(
+        .audit_refs(vec![audit::EventId::new(Uuid::from_u128(
             0xDA17_0000_0000_0000_0000_0000_0000_0004,
         ))])
         .build()
@@ -688,19 +690,13 @@ fn generate_output(input: &daily_care_update::Input) -> Result<daily_care_update
     let suppressed_media_document_refs = input
         .media_document_refs
         .iter()
-        .filter(|media_ref| media_ref.review_state != message::ReviewState::Approved)
         .cloned()
         .map(|media_document_ref| SuppressedMediaDocumentRef {
             media_document_ref,
             reason: message::SuppressionReason::MediaReviewRequired,
         })
         .collect::<Vec<_>>();
-    let media_document_refs = input
-        .media_document_refs
-        .iter()
-        .filter(|media_ref| media_ref.review_state == message::ReviewState::Approved)
-        .cloned()
-        .collect::<Vec<_>>();
+    let media_document_refs = Vec::new();
 
     let review_reason = if review_codes
         .iter()
@@ -965,10 +961,10 @@ fn audit_event(
     })
 }
 
-fn subject_reservation_id(event: &workflow::Event) -> entities::reservation::Id {
+fn reservation_subject(event: &workflow::Event) -> Result<entities::reservation::Id> {
     match event.subject() {
-        workflow::Subject::Reservation(id) => *id,
-        _ => entities::reservation::Id(Uuid::nil()),
+        workflow::Subject::Reservation(id) => Ok(*id),
+        _ => Err(Error::ReservationSubjectRequired),
     }
 }
 

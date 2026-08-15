@@ -29,15 +29,36 @@ fn data_quality_hygiene_outcome_record_codecs_preserve_labor_and_provenance() {
         .operating_day("2026-06-17".to_owned())
         .action_kind(DataQualityHygieneActionKindCode::ReviewStaleVaccinationSourceFreshness)
         .owner_persona(DataQualityHygienePersonaCode::FrontDeskLead)
-        .estimated_minutes_saved(15)
+        .reported_estimated_minutes_difference(15)
         .build();
-
-    assert_eq!(record.actual_minutes_saved(), 16);
     let decoded =
         DataQualityHygieneOutcomeRecord::decode_json(&record.encode_json().unwrap()).unwrap();
     assert_eq!(decoded, record);
     assert_eq!(decoded.source_refs.len(), 1);
     assert_eq!(decoded.issue_refs, ["dq-missing-vaccine-42"]);
+    let debug = format!("{decoded:?}");
+    assert!(!debug.contains("front-desk-lead-1"));
+    assert!(!debug.contains("Found the source document"));
+    assert!(!debug.contains("pet-vaccine-42"));
+    assert!(debug.contains("[REDACTED]"));
+}
+
+#[test]
+fn data_quality_hygiene_outcome_decoder_requires_supported_schema_version() {
+    let mut payload = serde_json::to_value(outcome_record(
+        "dq-action-versioned",
+        DataQualityHygieneOutcomeCode::Completed,
+        25,
+        9,
+        "dq-versioned",
+        "pet-versioned",
+    ))
+    .unwrap();
+    payload.as_object_mut().unwrap().remove("schema_version");
+    assert!(DataQualityHygieneOutcomeRecord::decode_json(&payload.to_string()).is_err());
+
+    payload["schema_version"] = serde_json::json!("data_quality_hygiene_outcome.v99");
+    assert!(DataQualityHygieneOutcomeRecord::decode_json(&payload.to_string()).is_err());
 }
 
 #[test]
@@ -101,13 +122,12 @@ fn data_quality_hygiene_outcome_summary_aggregates_reviewed_labor_loop_proof() {
         Some("data-quality-hygiene:location-1:2026-06-17")
     );
     assert_eq!(summary.reviewed_outcome_count, 2);
-    assert_eq!(summary.completed_count, 1);
+    assert_eq!(summary.reported_completed_outcome_count, 1);
     assert_eq!(summary.deferred_count, 0);
     assert_eq!(summary.wrong_source_count, 1);
     assert_eq!(summary.not_actionable_count, 0);
-    assert_eq!(summary.total_estimated_minutes_saved, 34);
+    assert_eq!(summary.total_reported_estimated_minutes_difference, 0);
     assert_eq!(summary.total_actual_minutes_spent, 21);
-    assert_eq!(summary.completed_actual_minutes_saved, 16);
     assert_eq!(summary.source_refs.len(), 2);
     assert_eq!(
         summary.issue_refs,
@@ -276,6 +296,6 @@ fn outcome_record(
         .operating_day("2026-06-17".to_owned())
         .action_kind(DataQualityHygieneActionKindCode::ReviewStaleVaccinationSourceFreshness)
         .owner_persona(DataQualityHygienePersonaCode::FrontDeskLead)
-        .estimated_minutes_saved(before_minutes.saturating_sub(actual_minutes))
+        .reported_estimated_minutes_difference(before_minutes.saturating_sub(actual_minutes))
         .build()
 }

@@ -86,6 +86,13 @@ fn canonical_outcome_request_is_closed_and_requires_documented_arrays() {
     assert!(
         serde_json::from_value::<DataQualityHygieneOutcomeCaptureRequest>(valid.clone()).is_ok()
     );
+    let mut malformed_timestamp = valid.clone();
+    malformed_timestamp["timestamp"] = json!("2026-06-17 12:15:00");
+    assert!(
+        serde_json::from_value::<DataQualityHygieneOutcomeCaptureRequest>(malformed_timestamp)
+            .is_err(),
+        "OpenAPI date-time fields must reject non-RFC3339 input at runtime"
+    );
 
     for missing in ["source_refs", "issue_refs", "requested_side_effects"] {
         let mut payload = valid.clone();
@@ -163,18 +170,18 @@ async fn outcome_capture_consumes_actor_role_and_is_really_idempotent() {
     let (created_status, created) = request(app.clone(), "POST", &uri, payload.clone()).await;
     assert_eq!(created_status, axum_http::StatusCode::CREATED);
     assert_eq!(created["outcome_persisted"], true);
-    let persisted_count = created["labor_savings_evidence"]["persisted_outcome_count"].clone();
-    let projection_count = created["labor_savings_evidence"]["persisted_projection_count"].clone();
+    let persisted_count = created["reported_labor_evidence"]["persisted_outcome_count"].clone();
+    let projection_count = created["reported_labor_evidence"]["persisted_projection_count"].clone();
 
     let (replay_status, replay) = request(app.clone(), "POST", &uri, payload.clone()).await;
     assert_eq!(replay_status, axum_http::StatusCode::OK);
     assert_eq!(replay["idempotent_replay"], true);
     assert_eq!(
-        replay["labor_savings_evidence"]["persisted_outcome_count"],
+        replay["reported_labor_evidence"]["persisted_outcome_count"],
         persisted_count
     );
     assert_eq!(
-        replay["labor_savings_evidence"]["persisted_projection_count"],
+        replay["reported_labor_evidence"]["persisted_projection_count"],
         projection_count
     );
 

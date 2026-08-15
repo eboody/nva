@@ -8,6 +8,6 @@ Minimum useful access:
 2. Sample reservation, pet, customer, vaccine/document, checkout, and service-demand fields relevant to the chosen workflow.
 3. Confirmation of which staff role reviews each proposed action.
 4. A system-of-record approval path for any future write.
-5. Agreement on the first measured outcome, such as minutes saved per reviewed cleanup action or manager exception resolved.
+5. Agreement on the first measured outcome, such as reported time difference per reviewed cleanup action or manager exception resolved.
 
 Do not ask for broad production write access first. Start with one read-only, fixture-backed pilot workflow and prove the review loop.

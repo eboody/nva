@@ -1,5 +1,8 @@
 const MVP_MIGRATION: &str = include_str!("../../migrations/0001_mvp_foundation.sql");
 
+use storage::operations::ManagerDailyBriefActionKindCode;
+use strum::VariantArray;
+
 #[test]
 fn mvp_migration_defines_core_tables_and_relationships() {
     for table in [
@@ -92,6 +95,11 @@ fn mvp_migration_rejects_invalid_incident_review_gates_and_incoherent_approval_d
     assert!(MVP_MIGRATION.contains("status IN ('approved', 'rejected')"));
     assert!(MVP_MIGRATION.contains("decided_by_actor_kind IS NOT NULL"));
     assert!(MVP_MIGRATION.contains("decided_by_actor_id IS NOT NULL"));
+    assert!(MVP_MIGRATION.contains("decided_by_actor_persona IS NOT NULL"));
+    assert!(MVP_MIGRATION.contains("approval_records_decider_persona_kind_integrity"));
+    assert!(MVP_MIGRATION.contains("legacy_persona_missing boolean NOT NULL DEFAULT false"));
+    assert!(MVP_MIGRATION.contains("approval_records_legacy_persona_marker_guard"));
+    assert!(MVP_MIGRATION.contains("approval_outbox_bindings_actor_persona_kind_integrity"));
     assert!(MVP_MIGRATION.contains("decided_at IS NOT NULL"));
 }
 
@@ -162,7 +170,7 @@ fn mvp_migration_persists_owned_outcome_and_labor_projections() {
     for invariant in [
         "workflow_event_id uuid NOT NULL REFERENCES workflow_events(id)",
         "approval_record_id uuid NOT NULL REFERENCES approval_records(id)",
-        "estimated_minutes_saved integer NOT NULL CHECK (estimated_minutes_saved >= 0)",
+        "reported_estimated_minutes_difference integer NOT NULL CHECK (reported_estimated_minutes_difference >= 0)",
         "actual_minutes integer NOT NULL CHECK (actual_minutes > 0)",
         "source_refs jsonb NOT NULL DEFAULT '[]'::jsonb",
         "correlation_id text NOT NULL CHECK (length(trim(correlation_id)) > 0)",
@@ -209,4 +217,66 @@ fn mvp_migration_declares_deferred_database_surfaces_without_pretending_live_acc
             "migration comments should name deferred DB surface: {deferred_surface}"
         );
     }
+}
+
+#[test]
+fn manager_daily_brief_action_codes_have_exact_rust_sql_parity() {
+    let action_constraint = MVP_MIGRATION
+        .split("CREATE TABLE IF NOT EXISTS manager_daily_brief_outcomes")
+        .nth(1)
+        .expect("manager daily brief table exists")
+        .split("before_minutes")
+        .next()
+        .expect("action constraint precedes labor evidence");
+
+    for rust_code in ManagerDailyBriefActionKindCode::VARIANTS {
+        let sql_literal = format!("'{}'", rust_code);
+        assert!(
+            action_constraint.contains(&sql_literal),
+            "Rust-valid action code {rust_code} must be accepted by SQL"
+        );
+    }
+}
+
+#[test]
+fn outcome_approval_evidence_is_exact_action_bound_approved_and_immutable() {
+    for invariant in [
+        "enforce_outcome_approval_workflow_binding",
+        "approval.status <> 'approved'",
+        "approval_review_packet.status <> 'approved'",
+        "approval_review_packet.workflow_event_id <> NEW.workflow_event_id",
+        "approval_review_packet.reviewed_action_id <> NEW.action_id",
+        "approval.target_kind <> approval_review_packet.subject_kind",
+        "approval.target_id <> approval_review_packet.subject_id",
+        "approval.gate <> approval_review_packet.gate",
+        "reviewed_workflow_event.workflow_name = 'manager_daily_brief'",
+        "reviewed_workflow_event.workflow_name = 'information_lifespan_manager_daily_report'",
+        "reviewed_workflow_event.workflow_name <> 'data_quality_hygiene'",
+        "FOR UPDATE",
+        "approval_records_outcome_lineage_immutable",
+        "review_packets_outcome_lineage_immutable",
+        "workflow_events_outcome_lineage_immutable",
+        "schema_version integer NOT NULL DEFAULT 1 CHECK (schema_version = 1)",
+        "approval.decided_at > NEW.recorded_at",
+        "approval.decided_by_actor_id <> NEW.actor_id",
+        "prevent_reviewed_outcome_mutation",
+        "manager_daily_brief_outcomes_immutable",
+        "data_quality_hygiene_outcomes_immutable",
+        "manager_daily_brief_outcomes_approval_workflow_binding",
+        "data_quality_hygiene_outcomes_approval_workflow_binding",
+    ] {
+        assert!(
+            MVP_MIGRATION.contains(invariant),
+            "missing exact outcome authority invariant: {invariant}"
+        );
+    }
+}
+
+#[test]
+fn migration_explicitly_preserves_payment_projection_and_workflow_result_history() {
+    assert!(
+        MVP_MIGRATION
+            .contains("payment_deposit_projections retain provider-observed state history")
+    );
+    assert!(MVP_MIGRATION.contains("workflow_results retain one row per processing attempt"));
 }

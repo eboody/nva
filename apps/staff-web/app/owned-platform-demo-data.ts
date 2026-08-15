@@ -96,7 +96,7 @@ export type ManagerReportAction = {
   recommendation: string;
   sourceLineage: string[];
   calculations: string[];
-  estimatedMinutesSaved: number;
+  reportedEstimatedMinutesDifference: number;
   reviewRequirements: string[];
   lockedSideEffects: string[];
 };
@@ -112,7 +112,7 @@ export type ManagerDailyReportArtifact = {
     normalizedFacts: number;
     dbProofRefs: number;
     reviewLocks: number;
-    estimatedMinutesSaved: number;
+    reportedEstimatedMinutesDifference: number;
   };
   rankedActions: ManagerReportAction[];
   sourceLineageSummary: string[];
@@ -338,7 +338,7 @@ export const informationLifespanStages: InformationLifespanStage[] = [
     label: "Calculations/ranking/review gates applied",
     headline: "Labor value and unsafe-action locks are computed into the report.",
     proofKind: "calculation",
-    proofSummary: "60 minute manual morning scan - 18 minute reviewed packet = 42 estimated minutes saved; five review locks remain closed.",
+    proofSummary: "60 minute manual morning scan - 18 minute reviewed packet = 42 reported estimated minute difference; five review locks remain closed.",
     inspect: ["app/src/manager_daily_brief.rs", "app/tests/information_lifespan_trace_contract.rs"]
   },
   {
@@ -498,7 +498,7 @@ export const dbProjectionLifecycleProofs: DbProjectionProofArtifact[] = [
     rowPreview: {
       id: "00000000-0000-4000-8000-00000000ae01",
       action_id: "manager_daily_brief_outcome:synthetic-2026-06-29",
-      estimated_minutes_saved: 42,
+      reported_estimated_minutes_difference: 42,
       source_snapshot_count: 3,
       review_gate_count: 5,
       live_side_effects_disabled: true
@@ -558,7 +558,7 @@ export const informationLifespanNetworkRequests: NetworkRequestProof[] = [
       correlation_id: "info-lifespan-demo-2026-06-29",
       stage_count: 8,
       artifact_ref: "artifact://manager-daily-report/synthetic-2026-06-29",
-      estimated_labor_minutes_saved: 42,
+      reported_estimated_labor_minutes_difference: 42,
       live_side_effects_allowed: false,
       synthetic_data_only: true
     }
@@ -592,7 +592,7 @@ export const managerDailyReportArtifact: ManagerDailyReportArtifact = {
     normalizedFacts: 3,
     dbProofRefs: 6,
     reviewLocks: 5,
-    estimatedMinutesSaved: 42
+    reportedEstimatedMinutesDifference: 42
   },
   rankedActions: [
     {
@@ -611,7 +611,7 @@ export const managerDailyReportArtifact: ManagerDailyReportArtifact = {
         "manager_approval gate required",
         "medical/vaccine acceptance remains locked"
       ],
-      estimatedMinutesSaved: 18,
+      reportedEstimatedMinutesDifference: 18,
       reviewRequirements: ["manager_approval", "medical_document_review", "record reviewed disposition"],
       lockedSideEffects: ["medical_or_vaccine_acceptance", "customer_sends", "provider_pms_writes"]
     },
@@ -629,9 +629,9 @@ export const managerDailyReportArtifact: ManagerDailyReportArtifact = {
       calculations: [
         "60 minute manual morning scan",
         "18 minute reviewed packet",
-        "42 total estimated minutes saved across the report"
+        "42 total reported estimated minute difference across the report"
       ],
-      estimatedMinutesSaved: 16,
+      reportedEstimatedMinutesDifference: 16,
       reviewRequirements: ["manager_shift_review", "audit reviewed disposition"],
       lockedSideEffects: ["schedule_or_staffing_changes", "provider_pms_writes", "payments_refunds_discounts"]
     },
@@ -646,8 +646,8 @@ export const managerDailyReportArtifact: ManagerDailyReportArtifact = {
         "domain::care::CareNoteFact",
         "app::manager_daily_brief::SourceFact"
       ],
-      calculations: ["1 internal-only care note", "customer-visible draft suppressed", "8 estimated review minutes saved"],
-      estimatedMinutesSaved: 8,
+      calculations: ["1 internal-only care note", "customer-visible draft suppressed", "8 reported estimated review-minute difference"],
+      reportedEstimatedMinutesDifference: 8,
       reviewRequirements: ["front_desk_or_manager_review", "customer_message_approval before any send"],
       lockedSideEffects: ["customer_sends", "medical_or_vaccine_acceptance", "provider_pms_writes"]
     }
@@ -660,7 +660,7 @@ export const managerDailyReportArtifact: ManagerDailyReportArtifact = {
   calculationProof: [
     "source_snapshots = reservation + care_note + vaccine = 3",
     "normalized_facts = reservation demand + care exception + vaccine review = 3",
-    "estimated_labor_minutes_saved = 60 minute manual morning scan - 18 minute reviewed packet = 42"
+    "reported_estimated_labor_minutes_difference = 60 minute manual morning scan - 18 minute reviewed packet = 42"
   ],
   reviewGates: ["provider_write_locked", "customer_send_locked", "medical_review_required", "schedule_change_locked", "payment_movement_locked"],
   lockedSideEffects: ["provider_pms_writes", "customer_sends", "medical_or_vaccine_acceptance", "schedule_or_staffing_changes", "payments_refunds_discounts"]
@@ -759,14 +759,14 @@ export const hermesProcessorPanel: HermesProcessorPanel = {
       target: "hermes_processor.report",
       event: "manager_daily_report_enriched",
       correlationId: "info-lifespan-demo-2026-06-29",
-      summary: "artifact://manager-daily-report/synthetic-2026-06-29 estimated_labor_minutes_saved=42"
+      summary: "artifact://manager-daily-report/synthetic-2026-06-29 reported_estimated_labor_minutes_difference=42"
     }
   ],
   reportFragment: {
     title: "Manager Daily Report — synthetic 2026-06-29",
     artifactRef: "artifact://manager-daily-report/synthetic-2026-06-29",
-    summary: "3 source snapshots, 3 normalized facts, 1 workflow packet, 5 review locks, 42 estimated labor minutes saved",
-    calculation: "60 minute manual morning scan - 18 minute reviewed packet = 42 minutes saved",
+    summary: "3 source snapshots, 3 normalized facts, 1 workflow packet, 5 review locks, 42 reported estimated labor minute difference",
+    calculation: "60 minute manual morning scan - 18 minute reviewed packet = 42 reported estimated minute difference",
     managerActions: [
       "Review near-expiry rabies vaccine evidence for animal 8101",
       "Check dinner appetite after internal feeding note before any customer-facing update"
@@ -846,7 +846,7 @@ export const laborToolPortfolioCards: LaborToolPortfolioCard[] = [
     reviewGate: "human validates ambiguous documents/fields; no provider repair/write; no customer message; no destructive merge/delete",
     lockedSideEffects: ["PMS/provider write locked", "customer send locked", "destructive merge/delete locked"],
     outputReadout: "internal cleanup queue with wrong-source/resolved disposition options",
-    outcomeMetric: "cleanup minutes saved, front-desk rework avoided, source-quality backlog aging, reviewed-resolution rate",
+    outcomeMetric: "reported cleanup-time difference, front-desk rework avoided, source-quality backlog aging, reviewed-resolution rate",
     proofHooks: ["workflow_packet_id=data_quality_hygiene", "blocked_draft_validation_ok", "review_gate_id=cleanup_review", "read_model_projection=source_quality_backlog"],
     lineageSteps: ["unclear rabies proof", "source_quality_issue fact", "reviewer packet", "wrong-source/resolved disposition", "source_quality_backlog"],
     lineageId: "lineage-data-quality-hygiene"
@@ -861,7 +861,7 @@ export const laborToolPortfolioCards: LaborToolPortfolioCard[] = [
     reviewGate: "manager/front-desk review before any customer response; no booking confirmation; no PMS/provider write; no payment/discount action",
     lockedSideEffects: ["send locked", "booking confirmation locked", "PMS/provider write locked", "payment/refund/discount locked"],
     outputReadout: "safe draft reply and missing-info checklist for front-desk review",
-    outcomeMetric: "minutes saved per intake review; avoidable back-and-forth reduced; intake_queue readout remains sample/modelled",
+    outcomeMetric: "reported review-time difference per intake; avoidable back-and-forth reduced; intake_queue readout remains sample/modelled",
     proofHooks: ["workflow_packet_id=intake_booking_triage", "outbox_candidate_id=triage_reply_candidate", "review_gate_id=front_desk_or_manager", "customer_send_locked=true"],
     lineageSteps: ["intake message: two dogs for holiday boarding", "missing-info checklist", "safe draft reply", "send locked", "intake_queue readout"],
     lineageId: "lineage-intake-booking-triage"
@@ -871,7 +871,7 @@ export const laborToolPortfolioCards: LaborToolPortfolioCard[] = [
     name: "BI / Read Model Reporting",
     summary: "Gives portfolio reporting NVA-owned meaning instead of reverse-engineering provider tables.",
     sourceSignals: ["current BI query inventory", "workflow outcome events", "review dispositions", "labor/rework metrics"],
-    normalizedFacts: ["reviewed business meaning", "labor minutes saved", "workflow aging", "projection freshness"],
+    normalizedFacts: ["reviewed business meaning", "reported labor-time difference", "workflow aging", "projection freshness"],
     workflowPacket: "NVA read model over reviewed operating meaning, source caveats, and pilot comparison",
     reviewGate: "KPI definitions require owner approval; caveats remain visible; production reporting claims wait for read-only validation",
     lockedSideEffects: ["production reporting claim locked", "provider-table write locked", "KPI definition change locked"],
@@ -1041,7 +1041,7 @@ export const notAskingItems: CloseListItem[] = [
 export const pilotSuccessCriteria: CloseListItem[] = [
   { label: "source mapping confidence", detail: "fields map cleanly enough to create reviewed NVA-owned facts with caveats" },
   { label: "manager action usefulness", detail: "managers keep, edit, or reject recommendations with reasons" },
-  { label: "minutes saved / rework avoided", detail: "dual-run captures review time shifted away from source chasing and cleanup loops" },
+  { label: "reported time difference / rework evidence", detail: "dual-run captures review time shifted away from source chasing and cleanup loops" },
   { label: "wrong-source findings", detail: "pilot counts source mismatches, stale fields, and unclear docs before automation" },
   { label: "read-model comparison against current BI", detail: "owned read models reconcile with existing BI questions before reporting claims" }
 ];

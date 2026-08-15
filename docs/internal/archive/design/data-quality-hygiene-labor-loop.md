@@ -237,7 +237,7 @@ Minimum review policy:
 
 The metric is minutes avoided in manual source reconciliation and repeated staff rework per location/day:
 
-`minutes_saved = before_minutes - actual_minutes`
+`reported_estimated_minutes_difference = before_minutes - actual_minutes`
 
 The app should store both estimated and actual values:
 

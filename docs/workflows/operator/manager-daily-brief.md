@@ -27,7 +27,7 @@ The workflow needs normalized app/domain facts, not raw provider payloads or mod
 | Checkout packet | Surfaces unresolved open-stay or departure handoff work for the front desk. | Checkout workflow packet and source checkout/PMS provenance. | `app/src/checkout_completion.rs`; `app/src/manager_daily_brief.rs` (`ScopedCheckoutPacket`, `BriefActionKind::ResolveCheckoutException`); `app/tests/manager_daily_brief_workflow_contracts.rs`. |
 | Retention packet | Flags safe follow-up/rebooking review work without sending a customer message. | CRM retention packet plus checkout and contact/consent evidence. | `app/src/crm_retention.rs`; `app/src/manager_daily_brief.rs` (`ScopedRetentionPacket`, `BriefActionKind::ApproveRetentionFollowUpDraft`); retention source-evidence test in `app/tests/manager_daily_brief_workflow_contracts.rs`. |
 | Data-quality issue | Keeps stale, unmapped, missing, or conflicting facts visible instead of letting the agent hide ambiguity. | `domain::data_quality::Issue` with source provenance; human cleanup approval. | `domain/src/data_quality.rs`; `app/src/manager_daily_brief.rs` (`SourceFactKind::SourceDataQualityIssue`, `BlockedAction::HideSourceDataQualityIssue`); review-boundary test in `app/tests/manager_daily_brief_workflow_contracts.rs`. |
-| Labor-impact estimate and outcome record | Measures whether reviewed work saved time after staff disposition. | App outcome record and storage projection; not a production ROI claim by itself. | `app/src/manager_daily_brief.rs` (`LaborImpactEstimate`, `OutcomeRecord`); `storage/src/operations.rs` (`ManagerDailyBriefOutcomeRecord`, `StoredManagerDailyBriefLaborMinutes`). |
+| Labor-impact estimate and outcome record | Records reported estimate differences, disposition, and actual time spent without calculating realized savings. | App outcome record and storage projection; always nonclaimable evidence. | `app/src/manager_daily_brief.rs` (`LaborImpactEstimate`, `OutcomeRecord`); `storage/src/operations.rs` (`ManagerDailyBriefOutcomeRecord`, `StoredManagerDailyBriefLaborMinutes`). |
 
 Featured entities on this page are the operating day/location, demand/occupancy/labor facts, brief actions, source facts, labor-impact estimates, and outcome records.
 
@@ -48,7 +48,7 @@ Entity flow: operating day/location + demand/occupancy/labor/source facts + chec
 | `app` | `app::checkout_completion` and `app::crm_retention` packets scoped into the request | Feed already-reviewed checkout and retention context into the morning brief. | Let the brief perform checkout completion, retention outreach, booking mutation, or messaging side effects. |
 | `domain` | `domain::daily_brief::{ResortOperatingDay, OccupancySnapshot, LaborRisk, CustomerFollowUp, RevenueOpportunity, Action}` | Define manager-facing operating-day, occupancy, labor, follow-up, revenue, and approval vocabulary. | Provider-specific payload authority or live operational execution. |
 | `domain` | `domain::analytics::service_demand::Fact`, `domain::source::{RecordRef, Provenance}`, `domain::data_quality::Issue`, `domain::policy::ReviewGate` | Preserve demand evidence, source lineage, issue visibility, and human-review gates. | Model-invented facts, unsupported source cleanup, or bypassing approvals. |
-| `storage` | `storage::operations::{ManagerDailyBriefOutcomeRecord, ManagerDailyBriefOutcomeCode, ManagerDailyBriefPersonaCode, ManagerDailyBriefActionKindCode, StoredManagerDailyBriefLaborMinutes, StoredSourceRecordRef}` | Persist before/after labor minutes, disposition, actor/persona, reporting group, source refs, and derived savings evidence. | Business policy decisions, production ROI proof, or any provider/customer side effect. |
+| `storage` | `storage::operations::{ManagerDailyBriefOutcomeRecord, ManagerDailyBriefOutcomeCode, ManagerDailyBriefPersonaCode, ManagerDailyBriefActionKindCode, StoredManagerDailyBriefLaborMinutes, StoredSourceRecordRef}` | Persist before/after labor minutes, disposition, actor/persona, reporting group, source refs, and derived reported time evidence. | Business policy decisions, production ROI proof, or any provider/customer side effect. |
 | `integrations/gingr` | Reservation/back-of-house/timeclock endpoint and mapping surfaces | Supply provider evidence that can be normalized into app/domain facts. | Direct business truth in operator prose or unreviewed live mutation. |
 
 ## Authority and source of truth
@@ -66,7 +66,7 @@ Agent may:
 - Summarize the operating-day packet in non-coder language.
 - Rank brief actions such as demand-vs-staffing review, checkout exception resolution, retention follow-up approval, and source/data-quality investigation.
 - Draft internal tasks or review notes for a manager/front-desk queue.
-- Estimate labor minutes saved from the reviewed workflow packet.
+- Estimate labor reported time difference from the reviewed workflow packet.
 - Record or prepare outcome feedback when a human disposition exists.
 
 Human must approve:
@@ -88,9 +88,9 @@ Human must approve:
 
 ## Outcome and labor value
 
-- Estimated labor value: before/after manager or front-desk minutes saved per ranked action and per operating day.
-- Measured outcome record or field: `app::manager_daily_brief::OutcomeRecord` records action id, reviewer/actor, disposition, before minutes, actual minutes, optional manager feedback, source refs, and `actual_minutes_saved`; a supported labor-savings claim requires evaluating the outcome against the matching reviewable `BriefAction` and its cited `SourceFact` records, while raw completed outcomes without that action/source proof fail closed as not claimed. Deferred, suppressed, and wrong-source feedback remains auditable but does not count as realized savings. `storage::operations::ManagerDailyBriefOutcomeRecord` stores corresponding durable evidence and `reporting_group` dimensions.
-- Current evidence status: supported local app contract, Rustdoc/doctest example, focused workflow tests, and storage projection evidence.
+- Reported labor estimate evidence: caller-reported before/after minute estimates per ranked action and operating day; their difference is not realized savings.
+- Reported outcome evidence: `app::manager_daily_brief::OutcomeRecord` records action id, reviewer/actor, disposition, caller-reported before minutes, actual minutes spent, optional manager feedback, and source refs. Serializable outcome history exposes no realized-savings field or accessor, and no production claim-authority issuer exists. Deferred, suppressed, and wrong-source outcomes remain visible.
+- Current evidence status: nonclaimable local app contract, Rustdoc/doctest example, focused workflow tests, and storage projection evidence.
 - Caveat/future source need: this repo evidence does not prove production NVA labor savings, live provider write access, automated staffing changes, or customer-message sends. Any regional aggregation should be described as future/adjacent unless supported by a dedicated regional read model.
 - Outcome dispositions: completed, deferred, suppressed by manager, and source fact was wrong. These prevent optimistic labor claims from counting unsupported or wrong-source suggestions as value.
 

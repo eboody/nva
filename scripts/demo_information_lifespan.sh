@@ -112,11 +112,11 @@ assert output["processor"]["runtime_status"] in {
     "hermes_cli_available",
     "hermes_cli_unavailable_explicit_fallback",
 }
-assert output["calculations"]["estimated_labor_minutes_saved"] == 42
+assert output["calculations"]["reported_estimated_labor_minutes_difference"] == 42
 assert output["final_report"]["artifact_ref"] == "artifact://manager-daily-report/synthetic-2026-06-29"
 assert len(output["final_report"]["manager_actions"]) >= 2
 assert all(gate["locked"] is True for gate in output["review_gates"])
-assert schema["properties"]["calculations"]["properties"]["estimated_labor_minutes_saved"]["const"] == 42
+assert schema["properties"]["calculations"]["properties"]["reported_estimated_labor_minutes_difference"]["const"] == 42
 assert "manager_daily_report_enriched" in logs
 assert "unsafe_side_effects_locked" in logs
 
@@ -137,7 +137,7 @@ print(
     "processor_contract_ok "
     f"correlation_id={output['correlation_id']} "
     f"runtime_status={output['processor']['runtime_status']} "
-    f"estimated_labor_minutes_saved={output['calculations']['estimated_labor_minutes_saved']}"
+    f"reported_estimated_labor_minutes_difference={output['calculations']['reported_estimated_labor_minutes_difference']}"
 )
 PY
 

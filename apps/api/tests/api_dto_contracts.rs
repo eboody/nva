@@ -252,7 +252,7 @@ async fn manager_daily_brief_payload_contract_preserves_review_gates_labor_and_d
                     .as_array()
                     .is_some_and(|gates| !gates.is_empty())
                     && action["labor_impact"]["before_minutes"].is_number()
-                    && action["labor_impact"]["minutes_saved"].is_number()
+                    && action["labor_impact"]["reported_estimated_minutes_difference"].is_number()
             })
     );
     assert!(
@@ -399,7 +399,7 @@ async fn ops_metrics_summary_counts_safe_local_state_without_prometheus_overbuil
     assert_eq!(metrics["local_runtime_counters"]["audit_event_count"], 3);
     assert_eq!(metrics["local_runtime_counters"]["outcome_count"], 1);
     assert_eq!(
-        metrics["product_labor_metrics"]["data_quality_hygiene"]["completed_count"],
+        metrics["product_labor_metrics"]["data_quality_hygiene"]["reviewed_outcome_count"],
         1
     );
     assert_eq!(
@@ -500,7 +500,7 @@ async fn data_quality_hygiene_payload_contract_preserves_review_packet_status_an
                 action["review_gates"]
                     .as_array()
                     .is_some_and(|gates| !gates.is_empty())
-                    && action["labor_impact"]["estimated_minutes_saved"].is_number()
+                    && action["labor_impact"]["reported_estimated_minutes_difference"].is_number()
             })
     );
 

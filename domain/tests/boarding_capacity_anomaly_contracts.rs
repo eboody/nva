@@ -1,5 +1,4 @@
 use domain::{boarding, entities, policy};
-use uuid::Uuid;
 
 fn count(value: u16) -> boarding::capacity::RoomCount {
     boarding::capacity::RoomCount::try_new(value).unwrap()
@@ -17,7 +16,7 @@ fn segment(total: u16, occupied: u16) -> boarding::capacity::NightlySegmentSnaps
 
 fn request() -> boarding::capacity::Request {
     boarding::capacity::Request::new(
-        entities::LocationId(Uuid::nil()),
+        entities::LocationId::new(uuid::Uuid::from_u128(1)),
         entities::Species::Dog,
         boarding::accommodation::Preference::Specific(
             boarding::accommodation::Kind::LuxuryDogSuite,
@@ -111,7 +110,7 @@ fn policy_does_not_confirm_an_alternative_while_eligible_inventory_is_contradict
         boarding::accommodation::Alternatives::try_new(vec![luxury, classic]).unwrap(),
     );
     let request = boarding::capacity::Request::new(
-        entities::LocationId(Uuid::nil()),
+        entities::LocationId::new(uuid::Uuid::from_u128(1)),
         entities::Species::Dog,
         preference,
     );

@@ -238,8 +238,8 @@ pub struct FixtureSlice {
     projection: Projection,
     recommendation: ReviewedRecommendation,
     action: ReviewedFinanceAction,
-    strong_outcome: analytics::outcome::Record,
-    weak_outcome: analytics::outcome::Record,
+    reviewed_action_evidence_outcome: analytics::outcome::Record,
+    correlated_evidence_outcome: analytics::outcome::Record,
 }
 
 impl FixtureSlice {
@@ -258,14 +258,14 @@ impl FixtureSlice {
         &self.action
     }
 
-    /// Reviewed-action-attributed outcome that can support a stronger value claim.
-    pub const fn strong_outcome(&self) -> &analytics::outcome::Record {
-        &self.strong_outcome
+    /// Serializable reviewed-action evidence that remains non-claimable without accepted authority.
+    pub const fn reviewed_action_evidence_outcome(&self) -> &analytics::outcome::Record {
+        &self.reviewed_action_evidence_outcome
     }
 
-    /// Correlated-only outcome that remains intentionally weaker than reviewed attribution.
-    pub const fn weak_outcome(&self) -> &analytics::outcome::Record {
-        &self.weak_outcome
+    /// Correlated-only outcome that remains non-claimable evidence.
+    pub const fn correlated_evidence_outcome(&self) -> &analytics::outcome::Record {
+        &self.correlated_evidence_outcome
     }
 }
 
@@ -327,7 +327,7 @@ pub fn fixture_site_period_projection() -> Result<FixtureSlice> {
         review_packet_id.clone(),
         audit_event_id.clone(),
     )?;
-    let strong_outcome = analytics::outcome::Record::builder()
+    let reviewed_action_evidence_outcome = analytics::outcome::Record::builder()
         .id(analytics::outcome::Id::try_new("site-finance-outcome-strong").unwrap())
         .workstream(analytics::outcome::Workstream::FinancialInsights)
         .location_id(location_id())
@@ -335,14 +335,16 @@ pub fn fixture_site_period_projection() -> Result<FixtureSlice> {
             money::Money::usd(159_000).unwrap(),
             money::Money::usd(166_000).unwrap(),
         ))
-        .attribution(analytics::outcome::AttributionEvidence::reviewed_action(
-            review_packet_id,
-            audit_event_id,
-        ))
+        .attribution(
+            analytics::outcome::AttributionEvidence::reported_reviewed_action(
+                review_packet_id,
+                audit_event_id,
+            ),
+        )
         .source(source::System::FinanceAccounting)
         .recorded_at(Utc.with_ymd_and_hms(2026, 7, 2, 12, 0, 0).unwrap())
         .build();
-    let weak_outcome = analytics::outcome::Record::builder()
+    let correlated_evidence_outcome = analytics::outcome::Record::builder()
         .id(analytics::outcome::Id::try_new("site-finance-outcome-weak").unwrap())
         .workstream(analytics::outcome::Workstream::FinancialInsights)
         .location_id(location_id())
@@ -362,8 +364,8 @@ pub fn fixture_site_period_projection() -> Result<FixtureSlice> {
         projection,
         recommendation,
         action,
-        strong_outcome,
-        weak_outcome,
+        reviewed_action_evidence_outcome,
+        correlated_evidence_outcome,
     })
 }
 
@@ -405,7 +407,7 @@ fn site_period(
 }
 
 fn location_id() -> entities::LocationId {
-    entities::LocationId(Uuid::from_u128(0x00c0ffee000000000000000000000001))
+    entities::LocationId::new(Uuid::from_u128(0x00c0ffee000000000000000000000001))
 }
 
 fn source_ref(suffix: &str) -> source::RecordRef {

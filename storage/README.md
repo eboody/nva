@@ -48,7 +48,7 @@ Non-coder glossary help: [`storage`](../docs/glossary-architecture-terms.md#stor
 | Codec error | `storage::operations::CodecError` | [`src/operations.rs`](./src/operations.rs) | Wraps `serde_json` encode/decode failures from record codecs. |
 | Shape/error classifiers | `storage::operations::{RecordKind, ShapeMismatchReason, StorageField}` | [`src/operations.rs`](./src/operations.rs) | Identify malformed record kinds and specific invalid persisted fields. |
 | Source provenance | `storage::operations::StoredSourceRecordRef` | [`src/operations.rs`](./src/operations.rs) | Carries source-system, record, observation, and adapter-version evidence for projected records. |
-| Manager daily brief outcome projection | `storage::operations::ManagerDailyBriefOutcomeRecord` | [`src/operations.rs`](./src/operations.rs) | JSON record with labor minutes, outcome, actor, source refs, reporting group, and savings evidence. |
+| Manager daily brief outcome projection | `storage::operations::ManagerDailyBriefOutcomeRecord` | [`src/operations.rs`](./src/operations.rs) | JSON record with labor minutes, outcome, actor, source refs, reporting group, and reported time evidence. |
 | Manager daily brief codes | `storage::operations::{ManagerDailyBriefOutcomeCode, ManagerDailyBriefPersonaCode, ManagerDailyBriefActionKindCode}` | [`src/operations.rs`](./src/operations.rs) | Stable stored classifications used by `ManagerDailyBriefOutcomeRecord`. |
 | Manager daily brief labor scalar | `storage::operations::StoredManagerDailyBriefLaborMinutes` | [`src/operations.rs`](./src/operations.rs) | Validates non-zero before storage projection accepts labor-minute evidence. |
 | Portfolio record | `storage::operations::PetResortPortfolioRecord` | [`src/operations.rs`](./src/operations.rs) | Fallibly converts to/from `domain::operations::pet_resort::Portfolio`. |
@@ -83,7 +83,7 @@ Important examples:
 - [`ServiceOfferingRecord`](./src/operations.rs) is a tagged storage shape for `domain::operations::ServiceOffering`. Its `service_kind` field chooses the domain variant; `ensure_empty_cross_variant_fields` rejects records that carry fields from a different service line.
 - [`CoreServiceContractsRecord`](./src/operations.rs) is the persisted bundle for `domain::operations::service_core::ServiceContracts`. The per-line fields use [`boarding::ContractRecord`](./src/service_line/boarding.rs), [`daycare::ContractRecord`](./src/service_line/daycare.rs), [`grooming::ContractRecord`](./src/service_line/grooming.rs), [`training::ContractRecord`](./src/service_line/training.rs), and [`retail::ContractRecord`](./src/service_line/retail.rs).
 - [`TechnologyEcosystemRecord`](./src/operations.rs) maps to `domain::operations::TechnologyEcosystem` through code maps for `service_core::OperatingSystem`, `DataAccessPattern`, and `AdjacentSystem`.
-- [`ManagerDailyBriefOutcomeRecord`](./src/operations.rs) is currently a storage projection with JSON codecs, labor-minute validation, `actual_minutes_saved`, and `reporting_group`. It records automation outcome evidence and source references; it is not a domain policy object.
+- [`ManagerDailyBriefOutcomeRecord`](./src/operations.rs) is a storage projection with JSON codecs, labor-minute validation, and `reporting_group`. It retains reported before/actual minutes and source references as nonclaimable evidence; serializable rows cannot publish realized labor savings or authorize execution.
 
 ## Provider DTO and projection boundary
 

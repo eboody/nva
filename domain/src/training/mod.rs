@@ -157,7 +157,7 @@ pub mod enrollment {
         /// Returns the review gate that blocks trainer assignment until staff clear it.
         pub fn blocking_gate(&self) -> Option<policy::ReviewGate> {
             match self {
-                Self::Ready => None,
+                Self::Ready => Some(policy::ReviewGate::ManagerApproval),
                 Self::TrainerReviewRequired { gate }
                 | Self::BehaviorOrCareReviewRequired { gate }
                 | Self::PackageOrPaymentReviewRequired { gate } => Some(gate.clone()),
@@ -669,7 +669,7 @@ pub mod availability {
         /// Returns the approval gate required before staff mutate provider trainer assignments.
         pub fn provider_mutation_gate(&self) -> Option<policy::ReviewGate> {
             match self {
-                Self::AssignmentDrafted => None,
+                Self::AssignmentDrafted => Some(policy::ReviewGate::ManagerApproval),
                 Self::Waitlist { gate, .. } | Self::ReviewRequired { gate, .. } => {
                     Some(gate.clone())
                 }
@@ -819,16 +819,8 @@ pub mod progress {
         }
         /// Returns the parent-facing approval gate value used by training assignment, progress, package, or parent-summary review.
         pub fn parent_facing_boundary(&self) -> MemberFacingBoundary {
-            match &self.approval {
-                ApprovalState::Draft | ApprovalState::TrainerApproved { .. } => {
-                    MemberFacingBoundary::DraftRequiresApproval {
-                        gate: policy::ReviewGate::CustomerMessageApproval,
-                    }
-                }
-                ApprovalState::ManagerApproved { .. } => {
-                    MemberFacingBoundary::ApprovedForMemberFacingUse
-                }
-                ApprovalState::Rejected { .. } => MemberFacingBoundary::InternalOnly,
+            MemberFacingBoundary::DraftRequiresApproval {
+                gate: policy::ReviewGate::CustomerMessageApproval,
             }
         }
     }
@@ -1051,16 +1043,8 @@ pub mod outcome {
         }
         /// Returns whether this training outcome can appear in parent-facing copy or must remain internal.
         pub fn member_facing_boundary(&self) -> MemberFacingBoundary {
-            match &self.review {
-                OutcomeReviewState::ApprovedForMemberFacingUse { .. } => {
-                    MemberFacingBoundary::ApprovedForMemberFacingUse
-                }
-                OutcomeReviewState::Draft | OutcomeReviewState::TrainerApproved { .. } => {
-                    MemberFacingBoundary::DraftRequiresApproval {
-                        gate: policy::ReviewGate::CustomerMessageApproval,
-                    }
-                }
-                OutcomeReviewState::Rejected { .. } => MemberFacingBoundary::InternalOnly,
+            MemberFacingBoundary::DraftRequiresApproval {
+                gate: policy::ReviewGate::CustomerMessageApproval,
             }
         }
     }
@@ -1302,7 +1286,7 @@ pub mod package {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-    /// Estimated staff minutes saved when package/session reconciliation is source-grounded before review.
+    /// Caller-reported estimate difference for package/session reconciliation review; never realized savings.
     pub struct EstimatedLaborMinutes(u16);
 
     impl EstimatedLaborMinutes {
@@ -1533,11 +1517,9 @@ pub mod package {
             self.actual_minutes
         }
 
-        /// Computes saved staff minutes without allowing negative labor-savings claims.
-        pub const fn minutes_saved(&self) -> u16 {
-            self.before_minutes
-                .get()
-                .saturating_sub(self.actual_minutes.get())
+        /// Serializable outcome history cannot publish saved labor minutes.
+        pub const fn reported_estimated_minutes_difference(&self) -> u16 {
+            0
         }
     }
 }

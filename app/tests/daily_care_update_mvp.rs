@@ -2,15 +2,25 @@ use app::daily_update;
 use domain::{audit, entities, message, policy, workflow};
 
 fn workflow_event(event_type: workflow::EventType) -> workflow::Event {
+    workflow_event_for_subject(
+        event_type,
+        workflow::Subject::Reservation(entities::reservation::Id::new(uuid::Uuid::from_u128(3))),
+    )
+}
+
+fn workflow_event_for_subject(
+    event_type: workflow::EventType,
+    subject: workflow::Subject,
+) -> workflow::Event {
     workflow::Event::try_new(
-        workflow::EventId(uuid::Uuid::nil()),
+        workflow::EventId::new(uuid::Uuid::from_u128(1)),
         event_type,
         chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
         entities::ActorRef::Staff {
             staff_id: entities::StaffId::try_new("lead-care-1").unwrap(),
         },
-        entities::LocationId(uuid::Uuid::nil()),
-        workflow::Subject::Reservation(entities::reservation::Id(uuid::Uuid::nil())),
+        entities::LocationId::new(uuid::Uuid::from_u128(2)),
+        subject,
         workflow::PolicyContext {
             allowed_actions: vec![
                 workflow::AllowedAction::SummarizeCareNotes,
@@ -30,9 +40,9 @@ fn note(
     body: &str,
 ) -> entities::CareNote {
     entities::CareNote::builder()
-        .id(entities::care_note::Id(id))
+        .id(entities::care_note::Id::new(id))
         .subject(entities::care_note::Subject::Reservation(
-            entities::reservation::Id(uuid::Uuid::nil()),
+            entities::reservation::Id::new(uuid::Uuid::from_u128(1)),
         ))
         .kind(kind)
         .visibility(visibility)
@@ -41,7 +51,7 @@ fn note(
             staff_id: entities::StaffId::try_new("kennel-1").unwrap(),
         })
         .recorded_at(chrono::DateTime::<chrono::Utc>::UNIX_EPOCH)
-        .audit_refs(vec![domain::audit::EventId(id)])
+        .audit_refs(vec![domain::audit::EventId::new(id)])
         .build()
 }
 
@@ -86,7 +96,8 @@ fn routine_staff_notes_become_review_gated_owner_preview_with_audit_lineage() {
             .output
             .included_facts
             .iter()
-            .any(|fact| fact.source_note_id == entities::care_note::Id(uuid::Uuid::from_u128(1)))
+            .any(|fact| fact.source_note_id
+                == entities::care_note::Id::new(uuid::Uuid::from_u128(1)))
     );
     assert_eq!(
         preview.approval.lifecycle().clone(),
@@ -231,8 +242,8 @@ fn sensitive_payment_incident_and_ambiguous_facts_create_suppression_records_not
             ),
         ])
         .media_document_refs(vec![daily_update::MediaDocumentRef {
-            document_id: entities::DocumentId(uuid::Uuid::from_u128(44)),
-            source_note_id: entities::care_note::Id(uuid::Uuid::from_u128(7)),
+            document_id: entities::DocumentId::new(uuid::Uuid::from_u128(44)),
+            source_note_id: entities::care_note::Id::new(uuid::Uuid::from_u128(7)),
             review_state: message::ReviewState::ApprovalRequested,
         }])
         .build();
@@ -280,4 +291,28 @@ fn sensitive_payment_incident_and_ambiguous_facts_create_suppression_records_not
         policy::ReviewGate::ManagerApproval
     );
     assert!(preview.send_stub.is_blocked_until_human_approval());
+}
+
+#[test]
+fn pet_subject_cannot_be_rebound_to_a_nil_reservation() {
+    let request = daily_update::MvpPreviewRequest::builder()
+        .event(workflow_event_for_subject(
+            workflow::EventType::DailyUpdateNeeded,
+            workflow::Subject::Pet(entities::PetId::new(uuid::Uuid::from_u128(99))),
+        ))
+        .pet_name(domain::pet::Name::try_new("Miso").unwrap())
+        .owner_display_name(domain::customer::Name::try_new("Avery Chen").unwrap())
+        .policy_snapshot_id(policy::Id::try_new("daily-care-update-mvp-v1").unwrap())
+        .notes(vec![note(
+            uuid::Uuid::from_u128(8),
+            entities::care_note::Kind::General,
+            entities::care_note::Visibility::CustomerVisibleAfterReview,
+            "resting after supervised play",
+        )])
+        .build();
+
+    assert_eq!(
+        daily_update::build_mvp_preview(request),
+        Err(daily_update::Error::ReservationSubjectRequired)
+    );
 }

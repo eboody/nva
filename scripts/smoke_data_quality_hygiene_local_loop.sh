@@ -41,17 +41,17 @@ missing = [needle for needle in required if needle not in text]
 if missing:
     raise SystemExit(f"missing smoke markers: {missing}\n{text}")
 
-estimated = re.search(r"estimated_minutes_saved=(\d+)", text)
-actual = re.search(r"actual_minutes_saved=(\d+)", text)
-if not estimated or not actual:
-    raise SystemExit(f"missing labor-savings metrics\n{text}")
-if int(estimated.group(1)) <= 0 or int(actual.group(1)) <= 0:
-    raise SystemExit(f"labor-savings metrics must be positive\n{text}")
+estimated = re.search(r"reported_estimated_minutes_difference=(\d+)", text)
+spent = re.search(r"reported_actual_minutes_spent=(\d+)", text)
+if not estimated or not spent or "claimable=false" not in text:
+    raise SystemExit(f"missing nonclaimable reported-labor evidence\n{text}")
+if int(estimated.group(1)) <= 0 or int(spent.group(1)) <= 0:
+    raise SystemExit(f"reported labor evidence must be positive\n{text}")
 
 print(
-    "smoke_assertions_ok estimated_minutes_saved={estimated} actual_minutes_saved={actual}".format(
+    "smoke_assertions_ok reported_estimated_minutes_difference={estimated} reported_actual_minutes_spent={spent} claimable=false".format(
         estimated=estimated.group(1),
-        actual=actual.group(1),
+        spent=spent.group(1),
     )
 )
 PY

@@ -1,0 +1,5 @@
+error[E0599]: no associated function or constant named `try_from_retrieval` found for struct `AuthorizedEvidence` in the current scope
+ --> tests/ui/authorized_knowledge_evidence_has_no_public_issuer.rs:4:39
+  |
+4 |     let _issuer = AuthorizedEvidence::try_from_retrieval;
+  |                                       ^^^^^^^^^^^^^^^^^^ associated function or constant not found in `AuthorizedEvidence`

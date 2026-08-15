@@ -2,7 +2,7 @@ use chrono::{TimeZone, Utc};
 use domain::{analytics, boarding, daycare, entities, location, operations, retail, training};
 
 fn location_id() -> entities::LocationId {
-    entities::LocationId(uuid::Uuid::from_u128(1))
+    entities::LocationId::new(uuid::Uuid::from_u128(1))
 }
 
 fn operating_day() -> operations::operating_day::Key {

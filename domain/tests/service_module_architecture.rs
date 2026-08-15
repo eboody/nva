@@ -7,7 +7,7 @@ const SERVICE_LINE_NAMES: [&str; 5] = ["boarding", "daycare", "grooming", "train
 #[test]
 fn petsuites_service_contracts_are_constructed_through_canonical_service_modules() {
     let contracts = domain::operations::service_core::ServiceContracts::builder()
-        .location_id(entities::LocationId(uuid::Uuid::nil()))
+        .location_id(entities::LocationId::new(uuid::Uuid::from_u128(1)))
         .boarding(boarding::Contract::standard_petsuites())
         .daycare(daycare::Contract::standard_petsuites())
         .grooming(grooming::Contract::standard_petsuites())
@@ -39,7 +39,7 @@ fn service_domain_module_paths_remain_the_owned_home_for_line_specific_policy_ty
     assert!(matches!(
         boarding_decision,
         boarding::deposit::ConfirmationReadiness::Blocked {
-            blocker: boarding::deposit::Blocker::DepositRequired,
+            blocker: boarding::deposit::Blocker::ReferenceMissing,
             review_gate: policy::ReviewGate::RefundOrDepositException,
         }
     ));

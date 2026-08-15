@@ -1,21 +1,21 @@
 use chrono::{TimeZone, Utc};
-use domain::{document, entities, incident, message, money, payment, policy, vaccine, workflow};
+use domain::{document, entities, incident, money, payment, policy, vaccine, workflow};
 use uuid::Uuid;
 
 fn reservation_id(value: u128) -> entities::reservation::Id {
-    entities::reservation::Id(Uuid::from_u128(value))
+    entities::reservation::Id::new(Uuid::from_u128(value))
 }
 
 fn location_id() -> entities::LocationId {
-    entities::LocationId(Uuid::from_u128(10))
+    entities::LocationId::new(Uuid::from_u128(10))
 }
 
 fn customer_id() -> entities::CustomerId {
-    entities::CustomerId(Uuid::from_u128(11))
+    entities::CustomerId::new(Uuid::from_u128(11))
 }
 
 fn pet_id() -> entities::PetId {
-    entities::PetId(Uuid::from_u128(12))
+    entities::PetId::new(Uuid::from_u128(12))
 }
 
 fn actor() -> entities::ActorRef {
@@ -261,7 +261,7 @@ fn persisted_reservation_rejects_invalid_periods_and_contradictory_deposit_hard_
 #[test]
 fn persisted_message_rejects_delivered_drafts_and_queue_states_without_review_gate() {
     let delivered_draft = serde_json::json!({
-        "id": entities::MessageId(Uuid::from_u128(200)),
+        "id": entities::MessageId::new(Uuid::from_u128(200)),
         "subject": { "Reservation": reservation_id(100) },
         "direction": "OutboundDraft",
         "channel": "Email",
@@ -273,7 +273,7 @@ fn persisted_message_rejects_delivered_drafts_and_queue_states_without_review_ga
     assert!(serde_json::from_value::<entities::Message>(delivered_draft).is_err());
 
     let approved_without_gate = serde_json::json!({
-        "id": entities::MessageId(Uuid::from_u128(201)),
+        "id": entities::MessageId::new(Uuid::from_u128(201)),
         "subject": { "Reservation": reservation_id(100) },
         "direction": "OutboundQueued",
         "channel": "Email",
@@ -288,11 +288,11 @@ fn persisted_message_rejects_delivered_drafts_and_queue_states_without_review_ga
     assert!(
         error
             .to_string()
-            .contains("queued or approved outbound message requires approval decision evidence")
+            .contains("queued or sent message rehydration requires opaque queue authorization")
     );
 
     let queued_with_gate_but_without_decision_evidence = serde_json::json!({
-        "id": entities::MessageId(Uuid::from_u128(202)),
+        "id": entities::MessageId::new(Uuid::from_u128(202)),
         "subject": { "Reservation": reservation_id(100) },
         "direction": "OutboundQueued",
         "channel": "Email",
@@ -310,9 +310,9 @@ fn persisted_message_rejects_delivered_drafts_and_queue_states_without_review_ga
 
 #[test]
 fn persisted_message_rejects_sent_direction_with_draft_or_queue_status() {
-    let message_id = entities::MessageId(Uuid::from_u128(202));
+    let message_id = entities::MessageId::new(Uuid::from_u128(202));
     let approval = entities::approval::Record::builder()
-        .id(entities::approval::Id(Uuid::from_u128(205)))
+        .id(entities::approval::Id::new(Uuid::from_u128(205)))
         .target(entities::approval::Target::Message(message_id))
         .gate(policy::ReviewGate::CustomerMessageApproval)
         .lifecycle(entities::approval::Lifecycle::Approved {
@@ -323,38 +323,37 @@ fn persisted_message_rejects_sent_direction_with_draft_or_queue_status() {
         .requested_at(starts_at())
         .build()
         .unwrap();
-    let (_, authorization) = entities::message_record::authorize_queue(
+    let evidence = entities::message_record::ApprovalEvidence::try_from_approval(
         &approval,
         message_id,
         policy::ReviewGate::CustomerMessageApproval,
     )
     .unwrap();
-    let queued = entities::Message::approval_requested_outbound_draft(
-        message_id,
-        entities::MessageSubject::Reservation(reservation_id(100)),
-        message::Channel::Email,
-        message::BodyRef::try_new("message-body/evidence-3").unwrap(),
-        policy::ReviewGate::CustomerMessageApproval,
-    )
-    .queue_with(authorization)
-    .unwrap();
-    let mut sent_but_still_draft = serde_json::to_value(queued).unwrap();
-    sent_but_still_draft["direction"] = serde_json::json!("OutboundSent");
-    sent_but_still_draft["status"] = serde_json::json!("DraftCreated");
+    let sent_but_still_draft = serde_json::json!({
+        "id": message_id,
+        "subject": { "Reservation": reservation_id(100) },
+        "direction": "OutboundSent",
+        "channel": "Email",
+        "status": "DraftCreated",
+        "body_ref": "message-body/evidence-3",
+        "approval_gate": "CustomerMessageApproval",
+        "approval_evidence": evidence,
+        "audit_refs": []
+    });
     let error = serde_json::from_value::<entities::Message>(sent_but_still_draft)
         .expect_err("sent messages cannot rehydrate as draft lifecycle states");
 
     assert!(
         error
             .to_string()
-            .contains("outbound sent message requires attempted, delivered, or failed status")
+            .contains("queued or sent message rehydration requires opaque queue authorization")
     );
 }
 
 #[test]
-fn message_queue_capability_is_opaque_and_separate_from_serializable_approval_evidence() {
-    let message_id = entities::MessageId(Uuid::from_u128(203));
-    let approval_id = entities::approval::Id(Uuid::from_u128(204));
+fn persisted_queue_state_cannot_rehydrate_from_historical_evidence_alone() {
+    let message_id = entities::MessageId::new(Uuid::from_u128(203));
+    let approval_id = entities::approval::Id::new(Uuid::from_u128(204));
     let decided_by = entities::ActorRef::Manager {
         manager_id: entities::ManagerId::try_new("manager-queue-approval").unwrap(),
     };
@@ -371,53 +370,32 @@ fn message_queue_capability_is_opaque_and_separate_from_serializable_approval_ev
         .build()
         .unwrap();
 
-    let (evidence, authorization) = entities::message_record::authorize_queue(
+    let evidence = entities::message_record::ApprovalEvidence::try_from_approval(
         &approval,
         message_id,
         policy::ReviewGate::CustomerMessageApproval,
     )
-    .expect("approved message record should produce serializable approval evidence");
+    .expect("approved message record should produce serializable historical evidence");
     let evidence_json = serde_json::to_string(&evidence).unwrap();
     assert!(evidence_json.contains("CustomerMessageApproval"));
 
-    let queued = entities::Message::approval_requested_outbound_draft(
-        message_id,
-        entities::MessageSubject::Reservation(reservation_id(100)),
-        message::Channel::Email,
-        message::BodyRef::try_new("message-body/evidence-4").unwrap(),
-        policy::ReviewGate::CustomerMessageApproval,
-    )
-    .queue_with(authorization)
-    .expect("only an opaque queue capability may move approved evidence into the queue lifecycle");
-
-    assert_eq!(queued.direction(), message::Direction::OutboundQueued);
-    assert_eq!(queued.status(), message::Status::Queued);
-    assert_eq!(
-        queued.approval_gate(),
-        Some(policy::ReviewGate::CustomerMessageApproval)
-    );
-
-    let persisted = serde_json::to_value(&queued).unwrap();
-    assert!(persisted.get("approval_gate").is_some());
-    assert_eq!(
-        persisted["approval_evidence"]["approval_id"],
-        serde_json::json!(approval_id)
-    );
-    assert!(persisted.get("queue_capability").is_none());
-    let rehydrated = serde_json::from_value::<entities::Message>(persisted).unwrap();
-    let reserialized = serde_json::to_value(rehydrated).unwrap();
-    assert_eq!(
-        reserialized["approval_evidence"]["approval_id"],
-        serde_json::json!(approval_id)
-    );
-
-    let mut transplanted = reserialized;
-    transplanted["id"] = serde_json::json!(entities::MessageId(Uuid::from_u128(999)));
-    let error = serde_json::from_value::<entities::Message>(transplanted)
-        .expect_err("approval evidence for one message cannot authorize another message");
+    let persisted = serde_json::json!({
+        "id": message_id,
+        "subject": { "Reservation": reservation_id(100) },
+        "direction": "OutboundQueued",
+        "channel": "Email",
+        "status": "Queued",
+        "body_ref": "message-body/evidence-4",
+        "approval_gate": "CustomerMessageApproval",
+        "approval_evidence": evidence,
+        "audit_refs": []
+    });
+    let error = serde_json::from_value::<entities::Message>(persisted)
+        .expect_err("historical approval fields cannot rehydrate executable queue authority");
     let error_text = error.to_string();
     assert!(
-        error_text.contains("message approval evidence must be an approved decision"),
+        error_text
+            .contains("queued or sent message rehydration requires opaque queue authorization"),
         "unexpected rehydration error: {error_text}"
     );
 }
@@ -425,7 +403,7 @@ fn message_queue_capability_is_opaque_and_separate_from_serializable_approval_ev
 #[test]
 fn persisted_workflow_event_rejects_event_type_subject_mismatches() {
     let mismatched = serde_json::json!({
-        "event_id": workflow::EventId(Uuid::from_u128(300)),
+        "event_id": workflow::EventId::new(Uuid::from_u128(300)),
         "event_type": "CheckoutCompleted",
         "occurred_at": starts_at(),
         "actor": actor(),
@@ -447,7 +425,7 @@ fn persisted_workflow_event_rejects_event_type_subject_mismatches() {
     );
 
     let error = workflow::Event::try_new(
-        workflow::EventId(Uuid::from_u128(301)),
+        workflow::EventId::new(Uuid::from_u128(301)),
         workflow::EventType::CheckoutCompleted,
         starts_at(),
         actor(),
@@ -531,7 +509,7 @@ fn persisted_workflow_results_reject_status_reason_output_mismatches() {
 #[test]
 fn document_vaccine_incident_approval_and_task_rehydration_reject_relationship_bypasses() {
     let unsafe_verified_document = serde_json::json!({
-        "id": entities::DocumentId(Uuid::from_u128(400)),
+        "id": entities::DocumentId::new(Uuid::from_u128(400)),
         "location_id": location_id(),
         "subject": { "Pet": pet_id() },
         "classification": "VaccineProof",
@@ -554,10 +532,10 @@ fn document_vaccine_incident_approval_and_task_rehydration_reject_relationship_b
     );
 
     let vaccine_expired_without_expiration = serde_json::json!({
-        "id": entities::VaccineRecordId(Uuid::from_u128(401)),
+        "id": entities::VaccineRecordId::new(Uuid::from_u128(401)),
         "pet_id": pet_id(),
         "vaccine_name": "Rabies",
-        "source_document_id": entities::DocumentId(Uuid::from_u128(400)),
+        "source_document_id": entities::DocumentId::new(Uuid::from_u128(400)),
         "status": "VerifiedExpired",
         "effective_on": "2026-01-01",
         "expires_on": null,
@@ -574,7 +552,7 @@ fn document_vaccine_incident_approval_and_task_rehydration_reject_relationship_b
     );
 
     let critical_incident_without_gate = serde_json::json!({
-        "id": entities::IncidentId(Uuid::from_u128(402)),
+        "id": entities::IncidentId::new(Uuid::from_u128(402)),
         "location_id": location_id(),
         "primary_subject": { "Pet": pet_id() },
         "category": "Medication",
@@ -595,8 +573,8 @@ fn document_vaccine_incident_approval_and_task_rehydration_reject_relationship_b
     );
 
     let terminal_approval_before_request = serde_json::json!({
-        "id": entities::approval::Id(Uuid::from_u128(403)),
-        "target": { "Message": entities::MessageId(Uuid::from_u128(404)) },
+        "id": entities::approval::Id::new(Uuid::from_u128(403)),
+        "target": { "Message": entities::MessageId::new(Uuid::from_u128(404)) },
         "gate": "CustomerMessageApproval",
         "lifecycle": { "Approved": { "decided_by": actor(), "decided_at": starts_at() } },
         "requested_by": actor(),
@@ -616,7 +594,7 @@ fn document_vaccine_incident_approval_and_task_rehydration_reject_relationship_b
 #[test]
 fn document_vaccine_incident_approval_and_task_builders_reject_relationship_bypasses() {
     let document_error = entities::Document::builder()
-        .id(entities::DocumentId(Uuid::from_u128(410)))
+        .id(entities::DocumentId::new(Uuid::from_u128(410)))
         .location_id(location_id())
         .subject(entities::DocumentSubject::Pet(pet_id()))
         .classification(document::Classification::VaccineProof)
@@ -639,10 +617,10 @@ fn document_vaccine_incident_approval_and_task_builders_reject_relationship_bypa
     );
 
     let vaccine_error = entities::VaccineRecord::builder()
-        .id(entities::VaccineRecordId(Uuid::from_u128(411)))
+        .id(entities::VaccineRecordId::new(Uuid::from_u128(411)))
         .pet_id(pet_id())
         .vaccine_name(policy::VaccineName::try_new("Rabies").unwrap())
-        .source_document_id(entities::DocumentId(Uuid::from_u128(410)))
+        .source_document_id(entities::DocumentId::new(Uuid::from_u128(410)))
         .status(vaccine::Status::ExceptionApproved)
         .effective_on(chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap())
         .expires_on(chrono::NaiveDate::from_ymd_opt(2027, 1, 1).unwrap())
@@ -656,7 +634,7 @@ fn document_vaccine_incident_approval_and_task_builders_reject_relationship_bypa
     );
 
     let incident_error = entities::Incident::builder()
-        .id(entities::IncidentId(Uuid::from_u128(412)))
+        .id(entities::IncidentId::new(Uuid::from_u128(412)))
         .location_id(location_id())
         .primary_subject(entities::IncidentSubject::Pet(pet_id()))
         .category(incident::Category::Medication)
@@ -675,10 +653,10 @@ fn document_vaccine_incident_approval_and_task_builders_reject_relationship_bypa
     );
 
     let approval_error = entities::approval::Record::builder()
-        .id(entities::approval::Id(Uuid::from_u128(413)))
-        .target(entities::approval::Target::Incident(entities::IncidentId(
-            Uuid::from_u128(414),
-        )))
+        .id(entities::approval::Id::new(Uuid::from_u128(413)))
+        .target(entities::approval::Target::Incident(
+            entities::IncidentId::new(Uuid::from_u128(414)),
+        ))
         .gate(policy::ReviewGate::CustomerMessageApproval)
         .lifecycle(entities::approval::Lifecycle::ApprovalRequested)
         .requested_by(actor())

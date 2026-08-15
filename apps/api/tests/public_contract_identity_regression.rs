@@ -4,8 +4,8 @@ use pet_resort_api::{
     http,
     public_contract::{
         ApiContractMetadata, DataQualityHygieneContextResponse,
-        DataQualityHygieneOutcomeCaptureRequest, LiveSideEffectsMode, ProviderBoundaryMode,
-        SourceRecordRef,
+        DataQualityHygieneOutcomeCaptureRequest, LiveSideEffectsMode,
+        ManagerDailyBriefOutcomeCaptureRequest, ProviderBoundaryMode, SourceRecordRef,
     },
 };
 use serde_json::json;
@@ -97,6 +97,92 @@ fn sensitive_outcome_capture_debug_redacts_identity_feedback_and_provenance() {
         assert!(!debug.contains(sensitive), "Debug leaked {sensitive}");
     }
     assert!(debug.contains("[REDACTED]"));
+
+    let manager_request = serde_json::from_value::<ManagerDailyBriefOutcomeCaptureRequest>(json!({
+        "outcome": "completed",
+        "actual_minutes": 12,
+        "actor": {"persona": "front_desk_lead", "id": "sensitive-manager-17"},
+        "feedback": "sensitive manager feedback",
+        "source_refs": [{
+            "system": "gingr",
+            "record_type": "reservation",
+            "record_id": "sensitive-reservation-42",
+            "observed_at": "2026-06-17T12:00:00Z",
+            "adapter_version": "sensitive-adapter-version"
+        }],
+        "timestamp": "2026-06-17T13:15:00Z",
+        "audit": {"correlation_id": "sensitive-manager-correlation"},
+        "reporting": {
+            "location_id": "11111111-1111-4111-8111-111111111111",
+            "operating_day": "2026-06-17"
+        },
+        "requested_side_effects": [],
+        "idempotency_key": "sensitive-manager-idempotency"
+    }))
+    .unwrap();
+    let manager_debug = format!("{manager_request:?}");
+    for sensitive in [
+        "sensitive-manager-17",
+        "sensitive manager feedback",
+        "sensitive-reservation-42",
+        "sensitive-adapter-version",
+        "sensitive-manager-correlation",
+        "11111111-1111-4111-8111-111111111111",
+        "sensitive-manager-idempotency",
+    ] {
+        assert!(
+            !manager_debug.contains(sensitive),
+            "manager Debug leaked {sensitive}"
+        );
+    }
+    assert!(manager_debug.contains("[REDACTED]"));
+}
+
+#[test]
+fn outcome_dtos_reject_zero_minutes_nil_locations_and_malformed_operating_days_during_deserialization()
+ {
+    let mut manager = json!({
+        "outcome": "completed",
+        "actual_minutes": 9,
+        "actor": {"persona": "general_manager", "id": "manager-1"},
+        "feedback": "reported evidence",
+        "source_refs": [],
+        "timestamp": "2026-08-15T00:00:00Z",
+        "audit": {"correlation_id": "corr-1"},
+        "reporting": {
+            "location_id": "11111111-1111-4111-8111-111111111111",
+            "operating_day": "2026-08-15"
+        },
+        "requested_side_effects": [],
+        "idempotency_key": "idem-1"
+    });
+    manager["actual_minutes"] = json!(0);
+    assert!(
+        serde_json::from_value::<ManagerDailyBriefOutcomeCaptureRequest>(manager.clone()).is_err()
+    );
+    manager["actual_minutes"] = json!(9);
+    manager["reporting"]["location_id"] = json!("00000000-0000-0000-0000-000000000000");
+    assert!(
+        serde_json::from_value::<ManagerDailyBriefOutcomeCaptureRequest>(manager.clone()).is_err()
+    );
+    manager["reporting"]["location_id"] = json!("11111111-1111-4111-8111-111111111111");
+    manager["reporting"]["operating_day"] = json!("2026-02-30");
+    assert!(serde_json::from_value::<ManagerDailyBriefOutcomeCaptureRequest>(manager).is_err());
+
+    let hygiene = json!({
+        "outcome": "completed",
+        "actual_minutes": 0,
+        "actor": {"persona": "operations_analyst", "id": "analyst-1"},
+        "feedback": "reported evidence",
+        "source_refs": [],
+        "issue_refs": [],
+        "resolution_status_after_review": "repaired",
+        "timestamp": "2026-08-15T00:00:00Z",
+        "audit": {"correlation_id": "corr-2"},
+        "requested_side_effects": [],
+        "idempotency_key": "idem-2"
+    });
+    assert!(serde_json::from_value::<DataQualityHygieneOutcomeCaptureRequest>(hygiene).is_err());
 }
 
 #[tokio::test]

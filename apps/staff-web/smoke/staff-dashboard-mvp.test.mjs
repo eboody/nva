@@ -238,7 +238,7 @@ test("database proof row previews stay aligned with the local demo seed", () => 
     "field_path: \"vaccine.rabies.expires_on\"",
     "severity: \"medium\"",
     "manager_daily_brief_outcome:synthetic-2026-06-29",
-    "estimated_minutes_saved: 42",
+    "reported_estimated_minutes_difference: 42",
     "information_lifespan.db_projection_rows_written",
     "information_lifespan.manager_daily_report_review_required",
     "actor_kinds: [\"agent\", \"manager\"]"
@@ -328,7 +328,7 @@ test("Hermes processor stage shows container execution, logs, output, and fallba
     "info-lifespan-demo-2026-06-29",
     "generated/enriched report fragment",
     "Manager Daily Report — synthetic 2026-06-29",
-    "42 estimated labor minutes saved",
+    "42 reported estimated labor minute difference",
     "hermes_cli_unavailable_explicit_fallback",
     "processor unavailable",
     "The UI degrades to this redacted status instead of claiming a live run",
@@ -408,7 +408,7 @@ test("executive close frames modeled ROI, safe next ask, excluded actions, and p
     "Pilot success criteria",
     "source mapping confidence",
     "manager action usefulness",
-    "minutes saved / rework avoided",
+    "reported time difference / rework evidence",
     "wrong-source findings",
     "read-model comparison against current BI"
   ]);

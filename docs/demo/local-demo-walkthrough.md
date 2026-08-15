@@ -20,7 +20,7 @@ The selected slice is Data-Quality Hygiene because it is easy to explain:
 2. the owned app builds a reviewable internal cleanup packet;
 3. the agent/draft path is allowed to summarize and rank safe internal work only;
 4. unsafe side effects are rejected;
-5. reviewed outcomes record estimated and actual labor minutes saved;
+5. reviewed outcomes record estimated and actual labor reported time difference;
 6. metrics/read-models can then report operational progress without hiding the source caveat.
 
 ### Architecture in one sentence
@@ -29,7 +29,7 @@ Provider/source evidence -> product-owned app/domain workflow packet -> versione
 
 ### Labor-cost loop
 
-The loop is not “AI sends messages.” It is “AI reduces repetitive reconciliation by turning ambiguous source facts into reviewable internal work and measured outcomes.” The proof marker is the local smoke output: `estimated_minutes_saved=15` and `actual_minutes_saved=17` on fixture data, with `live_side_effects_allowed=false` preserved.
+The loop is not “AI sends messages.” It is “AI turns ambiguous source facts into reviewable internal work and retains nonclaimable reported labor evidence.” The proof markers include `reported_estimated_minutes_difference=15`, `reported_actual_minutes_spent=8`, `claimable=false`, and `live_side_effects_allowed=false` on fixture data.
 
 ### Proof chain
 
@@ -87,11 +87,11 @@ Expected wrapper anchors:
 openapi_title=NVA Pet Resorts Owned Operations API
 openapi_paths=8
 contract_lane_ok live_side_effects_allowed=false
-context_ok workflow=data-quality-hygiene actions=1 estimated_minutes_saved=15 live_side_effects_allowed=false
+context_ok workflow=data-quality-hygiene actions=1 reported_estimated_minutes_difference=15 claimable=false live_side_effects_allowed=false
 draft_validation_ok accepted_actions=1 requested_side_effects=0
 blocked_draft_validation_ok blocked_side_effect=send_customer_message
-outcome_ok estimated_minutes_saved=15 actual_minutes_saved=17 live_side_effects_allowed=false
-smoke_assertions_ok estimated_minutes_saved=15 actual_minutes_saved=17
+outcome_ok reported_estimated_minutes_difference=15 reported_actual_minutes_spent=8 claimable=false live_side_effects_allowed=false
+smoke_assertions_ok reported_estimated_minutes_difference=15 reported_actual_minutes_spent=8 claimable=false
 [data-quality-hygiene-worker-outbox-smoke] disabled worker/outbox proof passed as local internal handoff only
 demo_owned_operations_api_ok local_fixture_only=true live_side_effects_allowed=false
 ```

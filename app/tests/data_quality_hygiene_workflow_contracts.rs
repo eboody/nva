@@ -25,7 +25,7 @@ fn data_quality_hygiene_context_builds_source_grounded_internal_actions_with_lab
     assert!(packet.all_actions_are_source_grounded());
     assert_eq!(packet.before_minutes().get(), 25);
     assert_eq!(packet.after_minutes().get(), 10);
-    assert_eq!(packet.minutes_saved(), 15);
+    assert_eq!(packet.reported_estimated_minutes_difference(), 15);
     assert!(
         packet
             .safe_agent_actions()
@@ -352,7 +352,7 @@ fn data_quality_hygiene_non_completed_outcomes_keep_feedback_but_do_not_claim_la
         let record = outcome_record(outcome);
         assert!(!record.outcome().can_claim_labor_savings());
         assert!(!record.labor_minutes_are_claimable());
-        assert_eq!(record.actual_minutes_saved(), 16);
+        assert!(!record.labor_minutes_are_claimable());
         assert!(!record.source_record_refs().is_empty());
         assert!(!record.issue_refs().is_empty());
     }
@@ -376,7 +376,7 @@ fn data_quality_hygiene_outcome_records_actual_minutes_without_external_mutation
         .build()
         .unwrap();
 
-    assert_eq!(outcome.actual_minutes_saved(), 16);
+    assert!(!outcome.labor_minutes_are_claimable());
     assert_eq!(
         outcome.reviewed_resolution_status(),
         Some(data_quality::ResolutionStatus::Acknowledged)
@@ -694,11 +694,11 @@ fn source_provenance() -> source::Provenance {
 }
 
 fn location_id() -> entities::LocationId {
-    entities::LocationId(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0001))
+    entities::LocationId::new(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0001))
 }
 
 fn location_id_202() -> entities::LocationId {
-    entities::LocationId(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0002))
+    entities::LocationId::new(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0002))
 }
 
 fn operating_day() -> operations::operating_day::Date {

@@ -235,6 +235,9 @@ CREATE TABLE IF NOT EXISTS messages (
     updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- payment_deposit_projections retain provider-observed state history: multiple rows for one
+-- reservation are legal when they represent distinct provider payment ids or observations.
+-- They are projections of payment/deposit facts, not a one-row execution authority ledger.
 CREATE TABLE IF NOT EXISTS payment_deposit_projections (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     reservation_id uuid NOT NULL REFERENCES reservations(id),
@@ -261,6 +264,8 @@ CREATE TABLE IF NOT EXISTS workflow_events (
     recorded_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- workflow_results retain one row per processing attempt. Retries and later reviewable results
+-- may therefore coexist for one workflow_event_id; created_at and row id preserve their history.
 CREATE TABLE IF NOT EXISTS workflow_results (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     workflow_event_id uuid NOT NULL REFERENCES workflow_events(id),
@@ -278,6 +283,7 @@ CREATE TABLE IF NOT EXISTS review_packets (
     status text NOT NULL CHECK (status IN ('draft', 'ready_for_review', 'in_review', 'approved', 'rejected', 'cancelled')),
     evidence_document_ids uuid[] NOT NULL DEFAULT '{}',
     workflow_event_id uuid REFERENCES workflow_events(id),
+    reviewed_action_id text CHECK (reviewed_action_id IS NULL OR length(trim(reviewed_action_id)) > 0),
     created_by_actor_kind text NOT NULL CHECK (created_by_actor_kind IN ('customer', 'staff', 'manager', 'system', 'agent')),
     created_by_actor_id text,
     created_at timestamptz NOT NULL DEFAULT now(),
@@ -295,6 +301,8 @@ CREATE TABLE IF NOT EXISTS approval_records (
     requested_at timestamptz NOT NULL,
     decided_by_actor_kind text CHECK (decided_by_actor_kind IN ('customer', 'staff', 'manager', 'system', 'agent')),
     decided_by_actor_id text,
+    decided_by_actor_persona text CHECK (decided_by_actor_persona IN ('general_manager', 'assistant_general_manager', 'front_desk_lead', 'front_desk_agent', 'regional_operator', 'operations_analyst')),
+    legacy_persona_missing boolean NOT NULL DEFAULT false,
     decided_at timestamptz,
     review_packet_id uuid REFERENCES review_packets(id),
     CONSTRAINT approval_records_decision_integrity CHECK (
@@ -302,19 +310,49 @@ CREATE TABLE IF NOT EXISTS approval_records (
             status IN ('approved', 'rejected')
             AND decided_by_actor_kind IS NOT NULL
             AND decided_by_actor_id IS NOT NULL
+            AND decided_by_actor_persona IS NOT NULL
+            AND NOT legacy_persona_missing
             AND decided_at IS NOT NULL
+            AND requested_at <= decided_at
         )
         OR
         (
             status NOT IN ('approved', 'rejected')
             AND decided_by_actor_kind IS NULL
             AND decided_by_actor_id IS NULL
+            AND decided_by_actor_persona IS NULL
+            AND NOT legacy_persona_missing
             AND decided_at IS NULL
         )
+    ),
+    CONSTRAINT approval_records_decider_persona_kind_integrity CHECK (
+        legacy_persona_missing
+        OR decided_by_actor_kind IS NULL
+        OR (decided_by_actor_kind = 'manager' AND decided_by_actor_persona IN ('general_manager', 'assistant_general_manager', 'regional_operator'))
+        OR (decided_by_actor_kind = 'staff' AND decided_by_actor_persona IN ('front_desk_lead', 'front_desk_agent', 'operations_analyst'))
     ),
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now()
 );
+
+CREATE OR REPLACE FUNCTION reject_approval_legacy_persona_marker_forgery()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF (TG_OP = 'INSERT' AND NEW.legacy_persona_missing)
+       OR (TG_OP = 'UPDATE' AND NEW.legacy_persona_missing IS DISTINCT FROM OLD.legacy_persona_missing)
+    THEN
+        RAISE EXCEPTION 'legacy approval persona marker is migration-owned and immutable';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS approval_records_legacy_persona_marker_guard ON approval_records;
+CREATE TRIGGER approval_records_legacy_persona_marker_guard
+    BEFORE INSERT OR UPDATE OF legacy_persona_missing ON approval_records
+    FOR EACH ROW EXECUTE FUNCTION reject_approval_legacy_persona_marker_forgery();
 
 CREATE TABLE IF NOT EXISTS manager_daily_brief_outcomes (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -326,15 +364,16 @@ CREATE TABLE IF NOT EXISTS manager_daily_brief_outcomes (
     actor_persona text NOT NULL CHECK (actor_persona IN ('general_manager', 'assistant_general_manager', 'front_desk_lead', 'front_desk_agent')),
     feedback text NOT NULL DEFAULT '',
     owner_persona text NOT NULL CHECK (owner_persona IN ('general_manager', 'assistant_general_manager', 'front_desk_lead', 'front_desk_agent')),
-    action_kind text NOT NULL CHECK (action_kind IN ('review_demand_against_staffing_plan', 'resolve_checkout_exception', 'approve_retention_follow_up_draft', 'investigate_source_data_quality_issue')),
+    action_kind text NOT NULL CHECK (action_kind IN ('review_demand_against_staffing_plan', 'resolve_checkout_exception', 'approve_retention_follow_up_draft', 'investigate_source_data_quality_issue', 'review_capacity_labor_recommendation')),
     before_minutes integer NOT NULL CHECK (before_minutes > 0),
     actual_minutes integer NOT NULL CHECK (actual_minutes > 0),
-    estimated_minutes_saved integer NOT NULL CHECK (estimated_minutes_saved >= 0),
-    location_id uuid REFERENCES locations(id),
+    reported_estimated_minutes_difference integer NOT NULL CHECK (reported_estimated_minutes_difference >= 0),
+    location_id uuid NOT NULL REFERENCES locations(id),
     operating_day date NOT NULL,
     source_refs jsonb NOT NULL DEFAULT '[]'::jsonb,
     correlation_id text NOT NULL CHECK (length(trim(correlation_id)) > 0),
     recorded_at timestamptz NOT NULL DEFAULT now(),
+    schema_version integer NOT NULL DEFAULT 1 CHECK (schema_version = 1),
     CONSTRAINT manager_daily_brief_outcomes_action_id_key UNIQUE (action_id)
 );
 
@@ -353,14 +392,285 @@ CREATE TABLE IF NOT EXISTS data_quality_hygiene_outcomes (
     action_kind text NOT NULL CHECK (action_kind IN ('investigate_missing_source_evidence', 'reconcile_duplicate_customer_or_pet_candidate', 'complete_missing_pet_or_customer_profile_fields', 'review_stale_vaccination_source_freshness', 'normalize_ambiguous_service_line_naming', 'review_checkout_or_unclosed_reservation_evidence', 'escalate_sensitive_or_quarantined_payload', 'review_payment_state_conflict')),
     before_minutes integer NOT NULL CHECK (before_minutes > 0),
     actual_minutes integer NOT NULL CHECK (actual_minutes > 0),
-    estimated_minutes_saved integer NOT NULL CHECK (estimated_minutes_saved >= 0),
-    location_id uuid REFERENCES locations(id),
+    reported_estimated_minutes_difference integer NOT NULL CHECK (reported_estimated_minutes_difference >= 0),
+    location_id uuid NOT NULL REFERENCES locations(id),
     operating_day date NOT NULL,
     source_refs jsonb NOT NULL DEFAULT '[]'::jsonb,
     correlation_id text NOT NULL CHECK (length(trim(correlation_id)) > 0),
     recorded_at timestamptz NOT NULL DEFAULT now(),
+    schema_version integer NOT NULL DEFAULT 1 CHECK (schema_version = 1),
     CONSTRAINT data_quality_hygiene_outcomes_action_id_key UNIQUE (action_id)
 );
+
+-- Reviewed outcome evidence must be backed by one immutable approved decision whose packet binds
+-- the exact owned workflow event, action id, target, and gate. This does not invent provider
+-- relationships; it closes only NVA-owned review lineage.
+CREATE OR REPLACE FUNCTION enforce_outcome_approval_workflow_binding()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    approval approval_records%ROWTYPE;
+    approval_review_packet review_packets%ROWTYPE;
+    reviewed_workflow_event workflow_events%ROWTYPE;
+    source_ref jsonb;
+    current_issue_ref jsonb;
+    expected_actor_kind text;
+BEGIN
+    -- UPDATE-strength locks serialize outcome admission with every mutable lineage row. KEY SHARE
+    -- is insufficient because it is compatible with non-key updates and admits a check-then-mutate race.
+    SELECT *
+      INTO approval
+      FROM approval_records
+     WHERE id = NEW.approval_record_id
+     FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'outcome approval must be the exact approved workflow, action, target, and gate lineage';
+    END IF;
+
+    SELECT *
+      INTO approval_review_packet
+      FROM review_packets
+     WHERE id = approval.review_packet_id
+     FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'outcome approval must be the exact approved workflow, action, target, and gate lineage';
+    END IF;
+
+    SELECT *
+      INTO reviewed_workflow_event
+      FROM workflow_events
+     WHERE id = NEW.workflow_event_id
+     FOR UPDATE;
+
+    expected_actor_kind := CASE NEW.actor_persona
+        WHEN 'general_manager' THEN 'manager'
+        WHEN 'assistant_general_manager' THEN 'manager'
+        WHEN 'regional_operator' THEN 'manager'
+        WHEN 'front_desk_lead' THEN 'staff'
+        WHEN 'front_desk_agent' THEN 'staff'
+        WHEN 'operations_analyst' THEN 'staff'
+        ELSE NULL
+    END;
+
+    IF NOT FOUND
+       OR approval.status <> 'approved'
+       OR approval_review_packet.status <> 'approved'
+       OR approval_review_packet.workflow_event_id IS NULL
+       OR approval_review_packet.workflow_event_id <> NEW.workflow_event_id
+       OR approval_review_packet.reviewed_action_id IS NULL
+       OR approval_review_packet.reviewed_action_id <> NEW.action_id
+       OR approval.target_kind <> approval_review_packet.subject_kind
+       OR approval.target_id <> approval_review_packet.subject_id
+       OR approval.gate <> approval_review_packet.gate
+       OR NEW.schema_version <> 1
+       OR NEW.id = '00000000-0000-0000-0000-000000000000'::uuid
+       OR NEW.location_id = '00000000-0000-0000-0000-000000000000'::uuid
+       OR NEW.workflow_event_id = '00000000-0000-0000-0000-000000000000'::uuid
+       OR approval.review_packet_id = '00000000-0000-0000-0000-000000000000'::uuid
+       OR NEW.approval_record_id = '00000000-0000-0000-0000-000000000000'::uuid
+       OR approval.requested_at > approval.decided_at
+       OR reviewed_workflow_event.occurred_at > approval.requested_at
+       OR approval.decided_at > NEW.recorded_at
+       OR approval.decided_by_actor_id <> NEW.actor_id
+       OR approval.decided_by_actor_persona IS NULL
+       OR approval.decided_by_actor_persona <> NEW.actor_persona
+       OR approval.decided_by_actor_kind <> expected_actor_kind
+       OR (approval.gate = 'manager_approval' AND approval.decided_by_actor_kind <> 'manager')
+       OR NEW.operating_day > NEW.recorded_at::date
+       OR jsonb_typeof(NEW.source_refs) <> 'array'
+       OR jsonb_array_length(NEW.source_refs) = 0
+       OR reviewed_workflow_event.payload->'source_refs' IS DISTINCT FROM NEW.source_refs
+       OR reviewed_workflow_event.payload->>'correlation_id' IS DISTINCT FROM NEW.correlation_id
+       OR reviewed_workflow_event.payload->>'location_id' IS NULL
+       OR reviewed_workflow_event.payload->>'location_id' <> NEW.location_id::text
+       OR reviewed_workflow_event.subject_kind <> 'location'
+       OR reviewed_workflow_event.subject_id <> NEW.location_id
+       OR reviewed_workflow_event.payload->>'operating_day' IS DISTINCT FROM NEW.operating_day::text
+       OR (
+            TG_TABLE_NAME = 'data_quality_hygiene_outcomes'
+            AND (
+                jsonb_typeof(to_jsonb(NEW)->'issue_refs') <> 'array'
+                OR jsonb_array_length(to_jsonb(NEW)->'issue_refs') = 0
+                OR reviewed_workflow_event.payload->'issue_refs' IS DISTINCT FROM to_jsonb(NEW)->'issue_refs'
+            )
+       )
+       OR (
+            TG_TABLE_NAME = 'manager_daily_brief_outcomes'
+            AND NOT (
+                (
+                    reviewed_workflow_event.workflow_name = 'manager_daily_brief'
+                    AND reviewed_workflow_event.event_kind = 'outcome_capture'
+                )
+                OR (
+                    reviewed_workflow_event.workflow_name = 'information_lifespan_manager_daily_report'
+                    AND reviewed_workflow_event.event_kind = 'manager_daily_report.trace_replayed'
+                )
+            )
+       )
+       OR (
+            TG_TABLE_NAME = 'data_quality_hygiene_outcomes'
+            AND (
+                reviewed_workflow_event.workflow_name <> 'data_quality_hygiene'
+                OR reviewed_workflow_event.event_kind NOT IN (
+                    'context_created',
+                    'source_quality_issue.detected',
+                    'outcome_capture'
+                )
+            )
+       ) THEN
+        RAISE EXCEPTION 'outcome approval must be the exact approved workflow, action, target, gate, actor, scope, time, and source lineage';
+    END IF;
+
+    FOR source_ref IN SELECT value FROM jsonb_array_elements(NEW.source_refs)
+    LOOP
+        IF jsonb_typeof(source_ref) <> 'object'
+           OR jsonb_typeof(source_ref->'system') <> 'string'
+           OR length(trim(source_ref->>'system')) = 0
+           OR jsonb_typeof(source_ref->'record_type') <> 'string'
+           OR length(trim(source_ref->>'record_type')) = 0
+           OR jsonb_typeof(source_ref->'record_id') <> 'string'
+           OR length(trim(source_ref->>'record_id')) = 0
+           OR trim(source_ref->>'record_id') = '0'
+           OR jsonb_typeof(source_ref->'observed_at') <> 'string'
+           OR (source_ref->>'observed_at') !~ '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$'
+           OR (source_ref->>'observed_at')::timestamptz > reviewed_workflow_event.occurred_at
+           OR (source_ref->>'observed_at')::timestamptz > approval.requested_at
+           OR (source_ref->>'observed_at')::timestamptz > approval.decided_at
+           OR (source_ref->>'observed_at')::timestamptz > NEW.recorded_at
+           OR jsonb_typeof(source_ref->'adapter_version') <> 'string'
+           OR length(trim(source_ref->>'adapter_version')) = 0
+           OR trim(source_ref->>'adapter_version') = '0'
+           OR (SELECT count(*) FROM jsonb_object_keys(source_ref)) <> 5 THEN
+            RAISE EXCEPTION 'outcome source references must be exact typed provenance';
+        END IF;
+    END LOOP;
+
+    IF TG_TABLE_NAME = 'data_quality_hygiene_outcomes' THEN
+        FOR current_issue_ref IN SELECT value FROM jsonb_array_elements(to_jsonb(NEW)->'issue_refs')
+        LOOP
+            IF jsonb_typeof(current_issue_ref) <> 'string'
+               OR length(trim(current_issue_ref #>> '{}')) = 0
+               OR trim(current_issue_ref #>> '{}') = '0' THEN
+                RAISE EXCEPTION 'outcome issue references must be nonempty semantic identifiers';
+            END IF;
+        END LOOP;
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS manager_daily_brief_outcomes_approval_workflow_binding ON manager_daily_brief_outcomes;
+CREATE TRIGGER manager_daily_brief_outcomes_approval_workflow_binding
+BEFORE INSERT OR UPDATE OF workflow_event_id, approval_record_id, action_id ON manager_daily_brief_outcomes
+FOR EACH ROW EXECUTE FUNCTION enforce_outcome_approval_workflow_binding();
+
+DROP TRIGGER IF EXISTS data_quality_hygiene_outcomes_approval_workflow_binding ON data_quality_hygiene_outcomes;
+CREATE TRIGGER data_quality_hygiene_outcomes_approval_workflow_binding
+BEFORE INSERT OR UPDATE OF workflow_event_id, approval_record_id, action_id ON data_quality_hygiene_outcomes
+FOR EACH ROW EXECUTE FUNCTION enforce_outcome_approval_workflow_binding();
+
+CREATE OR REPLACE FUNCTION prevent_reviewed_outcome_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RAISE EXCEPTION 'reviewed outcome evidence is immutable after admission';
+END;
+$$;
+
+DROP TRIGGER IF EXISTS manager_daily_brief_outcomes_immutable ON manager_daily_brief_outcomes;
+CREATE TRIGGER manager_daily_brief_outcomes_immutable
+BEFORE UPDATE OR DELETE ON manager_daily_brief_outcomes
+FOR EACH ROW EXECUTE FUNCTION prevent_reviewed_outcome_mutation();
+
+DROP TRIGGER IF EXISTS data_quality_hygiene_outcomes_immutable ON data_quality_hygiene_outcomes;
+CREATE TRIGGER data_quality_hygiene_outcomes_immutable
+BEFORE UPDATE OR DELETE ON data_quality_hygiene_outcomes
+FOR EACH ROW EXECUTE FUNCTION prevent_reviewed_outcome_mutation();
+
+CREATE OR REPLACE FUNCTION prevent_outcome_approval_lineage_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM manager_daily_brief_outcomes WHERE approval_record_id = OLD.id
+        UNION ALL
+        SELECT 1 FROM data_quality_hygiene_outcomes WHERE approval_record_id = OLD.id
+    ) THEN
+        RAISE EXCEPTION 'approval lineage referenced by an outcome is immutable';
+    END IF;
+    IF TG_OP = 'DELETE' THEN
+        RETURN OLD;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS approval_records_outcome_lineage_immutable ON approval_records;
+CREATE TRIGGER approval_records_outcome_lineage_immutable
+BEFORE UPDATE OR DELETE ON approval_records
+FOR EACH ROW EXECUTE FUNCTION prevent_outcome_approval_lineage_mutation();
+
+CREATE OR REPLACE FUNCTION prevent_outcome_review_packet_lineage_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+          FROM approval_records approval_record
+          JOIN manager_daily_brief_outcomes outcome
+            ON outcome.approval_record_id = approval_record.id
+         WHERE approval_record.review_packet_id = OLD.id
+        UNION ALL
+        SELECT 1
+          FROM approval_records approval_record
+          JOIN data_quality_hygiene_outcomes outcome
+            ON outcome.approval_record_id = approval_record.id
+         WHERE approval_record.review_packet_id = OLD.id
+    ) THEN
+        RAISE EXCEPTION 'review packet lineage referenced by an outcome is immutable';
+    END IF;
+    IF TG_OP = 'DELETE' THEN
+        RETURN OLD;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS review_packets_outcome_lineage_immutable ON review_packets;
+CREATE TRIGGER review_packets_outcome_lineage_immutable
+BEFORE UPDATE OR DELETE ON review_packets
+FOR EACH ROW EXECUTE FUNCTION prevent_outcome_review_packet_lineage_mutation();
+
+CREATE OR REPLACE FUNCTION prevent_outcome_workflow_event_lineage_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM manager_daily_brief_outcomes WHERE workflow_event_id = OLD.id
+        UNION ALL
+        SELECT 1 FROM data_quality_hygiene_outcomes WHERE workflow_event_id = OLD.id
+    ) THEN
+        RAISE EXCEPTION 'workflow event lineage referenced by an outcome is immutable';
+    END IF;
+    IF TG_OP = 'DELETE' THEN
+        RETURN OLD;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS workflow_events_outcome_lineage_immutable ON workflow_events;
+CREATE TRIGGER workflow_events_outcome_lineage_immutable
+BEFORE UPDATE OR DELETE ON workflow_events
+FOR EACH ROW EXECUTE FUNCTION prevent_outcome_workflow_event_lineage_mutation();
 
 -- One approval may issue exactly one internal handoff capability. This row is the
 -- durable, relational image of the opaque application authority. It binds the
@@ -374,8 +684,13 @@ CREATE TABLE IF NOT EXISTS approval_outbox_bindings (
     payload jsonb NOT NULL,
     authorized_by_actor_kind text NOT NULL CHECK (authorized_by_actor_kind IN ('staff', 'manager')),
     authorized_by_actor_id text NOT NULL CHECK (length(trim(authorized_by_actor_id)) > 0),
+    authorized_by_actor_persona text NOT NULL CHECK (authorized_by_actor_persona IN ('general_manager', 'assistant_general_manager', 'front_desk_lead', 'front_desk_agent', 'regional_operator', 'operations_analyst')),
     authorized_at timestamptz NOT NULL,
     consumed_by_outbox_id uuid UNIQUE,
+    CONSTRAINT approval_outbox_bindings_actor_persona_kind_integrity CHECK (
+        (authorized_by_actor_kind = 'manager' AND authorized_by_actor_persona IN ('general_manager', 'assistant_general_manager', 'regional_operator'))
+        OR (authorized_by_actor_kind = 'staff' AND authorized_by_actor_persona IN ('front_desk_lead', 'front_desk_agent', 'operations_analyst'))
+    ),
     CONSTRAINT approval_outbox_bindings_internal_topic_is_closed CHECK (
         topic IN (
             'internal.data_quality_hygiene.reviewed_handoff',
@@ -455,6 +770,7 @@ BEGIN
         OR approval_record.gate <> NEW.review_gate
         OR approval_record.decided_by_actor_kind <> NEW.authorized_by_actor_kind
         OR approval_record.decided_by_actor_id <> NEW.authorized_by_actor_id
+        OR approval_record.decided_by_actor_persona <> NEW.authorized_by_actor_persona
         OR approval_record.decided_at <> NEW.authorized_at
     THEN
         RAISE EXCEPTION 'approval_outbox_bindings require the matching approved decision authority';
@@ -486,6 +802,7 @@ BEGIN
         OR OLD.payload <> NEW.payload
         OR OLD.authorized_by_actor_kind <> NEW.authorized_by_actor_kind
         OR OLD.authorized_by_actor_id <> NEW.authorized_by_actor_id
+        OR OLD.authorized_by_actor_persona <> NEW.authorized_by_actor_persona
         OR OLD.authorized_at <> NEW.authorized_at
         OR OLD.consumed_by_outbox_id IS NOT NULL
         OR NEW.consumed_by_outbox_id IS NULL
@@ -636,6 +953,7 @@ BEGIN
             OR NEW.gate <> OLD.gate
             OR NEW.decided_by_actor_kind IS DISTINCT FROM OLD.decided_by_actor_kind
             OR NEW.decided_by_actor_id IS DISTINCT FROM OLD.decided_by_actor_id
+            OR NEW.decided_by_actor_persona IS DISTINCT FROM OLD.decided_by_actor_persona
             OR NEW.decided_at IS DISTINCT FROM OLD.decided_at
         )
         AND (
@@ -661,7 +979,7 @@ $$;
 DROP TRIGGER IF EXISTS approval_records_open_outbox_guard ON approval_records;
 CREATE TRIGGER approval_records_open_outbox_guard
     BEFORE UPDATE OF status, target_kind, target_id, gate,
-        decided_by_actor_kind, decided_by_actor_id, decided_at ON approval_records
+        decided_by_actor_kind, decided_by_actor_id, decided_by_actor_persona, decided_at ON approval_records
     FOR EACH ROW EXECUTE FUNCTION prevent_approval_change_with_open_outbox_records();
 
 CREATE TABLE IF NOT EXISTS audit_events (

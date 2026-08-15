@@ -5,7 +5,7 @@ use app::checkout_completion;
 use domain::{entities, policy, source};
 
 #[test]
-fn checkout_completion_contract_requires_staff_handoff_and_provenance_before_completed_status() {
+fn serialized_checkout_and_handoff_evidence_remains_under_manager_review() {
     let request = checkout_completion::Request::builder()
         .reservation_id(reservation_id())
         .source_provenance(source_provenance())
@@ -17,18 +17,15 @@ fn checkout_completion_contract_requires_staff_handoff_and_provenance_before_com
 
     assert_eq!(
         packet.completion_status(),
-        checkout_completion::CompletionStatus::StaffVerifiedCheckout
+        checkout_completion::CompletionStatus::NeedsStaffHandoffReview
     );
-    assert_eq!(
-        packet.suggested_reservation_status(),
-        Some(entities::reservation::Status::CheckedOut)
-    );
+    assert_eq!(packet.suggested_reservation_status(), None);
     assert_eq!(
         packet.required_review_gates(),
-        &[policy::ReviewGate::CustomerMessageApproval]
+        &[policy::ReviewGate::ManagerApproval]
     );
     assert!(
-        packet
+        !packet
             .safe_agent_actions()
             .contains(&checkout_completion::SafeAgentAction::DraftRetentionFollowUpForReview)
     );
@@ -52,6 +49,11 @@ fn checkout_completion_contract_requires_staff_handoff_and_provenance_before_com
             .blocked_actions()
             .contains(&checkout_completion::BlockedAction::MoveRefundDiscountOrPayment)
     );
+    assert!(
+        packet
+            .blocked_actions()
+            .contains(&checkout_completion::BlockedAction::SuggestCheckedOutStatus)
+    );
     assert_eq!(packet.provenance().record_id().as_str(), "reservation-42");
     assert!(
         packet
@@ -64,9 +66,14 @@ fn checkout_completion_contract_requires_staff_handoff_and_provenance_before_com
             .contains(&checkout_completion::AuditEventDraft::StaffHandoffRecorded)
     );
     assert!(
-        packet
+        !packet
             .audit_event_drafts()
             .contains(&checkout_completion::AuditEventDraft::CheckoutCompletionSuggested)
+    );
+    assert!(
+        packet
+            .audit_event_drafts()
+            .contains(&checkout_completion::AuditEventDraft::StaffHandoffReviewRequested)
     );
 }
 
@@ -160,7 +167,12 @@ fn checkout_exception_packet_names_unresolved_work_and_reviewed_outcome_without_
     );
     assert_eq!(packet.labor_impact().manual_audit_minutes().get(), 18);
     assert_eq!(packet.labor_impact().packet_review_minutes().get(), 6);
-    assert_eq!(packet.labor_impact().estimated_minutes_saved(), Some(12));
+    assert_eq!(
+        packet
+            .labor_impact()
+            .reported_estimated_minutes_difference(),
+        Some(12)
+    );
     assert!(
         packet
             .blocked_actions()
@@ -226,7 +238,7 @@ fn checkout_completion_without_source_checkout_does_not_emit_false_checkout_obse
 }
 
 fn reservation_id() -> entities::reservation::Id {
-    entities::reservation::Id(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0042))
+    entities::reservation::Id::new(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0042))
 }
 
 fn resolved_staff_handoff() -> checkout_completion::StaffHandoff {

@@ -5,7 +5,7 @@
 //! use uuid::Uuid;
 //!
 //! let request = daycare::assignment::Request::builder()
-//!     .pet_id(entities::PetId(Uuid::nil()))
+//!     .pet_id(entities::PetId::new(uuid::Uuid::from_u128(1)))
 //!     .service(daycare::ServiceVariant::AllDayPlay)
 //!     .eligibility(daycare::eligibility::GroupPlayDecision::Eligible {
 //!         basis: daycare::eligibility::EligibleBasis::CurrentEvidence,
@@ -16,7 +16,10 @@
 //!
 //! assert!(matches!(
 //!     daycare::assignment::Service.assign(request),
-//!     daycare::assignment::Decision::Assigned { .. }
+//!     daycare::assignment::Decision::Blocked {
+//!         gate: domain::policy::ReviewGate::ManagerApproval,
+//!         ..
+//!     }
 //! ));
 //! ```
 
@@ -111,9 +114,9 @@ impl Service {
     pub fn assign(&self, request: Request) -> Decision {
         match (&request.eligibility, &request.coverage) {
             (eligibility::GroupPlayDecision::Eligible { .. }, coverage::Decision::Sufficient) => {
-                Decision::Assigned {
-                    pet_id: request.pet_id,
-                    playgroup: request.playgroup,
+                Decision::Blocked {
+                    reason: BlockReason::EligibilityNotCleared,
+                    gate: policy::ReviewGate::ManagerApproval,
                 }
             }
             (

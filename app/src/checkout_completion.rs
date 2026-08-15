@@ -93,8 +93,8 @@ impl LaborImpact {
         self.packet_review_minutes
     }
 
-    /// Returns estimated minutes saved only when packet review is lower than manual audit effort.
-    pub const fn estimated_minutes_saved(&self) -> Option<u16> {
+    /// Returns a reported estimate difference when packet review is lower than manual audit effort; this is not realized savings.
+    pub const fn reported_estimated_minutes_difference(&self) -> Option<u16> {
         let manual = self.manual_audit_minutes.get();
         let review = self.packet_review_minutes.get();
         if manual > review {
@@ -143,8 +143,8 @@ pub enum DepartureNotesReview {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 /// Decision choices for completion status in the checkout completion workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
 pub enum CompletionStatus {
-    /// Routes the item to staff verified checkout for staff queueing, review, and downstream agent context.
-    StaffVerifiedCheckout,
+    /// Reports that serialized evidence labels checkout as staff-complete; this is never completion authority.
+    ReportedStaffCheckout,
     /// Routes the item to needs staff handoff review for staff queueing, review, and downstream agent context.
     NeedsStaffHandoffReview,
     /// Routes the item to source not checked out for staff queueing, review, and downstream agent context.
@@ -376,14 +376,7 @@ impl Workflow {
     /// Builds the evaluate result for the checkout completion workflow from reviewed source facts while preserving human review gates and draft-only side effects.
     pub fn evaluate(request: Request) -> Packet {
         let completion_status = completion_status_for(&request);
-        let suggested_reservation_status = match completion_status {
-            CompletionStatus::StaffVerifiedCheckout => {
-                Some(entities::reservation::Status::CheckedOut)
-            }
-            CompletionStatus::NeedsStaffHandoffReview | CompletionStatus::SourceNotCheckedOut => {
-                None
-            }
-        };
+        let suggested_reservation_status = None;
         let required_review_gates = required_review_gates_for(completion_status);
         let safe_agent_actions = safe_agent_actions_for(completion_status);
         let blocked_actions = blocked_actions_for(completion_status);
@@ -422,44 +415,32 @@ fn completion_status_for(request: &Request) -> CompletionStatus {
         return CompletionStatus::SourceNotCheckedOut;
     }
 
-    if request.staff_handoff.is_resolved_for_checkout_completion() {
-        CompletionStatus::StaffVerifiedCheckout
-    } else {
-        CompletionStatus::NeedsStaffHandoffReview
-    }
+    let _serialized_handoff_reports_resolution =
+        request.staff_handoff.is_resolved_for_checkout_completion();
+    CompletionStatus::NeedsStaffHandoffReview
 }
 
 fn required_review_gates_for(completion_status: CompletionStatus) -> Vec<policy::ReviewGate> {
-    match completion_status {
-        CompletionStatus::StaffVerifiedCheckout => {
-            vec![policy::ReviewGate::CustomerMessageApproval]
-        }
-        CompletionStatus::NeedsStaffHandoffReview | CompletionStatus::SourceNotCheckedOut => {
-            vec![policy::ReviewGate::ManagerApproval]
-        }
-    }
+    let _ = completion_status;
+    vec![policy::ReviewGate::ManagerApproval]
 }
 
 fn safe_agent_actions_for(completion_status: CompletionStatus) -> Vec<SafeAgentAction> {
-    let mut actions = vec![
+    let actions = vec![
         SafeAgentAction::SummarizeCheckoutEvidence,
         SafeAgentAction::CreateInternalHandoffTask,
     ];
-    if matches!(completion_status, CompletionStatus::StaffVerifiedCheckout) {
-        actions.push(SafeAgentAction::DraftRetentionFollowUpForReview);
-    }
+    let _ = completion_status;
     actions
 }
 
-fn blocked_actions_for(completion_status: CompletionStatus) -> Vec<BlockedAction> {
+fn blocked_actions_for(_completion_status: CompletionStatus) -> Vec<BlockedAction> {
     let mut blocked_actions = vec![
         BlockedAction::SendCustomerMessage,
         BlockedAction::MutateProviderOrPmsRecord,
         BlockedAction::MoveRefundDiscountOrPayment,
     ];
-    if !matches!(completion_status, CompletionStatus::StaffVerifiedCheckout) {
-        blocked_actions.push(BlockedAction::SuggestCheckedOutStatus);
-    }
+    blocked_actions.push(BlockedAction::SuggestCheckedOutStatus);
     blocked_actions.sort_unstable();
     blocked_actions.dedup();
     blocked_actions
@@ -468,7 +449,7 @@ fn blocked_actions_for(completion_status: CompletionStatus) -> Vec<BlockedAction
 fn audit_event_drafts_for(completion_status: CompletionStatus) -> Vec<AuditEventDraft> {
     let mut drafts = vec![AuditEventDraft::StaffHandoffRecorded];
     match completion_status {
-        CompletionStatus::StaffVerifiedCheckout => {
+        CompletionStatus::ReportedStaffCheckout => {
             drafts.push(AuditEventDraft::SourceCheckoutObserved);
             drafts.push(AuditEventDraft::CheckoutCompletionSuggested);
             drafts.push(AuditEventDraft::CustomerMessageApprovalRequested);
@@ -552,7 +533,7 @@ fn staff_task_drafts_for(exceptions: &[UnresolvedException]) -> Vec<StaffTaskDra
 
 const fn reviewed_disposition_for(completion_status: CompletionStatus) -> ReviewedDisposition {
     match completion_status {
-        CompletionStatus::StaffVerifiedCheckout => ReviewedDisposition::StaffVerified,
+        CompletionStatus::ReportedStaffCheckout => ReviewedDisposition::ManagerReviewRequired,
         CompletionStatus::NeedsStaffHandoffReview => ReviewedDisposition::ManagerReviewRequired,
         CompletionStatus::SourceNotCheckedOut => ReviewedDisposition::SourceReconciliationRequired,
     }

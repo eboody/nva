@@ -28,7 +28,7 @@ Allowed read inputs include:
    - Operator translation: provider facts can be cited as evidence, but the agent does not become the provider system.
 
 4. Prior outcomes and audit-friendly records.
-   - Example: manager daily brief outcome records persist action id, outcome, before/actual minutes, actor, source refs, correlation id, location/day/action/persona, and estimated minutes saved. The source map cites `storage/src/operations.rs`, `app/src/manager_daily_brief.rs`, and `docs/design/manager-daily-brief-measurable-labor-loop.md`.
+   - Example: manager daily brief outcome records persist action id, outcome, before/actual minutes, actor, source refs, correlation id, location/day/action/persona, and reported estimated minute difference. The source map cites `storage/src/operations.rs`, `app/src/manager_daily_brief.rs`, and `docs/design/manager-daily-brief-measurable-labor-loop.md`.
    - Operator translation: the system can remember what staff did with a recommendation and whether it saved time, without treating the recommendation as an executed action.
 
 5. Policy instructions and review gates.
@@ -110,7 +110,7 @@ The safety model has five control points:
 
 5. Source evidence and outcome capture make work auditable.
    - Source refs and provenance keep facts tied to their source record. Evidence: `domain/src/source.rs`.
-   - Outcome records capture what staff/manager did and how much labor was saved. Evidence: `storage/src/operations.rs`, `app/src/manager_daily_brief.rs`, and `docs/design/manager-daily-brief-measurable-labor-loop.md`.
+   - Outcome records capture what staff/manager reported doing and the reported time spent; they do not establish labor saved. Evidence: `storage/src/operations.rs`, `app/src/manager_daily_brief.rs`, and `docs/design/manager-daily-brief-measurable-labor-loop.md`.
    - Operator translation: the system can explain why a recommendation existed and whether it helped, without pretending the agent executed the result.
 
 ## Why this lowers labor cost safely
@@ -121,7 +121,7 @@ Safe labor reduction comes from:
 
 1. Less dashboard reconciliation.
    - Manager Daily Brief turns service demand, checkout exceptions, retention opportunities, and data-quality issues into a prioritized review queue. Evidence: `app/src/manager_daily_brief.rs` and `docs/design/manager-daily-brief-measurable-labor-loop.md`.
-   - Example: instead of a manager manually comparing demand and staffing dashboards, the brief can point to a demand-versus-staffing review action with source facts and estimated minutes saved.
+   - Example: instead of a manager manually comparing demand and staffing dashboards, the brief can point to a demand-versus-staffing review action with source facts and reported estimated minute difference.
 
 2. Fewer repeated handoffs.
    - Booking triage, checkout completion, CRM retention, daily update, and manager brief packets put the rationale, evidence, review gates, and blocked actions in one place. Evidence: `app/README.md`.
@@ -155,7 +155,7 @@ Do not hide these caveats in operator or product-facing material:
    - Owner decision needed: if any live-action path is desired, add a deterministic approved write contract, source evidence, review/audit behavior, and explicit operational approval before claiming it.
 
 4. Labor savings are recordable, not automatically proven.
-   - Manager Daily Brief can estimate and record minutes saved, but product claims need actual outcome records. Evidence: `storage/src/operations.rs` and `docs/design/manager-daily-brief-measurable-labor-loop.md`.
+   - Manager Daily Brief can record reported estimate differences and actual time spent, but serialized outcomes cannot establish product value claims. Evidence: `storage/src/operations.rs` and `docs/design/manager-daily-brief-measurable-labor-loop.md`.
    - Owner decision needed: define which outcome metrics NVA will accept as labor-cost evidence.
 
 ## Operator checklist

@@ -26,11 +26,12 @@ async fn insert_approval<C: GenericClient + Sync>(
             "INSERT INTO approval_records (
                 id, target_kind, target_id, gate, status,
                 requested_by_actor_kind, requested_by_actor_id, requested_at,
-                decided_by_actor_kind, decided_by_actor_id, decided_at
+                decided_by_actor_kind, decided_by_actor_id, decided_by_actor_persona, decided_at
              ) VALUES ($1, 'message', $2, 'manager_approval', $3,
                 'agent', 'agent:test', NOW(),
                 CASE WHEN $3 = 'approved' THEN 'manager' END,
                 CASE WHEN $3 = 'approved' THEN 'manager:test' END,
+                CASE WHEN $3 = 'approved' THEN 'general_manager' END,
                 CASE WHEN $3 = 'approved' THEN NOW() END)",
             &[&approval_id, &target_id, &status],
         )
@@ -47,11 +48,12 @@ async fn insert_binding<C: GenericClient + Sync>(
         .execute(
             "INSERT INTO approval_outbox_bindings (
                 approval_record_id, topic, review_gate, aggregate_kind, aggregate_id, payload,
-                authorized_by_actor_kind, authorized_by_actor_id, authorized_at
+                authorized_by_actor_kind, authorized_by_actor_id, authorized_by_actor_persona, authorized_at
              ) SELECT id, 'internal.data_quality_hygiene.reviewed_handoff', gate,
                 target_kind, target_id, $2,
                 COALESCE(decided_by_actor_kind, 'manager'),
                 COALESCE(decided_by_actor_id, 'manager:test'),
+                COALESCE(decided_by_actor_persona, 'general_manager'),
                 COALESCE(decided_at, NOW())
                FROM approval_records WHERE id = $1",
             &[&approval_id, payload],
@@ -161,6 +163,37 @@ async fn database_rejects_unapproved_mismatched_or_unbound_handoffs() {
     let approval_id = insert_approval(&transaction, "approved", target_id)
         .await
         .expect("approved record inserts");
+
+    transaction
+        .batch_execute("SAVEPOINT mismatched_persona_binding_case")
+        .await
+        .expect("savepoint starts");
+    let mismatched_persona = transaction
+        .execute(
+            "INSERT INTO approval_outbox_bindings (
+                approval_record_id, topic, review_gate, aggregate_kind, aggregate_id, payload,
+                authorized_by_actor_kind, authorized_by_actor_id, authorized_by_actor_persona,
+                authorized_at
+             ) SELECT id, 'internal.data_quality_hygiene.reviewed_handoff', gate,
+                target_kind, target_id, $2, decided_by_actor_kind, decided_by_actor_id,
+                'front_desk_lead', decided_at
+               FROM approval_records WHERE id = $1",
+            &[&approval_id, &payload],
+        )
+        .await
+        .expect_err("reviewer persona drift cannot issue authority");
+    assert!(
+        mismatched_persona
+            .as_db_error()
+            .expect("database rejection has detail")
+            .message()
+            .contains("matching approved decision authority")
+    );
+    transaction
+        .batch_execute("ROLLBACK TO SAVEPOINT mismatched_persona_binding_case")
+        .await
+        .expect("failed statement is isolated");
+
     insert_binding(&transaction, approval_id, &payload)
         .await
         .expect("matching binding inserts");
@@ -319,6 +352,29 @@ async fn database_rejects_authority_identity_updates_and_deletes() {
     );
     transaction
         .batch_execute("ROLLBACK TO SAVEPOINT approval_decision_update_case")
+        .await
+        .expect("failed statement is isolated");
+
+    transaction
+        .batch_execute("SAVEPOINT approval_persona_update_case")
+        .await
+        .expect("savepoint starts");
+    let persona_update = transaction
+        .execute(
+            "UPDATE approval_records SET decided_by_actor_persona = 'assistant_general_manager' WHERE id = $1",
+            &[&approval_id],
+        )
+        .await
+        .expect_err("decision persona cannot drift after binding");
+    assert!(
+        persona_update
+            .as_db_error()
+            .expect("database rejection has detail")
+            .message()
+            .contains("cannot change approval after")
+    );
+    transaction
+        .batch_execute("ROLLBACK TO SAVEPOINT approval_persona_update_case")
         .await
         .expect("failed statement is isolated");
 

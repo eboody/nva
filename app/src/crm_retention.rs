@@ -107,6 +107,8 @@ pub enum IneligibilityReason {
     SuppressionFlagRequiresReview,
     /// Explains that CRM notes, segment membership, or campaign evidence was rejected, expired, or operations-only and therefore cannot justify marketing copy.
     NoAcceptedMarketingEvidence,
+    /// Historical consent claims exist, but no opaque accepted-consent authority was issued by an authenticated source adapter.
+    AcceptedConsentAuthorityUnavailable,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -166,9 +168,11 @@ pub enum SuppressionFlag {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Review status applied to CRM notes, segment membership, and other retention evidence before it may personalize marketing drafts.
+/// Historical review-status claim observed on CRM notes or segment evidence.
+///
+/// This serializable value never constitutes accepted marketing authority.
 pub enum EvidenceReviewStatus {
-    /// Evidence was reviewed and may be used to personalize a review-only follow-up draft.
+    /// Source history reports acceptance; authenticated promotion is still required.
     Accepted,
     /// Evidence was reviewed and rejected as unsuitable for personalization or recommendation.
     Rejected,
@@ -181,8 +185,9 @@ pub enum EvidenceReviewStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 /// Reviewed attribution class that correlates a retention recommendation/action to a staff-observed outcome without claiming unsupported value.
 pub enum ReviewedOutcomeClassification {
-    /// Staff or system-of-record evidence confirms a booked service after an accepted reviewed recommendation.
-    RecoveredBooking,
+    /// Staff or system-of-record evidence records a later booking correlated to the recommendation.
+    /// This is temporal evidence, not authority to attribute the booking as recovered value.
+    CorrelatedBookingObservation,
     /// The recommendation produced no reviewed booking or remains deferred/suppressed/wrong-source.
     NoActionOutcome,
 }
@@ -243,7 +248,7 @@ pub struct OpportunityEvidence {
     reason_code: SourceGroundedReasonCode,
     summary: EvidenceSummary,
     provenance: source::Provenance,
-    #[builder(default = EvidenceReviewStatus::Accepted)]
+    #[builder(default = EvidenceReviewStatus::OperationsOnly)]
     review_status: EvidenceReviewStatus,
 }
 
@@ -268,9 +273,12 @@ impl OpportunityEvidence {
         self.review_status
     }
 
-    /// Reports whether this evidence may be used for a customer-visible marketing draft after human review.
+    /// Reports whether this serializable history independently authorizes marketing use.
+    ///
+    /// Historical review labels cannot mint accepted evidence, so this is deliberately
+    /// false until an opaque, authenticated promotion authority is integrated.
     pub const fn can_drive_marketing_draft(&self) -> bool {
-        matches!(self.review_status, EvidenceReviewStatus::Accepted)
+        false
     }
 }
 
@@ -344,23 +352,10 @@ impl ContactPermission {
     }
 
     fn retention_draft_channel(&self) -> Option<message::Channel> {
-        if !matches!(self.marketing_consent, ConsentStatus::Granted) {
-            return None;
-        }
-        if matches!(self.preferred_channel, message::Channel::Internal) {
-            return None;
-        }
-        self.allowed_channels
-            .contains(&self.preferred_channel)
-            .then_some(self.preferred_channel)
-    }
-
-    fn denial_reason(&self) -> IneligibilityReason {
-        match self.marketing_consent {
-            ConsentStatus::Granted => IneligibilityReason::PreferredChannelNotAllowed,
-            ConsentStatus::Missing => IneligibilityReason::ContactConsentMissing,
-            ConsentStatus::OptedOut => IneligibilityReason::ContactOptedOut,
-        }
+        // `ConsentStatus::Granted` and source refs are historical observations. They
+        // cannot substitute for domain::consent::AcceptedConsent, whose production
+        // issuer is intentionally unavailable until an authenticated source adapter exists.
+        None
     }
 }
 
@@ -628,54 +623,11 @@ impl Workflow {
 }
 
 fn eligibility_for(
-    request: &Request,
-    draft_channel: Option<message::Channel>,
+    _request: &Request,
+    _draft_channel: Option<message::Channel>,
 ) -> FollowUpEligibility {
-    if !matches!(
-        request.checkout_packet.completion_status(),
-        checkout_completion::CompletionStatus::StaffVerifiedCheckout
-    ) {
-        return FollowUpEligibility::Ineligible {
-            reason: IneligibilityReason::CheckoutNotStaffVerified,
-        };
-    }
-
-    if request.opportunities.is_empty() {
-        return FollowUpEligibility::Ineligible {
-            reason: IneligibilityReason::NoSourceGroundedOpportunity,
-        };
-    }
-
-    if !request.suppression_flags.is_empty() {
-        return FollowUpEligibility::Ineligible {
-            reason: IneligibilityReason::SuppressionFlagRequiresReview,
-        };
-    }
-
-    if !request
-        .opportunities
-        .iter()
-        .any(|opportunity| opportunity.evidence().can_drive_marketing_draft())
-    {
-        return FollowUpEligibility::Ineligible {
-            reason: IneligibilityReason::NoAcceptedMarketingEvidence,
-        };
-    }
-
-    if draft_channel.is_none() {
-        return FollowUpEligibility::Ineligible {
-            reason: request.contact_permission.denial_reason(),
-        };
-    }
-
-    if !request.contact_permission.has_source_evidence() {
-        return FollowUpEligibility::Ineligible {
-            reason: IneligibilityReason::ContactPermissionNotSourceGrounded,
-        };
-    }
-
-    FollowUpEligibility::Eligible {
-        reason: EligibilityReason::SourceGroundedRetentionOpportunity,
+    FollowUpEligibility::Ineligible {
+        reason: IneligibilityReason::CheckoutNotStaffVerified,
     }
 }
 
@@ -794,7 +746,7 @@ impl OutcomeRecord {
                     }
             )
         {
-            ReviewedOutcomeClassification::RecoveredBooking
+            ReviewedOutcomeClassification::CorrelatedBookingObservation
         } else {
             ReviewedOutcomeClassification::NoActionOutcome
         }

@@ -115,7 +115,7 @@ A safe overlay must separate the five proof layers below. Sibling pages can copy
 | Draft/recommendation produced | `AgentPromptPacket`, `StaffEvaluationPacket`, `BriefAction`, draft id/body ref, internal task id, safe action list, output schema, validation result. | Reviewable work product was prepared and constrained. | Customer/provider/payment/schedule action happened. |
 | Human approval/decision | Review gate, approval status, reviewer/actor/persona, timestamp, decision reason, approval record target/status. | The named role reviewed the target and accepted/rejected/deferred/suppressed/escalated it. | Permission for unrelated future actions or broader automation authority. |
 | Live action elsewhere, if any | Source-system action id, send stub/status, payment/provider receipt, staff-entered outcome, approved runtime log. | A separate approved path or human/system performed the downstream action. | That the agent had direct authority; this page does not create that authority. |
-| Durable outcome/value record | Disposition, feedback, actual minutes, before/after minutes, minutes saved/avoided, actor, owner persona, source refs, data-quality findings, correlation id, reporting group. | What reviewed work happened and how labor value was measured. | Guaranteed ROI, revenue lift, or future savings without more records. |
+| Durable outcome/value record | Disposition, feedback, actual minutes, before/after minutes, reported time spent or estimate differences, actor, owner persona, source refs, data-quality findings, correlation id, reporting group. | What reviewed work happened and how labor value was measured. | Guaranteed ROI, revenue lift, or future savings without more records. |
 
 Minimum outcome/audit evidence fields for this repo’s overlays:
 
@@ -125,9 +125,9 @@ Minimum outcome/audit evidence fields for this repo’s overlays:
 - requested side effects and validation result;
 - `live_side_effects_allowed: false`, `outcome_persisted: false`, or equivalent rejection proof where present;
 - approval status, reviewer/actor/persona, timestamp, and decision reason;
-- disposition, feedback, actual minutes, before/after minutes, minutes saved or avoided, wrong-source findings, and reporting dimensions.
+- disposition, feedback, actual minutes, before/after minutes, reported time spent or estimate differences, wrong-source findings, and reporting dimensions.
 
-For labor value, use measured phrasing: “this outcome record captured 12 actual minutes against 45 before minutes” or “the loop measures minutes saved after review.” Do not say “the agent saved ROI” or “automation reduced labor cost” unless outcome records across the relevant population support that claim. Estimates can prioritize queues; actual minutes and dispositions measure value.
+For labor value, use measured phrasing: “this outcome record captured 12 actual minutes against 45 before minutes” or “the loop measures reported time difference after review.” Do not say “the agent saved ROI” or “automation reduced labor cost” unless outcome records across the relevant population support that claim. Estimates can prioritize queues; actual minutes and dispositions measure value.
 
 ## 10. Entity/action examples: evidence vs draft vs approval vs outcome
 
@@ -135,7 +135,7 @@ For labor value, use measured phrasing: “this outcome record captured 12 actua
 | --- | --- | --- | --- | --- |
 | Vaccine-pending booking triage | Reservation/pet/policy/vaccine evidence refs and deterministic failure code. | Staff evaluation packet and clearer-proof request draft. | Medical/vaccine qualified staff reviews proof; customer-message reviewer approves owner-facing wording. | Approval status, reviewer, document/source refs, blocked confirmation/send/provider/payment actions, staff disposition and minutes. |
 | Demand-versus-staffing manager brief | Operating-day service-demand facts, labor/schedule source facts, source refs and data-quality flags. | Ranked manager action with labor estimate. | Manager/general manager reviews schedule/capacity/staffing implication. | `OutcomeRecord` / `ManagerDailyBriefOutcomeRecord`: action id, manager actor/persona, before/actual minutes, source refs, correlation id, disposition. |
-| Retention or grooming follow-up draft | Completed stay/grooming history, contact permission, consent/channel, source refs, suppression reasons. | Customer-message draft and follow-up queue item. | Customer-message reviewer/approved sender; manager if discount/complaint/policy exception is involved. | Draft id/body ref, approval status, send/suppression disposition, no payment/discount/schedule/provider mutation, minutes saved in queue/draft work. |
+| Retention or grooming follow-up draft | Completed stay/grooming history, contact permission, consent/channel, source refs, suppression reasons. | Customer-message draft and follow-up queue item. | Customer-message reviewer/approved sender; manager if discount/complaint/policy exception is involved. | Draft id/body ref, approval status, send/suppression disposition, no payment/discount/schedule/provider mutation, reported time difference in queue/draft work. |
 | Source-data duplicate or stale vaccine issue | Source refs/provenance, duplicate candidates or stale evidence, data-quality issue severity/kind. | Internal cleanup task or data-quality hygiene draft. | Staff/front-desk lead for routine cleanup; manager for high-impact source ambiguity; medical reviewer for vaccine validity; IT/product for provider write-back mode. | Issue refs, blocked provider mutation/source hiding reasons, actor/reviewer, disposition, actual minutes, wrong-source or corrected-source finding. |
 | Payment/deposit exception | Payment/deposit status, provider receipt/ref, policy snapshot, amount/duplicate ambiguity. | Accounting review packet and customer-message draft if needed. | Payment/accounting, manager for exception, customer-message reviewer for any owner text. | Payment ref, `RefundOrDepositException`, reviewer, blocked money-movement reason until approved payment path, disposition and minutes. |
 | Tool-port external failure | Scoped port request/result, external failure resource, correlation id, source refs. | Integration-failure task or retry review packet. | IT/security for retry/scope/logging/secrets; product/ops for capability expansion. | Failure record/task id, blocked side effect, security/product decision, disposition, no silent unsafe retry. |
@@ -172,6 +172,6 @@ Before a sibling overlay reuses this page, verify:
 - Does it say what that role approves and what the role does not approve?
 - Are source evidence, draft/recommendation, human approval, live action elsewhere, and durable outcome record separate?
 - Are blocked actions precise enough to prove what automation did not do?
-- Does the outcome proof include source refs/provenance, review gates, blocked action reasons, draft/task/action ids, approval status, reviewer/actor, disposition, actual minutes, minutes saved/avoided, data-quality findings, and `live_side_effects_allowed` where present?
+- Does the outcome proof include source refs/provenance, review gates, blocked action reasons, draft/task/action ids, approval status, reviewer/actor, disposition, actual minutes, reported time spent or estimate differences, data-quality findings, and `live_side_effects_allowed` where present?
 - Are labor-value claims phrased as measured outcome evidence, not unsupported ROI?
 - Are all source links local/current and treated as evidence rather than broad implementation inventory?

@@ -130,7 +130,7 @@
         {
           "crate": "app",
           "path": "app/tests/site_finance_workflow_contracts.rs",
-          "test": "value_claim_support_does_not_imply_workflow_approval_or_payment_authority",
+          "test": "serialized_value_evidence_does_not_imply_claim_approval_or_payment_authority",
           "covers": "current_acceptance"
         },
         {
@@ -237,7 +237,7 @@
         {
           "crate": "pet-resort-api",
           "path": "apps/api/tests/health_contract.rs",
-          "test": "permissioned_knowledge_context_returns_cited_redacted_packet_after_authorization",
+          "test": "permissioned_knowledge_context_fails_closed_without_authenticated_document_authority",
           "covers": "current_acceptance"
         }
       ],

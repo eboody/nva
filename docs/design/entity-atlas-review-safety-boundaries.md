@@ -244,12 +244,12 @@ An agent spec is the job description and rule sheet for a bounded automation hel
 
 ### Outcome capture / audit evidence
 
-Outcome capture records what staff did with a recommendation and whether labor was actually saved. Audit evidence records why the recommendation existed and what was blocked, accepted, or rejected.
+Outcome capture records staff-reported disposition and time evidence for a recommendation. It does not establish realized labor savings. Audit evidence records why the recommendation existed and what was blocked, accepted, or rejected.
 
 - Source/Rustdoc: `domain::workflow::Result`; workflow outcome records; storage operation projections; API outcome capture tests.
 - Allowed: record disposition, actual minutes, actor/persona, source refs, issue refs, feedback, and correlation ID.
-- Blocked: do not claim realized labor savings without an outcome record; do not persist outcomes for unknown action IDs or blocked side-effect requests.
-- Evidence: outcome record ID/action ID, actual minutes, estimated-vs-actual comparison, actor, timestamp, correlation ID, and blocked side-effect list.
+- Blocked: serialized outcome records never authorize realized labor-savings claims; do not persist outcomes for unknown action IDs or blocked side-effect requests.
+- Evidence: outcome record ID/action ID, reported actual minutes spent, reported estimate differences, actor, timestamp, correlation ID, and blocked side-effect list.
 
 ## 11. Examples and non-examples
 
@@ -280,6 +280,6 @@ Before publishing or reusing this family page, verify:
 
 - Does every customer, provider, payment, schedule, staff, medical, behavior, incident, or policy-sensitive action have a named blocked action or review gate?
 - Does the page say “draft/recommend/route/record” instead of implying execution?
-- Does every labor-savings claim point to outcome fields rather than intention?
+- Does every serialized outcome remain explicitly nonclaimable instead of being presented as labor-savings authority?
 - Are source paths current? The source-evidence map notes that older architecture drafts use stale names such as `domain/src/agents.rs`, `domain/src/tools.rs`, and `AutomationLevel`; current citations should use `app/src/agents.rs`, `app/src/tools.rs`, `domain/src/agent.rs`, and `domain::policy::automation::Level` unless the code changes.
 - Is there evidence that a blocked action was not executed unsafely, such as validation rejection, `live_side_effects_allowed: false`, `outcome_persisted: false`, no requested side effects, or an approval/audit record?

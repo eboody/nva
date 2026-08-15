@@ -52,13 +52,9 @@ impl Plan {
         &self.gates
     }
 
-    /// Summarizes whether the plan is ready for check-in or blocked by review gates.
-    pub fn readiness(&self) -> Readiness {
-        if self.gates.is_empty() {
-            Readiness::ReadyForCheckIn
-        } else {
-            Readiness::Blocked
-        }
+    /// Serializable care-plan history always remains blocked until authenticated acceptance.
+    pub const fn readiness(&self) -> Readiness {
+        Readiness::Blocked
     }
 }
 

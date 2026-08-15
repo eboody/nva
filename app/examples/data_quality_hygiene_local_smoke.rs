@@ -19,7 +19,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let packet = data_quality_hygiene::Workflow::evaluate(request);
     assert_eq!(packet.workflow(), data_quality_hygiene::WORKFLOW_NAME);
     assert!(packet.all_actions_are_source_grounded());
-    assert!(packet.minutes_saved() > 0);
+    assert!(packet.reported_estimated_minutes_difference() > 0);
     assert!(
         packet
             .blocked_actions()
@@ -34,10 +34,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     println!(
-        "context_ok workflow={} actions={} estimated_minutes_saved={} live_side_effects_allowed=false",
+        "context_ok workflow={} actions={} reported_estimated_minutes_difference={} claimable=false live_side_effects_allowed=false",
         packet.workflow(),
         packet.actions().len(),
-        packet.minutes_saved()
+        packet.reported_estimated_minutes_difference()
     );
 
     let action = packet
@@ -88,7 +88,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build()?;
 
     assert!(outcome.records_feedback_without_external_mutation());
-    assert!(outcome.actual_minutes_saved() > 0);
+    assert!(!outcome.labor_minutes_are_claimable());
     assert!(
         outcome
             .blocked_actions()
@@ -96,9 +96,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "outcome capture must not authorize provider/PMS mutation"
     );
     println!(
-        "outcome_ok estimated_minutes_saved={} actual_minutes_saved={} live_side_effects_allowed=false",
-        packet.minutes_saved(),
-        outcome.actual_minutes_saved()
+        "outcome_ok reported_estimated_minutes_difference={} reported_actual_minutes_spent={} claimable=false live_side_effects_allowed=false",
+        packet.reported_estimated_minutes_difference(),
+        outcome.actual_minutes().get()
     );
 
     Ok(())
@@ -148,7 +148,7 @@ fn source_provenance() -> Result<source::Provenance, Box<dyn std::error::Error>>
 }
 
 fn location_id() -> entities::LocationId {
-    entities::LocationId(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0001))
+    entities::LocationId::new(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0001))
 }
 
 fn operating_day() -> operations::operating_day::Date {

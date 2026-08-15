@@ -79,7 +79,7 @@ impl VaccineDocumentState {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 struct VaccineDocumentStore {
     documents: BTreeMap<Uuid, DocumentRecord>,
     extractions: BTreeMap<Uuid, VaccineExtractionRecord>,
@@ -273,10 +273,8 @@ struct ProductLaborMetricsPayload {
 #[derive(Debug, Serialize)]
 struct LaborOutcomeRollupPayload {
     metric_source: &'static str,
-    outcome_count: usize,
-    completed_count: usize,
-    total_estimated_minutes_saved: u16,
-    completed_actual_minutes_saved: u16,
+    reviewed_outcome_count: usize,
+    reported_actual_minutes_spent: u16,
 }
 
 #[derive(Debug, Serialize)]
@@ -313,7 +311,7 @@ fn api_dto_contract_payload(workflow: &'static str) -> Value {
     json!(api_dto_contract(workflow))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct VaccineDocumentUploadRequest {
     pet_id: Uuid,
@@ -324,7 +322,7 @@ struct VaccineDocumentUploadRequest {
     uploaded_by_staff_id: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct VaccineReviewDecisionRequest {
     reviewed_by_staff_id: String,
@@ -457,7 +455,7 @@ where
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct InquirySubmissionRequest {
     source_event_key: String,
@@ -476,7 +474,7 @@ struct InquirySubmissionRequest {
     simulated_conversion: Option<InquirySimulatedConversionRequest>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct InquiryCustomerRequest {
     full_name: String,
@@ -484,21 +482,21 @@ struct InquiryCustomerRequest {
     phone: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct InquiryPetRequest {
     name: String,
     species: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct InquiryDateWindowRequest {
     start: String,
     end: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct InquiryContactAttemptRequest {
     attempted_at: DateTime<Utc>,
@@ -508,7 +506,7 @@ struct InquiryContactAttemptRequest {
     message_ref: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct InquirySimulatedConversionRequest {
     reservation_id: String,
@@ -516,7 +514,7 @@ struct InquirySimulatedConversionRequest {
     attribution_source: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Clone, Serialize)]
 struct InquiryIntakeRecord {
     api_contract: public_contract::ApiContractMetadata,
     event: InquiryEvent,
@@ -550,14 +548,14 @@ struct InquiryIntakeRecord {
     audit_events: Vec<InquiryAuditEvent>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Clone, Serialize)]
 struct InquiryEvent {
     event_type: &'static str,
     source_event_key: String,
     location_id: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Clone, Serialize)]
 struct ParsedInquiryLead {
     customer_name: String,
     customer_email: Option<String>,
@@ -571,13 +569,13 @@ struct ParsedInquiryLead {
     review_status: &'static str,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Clone, Serialize)]
 struct ParsedInquiryDateWindow {
     start: String,
     end: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Clone, Serialize)]
 struct InquiryDraftReply {
     status: &'static str,
     live_send_allowed: bool,
@@ -585,7 +583,7 @@ struct InquiryDraftReply {
     body: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Clone, Serialize)]
 struct InquiryTask {
     kind: &'static str,
     status: &'static str,
@@ -593,20 +591,20 @@ struct InquiryTask {
     review_gate: &'static str,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Clone, Serialize)]
 struct InquiryAuditEvent {
     action: &'static str,
     actor_kind: &'static str,
     subject_key: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Serialize)]
 struct InquiryStaffQueuePayload {
     api_contract: public_contract::ApiContractMetadata,
     records: Vec<InquiryIntakeRecord>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Clone, Serialize)]
 struct VaccineDocumentWorkflowPayload {
     api_contract: public_contract::ApiContractMetadata,
     document: DocumentRecord,
@@ -618,7 +616,7 @@ struct VaccineDocumentWorkflowPayload {
     audit_events: Vec<AuditEvent>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Clone, Serialize)]
 struct DocumentRecord {
     id: Uuid,
     pet_id: Uuid,
@@ -637,7 +635,7 @@ struct DocumentRecord {
     verification_status: &'static str,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Clone, Serialize)]
 struct VaccineExtractionRecord {
     id: Uuid,
     document_id: Uuid,
@@ -651,7 +649,7 @@ struct VaccineExtractionRecord {
     raw_text_ref: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Clone, Serialize)]
 struct VaccineRecord {
     id: Uuid,
     pet_id: Uuid,
@@ -663,7 +661,7 @@ struct VaccineRecord {
     review_gate: &'static str,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Clone, Serialize)]
 struct ReviewPacket {
     id: Uuid,
     document_id: Uuid,
@@ -673,7 +671,7 @@ struct ReviewPacket {
     uncertainty: &'static str,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Clone, Serialize)]
 struct ApprovalRecord {
     id: Uuid,
     review_packet_id: Uuid,
@@ -686,7 +684,7 @@ struct ApprovalRecord {
     reason: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Clone, Serialize)]
 struct PetEligibility {
     pet_id: Uuid,
     rabies_current: bool,
@@ -694,7 +692,7 @@ struct PetEligibility {
     status: &'static str,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Clone, Serialize)]
 struct AuditEvent {
     action: &'static str,
     actor_kind: &'static str,
@@ -878,6 +876,10 @@ fn router_with_authentication(
         )
         .route(
             "/manager-daily-brief/actions/{action_id}/outcome",
+            post(capture_manager_daily_brief_action_outcome),
+        )
+        .route(
+            "/v0/manager-daily-brief/actions/{action_id}/outcome",
             post(capture_manager_daily_brief_action_outcome),
         )
         .route(
@@ -1214,7 +1216,7 @@ async fn source_quality_backlog(
 
     let repository = storage::workflow_repository::PostgresSourceQualityBacklog::new(database_url);
     match repository
-        .prioritized_items_for_location(entities::LocationId(location_id))
+        .prioritized_items_for_location(entities::LocationId::new(location_id))
         .await
     {
         Ok(records) => (
@@ -1290,7 +1292,7 @@ async fn run_information_lifespan_demo(
     if let Err(rejection) = authentication::authorize_source_ingest(
         &authentication,
         authentication::Mutation::InformationLifespanDemo,
-        local_data_quality_hygiene_location_id().0,
+        local_data_quality_hygiene_location_id().get(),
     ) {
         return (
             rejection.status_code(),
@@ -1335,7 +1337,7 @@ async fn replay_information_lifespan_report(
     if let Err(rejection) = authentication::authorize_read(
         &authentication,
         authentication::Read::InformationLifespanReport,
-        Some(local_data_quality_hygiene_location_id().0),
+        Some(local_data_quality_hygiene_location_id().get()),
         None,
     ) {
         return PublicApiError::new(
@@ -1412,7 +1414,7 @@ fn information_lifespan_processor_fallback(
             "runtime_status": "processor_artifact_unavailable_to_api"
         },
         "calculations": {
-            "estimated_labor_minutes_saved": 42
+            "reported_estimated_labor_minutes_difference": 42
         },
         "final_report": {
             "artifact_ref": "artifact://manager-daily-report/synthetic-2026-06-29",
@@ -1531,7 +1533,7 @@ async fn ops_metrics_summary(
     if let Err(rejection) = authentication::authorize_read(
         &authentication,
         authentication::Read::OperationalMetrics,
-        Some(local_data_quality_hygiene_location_id().0),
+        Some(local_data_quality_hygiene_location_id().get()),
         None,
     ) {
         return PublicApiError::new(
@@ -1597,52 +1599,28 @@ async fn ops_metrics_summary(
 fn manager_daily_brief_labor_rollup(
     records: &[storage::operations::ManagerDailyBriefOutcomeRecord],
 ) -> LaborOutcomeRollupPayload {
-    let mut completed_count = 0;
-    let mut total_estimated_minutes_saved = 0u16;
-    let mut completed_actual_minutes_saved = 0u16;
-
-    for record in records {
-        total_estimated_minutes_saved =
-            total_estimated_minutes_saved.saturating_add(record.estimated_minutes_saved);
-        if record.outcome == storage::operations::ManagerDailyBriefOutcomeCode::Completed {
-            completed_count += 1;
-            completed_actual_minutes_saved =
-                completed_actual_minutes_saved.saturating_add(record.actual_minutes_saved());
-        }
-    }
+    let reported_actual_minutes_spent = records.iter().fold(0u16, |total, record| {
+        total.saturating_add(record.actual_minutes.get())
+    });
 
     LaborOutcomeRollupPayload {
         metric_source: "manager_daily_brief_outcome_records",
-        outcome_count: records.len(),
-        completed_count,
-        total_estimated_minutes_saved,
-        completed_actual_minutes_saved,
+        reviewed_outcome_count: records.len(),
+        reported_actual_minutes_spent,
     }
 }
 
 fn data_quality_hygiene_labor_rollup(
     records: &[storage::operations::DataQualityHygieneOutcomeRecord],
 ) -> LaborOutcomeRollupPayload {
-    let mut completed_count = 0;
-    let mut total_estimated_minutes_saved = 0u16;
-    let mut completed_actual_minutes_saved = 0u16;
-
-    for record in records {
-        total_estimated_minutes_saved =
-            total_estimated_minutes_saved.saturating_add(record.estimated_minutes_saved);
-        if record.outcome == storage::operations::DataQualityHygieneOutcomeCode::Completed {
-            completed_count += 1;
-            completed_actual_minutes_saved =
-                completed_actual_minutes_saved.saturating_add(record.actual_minutes_saved());
-        }
-    }
+    let reported_actual_minutes_spent = records.iter().fold(0u16, |total, record| {
+        total.saturating_add(record.actual_minutes.get())
+    });
 
     LaborOutcomeRollupPayload {
         metric_source: "data_quality_hygiene_outcome_records",
-        outcome_count: records.len(),
-        completed_count,
-        total_estimated_minutes_saved,
-        completed_actual_minutes_saved,
+        reviewed_outcome_count: records.len(),
+        reported_actual_minutes_spent,
     }
 }
 
@@ -1701,10 +1679,23 @@ async fn submit_inquiry(
     Authenticated(authentication): Authenticated,
     Json(request): Json<InquirySubmissionRequest>,
 ) -> axum::response::Response {
+    let Some(location_id) = Uuid::parse_str(&request.location_id)
+        .ok()
+        .and_then(|location_id| entities::LocationId::try_new(location_id).ok())
+    else {
+        return PublicApiError::new(
+            ErrorKind::Validation {
+                details: Vec::new(),
+            },
+            ErrorContext::new("missing_request_id"),
+        )
+        .with_public_code("invalid_location_id")
+        .into_response();
+    };
     if let Err(rejection) = authentication::authorize_source_ingest(
         &authentication,
         authentication::Mutation::InquiryIntake,
-        Uuid::parse_str(&request.location_id).unwrap_or(Uuid::nil()),
+        location_id.get(),
     ) {
         return PublicApiError::new(rejection.into(), ErrorContext::new("missing_request_id"))
             .into_response();
@@ -1806,40 +1797,60 @@ struct ManagerDailyBriefSubmittedAction {
     requested_side_effects: Vec<String>,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ManagerDailyBriefOutcomeCaptureRequest {
-    outcome: storage::operations::ManagerDailyBriefOutcomeCode,
-    actual_minutes: u16,
-    actor: ManagerDailyBriefOutcomeActorRequest,
-    feedback: String,
-    #[serde(default)]
-    source_refs: Vec<public_contract::SourceRecordRef>,
-    timestamp: String,
-    audit: ManagerDailyBriefOutcomeAuditRequest,
-    reporting: ManagerDailyBriefOutcomeReportingRequest,
-    #[serde(default)]
-    requested_side_effects: Vec<String>,
+type ManagerDailyBriefOutcomeCaptureRequest =
+    public_contract::ManagerDailyBriefOutcomeCaptureRequest;
+
+fn manager_daily_brief_payload_fingerprint(
+    action_id: &str,
+    request: &ManagerDailyBriefOutcomeCaptureRequest,
+) -> String {
+    let mut canonical_payload =
+        serde_json::to_value(request).expect("public outcome DTO serializes infallibly");
+    canonical_payload
+        .as_object_mut()
+        .expect("public outcome DTO serializes as an object")
+        .remove("idempotency_key");
+    canonical_payload["action_id"] = Value::String(action_id.to_owned());
+    let bytes = serde_json::to_vec(&canonical_payload)
+        .expect("canonical public outcome payload serializes infallibly");
+    format!("{:x}", Sha256::digest(bytes))
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ManagerDailyBriefOutcomeActorRequest {
-    id: String,
-    persona: storage::operations::ManagerDailyBriefPersonaCode,
+fn manager_daily_brief_idempotency_conflict_payload() -> Value {
+    merge_error_envelope(
+        json!({
+            "api_contract": api_dto_contract_payload("manager_daily_brief_outcome"),
+            "accepted": false,
+            "outcome_persisted": false,
+            "live_side_effects_allowed": false,
+            "blocked_actions": manager_daily_brief_blocked_action_codes()
+        }),
+        PublicApiError::new(
+            ErrorKind::IdempotencyConflict,
+            ErrorContext::new("missing_request_id"),
+        ),
+    )
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ManagerDailyBriefOutcomeAuditRequest {
-    correlation_id: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ManagerDailyBriefOutcomeReportingRequest {
-    location_id: String,
-    operating_day: String,
+fn manager_daily_brief_validation_payload(reasons: Vec<String>) -> Value {
+    let details = reasons
+        .iter()
+        .map(|reason| public_contract::ErrorDetail::field("request".to_owned(), reason.clone()))
+        .collect();
+    merge_error_envelope(
+        json!({
+            "api_contract": api_dto_contract_payload("manager_daily_brief_outcome"),
+            "accepted": false,
+            "outcome_persisted": false,
+            "reasons": reasons,
+            "live_side_effects_allowed": false,
+            "blocked_actions": manager_daily_brief_blocked_action_codes()
+        }),
+        PublicApiError::new(
+            ErrorKind::Validation { details },
+            ErrorContext::new("missing_request_id"),
+        ),
+    )
 }
 
 #[derive(Debug, Deserialize)]
@@ -1890,6 +1901,18 @@ async fn capture_manager_daily_brief_action_outcome(
         );
     }
 
+    let idempotency_key_digest = format!(
+        "{:x}",
+        Sha256::digest(request.idempotency_key.expose_for_fingerprint().as_bytes())
+    );
+    let idempotency_key =
+        storage::workflow_repository::IdempotencyKey::try_new(idempotency_key_digest)
+            .expect("SHA-256 idempotency digest is non-empty");
+    let payload_fingerprint = storage::workflow_repository::OperationFingerprint::try_new(
+        manager_daily_brief_payload_fingerprint(&action_id, &request),
+    )
+    .expect("SHA-256 semantic payload fingerprint is non-empty");
+
     let reasons = request
         .requested_side_effects
         .iter()
@@ -1899,41 +1922,40 @@ async fn capture_manager_daily_brief_action_outcome(
     if !reasons.is_empty() {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({
-                "accepted": false,
-                "outcome_persisted": false,
-                "reasons": reasons,
-                "live_side_effects_allowed": false,
-                "blocked_actions": manager_daily_brief_blocked_action_codes()
-            })),
+            Json(manager_daily_brief_validation_payload(reasons)),
         );
     }
 
     if request.source_refs.is_empty() {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({
-                "accepted": false,
-                "outcome_persisted": false,
-                "reasons": ["missing_source_refs"],
-                "live_side_effects_allowed": false,
-                "blocked_actions": manager_daily_brief_blocked_action_codes()
-            })),
+            Json(manager_daily_brief_validation_payload(vec![
+                "missing_source_refs".to_owned(),
+            ])),
         );
     }
 
-    let Ok(actual_minutes) =
-        storage::operations::StoredManagerDailyBriefLaborMinutes::try_new(request.actual_minutes)
+    let Ok(actual_minutes) = storage::operations::StoredManagerDailyBriefLaborMinutes::try_new(
+        request.actual_minutes.get(),
+    ) else {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(manager_daily_brief_validation_payload(vec![
+                "actual_minutes_must_be_greater_than_zero".to_owned(),
+            ])),
+        );
+    };
+
+    let Ok(actor_persona) = request
+        .actor
+        .persona
+        .parse::<storage::operations::ManagerDailyBriefPersonaCode>()
     else {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({
-                "accepted": false,
-                "outcome_persisted": false,
-                "reasons": ["actual_minutes_must_be_greater_than_zero"],
-                "live_side_effects_allowed": false,
-                "blocked_actions": manager_daily_brief_blocked_action_codes()
-            })),
+            Json(manager_daily_brief_validation_payload(vec![
+                "unsupported_actor_persona".to_owned(),
+            ])),
         );
     };
 
@@ -1942,17 +1964,13 @@ async fn capture_manager_daily_brief_action_outcome(
     else {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({
-                "accepted": false,
-                "outcome_persisted": false,
-                "reasons": ["invalid_reporting_scope"],
-                "live_side_effects_allowed": false,
-                "blocked_actions": manager_daily_brief_blocked_action_codes()
-            })),
+            Json(manager_daily_brief_validation_payload(vec![
+                "invalid_reporting_scope".to_owned(),
+            ])),
         );
     };
 
-    if let Err(rejection) = authentication::authorize_location(&authentication, location_id.0) {
+    if let Err(rejection) = authentication::authorize_location(&authentication, location_id.get()) {
         return (
             rejection.status_code(),
             Json(authorization_error_payload(
@@ -1971,13 +1989,9 @@ async fn capture_manager_daily_brief_action_outcome(
     else {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({
-                "accepted": false,
-                "outcome_persisted": false,
-                "reasons": ["unknown_manager_daily_brief_action_id"],
-                "live_side_effects_allowed": false,
-                "blocked_actions": manager_daily_brief_blocked_action_codes()
-            })),
+            Json(manager_daily_brief_validation_payload(vec![
+                "unknown_manager_daily_brief_action_id".to_owned(),
+            ])),
         );
     };
 
@@ -1985,13 +1999,9 @@ async fn capture_manager_daily_brief_action_outcome(
     if request.source_refs != expected_source_refs {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({
-                "accepted": false,
-                "outcome_persisted": false,
-                "reasons": ["source_refs_do_not_match_action"],
-                "live_side_effects_allowed": false,
-                "blocked_actions": manager_daily_brief_blocked_action_codes()
-            })),
+            Json(manager_daily_brief_validation_payload(vec![
+                "source_refs_do_not_match_action".to_owned(),
+            ])),
         );
     }
 
@@ -2006,7 +2016,7 @@ async fn capture_manager_daily_brief_action_outcome(
         .before_minutes(before_minutes)
         .actual_minutes(actual_minutes)
         .actor_id(request.actor.id)
-        .actor_persona(request.actor.persona)
+        .actor_persona(actor_persona)
         .feedback(request.feedback)
         .source_refs(
             expected_source_refs
@@ -2014,26 +2024,59 @@ async fn capture_manager_daily_brief_action_outcome(
                 .map(stored_source_record_ref_from_payload)
                 .collect(),
         )
-        .recorded_at(request.timestamp)
-        .correlation_id(request.audit.correlation_id)
-        .location_id(location_id.0.to_string())
+        .recorded_at(
+            request
+                .timestamp
+                .to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true),
+        )
+        .correlation_id(
+            request
+                .audit
+                .correlation_id
+                .expose_for_fingerprint()
+                .to_owned(),
+        )
+        .location_id(location_id.get().to_string())
         .operating_day(operating_day.get().to_string())
         .action_kind(stored_manager_daily_brief_action_kind(action.kind()))
         .owner_persona(stored_manager_daily_brief_persona(action.owner_persona()))
-        .estimated_minutes_saved(action.labor_impact().minutes_saved())
+        .reported_estimated_minutes_difference(
+            action
+                .labor_impact()
+                .reported_estimated_minutes_difference(),
+        )
         .build();
     let reporting_group = record.reporting_group();
-    let persisted_outcome_count = {
+    let idempotent_result = {
         let mut store = state.store.lock().await;
-        store.manager_daily_brief_outcomes.record(record.clone())
+        store.manager_daily_brief_outcomes.record_idempotently(
+            idempotency_key,
+            payload_fingerprint,
+            record.clone(),
+        )
+    };
+    let (status, persisted_outcome_count, idempotent_replay) = match idempotent_result {
+        storage::workflow_repository::IdempotentRecord::Recorded { retained_count } => {
+            (StatusCode::CREATED, retained_count, false)
+        }
+        storage::workflow_repository::IdempotentRecord::Replay { retained_count } => {
+            (StatusCode::OK, retained_count, true)
+        }
+        storage::workflow_repository::IdempotentRecord::Conflict => {
+            return (
+                StatusCode::CONFLICT,
+                Json(manager_daily_brief_idempotency_conflict_payload()),
+            );
+        }
     };
 
     (
-        StatusCode::CREATED,
+        status,
         Json(json!({
             "api_contract": api_dto_contract_payload("manager_daily_brief_outcome"),
             "accepted": true,
             "outcome_persisted": true,
+            "idempotent_replay": idempotent_replay,
             "outcome_record": {
                 "action_id": record.action_id,
                 "outcome": record.outcome,
@@ -2050,9 +2093,9 @@ async fn capture_manager_daily_brief_action_outcome(
                     "correlation_id": record.correlation_id
                 }
             },
-            "labor_savings_evidence": {
-                "estimated_minutes_saved": record.estimated_minutes_saved,
-                "actual_minutes_saved": record.actual_minutes_saved(),
+            "reported_labor_evidence": {
+                "reported_estimated_minutes_difference": record.reported_estimated_minutes_difference,
+                "reported_actual_minutes_spent": record.actual_minutes.get(),
                 "grouping": {
                     "location_id": reporting_group.location_id,
                     "operating_day": reporting_group.operating_day,
@@ -2079,7 +2122,7 @@ async fn submit_manager_daily_brief_agent_draft(
         &authentication,
         authentication::Mutation::ManagerDailyBriefDraft,
         &request.submitted_by,
-        local_data_quality_hygiene_location_id().0,
+        local_data_quality_hygiene_location_id().get(),
     ) {
         return (
             rejection.status_code(),
@@ -2171,7 +2214,7 @@ async fn data_quality_hygiene_agent_context(
         )
         .into_response();
     }
-    let location_id = entities::LocationId(query.location_id);
+    let location_id = entities::LocationId::new(query.location_id);
     let operating_day = operations::operating_day::Date::try_new(query.operating_day)
         .expect("operating day date is always valid after query parsing");
     let packet = local_data_quality_hygiene_packet(location_id, operating_day);
@@ -2207,7 +2250,7 @@ async fn permissioned_knowledge_agent_context(
         )
         .role(role)
         .title(access::Title::try_new("Fixture Knowledge Actor").unwrap())
-        .location_id(entities::LocationId(query.location_id))
+        .location_id(entities::LocationId::new(query.location_id))
         .purpose(agent::assistant::Purpose::SopLookup)
         .allowed_uses(vec![access::AllowedUse::InternalDecisionSupport])
         .build();
@@ -2218,7 +2261,7 @@ async fn permissioned_knowledge_agent_context(
         .requested_at(Utc.with_ymd_and_hms(2026, 8, 12, 15, 0, 0).unwrap())
         .build();
     let packet = app::permissioned_knowledge::Workflow::answer(
-        &app::permissioned_knowledge::DeterministicFixtureRepository::default(),
+        &app::permissioned_knowledge::DeterministicFixtureRepository,
         request,
     );
     let correlation_id = format!(
@@ -2276,7 +2319,7 @@ async fn site_finance_agent_context(
     if let Err(rejection) = authentication::authorize_read(
         &authentication,
         authentication::Read::SiteFinance,
-        Some(local_data_quality_hygiene_location_id().0),
+        Some(local_data_quality_hygiene_location_id().get()),
         None,
     ) {
         return PublicApiError::new(
@@ -2336,8 +2379,8 @@ async fn site_finance_agent_context(
                 "audit_event_id": audit_event_id
             },
             "outcome": {
-                "strong_attribution_claimable": slice.strong_outcome().can_support_value_claim(),
-                "weak_attribution_claimable": slice.weak_outcome().can_support_value_claim()
+                "reviewed_action_evidence_claimable": slice.reviewed_action_evidence_outcome().can_support_value_claim(),
+                "correlated_evidence_claimable": slice.correlated_evidence_outcome().can_support_value_claim()
             },
             "safety": {
                 "live_side_effects_allowed": false,
@@ -2376,7 +2419,7 @@ async fn submit_data_quality_hygiene_agent_draft(
     if let Err(rejection) = authentication::authorize_source_ingest(
         &authentication,
         authentication::Mutation::DataQualityHygieneDraft,
-        local_data_quality_hygiene_location_id().0,
+        local_data_quality_hygiene_location_id().get(),
     ) {
         return (
             rejection.status_code(),
@@ -2493,7 +2536,7 @@ async fn capture_data_quality_hygiene_action_outcome(
         &authentication,
         authentication::Mutation::DataQualityHygieneOutcome,
         request.actor().id(),
-        local_data_quality_hygiene_location_id().0,
+        local_data_quality_hygiene_location_id().get(),
     )
     .and_then(|()| {
         authentication::authorize_persona_claim(&authentication, request.actor().persona().as_str())
@@ -2676,13 +2719,21 @@ async fn capture_data_quality_hygiene_action_outcome(
         .resolution_status_after_review(stored_data_quality_resolution_status(
             request.resolution_status_after_review(),
         ))
-        .recorded_at(request.timestamp().to_owned())
+        .recorded_at(
+            request
+                .timestamp()
+                .to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true),
+        )
         .correlation_id(request.audit().correlation_id().to_owned())
-        .location_id(packet.location_id().0.to_string())
+        .location_id(packet.location_id().get().to_string())
         .operating_day(packet.operating_day().get().to_string())
         .action_kind(stored_data_quality_hygiene_action_kind(action.kind()))
         .owner_persona(stored_data_quality_hygiene_persona(action.owner_persona()))
-        .estimated_minutes_saved(action.labor_impact().minutes_saved())
+        .reported_estimated_minutes_difference(
+            action
+                .labor_impact()
+                .reported_estimated_minutes_difference(),
+        )
         .build();
     let reporting_group = record.reporting_group();
     let local_persistence_records =
@@ -2741,9 +2792,9 @@ async fn capture_data_quality_hygiene_action_outcome(
                     "correlation_id": record.correlation_id
                 }
             },
-            "labor_savings_evidence": {
-                "estimated_minutes_saved": record.estimated_minutes_saved,
-                "actual_minutes_saved": record.actual_minutes_saved(),
+            "reported_labor_evidence": {
+                "reported_estimated_minutes_difference": record.reported_estimated_minutes_difference,
+                "reported_actual_minutes_spent": record.actual_minutes.get(),
                 "grouping": {
                     "location_id": reporting_group.location_id,
                     "operating_day": reporting_group.operating_day,
@@ -2926,7 +2977,6 @@ fn validate_manager_daily_brief_submitted_action(
                 &source_ref.system,
                 &source_ref.record_type,
                 &source_ref.record_id,
-                &source_ref.observed_at,
                 &source_ref.adapter_version,
             ]
             .iter()
@@ -3012,14 +3062,11 @@ fn manager_daily_brief_requested_side_effect_rejection_reason(side_effect: &str)
 }
 
 fn manager_daily_brief_reporting_scope(
-    reporting: &ManagerDailyBriefOutcomeReportingRequest,
+    reporting: &public_contract::ManagerDailyBriefOutcomeReporting,
 ) -> Option<(entities::LocationId, operations::operating_day::Date)> {
-    let location_id = Uuid::parse_str(&reporting.location_id).ok()?;
-    let operating_day = NaiveDate::parse_from_str(&reporting.operating_day, "%Y-%m-%d").ok()?;
-
     Some((
-        entities::LocationId(location_id),
-        operations::operating_day::Date::try_new(operating_day).ok()?,
+        entities::LocationId::try_new(reporting.location_id).ok()?,
+        operations::operating_day::Date::try_new(reporting.operating_day).ok()?,
     ))
 }
 
@@ -3028,7 +3075,7 @@ fn manager_daily_brief_packet_from_context_id(
 ) -> Option<manager_daily_brief::Packet> {
     let scope = context_packet_id.strip_prefix("manager-daily-brief-context:")?;
     let (location_id, operating_day) = scope.rsplit_once(':')?;
-    let location_id = entities::LocationId(Uuid::parse_str(location_id).ok()?);
+    let location_id = entities::LocationId::try_new(Uuid::parse_str(location_id).ok()?).ok()?;
     let operating_day = operations::operating_day::Date::try_new(
         NaiveDate::parse_from_str(operating_day, "%Y-%m-%d").ok()?,
     )
@@ -3123,7 +3170,7 @@ async fn manager_daily_brief_agent_context(
         )
         .into_response();
     }
-    let location_id = entities::LocationId(query.location_id);
+    let location_id = entities::LocationId::new(query.location_id);
     let operating_day = operations::operating_day::Date::try_new(query.operating_day)
         .expect("operating day date is always valid after query parsing");
     let service_demand_facts =
@@ -3216,7 +3263,7 @@ async fn manager_daily_brief_agent_context(
         "labor_impact": {
             "before_minutes": packet.before_minutes().get(),
             "after_minutes": packet.after_minutes().get(),
-            "minutes_saved": packet.minutes_saved()
+            "reported_estimated_minutes_difference": packet.reported_estimated_minutes_difference()
         },
         "audit": {
             "context_packet_id": format!("manager-daily-brief-context:{}:{}", query.location_id, query.operating_day),
@@ -3236,7 +3283,7 @@ async fn upload_vaccine_document(
         &authentication,
         authentication::Mutation::VaccineDocumentUpload,
         &request.uploaded_by_staff_id,
-        local_manager_daily_brief_location_id().0,
+        local_manager_daily_brief_location_id().get(),
     ) {
         return (
             rejection.status_code(),
@@ -3384,7 +3431,7 @@ async fn decide_vaccine_document(
         &authentication,
         authentication::Mutation::VaccineReviewDecision,
         &request.reviewed_by_staff_id,
-        local_manager_daily_brief_location_id().0,
+        local_manager_daily_brief_location_id().get(),
     ) {
         return (
             rejection.status_code(),
@@ -3976,12 +4023,6 @@ fn service_demand_fact_payload(fact: &analytics::service_demand::Fact) -> Value 
 
 fn checkout_exception_payload(scoped: &manager_daily_brief::ScopedCheckoutPacket) -> Option<Value> {
     let packet = scoped.packet();
-    if matches!(
-        packet.completion_status(),
-        checkout_completion::CompletionStatus::StaffVerifiedCheckout
-    ) {
-        return None;
-    }
     Some(json!({
         "reservation_id": format!("{:?}", packet.reservation_id()),
         "completion_status": checkout_completion_status_code(packet.completion_status()),
@@ -4024,7 +4065,7 @@ fn manager_brief_action_payload(
         "labor_impact": {
             "before_minutes": action.labor_impact().before_minutes().get(),
             "after_minutes": action.labor_impact().after_minutes().get(),
-            "minutes_saved": action.labor_impact().minutes_saved()
+            "reported_estimated_minutes_difference": action.labor_impact().reported_estimated_minutes_difference()
         }
     })
 }
@@ -4084,7 +4125,7 @@ fn source_record_ref_contract(
         system: source_system_code(record_ref.system()).to_owned(),
         record_type: provenance.endpoint().as_str().to_owned(),
         record_id: record_ref.record_id().as_str().to_owned(),
-        observed_at: provenance.pulled_at().get().to_rfc3339(),
+        observed_at: *provenance.pulled_at().get(),
         adapter_version: provenance.schema_version().as_str().to_owned(),
     }
 }
@@ -4102,7 +4143,11 @@ fn manager_daily_brief_action_source_refs(
                     system: source_system_code(record_ref.system()).to_owned(),
                     record_type: source_fact_kind_code(fact.kind()).to_owned(),
                     record_id: record_ref.record_id().as_str().to_owned(),
-                    observed_at: format!("{}T00:00:00Z", operating_day.get()),
+                    observed_at: operating_day
+                        .get()
+                        .and_hms_opt(0, 0, 0)
+                        .expect("valid operating day has midnight")
+                        .and_utc(),
                     adapter_version: "nva-local-manager-daily-brief-fixture-v1".to_owned(),
                 }
             })
@@ -4195,7 +4240,7 @@ fn data_quality_hygiene_packet_payload(
             name: packet.workflow().to_owned(),
             version: packet.schema_version().to_owned(),
         },
-        location_id: packet.location_id().0.to_string(),
+        location_id: packet.location_id().get().to_string(),
         operating_day: packet.operating_day().get().to_string(),
         prepared_for: data_quality_hygiene_persona_code(packet.prepared_for()).to_owned(),
         candidates: packet
@@ -4218,10 +4263,10 @@ fn data_quality_hygiene_packet_payload(
             .iter()
             .map(|action| data_quality_hygiene_blocked_action_code(*action).to_owned())
             .collect(),
-        labor_savings_estimate: public_contract::LaborSavingsEstimate {
+        reported_labor_estimate_evidence: public_contract::ReportedLaborEstimateEvidence {
             before_minutes: packet.before_minutes().get(),
             after_minutes: packet.after_minutes().get(),
-            estimated_minutes_saved: packet.minutes_saved(),
+            reported_estimated_minutes_difference: packet.reported_estimated_minutes_difference(),
         },
         live_side_effects_allowed: false,
         audit: public_contract::WorkflowAudit {
@@ -4302,10 +4347,12 @@ fn data_quality_hygiene_action_payload(
             .iter()
             .map(|gate| review_gate_code(gate).to_owned())
             .collect(),
-        labor_impact: public_contract::LaborSavingsEstimate {
+        labor_impact: public_contract::ReportedLaborEstimateEvidence {
             before_minutes: action.labor_impact().before_minutes().get(),
             after_minutes: action.labor_impact().after_minutes().get(),
-            estimated_minutes_saved: action.labor_impact().minutes_saved(),
+            reported_estimated_minutes_difference: action
+                .labor_impact()
+                .reported_estimated_minutes_difference(),
         },
         live_side_effects_allowed: false,
     }
@@ -4395,7 +4442,11 @@ fn stored_source_record_ref_from_payload(
         .system(value.system.clone())
         .record_type(value.record_type.clone())
         .record_id(value.record_id.clone())
-        .observed_at(value.observed_at.clone())
+        .observed_at(
+            value
+                .observed_at
+                .to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true),
+        )
         .adapter_version(value.adapter_version.clone())
         .build()
 }
@@ -4657,8 +4708,8 @@ fn data_quality_hygiene_safe_action_code(
         data_quality_hygiene::SafeAgentAction::PreserveAmbiguityForReview => {
             "preserve_ambiguity_for_review"
         }
-        data_quality_hygiene::SafeAgentAction::EstimateReconciliationMinutesSaved => {
-            "estimate_reconciliation_minutes_saved"
+        data_quality_hygiene::SafeAgentAction::ReportReconciliationEstimateDifference => {
+            "report_reconciliation_estimate_difference"
         }
     }
 }
@@ -4685,15 +4736,15 @@ fn data_quality_hygiene_blocked_action_code(
 }
 
 fn local_manager_daily_brief_location_id() -> entities::LocationId {
-    entities::LocationId(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0001))
+    entities::LocationId::new(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0001))
 }
 
 fn local_manager_daily_brief_customer_id() -> entities::CustomerId {
-    entities::CustomerId(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0099))
+    entities::CustomerId::new(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0099))
 }
 
 fn local_manager_daily_brief_reservation_id() -> entities::reservation::Id {
-    entities::reservation::Id(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0042))
+    entities::reservation::Id::new(Uuid::from_u128(0x00c0_ffee_0000_0000_0000_0000_0000_0042))
 }
 
 fn local_manager_daily_brief_operating_day() -> operations::operating_day::Date {
@@ -4873,7 +4924,7 @@ fn service_demand_data_quality_status_code(
 
 fn checkout_completion_status_code(status: checkout_completion::CompletionStatus) -> &'static str {
     match status {
-        checkout_completion::CompletionStatus::StaffVerifiedCheckout => "staff_verified_checkout",
+        checkout_completion::CompletionStatus::ReportedStaffCheckout => "reported_staff_checkout",
         checkout_completion::CompletionStatus::NeedsStaffHandoffReview => {
             "needs_staff_handoff_review"
         }
@@ -4899,8 +4950,8 @@ fn safe_agent_action_code(action: &manager_daily_brief::SafeAgentAction) -> &'st
         manager_daily_brief::SafeAgentAction::RankManagerActions => "rank_manager_actions",
         manager_daily_brief::SafeAgentAction::DraftInternalTaskForReview => "draft_internal_tasks",
         manager_daily_brief::SafeAgentAction::RecordManagerFeedback => "record_manager_feedback",
-        manager_daily_brief::SafeAgentAction::EstimateLaborMinutesSaved => {
-            "estimate_labor_minutes_saved"
+        manager_daily_brief::SafeAgentAction::ReportLaborEstimateDifference => {
+            "report_labor_estimate_difference"
         }
     }
 }
@@ -4908,7 +4959,7 @@ fn safe_agent_action_code(action: &manager_daily_brief::SafeAgentAction) -> &'st
 fn manager_daily_brief_blocked_action_codes() -> Vec<&'static str> {
     manager_daily_brief::Workflow::evaluate(
         manager_daily_brief::Request::builder()
-            .location_id(entities::LocationId(Uuid::nil()))
+            .location_id(entities::LocationId::new(uuid::Uuid::from_u128(1)))
             .operating_day(
                 operations::operating_day::Date::try_new(
                     NaiveDate::from_ymd_opt(2026, 1, 1).expect("static date is valid"),

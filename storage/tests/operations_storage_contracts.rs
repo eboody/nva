@@ -84,6 +84,32 @@ fn service_offering_records_reject_cross_variant_storage_shapes() {
 }
 
 #[test]
+fn grooming_service_offering_records_losslessly_roundtrip_every_cadence_kind() {
+    let cadences = [
+        domain::grooming::rebooking::Cadence::EveryWeeks(
+            domain::grooming::rebooking::CadenceWeeks::try_new(6).unwrap(),
+        ),
+        domain::grooming::rebooking::Cadence::AsNeeded,
+        domain::grooming::rebooking::Cadence::GroomerRecommended,
+        domain::grooming::rebooking::Cadence::Unknown,
+    ];
+
+    for cadence in cadences {
+        let offering = domain::operations::ServiceOffering::Grooming {
+            service: domain::grooming::Service::FullGroom,
+            cadence,
+        };
+        let stored: storage::operations::ServiceOfferingRecord =
+            offering.clone().try_into().unwrap();
+        let encoded = stored.encode_json().unwrap();
+        let decoded = storage::operations::ServiceOfferingRecord::decode_json(&encoded).unwrap();
+        let restored: domain::operations::ServiceOffering = decoded.try_into().unwrap();
+
+        assert_eq!(restored, offering);
+    }
+}
+
+#[test]
 fn operations_reexports_narrow_legacy_storage_compatibility_names() {
     let _: storage::operations::StoredCadenceWeeksError =
         storage::service_line::grooming::StoredCadenceWeeksError::ZeroWeeks;

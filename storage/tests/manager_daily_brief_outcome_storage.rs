@@ -1,11 +1,11 @@
 use strum::VariantArray;
 
 #[test]
-fn crm_retention_outcome_records_roundtrip_recovered_booking_and_no_action_correlation() {
-    let recovered = crm_retention_record(
+fn crm_retention_outcome_records_roundtrip_booking_observation_and_no_action_evidence() {
+    let booking_observation = crm_retention_record(
         "crm-retention:reservation-42:accepted",
-        storage::operations::CrmRetentionOutcomeCode::RecoveredBooking,
-        storage::operations::CrmRetentionReviewedOutcomeClassificationCode::RecoveredBooking,
+        storage::operations::CrmRetentionOutcomeCode::BookingObservedAfterRecommendation,
+        storage::operations::CrmRetentionReviewedOutcomeClassificationCode::CorrelatedBookingObservation,
         "crm-segment-retention-42",
     );
     let no_action = crm_retention_record(
@@ -16,23 +16,23 @@ fn crm_retention_outcome_records_roundtrip_recovered_booking_and_no_action_corre
     );
 
     let decoded = storage::operations::CrmRetentionOutcomeRecord::decode_json(
-        &recovered.encode_json().unwrap(),
+        &booking_observation.encode_json().unwrap(),
     )
     .unwrap();
-    assert_eq!(decoded, recovered);
+    assert_eq!(decoded, booking_observation);
     assert_eq!(decoded.source_refs.len(), 1);
     assert_eq!(decoded.recommendation_id, "retention-action-reservation-42");
     assert_eq!(decoded.review_packet_id, "retention-review-packet-42");
 
     let summary = storage::operations::CrmRetentionOutcomeSummary::from_records(
-        &[recovered, no_action],
+        &[booking_observation, no_action],
         "00c0ffee-0000-0000-0000-000000000001",
         "2026-06-17",
         None,
     );
 
     assert_eq!(summary.reviewed_outcome_count, 2);
-    assert_eq!(summary.recovered_booking_count, 1);
+    assert_eq!(summary.correlated_booking_observation_count, 1);
     assert_eq!(summary.no_action_outcome_count, 1);
     assert_eq!(summary.source_refs.len(), 2);
     assert_eq!(
@@ -45,7 +45,7 @@ fn crm_retention_outcome_records_roundtrip_recovered_booking_and_no_action_corre
 }
 
 #[test]
-fn manager_daily_brief_outcome_records_roundtrip_labor_savings_evidence() {
+fn manager_daily_brief_outcome_records_roundtrip_nonclaimable_reported_labor_evidence() {
     let record = storage::operations::ManagerDailyBriefOutcomeRecord::builder()
         .action_id("checkout-exception-reservation-4242".to_owned())
         .outcome(storage::operations::ManagerDailyBriefOutcomeCode::Completed)
@@ -75,7 +75,7 @@ fn manager_daily_brief_outcome_records_roundtrip_labor_savings_evidence() {
         .operating_day("2026-06-17".to_owned())
         .action_kind(storage::operations::ManagerDailyBriefActionKindCode::ResolveCheckoutException)
         .owner_persona(storage::operations::ManagerDailyBriefPersonaCode::FrontDeskLead)
-        .estimated_minutes_saved(12)
+        .reported_estimated_minutes_difference(12)
         .build();
 
     let encoded = record.encode_json().unwrap();
@@ -88,7 +88,6 @@ fn manager_daily_brief_outcome_records_roundtrip_labor_savings_evidence() {
         serialized["schema_version"],
         "manager_daily_brief_outcome.v0"
     );
-    assert_eq!(decoded.actual_minutes_saved(), 8);
     assert_eq!(
         decoded.reporting_group().location_id,
         "00c0ffee-0000-0000-0000-000000000001"
@@ -143,7 +142,7 @@ fn manager_daily_brief_capacity_labor_outcome_records_roundtrip_reviewed_recomme
         .operating_day("2026-06-17".to_owned())
         .action_kind(storage::operations::ManagerDailyBriefActionKindCode::ReviewCapacityLaborRecommendation)
         .owner_persona(storage::operations::ManagerDailyBriefPersonaCode::GeneralManager)
-        .estimated_minutes_saved(32)
+        .reported_estimated_minutes_difference(32)
         .build();
 
     let decoded = storage::operations::ManagerDailyBriefOutcomeRecord::decode_json(
@@ -152,7 +151,6 @@ fn manager_daily_brief_capacity_labor_outcome_records_roundtrip_reviewed_recomme
     .unwrap();
 
     assert_eq!(decoded, record);
-    assert_eq!(decoded.actual_minutes_saved(), 32);
     assert_eq!(decoded.source_refs.len(), 2);
     assert_eq!(
         decoded.reporting_group().action_kind,
@@ -172,7 +170,7 @@ fn site_finance_outcome_records_roundtrip_review_audit_and_claimability_links() 
         .review_packet_id("site-finance-review:00c0ffee:2026-06".to_owned())
         .audit_event_id("audit:site-finance-review:00c0ffee:2026-06".to_owned())
         .legal_action("record_reviewed_recommendation_only".to_owned())
-        .value_attribution(storage::operations::SiteFinanceValueAttribution::ReviewedAction)
+        .value_attribution(storage::operations::SiteFinanceValueAttribution::ReportedReviewedAction)
         .workflow_completion(storage::operations::SiteFinanceWorkflowCompletion::Completed)
         .manager_approval(
             storage::operations::SiteFinanceManagerApproval::approved_by_manager(
@@ -184,7 +182,6 @@ fn site_finance_outcome_records_roundtrip_review_audit_and_claimability_links() 
                 "00c0ffee-0000-0000-0000-000000000001".to_owned(),
             ),
         )
-        .can_support_value_claim(true)
         .currency("usd".to_owned())
         .net_revenue_minor_units(159_000)
         .variance_minor_units(9_000)
@@ -214,7 +211,7 @@ fn site_finance_outcome_records_roundtrip_review_audit_and_claimability_links() 
         "audit:site-finance-review:00c0ffee:2026-06"
     );
     assert_eq!(decoded.legal_action, "record_reviewed_recommendation_only");
-    assert!(decoded.can_support_value_claim);
+    assert!(!decoded.can_support_value_claim());
     assert_eq!(decoded.source_refs.len(), 1);
 }
 
@@ -250,10 +247,54 @@ fn manager_daily_brief_outcome_records_reject_zero_labor_minutes_at_storage_boun
         "operating_day":"2026-06-17",
         "action_kind":"resolve_checkout_exception",
         "owner_persona":"front_desk_lead",
-        "estimated_minutes_saved":12
+        "reported_estimated_minutes_difference":12
     }"#;
 
     assert!(storage::operations::ManagerDailyBriefOutcomeRecord::decode_json(raw).is_err());
+}
+
+#[test]
+fn manager_daily_brief_outcome_json_rejects_malformed_source_provenance() {
+    let raw = serde_json::json!({
+        "schema_version": "manager_daily_brief_outcome.v0",
+        "action_id": "source-validation-contract",
+        "outcome": "completed",
+        "before_minutes": 10,
+        "actual_minutes": 5,
+        "actor_id": "manager-1",
+        "actor_persona": "general_manager",
+        "feedback": "",
+        "source_refs": [{
+            "system": "gingr",
+            "record_type": "reservation",
+            "record_id": "reservation-42",
+            "observed_at": "2026-06-17T12:00:00Z",
+            "adapter_version": "gingr-v1"
+        }],
+        "recorded_at": "2026-06-17T13:15:00Z",
+        "correlation_id": "source-validation-contract",
+        "location_id": "00c0ffee-0000-0000-0000-000000000001",
+        "operating_day": "2026-06-17",
+        "action_kind": "investigate_source_data_quality_issue",
+        "owner_persona": "general_manager",
+        "reported_estimated_minutes_difference": 5
+    });
+
+    for (field, malformed) in [
+        ("system", serde_json::json!("invented_provider")),
+        ("record_type", serde_json::json!("")),
+        ("record_id", serde_json::json!("")),
+        ("observed_at", serde_json::json!("not-a-timestamp")),
+        ("adapter_version", serde_json::json!("UNSTABLE VERSION")),
+    ] {
+        let mut candidate = raw.clone();
+        candidate["source_refs"][0][field] = malformed;
+
+        storage::operations::ManagerDailyBriefOutcomeRecord::decode_json(
+            &serde_json::to_string(&candidate).unwrap(),
+        )
+        .expect_err(field);
+    }
 }
 
 fn crm_retention_record(

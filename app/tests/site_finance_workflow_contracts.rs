@@ -5,7 +5,7 @@ use app::site_finance;
 use domain::{analytics, entities, money, policy, source};
 
 #[test]
-fn source_backed_site_finance_recommendation_reaches_review_action_and_claimable_outcome() {
+fn source_backed_site_finance_recommendation_reaches_review_action_without_claim_authority() {
     let slice = site_finance::fixture_site_period_projection().expect("fixture builds");
 
     assert_eq!(
@@ -27,15 +27,27 @@ fn source_backed_site_finance_recommendation_reaches_review_action_and_claimable
     );
     assert!(!slice.action().allows_financial_mutation());
     assert_eq!(slice.action().source_record_refs().len(), 2);
-    assert!(slice.strong_outcome().can_support_value_claim());
-    assert!(!slice.weak_outcome().can_support_value_claim());
+    assert!(
+        !slice
+            .reviewed_action_evidence_outcome()
+            .can_support_value_claim()
+    );
+    assert!(
+        !slice
+            .correlated_evidence_outcome()
+            .can_support_value_claim()
+    );
 }
 
 #[test]
-fn value_claim_support_does_not_imply_workflow_approval_or_payment_authority() {
+fn serialized_value_evidence_does_not_imply_claim_approval_or_payment_authority() {
     let slice = site_finance::fixture_site_period_projection().expect("fixture builds");
 
-    assert!(slice.strong_outcome().can_support_value_claim());
+    assert!(
+        !slice
+            .reviewed_action_evidence_outcome()
+            .can_support_value_claim()
+    );
     assert_eq!(
         slice.recommendation().required_review_gate(),
         policy::ReviewGate::ManagerApproval
@@ -112,11 +124,11 @@ fn site_period(
 }
 
 fn location_id() -> entities::LocationId {
-    entities::LocationId(Uuid::from_u128(0x00c0ffee000000000000000000000001))
+    entities::LocationId::new(Uuid::from_u128(0x00c0ffee000000000000000000000001))
 }
 
 fn other_location_id() -> entities::LocationId {
-    entities::LocationId(Uuid::from_u128(0x00c0ffee000000000000000000000002))
+    entities::LocationId::new(Uuid::from_u128(0x00c0ffee000000000000000000000002))
 }
 
 fn source_refs(suffix: &str) -> Vec<source::RecordRef> {

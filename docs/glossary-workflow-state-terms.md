@@ -140,19 +140,19 @@ Audience:
   Resort leaders, operations/product stakeholders, compliance reviewers, and maintainers.
 
 Where it appears:
-  `README.md` names outcome capture as a labor-cost surface. `app/README.md` lists outcome records in the app draft/outcome family. `app/src/manager_daily_brief.rs` defines `OutcomeRecord` with action id, actor, outcome, before/actual minutes, blocked actions, source refs, correlation id, and related manager-brief dimensions. `storage/src/operations.rs` defines durable manager-daily-brief outcome projection fields. `docs/safety/source-evidence-map.md` says labor-minute savings should be cited only with outcome records.
+  `README.md` names outcome capture as a labor-cost surface. `app/README.md` lists outcome records in the app draft/outcome family. `app/src/manager_daily_brief.rs` defines `OutcomeRecord` with action id, actor, outcome, before/actual minutes, blocked actions, source refs, correlation id, and related manager-brief dimensions. `storage/src/operations.rs` defines durable manager-daily-brief outcome projection fields. `docs/safety/source-evidence-map.md` says reported labor-minute evidence should be cited only with outcome records.
 
 Code-derived contract:
-  Outcome capture records feedback about a reviewed workflow action: who recorded it, what outcome was selected, which source/action it ties to, and the before/actual labor-minute evidence used to estimate savings. It preserves blocked-action boundaries and source refs while creating durable evidence for reporting or audit.
+  Outcome capture records feedback about a reviewed workflow action: who recorded it, what outcome was selected, which source/action it ties to, and the reported before/actual labor-minute evidence. It preserves blocked-action boundaries and source refs as nonclaimable reporting or audit evidence; it does not calculate realized savings.
 
 Pet-resort operational meaning:
-  Outcome capture closes the loop after a draft, recommendation, or manager action: did staff complete it, skip it, escalate it, or find it inapplicable, and how much manual work was actually avoided? It turns a recommendation into reviewable operational evidence.
+  Outcome capture closes the loop after a draft, recommendation, or manager action: did staff report completing it, skip it, escalate it, or find it inapplicable, and how much time was reported spent? It turns a recommendation into reviewable, nonclaimable operational evidence.
 
 Why an operator should care:
   Outcome capture separates estimated value from observed value. It helps leaders learn which automations reduce dashboard reconciliation and front-desk/manager handoffs, while preserving who reviewed the work and what source facts supported it.
 
 What not to infer:
-  Do not infer that outcome capture performs the underlying action, proves ROI by itself, or retroactively authorizes a side effect. Labor savings are evidence-captured measurements or estimates, not guaranteed results without reviewed records.
+  Do not infer that outcome capture performs the underlying action, proves ROI, or retroactively authorizes a side effect. Reported estimates and time spent remain nonclaimable evidence even after review.
 
 Boundary and authority:
   `app` owns workflow outcome-record shapes and validation around feedback. `storage` owns durable projections/records. Neither layer grants authority to mutate provider systems, send messages, move payments, or override review gates.
@@ -161,7 +161,7 @@ Evidence and review hooks:
   Cite `app/src/manager_daily_brief.rs`, `storage/src/operations.rs`, `docs/design/manager-daily-brief-measurable-labor-loop.md`, `docs/design/labor-cost-reduction-crosswalk.md`, and `docs/safety/source-evidence-map.md`. For API behavior, cite `apps/api/tests/manager_daily_brief_outcome_capture_contract.rs` when discussing tested routes.
 
 Suggested public wording:
-  Outcome capture records what happened after a reviewed workflow recommendation—who handled it, which action it ties to, and what labor minutes were actually saved. It measures reviewed work; it does not perform the work or authorize live changes.
+  Outcome capture records what was reported after a reviewed workflow recommendation—who handled it, which action it ties to, and the reported time spent. It does not establish labor saved, perform the work, or authorize live changes.
 
 Related terms:
   `draft`, `workflow packet`, `blocked action`, `manager_daily_brief::OutcomeRecord`, `storage::operations::ManagerDailyBriefOutcomeRecord`, `domain::source::RecordRef`.

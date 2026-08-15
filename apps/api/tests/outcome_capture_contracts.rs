@@ -58,7 +58,9 @@ async fn manager_daily_brief_outcome_capture_requires_source_refs_before_storage
                         "source_refs": [],
                         "timestamp": "2026-06-17T12:00:00Z",
                         "audit": {"correlation_id": "manager-daily-brief:test"},
-                        "reporting": {"location_id": location_id, "operating_day": operating_day}
+                        "reporting": {"location_id": location_id, "operating_day": operating_day},
+                        "requested_side_effects": [],
+                        "idempotency_key": "manager-daily-brief:test:missing-source-refs"
                     })
                     .to_string(),
                 ))

@@ -12,12 +12,43 @@ use uuid::Uuid;
 
 use crate::{entities, workflow};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Stable identifier for an auditable operational event.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+/// Stable non-nil identifier for an auditable operational event.
 ///
 /// Use this id to correlate the source fact, workflow decision, review gate, and resulting staff or
 /// customer action without inventing undocumented authority after the fact.
-pub struct EventId(pub Uuid);
+pub struct EventId(Uuid);
+
+impl EventId {
+    /// Constructs an audit identity, panicking when handed the forbidden nil sentinel.
+    #[track_caller]
+    pub fn new(value: Uuid) -> Self {
+        Self::try_new(value).expect("audit identity UUID must be non-nil")
+    }
+
+    /// Validates an audit identity at an untrusted boundary.
+    pub const fn try_new(value: Uuid) -> Result<Self, entities::NilIdentityError> {
+        if value.is_nil() {
+            Err(entities::NilIdentityError)
+        } else {
+            Ok(Self(value))
+        }
+    }
+
+    /// Returns the validated UUID.
+    pub const fn get(self) -> Uuid {
+        self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for EventId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Self::try_new(Uuid::deserialize(deserializer)?).map_err(serde::de::Error::custom)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Audit event capturing actor, subject, action, timestamp, and metadata evidence.

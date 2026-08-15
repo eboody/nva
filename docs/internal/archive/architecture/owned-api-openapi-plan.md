@@ -170,7 +170,7 @@ Minimum Data-Quality Hygiene schemas:
 | `DraftValidationResult` | `status`, `safe_error_class`, `reasons`, `blocked_actions`, `review_required` |
 | `DataQualityHygieneOutcomeCaptureRequest` | `outcome`, `actual_minutes`, `actor`, `feedback`, `source_refs`, `issue_refs`, `resolution_status_after_review`, `timestamp`, `audit`, `requested_side_effects`, optional `idempotency_key` |
 | `DataQualityHygieneOutcomeCaptureResponse` | `metadata`, `outcome_record`, `audit_refs`, `summary_ref`, `live_side_effects_allowed=false` |
-| `DataQualityHygieneOutcomeRecord` | `outcome_record_id`, `action_id`, `outcome`, `actual_minutes`, `estimated_minutes_saved`, `actual_minutes_saved`, `actor`, `feedback_summary`, `source_refs`, `issue_refs`, `resolution_status_after_review`, `location_id`, `operating_day`, `correlation_id`, `recorded_at` |
+| `DataQualityHygieneOutcomeRecord` | `outcome_record_id`, `action_id`, `outcome`, `actual_minutes`, `reported_estimated_minutes_difference`, `actual_minutes_saved`, `actor`, `feedback_summary`, `source_refs`, `issue_refs`, `resolution_status_after_review`, `location_id`, `operating_day`, `correlation_id`, `recorded_at` |
 | `DataQualityHygieneOutcomeSummaryResponse` | `metadata`, `filters`, `summary`, `source_refs`, `issue_refs`, `caveats`, `live_side_effects_allowed=false` |
 
 Data-Quality Hygiene invariants for tests:

@@ -18,7 +18,7 @@
 //! use domain::{daycare, entities, policy};
 //! use uuid::Uuid;
 //!
-//! let pet_id = entities::PetId(Uuid::nil());
+//! let pet_id = entities::PetId::new(uuid::Uuid::from_u128(1));
 //! let disposition = daycare::incident::Classifier
 //!     .classify(pet_id, daycare::incident::Severity::SuspendGroupPlay);
 //!

@@ -1,5 +1,7 @@
 //! Storage implementations of application-owned workflow repository ports.
 
+use std::collections::BTreeMap;
+
 use app::workflow_repository::source_quality_backlog;
 use async_trait::async_trait;
 use serde_json::Value;
@@ -96,15 +98,97 @@ fn validate_source_refs(value: &Value) -> crate::persistence::Result<()> {
 }
 
 /// Deterministic storage adapter for app-owned outcome repository ports.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct InMemoryOutcomes<T> {
     outcomes: Vec<T>,
+    idempotency: BTreeMap<IdempotencyKey, OperationFingerprint>,
 }
 
 impl<T> Default for InMemoryOutcomes<T> {
     fn default() -> Self {
         Self {
             outcomes: Vec::new(),
+            idempotency: BTreeMap::new(),
+        }
+    }
+}
+
+/// Validated client operation key used to make one outcome command replay-safe.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct IdempotencyKey(String);
+
+impl IdempotencyKey {
+    /// Promotes a non-empty boundary value into a storage idempotency identity.
+    pub fn try_new(raw: impl Into<String>) -> Result<Self, IdempotencyValueError> {
+        let raw = raw.into();
+        (!raw.is_empty())
+            .then_some(Self(raw))
+            .ok_or(IdempotencyValueError::Empty)
+    }
+}
+
+/// Semantic fingerprint of every command fact that can change an outcome.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OperationFingerprint(String);
+
+impl OperationFingerprint {
+    /// Promotes a non-empty deterministic digest into a semantic fingerprint.
+    pub fn try_new(raw: impl Into<String>) -> Result<Self, IdempotencyValueError> {
+        let raw = raw.into();
+        (!raw.is_empty())
+            .then_some(Self(raw))
+            .ok_or(IdempotencyValueError::Empty)
+    }
+}
+
+/// Invalid storage idempotency boundary values.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum IdempotencyValueError {
+    /// The boundary supplied no stable identity or fingerprint bytes.
+    #[error("idempotency value must not be empty")]
+    Empty,
+}
+
+/// Atomic outcome of checking and recording an idempotent operation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IdempotentRecord {
+    /// A new semantic operation was recorded exactly once.
+    Recorded {
+        /// Number of outcomes retained after recording.
+        retained_count: usize,
+    },
+    /// The key and semantic fingerprint matched an already-recorded operation.
+    Replay {
+        /// Number of outcomes retained; replay never increments it.
+        retained_count: usize,
+    },
+    /// The key existed with a different semantic fingerprint.
+    Conflict,
+}
+
+impl<T> InMemoryOutcomes<T> {
+    /// Atomically checks the key/fingerprint pair and records only a new operation.
+    ///
+    /// The caller must hold exclusive access to this repository value for the
+    /// duration of the call; `&mut self` makes that requirement explicit.
+    pub fn record_idempotently(
+        &mut self,
+        key: IdempotencyKey,
+        fingerprint: OperationFingerprint,
+        outcome: T,
+    ) -> IdempotentRecord {
+        match self.idempotency.get(&key) {
+            Some(existing) if existing == &fingerprint => IdempotentRecord::Replay {
+                retained_count: self.outcomes.len(),
+            },
+            Some(_) => IdempotentRecord::Conflict,
+            None => {
+                self.idempotency.insert(key, fingerprint);
+                self.outcomes.push(outcome);
+                IdempotentRecord::Recorded {
+                    retained_count: self.outcomes.len(),
+                }
+            }
         }
     }
 }
@@ -119,6 +203,38 @@ impl<T> app::workflow_repository::OutcomeRepository for InMemoryOutcomes<T> {
 
     fn outcomes(&self) -> &[Self::Outcome] {
         &self.outcomes
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use app::workflow_repository::OutcomeRepository;
+
+    use super::*;
+
+    #[test]
+    fn idempotent_outcomes_replay_equal_fingerprints_and_reject_drift_atomically() {
+        let mut outcomes = InMemoryOutcomes::default();
+        let key = IdempotencyKey::try_new("manager-brief-1").unwrap();
+        let fingerprint = OperationFingerprint::try_new("sha256:first").unwrap();
+
+        assert_eq!(
+            outcomes.record_idempotently(key.clone(), fingerprint.clone(), "record"),
+            IdempotentRecord::Recorded { retained_count: 1 }
+        );
+        assert_eq!(
+            outcomes.record_idempotently(key.clone(), fingerprint, "ignored replay"),
+            IdempotentRecord::Replay { retained_count: 1 }
+        );
+        assert_eq!(
+            outcomes.record_idempotently(
+                key,
+                OperationFingerprint::try_new("sha256:drift").unwrap(),
+                "ignored conflict",
+            ),
+            IdempotentRecord::Conflict
+        );
+        assert_eq!(outcomes.outcomes(), &["record"]);
     }
 }
 
@@ -192,7 +308,7 @@ impl source_quality_backlog::Repository for PostgresSourceQualityBacklog {
                     END,
                     issue_ref
                  LIMIT 50",
-                &[&location_id.0],
+                &[&location_id.get()],
             )
             .await
             .map_err(|_| source_quality_backlog::Error::Unavailable)?;

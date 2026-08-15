@@ -24,7 +24,7 @@ done
 
 "${compose_bin[@]}" exec -T postgres pg_isready -U pet_resort -d pet_resort >/dev/null
 
-for migration in migrations/0001_mvp_foundation.sql migrations/0002_data_quality_read_models.sql; do
+for migration in migrations/0001_mvp_foundation.sql migrations/0002_data_quality_read_models.sql migrations/0003_semantic_authority_upgrade.sql; do
   echo "applying ${migration}"
   "${compose_bin[@]}" exec -T postgres psql -v ON_ERROR_STOP=1 -U pet_resort -d pet_resort < "${migration}"
 done

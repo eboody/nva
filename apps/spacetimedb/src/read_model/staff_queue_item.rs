@@ -85,8 +85,8 @@ pub struct HygieneOutcomeCardRow {
     pub recorded_by: ActorRefColumn,
     /// Reviewed outcome label for display.
     pub outcome: FeedbackOutcomeColumn,
-    /// Claimed or reviewed minutes saved.
-    pub minutes_saved: u32,
+    /// Staff-reported actual minutes spent; never a realized-savings claim.
+    pub reported_actual_minutes_spent: u32,
     /// Whether protected live side effects remain blocked.
     pub live_delivery_allowed: bool,
     /// Source refs displayed for review traceability.
@@ -101,8 +101,7 @@ impl HygieneOutcomeCardRow {
         action_id: String,
         recorded_by: ActorRefColumn,
         outcome: FeedbackOutcomeColumn,
-        before_minutes: u32,
-        actual_minutes: u32,
+        reported_actual_minutes_spent: u32,
         source_record_refs: Vec<SourceRecordRefColumn>,
         issue_refs: Vec<IssueRefColumn>,
     ) -> Self {
@@ -110,7 +109,7 @@ impl HygieneOutcomeCardRow {
             action_id,
             recorded_by,
             outcome,
-            minutes_saved: before_minutes.saturating_sub(actual_minutes),
+            reported_actual_minutes_spent,
             live_delivery_allowed: false,
             source_record_refs,
             issue_refs,

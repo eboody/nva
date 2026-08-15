@@ -18,7 +18,7 @@
 //! assert_eq!(
 //!     readiness,
 //!     boarding::deposit::ConfirmationReadiness::Blocked {
-//!         blocker: boarding::deposit::Blocker::DepositRequired,
+//!         blocker: boarding::deposit::Blocker::ReferenceMissing,
 //!         review_gate: policy::ReviewGate::RefundOrDepositException,
 //!     }
 //! );
@@ -29,7 +29,10 @@
 //! );
 //! assert_eq!(
 //!     policy.readiness_for_confirmation(Some(&paid)),
-//!     boarding::deposit::ConfirmationReadiness::Ready,
+//!     boarding::deposit::ConfirmationReadiness::Blocked {
+//!         blocker: boarding::deposit::Blocker::ReferenceMissing,
+//!         review_gate: policy::ReviewGate::RefundOrDepositException,
+//!     },
 //! );
 //! ```
 
@@ -49,29 +52,14 @@ impl Policy {
         Self { rule, timing }
     }
 
-    /// Determines whether a reservation may be confirmed from deposit evidence or must route to exception review.
+    /// Serializable deposit and policy history cannot authorize confirmation.
     pub fn readiness_for_confirmation(
         &self,
-        deposit: Option<&payment::Deposit>,
+        _deposit: Option<&payment::Deposit>,
     ) -> ConfirmationReadiness {
-        match (
-            &self.rule,
-            self.timing,
-            deposit.map(payment::Deposit::status),
-        ) {
-            (DepositRule::NotRequired, _, _) => ConfirmationReadiness::Ready,
-            (
-                DepositRule::Required { .. },
-                _,
-                Some(payment::DepositStatus::Paid | payment::DepositStatus::WaivedByManager),
-            ) => ConfirmationReadiness::Ready,
-            (DepositRule::Required { .. }, PaymentTiming::DueAtBooking, _) => {
-                ConfirmationReadiness::Blocked {
-                    blocker: Blocker::DepositRequired,
-                    review_gate: policy::ReviewGate::RefundOrDepositException,
-                }
-            }
-            (DepositRule::Required { .. }, _, _) => ConfirmationReadiness::Ready,
+        ConfirmationReadiness::Blocked {
+            blocker: Blocker::ReferenceMissing,
+            review_gate: policy::ReviewGate::RefundOrDepositException,
         }
     }
 }

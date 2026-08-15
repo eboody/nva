@@ -29,10 +29,11 @@ use crate::{
         transition,
     },
     tables::{
-        ActorKindColumn, HygieneAuditEventRow, LocationScopeRow, ReviewerRoleColumn,
-        RoleAssignmentRow, StaffActorRow, blocked_action_attempt, data_quality_issue,
-        hygiene_audit_event, hygiene_outcome, location_scope, review_queue_item, role_assignment,
-        staff_actor, workflow_event, workflow_outcome,
+        ActorKindColumn, HygieneAuditEventRow, LocationScopeRow, LocationScopeV1Row,
+        ReviewerRoleColumn, RoleAssignmentRow, StaffActorRow, blocked_action_attempt,
+        data_quality_issue, hygiene_audit_event, hygiene_outcome, location_scope,
+        location_scope_v1, review_queue_item, role_assignment, staff_actor, workflow_event,
+        workflow_outcome,
     },
 };
 
@@ -72,10 +73,11 @@ pub fn seed_demo_actor(
         review_role,
         schema_version: codec::REVIEW_QUEUE_SCHEMA_VERSION,
     });
-    ctx.db.location_scope().insert(LocationScopeRow {
+    ctx.db.location_scope_v1().insert(LocationScopeV1Row {
         id: 0,
         actor_id,
         location_id,
+        schema_version: codec::REVIEW_QUEUE_SCHEMA_VERSION,
     });
     Ok(())
 }
@@ -323,6 +325,7 @@ pub fn record_reviewed_hygiene_outcome(
     }
     let outcome_record = outcome_builder.build().map_err(|err| err.to_string())?;
 
+    ensure_authenticated_actor_scope_v1(ctx, &actor_id)?;
     let request = hygiene::OutcomeCaptureRequest::new(actor_id, outcome_record);
     let runtime = HygieneCaptureRuntime::load(ctx);
     if runtime.record_reviewed_outcome(ctx, request).is_err() {
@@ -387,6 +390,7 @@ fn actor_authorized_for_row_action(
     use crate::adapter::ActorDirectoryAdapter;
     use app::data_quality_hygiene::{ActorDirectory, AuthorizationPolicy};
 
+    ensure_authenticated_actor_scope_v1(ctx, actor_id)?;
     let directory = ActorDirectoryAdapter::new(
         ctx.db.staff_actor().iter().collect::<Vec<StaffActorRow>>(),
         ctx.db
@@ -394,9 +398,9 @@ fn actor_authorized_for_row_action(
             .iter()
             .collect::<Vec<RoleAssignmentRow>>(),
         ctx.db
-            .location_scope()
+            .location_scope_v1()
             .iter()
-            .collect::<Vec<LocationScopeRow>>(),
+            .collect::<Vec<LocationScopeV1Row>>(),
     );
     let actor = directory
         .resolve_actor(actor_id)
@@ -427,6 +431,46 @@ fn actor_authorized_for_row_action(
         return Ok(None);
     }
     Ok(Some(actor))
+}
+
+/// Lazily promotes only the authenticated actor's validated legacy scopes into the additive v1
+/// table. Historical rows cannot authorize a sibling actor, malformed or ambiguous actor/role
+/// state fails closed, and every legacy location is validated before the first insert.
+pub(crate) fn ensure_authenticated_actor_scope_v1(
+    ctx: &ReducerContext,
+    expected_actor_id: &hygiene::ActorId,
+) -> Result<(), String> {
+    use crate::authz;
+
+    let actor_rows = ctx.db.staff_actor().iter().collect::<Vec<StaffActorRow>>();
+    let role_rows = ctx
+        .db
+        .role_assignment()
+        .iter()
+        .collect::<Vec<RoleAssignmentRow>>();
+    let legacy_rows = ctx
+        .db
+        .location_scope()
+        .iter()
+        .collect::<Vec<LocationScopeRow>>();
+    let existing_v1 = ctx
+        .db
+        .location_scope_v1()
+        .iter()
+        .collect::<Vec<LocationScopeV1Row>>();
+    let pending = authz::authenticated_legacy_scope_migration(
+        &ctx.sender().to_string(),
+        expected_actor_id,
+        &actor_rows,
+        &role_rows,
+        &legacy_rows,
+        &existing_v1,
+    )
+    .map_err(|error| format!("legacy scope migration rejected: {error:?}"))?;
+    for row in pending {
+        ctx.db.location_scope_v1().insert(row);
+    }
+    Ok(())
 }
 
 fn review_queue_row(ctx: &ReducerContext, action_id: &str) -> Result<ReviewQueueItemRow, String> {

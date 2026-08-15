@@ -54,11 +54,11 @@ Contract lane:
 
 Workflow lane:
 
-- `context_ok workflow=data-quality-hygiene actions=1 estimated_minutes_saved=15 live_side_effects_allowed=false`
+- `context_ok workflow=data-quality-hygiene actions=1 reported_estimated_minutes_difference=15 claimable=false live_side_effects_allowed=false`
 - `draft_validation_ok accepted_actions=1 requested_side_effects=0`
 - `blocked_draft_validation_ok blocked_side_effect=send_customer_message`
-- `outcome_ok estimated_minutes_saved=15 actual_minutes_saved=17 live_side_effects_allowed=false`
-- `smoke_assertions_ok estimated_minutes_saved=15 actual_minutes_saved=17`
+- `outcome_ok reported_estimated_minutes_difference=15 reported_actual_minutes_spent=8 claimable=false live_side_effects_allowed=false`
+- `smoke_assertions_ok reported_estimated_minutes_difference=15 reported_actual_minutes_spent=8 claimable=false`
 
 Operations lane:
 

@@ -193,7 +193,7 @@ pub mod assistant {
         },
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, bon::Builder)]
+    #[derive(Debug, PartialEq, Eq, bon::Builder)]
     /// Assistant answer with citations and escalation state.
     pub struct AnswerPacket {
         context: ActorContext,
@@ -296,6 +296,25 @@ pub mod assistant {
                             .iter()
                             .any(|evidence| evidence.supports(claim.citation()))
                 })
+        }
+    }
+
+    impl Serialize for AnswerPacket {
+        fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            use serde::ser::SerializeStruct as _;
+
+            let mut packet = serializer.serialize_struct("AnswerPacket", 7)?;
+            packet.serialize_field("context", &self.context)?;
+            packet.serialize_field("answer", &self.answer)?;
+            packet.serialize_field("state", &self.state)?;
+            packet.serialize_field("claims", &self.claims)?;
+            packet.serialize_field("citations", &self.citations)?;
+            packet.serialize_field("confidence", &self.confidence)?;
+            packet.serialize_field("escalation", &self.escalation)?;
+            packet.end()
         }
     }
 
@@ -562,8 +581,11 @@ pub mod knowledge {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-    /// Retrieval passage authorized for a concrete actor request before answer construction.
+    #[derive(Debug, PartialEq, Eq)]
+    /// Opaque retrieval passage issued only by a future authenticated actor/document root.
+    ///
+    /// No public constructor exists; serializable `ActorContext` and `Document` metadata cannot
+    /// promote themselves into this accepted evidence type.
     pub struct AuthorizedEvidence {
         document_id: DocumentId,
         passage_id: PassageId,
@@ -574,51 +596,13 @@ pub mod knowledge {
     }
 
     impl AuthorizedEvidence {
-        /// Promotes a retrieved passage only after document, applicability, section, and purpose checks.
-        pub fn try_from_retrieval(
-            document: &Document,
-            passage_id: PassageId,
-            section: SectionRef,
-            retrieved_at: DateTime<Utc>,
-            context: &assistant::ActorContext,
-            service: entities::ServiceKind,
-        ) -> Result<Self> {
-            if !document.is_current_at(retrieved_at) {
-                return Err(Error::DocumentNotApprovedOrCurrent);
-            }
-            if !document.applies_to(context.location_id(), service, context.role()) {
-                return Err(Error::ApplicabilityMismatch);
-            }
-            if !document.contains_section(&section) {
-                return Err(Error::SectionNotFound);
-            }
-            let allowed_use = context.purpose().required_allowed_use();
-            if !context.allows_use(allowed_use) {
-                return Err(Error::PurposeNotAuthorized);
-            }
-            Ok(Self {
-                document_id: document.id().clone(),
-                passage_id,
-                section,
-                retrieved_at,
-                allowed_use,
-                source_conflict: false,
-            })
-        }
-
-        /// Marks this evidence as conflicted so answer construction must escalate.
-        pub const fn with_source_conflict(mut self) -> Self {
-            self.source_conflict = true;
-            self
-        }
-
-        /// Returns whether this authorized passage supports the citation exactly.
-        pub fn supports(&self, citation: &Citation) -> bool {
+        /// Returns whether this internally issued passage supports the citation exactly.
+        pub(super) fn supports(&self, citation: &Citation) -> bool {
             self.document_id == *citation.document_id() && self.section == *citation.section()
         }
 
         /// Whether this passage carries conflicting policy/source evidence.
-        pub const fn has_source_conflict(&self) -> bool {
+        pub(super) const fn has_source_conflict(&self) -> bool {
             self.source_conflict
         }
     }

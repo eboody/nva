@@ -66,7 +66,7 @@ mod approval_outbox_authority_tests;
 use bon::Builder;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, fmt};
 
 use crate::service_line::{boarding, daycare, grooming, retail, training};
 use domain::operations::{pet_resort, service_core};
@@ -215,7 +215,7 @@ pub enum StorageField {
     DataQualityHygieneLaborMinutes,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Builder)]
 /// Provider provenance attached to stored evidence so facts can be audited back to Gingr or another source system.
 pub struct StoredSourceRecordRef {
     /// Source system name, for example `gingr`, used to keep provider facts quarantined by origin.
@@ -228,6 +228,64 @@ pub struct StoredSourceRecordRef {
     pub observed_at: String,
     /// Adapter or fixture version that interpreted the source record.
     pub adapter_version: String,
+}
+
+impl StoredSourceRecordRef {
+    /// Promotes raw persistence fields only after validating the complete provenance relationship.
+    ///
+    /// Source identity, record family and id, observation time, and adapter version are checked
+    /// together so no partially plausible source reference can cross the storage boundary.
+    pub fn try_new(
+        system: impl AsRef<str>,
+        record_type: impl Into<String>,
+        record_id: impl Into<String>,
+        observed_at: impl AsRef<str>,
+        adapter_version: impl Into<String>,
+    ) -> std::result::Result<Self, crate::persistence::Error> {
+        let columns = crate::persistence::SourceRefColumns::try_new(
+            system,
+            record_type,
+            record_id,
+            observed_at,
+            adapter_version,
+        )?;
+        Ok(Self {
+            system: columns.record_ref().system().to_string(),
+            record_type: columns.record_type().as_str().to_owned(),
+            record_id: columns.record_id().as_str().to_owned(),
+            observed_at: columns
+                .observed_at()
+                .get()
+                .to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true),
+            adapter_version: columns.adapter_version().as_str().to_owned(),
+        })
+    }
+}
+
+impl<'de> Deserialize<'de> for StoredSourceRecordRef {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct RawStoredSourceRecordRef {
+            system: String,
+            record_type: String,
+            record_id: String,
+            observed_at: String,
+            adapter_version: String,
+        }
+
+        let raw = RawStoredSourceRecordRef::deserialize(deserializer)?;
+        Self::try_new(
+            raw.system,
+            raw.record_type,
+            raw.record_id,
+            raw.observed_at,
+            raw.adapter_version,
+        )
+        .map_err(serde::de::Error::custom)
+    }
 }
 
 #[derive(
@@ -326,8 +384,9 @@ pub enum ManagerDailyBriefActionKindCode {
 #[strum(serialize_all = "snake_case")]
 /// Persisted reviewed outcomes for CRM retention recommendation/action correlation.
 pub enum CrmRetentionOutcomeCode {
-    /// Staff or system-of-record review confirmed a booked service after the retention action.
-    RecoveredBooking,
+    /// Staff or system-of-record evidence observed a later booking after the recommendation.
+    /// This remains correlation evidence and does not attribute recovered value.
+    BookingObservedAfterRecommendation,
     /// Staff/customer follow-up remains pending or was explicitly deferred.
     Deferred,
     /// Review suppressed outreach or action.
@@ -350,10 +409,10 @@ pub enum CrmRetentionOutcomeCode {
 )]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
-/// Stored attribution class for reviewed CRM retention outcomes.
+/// Stored evidence class for reviewed CRM retention outcomes.
 pub enum CrmRetentionReviewedOutcomeClassificationCode {
-    /// Accepted evidence and reviewed outcome support counting one recovered booking.
-    RecoveredBooking,
+    /// A booking observation is temporally correlated to a recommendation but is not an attributed recovery.
+    CorrelatedBookingObservation,
     /// Outcome does not support booking attribution because it is wrong-source, deferred, suppressed, or otherwise no-action.
     NoActionOutcome,
 }
@@ -369,7 +428,7 @@ pub struct CrmRetentionOutcomeRecord {
     pub review_packet_id: String,
     /// Reviewed outcome disposition.
     pub outcome: CrmRetentionOutcomeCode,
-    /// Attribution class used by reporting to separate recovered bookings from no-action outcomes.
+    /// Evidence class used by reporting to separate correlated observations from no-action outcomes.
     pub reviewed_outcome_classification: CrmRetentionReviewedOutcomeClassificationCode,
     /// Staff, manager, or system actor that recorded the reviewed outcome.
     pub actor_id: String,
@@ -429,8 +488,7 @@ pub struct SiteFinanceOutcomeRecord {
     pub workflow_completion: SiteFinanceWorkflowCompletion,
     /// Manager approval projection, separate from workflow completion and value attribution.
     pub manager_approval: SiteFinanceManagerApproval,
-    /// Compatibility mirror for whether value-attribution evidence can support a strong claim.
-    pub can_support_value_claim: bool,
+
     /// Currency code preserved for currency-aware reporting.
     pub currency: String,
     /// Net revenue in minor units after checked discount/refund arithmetic.
@@ -447,11 +505,11 @@ pub struct SiteFinanceOutcomeRecord {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, strum::Display, Default)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
-/// Evidence strength for a site-finance value attribution claim.
+/// Serializable evidence strength for a site-finance value-attribution candidate.
 pub enum SiteFinanceValueAttribution {
-    /// Reviewed action plus source/audit evidence can support a stronger measured claim.
+    /// Historical evidence reports a reviewed action but cannot issue value-claim authority.
     #[default]
-    ReviewedAction,
+    ReportedReviewedAction,
     /// Correlated finance evidence is visible but cannot support a strong measured claim.
     CorrelatedOnly,
     /// Source evidence was wrong, so no measured value claim is allowed.
@@ -459,9 +517,11 @@ pub enum SiteFinanceValueAttribution {
 }
 
 impl SiteFinanceValueAttribution {
-    /// Returns whether this value-attribution evidence can support a strong value claim.
+    /// Returns whether serialized value-attribution evidence can support a strong value claim.
+    ///
+    /// It never does: a future authenticated boundary must issue opaque accepted attribution.
     pub const fn can_support_value_claim(self) -> bool {
-        matches!(self, Self::ReviewedAction)
+        false
     }
 }
 
@@ -602,9 +662,15 @@ impl SiteFinanceOutcomeRecord {
         mut self,
         value_attribution: SiteFinanceValueAttribution,
     ) -> Self {
-        self.can_support_value_claim = value_attribution.can_support_value_claim();
         self.value_attribution = value_attribution;
         self
+    }
+
+    /// Reports whether this durable evidence independently authorizes a strong value claim.
+    ///
+    /// Serializable storage history cannot issue accepted attribution authority.
+    pub const fn can_support_value_claim(&self) -> bool {
+        false
     }
 
     /// Returns a copy with an explicit local workflow-completion projection.
@@ -634,8 +700,8 @@ pub struct CrmRetentionOutcomeSummary {
     pub correlation_id: Option<String>,
     /// Count of reviewed outcome rows in scope.
     pub reviewed_outcome_count: usize,
-    /// Count of outcomes classified as recovered bookings.
-    pub recovered_booking_count: usize,
+    /// Count of correlated booking observations. This is never a recovered-value attribution count.
+    pub correlated_booking_observation_count: usize,
     /// Count of outcomes classified as no-action.
     pub no_action_outcome_count: usize,
     /// Source evidence refs retained for audit and reconciliation.
@@ -657,7 +723,7 @@ impl CrmRetentionOutcomeSummary {
             operating_day: operating_day.to_owned(),
             correlation_id: correlation_id.map(str::to_owned),
             reviewed_outcome_count: 0,
-            recovered_booking_count: 0,
+            correlated_booking_observation_count: 0,
             no_action_outcome_count: 0,
             source_refs: Vec::new(),
             recommendation_ids: Vec::new(),
@@ -671,8 +737,8 @@ impl CrmRetentionOutcomeSummary {
         }) {
             summary.reviewed_outcome_count += 1;
             match record.reviewed_outcome_classification {
-                CrmRetentionReviewedOutcomeClassificationCode::RecoveredBooking => {
-                    summary.recovered_booking_count += 1;
+                CrmRetentionReviewedOutcomeClassificationCode::CorrelatedBookingObservation => {
+                    summary.correlated_booking_observation_count += 1;
                 }
                 CrmRetentionReviewedOutcomeClassificationCode::NoActionOutcome => {
                     summary.no_action_outcome_count += 1;
@@ -746,7 +812,7 @@ impl<'de> Deserialize<'de> for StoredManagerDailyBriefLaborMinutes {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 /// Stored evidence for a manager daily-brief action, including before/after labor minutes and source references.
 pub struct ManagerDailyBriefOutcomeRecord {
     #[builder(default)]
@@ -782,8 +848,8 @@ pub struct ManagerDailyBriefOutcomeRecord {
     pub action_kind: ManagerDailyBriefActionKindCode,
     /// Role expected to own or review the workflow item.
     pub owner_persona: ManagerDailyBriefPersonaCode,
-    /// Derived labor savings based on before and actual minute evidence.
-    pub estimated_minutes_saved: u16,
+    /// Caller-reported estimate difference retained as nonclaimable evidence.
+    pub reported_estimated_minutes_difference: u16,
 }
 
 impl ManagerDailyBriefOutcomeRecord {
@@ -801,13 +867,6 @@ impl ManagerDailyBriefOutcomeRecord {
         })
     }
 
-    /// Returns the derived minutes saved from before/after labor evidence.
-    pub const fn actual_minutes_saved(&self) -> u16 {
-        self.before_minutes
-            .get()
-            .saturating_sub(self.actual_minutes.get())
-    }
-
     /// Returns the aggregation dimensions used for labor reporting.
     pub fn reporting_group(&self) -> ManagerDailyBriefReportingGroup {
         ManagerDailyBriefReportingGroup {
@@ -816,6 +875,27 @@ impl ManagerDailyBriefOutcomeRecord {
             action_kind: self.action_kind,
             owner_persona: self.owner_persona,
         }
+    }
+}
+
+impl fmt::Debug for ManagerDailyBriefOutcomeRecord {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ManagerDailyBriefOutcomeRecord")
+            .field("schema_version", &self.schema_version)
+            .field("outcome", &self.outcome)
+            .field("before_minutes", &self.before_minutes)
+            .field("actual_minutes", &self.actual_minutes)
+            .field("actor_persona", &self.actor_persona)
+            .field("source_ref_count", &self.source_refs.len())
+            .field("action_kind", &self.action_kind)
+            .field("owner_persona", &self.owner_persona)
+            .field(
+                "reported_estimated_minutes_difference",
+                &self.reported_estimated_minutes_difference,
+            )
+            .field("sensitive_fields", &"[REDACTED]")
+            .finish()
     }
 }
 
@@ -1575,9 +1655,21 @@ impl<'de> Deserialize<'de> for StoredDataQualityHygieneLaborMinutes {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Version tag for the durable data-quality hygiene outcome row contract.
+pub enum DataQualityHygieneOutcomeSchemaVersion {
+    /// Initial persisted Data Quality Hygiene outcome row schema.
+    #[serde(rename = "data_quality_hygiene_outcome.v1")]
+    #[default]
+    V1,
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 /// Stored evidence for a data-quality hygiene action, including labor deltas, issue references, and resolution state.
 pub struct DataQualityHygieneOutcomeRecord {
+    #[builder(default)]
+    /// Stable schema version that makes durable row evolution explicit.
+    pub schema_version: DataQualityHygieneOutcomeSchemaVersion,
     /// Stable workflow action identifier used for idempotent labor evidence.
     pub action_id: String,
     /// Final disposition recorded for the workflow action.
@@ -1612,8 +1704,8 @@ pub struct DataQualityHygieneOutcomeRecord {
     pub action_kind: DataQualityHygieneActionKindCode,
     /// Role expected to own or review the workflow item.
     pub owner_persona: DataQualityHygienePersonaCode,
-    /// Derived labor savings based on before and actual minute evidence.
-    pub estimated_minutes_saved: u16,
+    /// Caller-reported estimate difference retained as nonclaimable evidence.
+    pub reported_estimated_minutes_difference: u16,
 }
 
 impl DataQualityHygieneOutcomeRecord {
@@ -1631,13 +1723,6 @@ impl DataQualityHygieneOutcomeRecord {
         })
     }
 
-    /// Returns or constructs the Gingr actual minutes saved value.
-    pub const fn actual_minutes_saved(&self) -> u16 {
-        self.before_minutes
-            .get()
-            .saturating_sub(self.actual_minutes.get())
-    }
-
     /// Returns the aggregation dimensions used for labor reporting.
     pub fn reporting_group(&self) -> DataQualityHygieneReportingGroup {
         DataQualityHygieneReportingGroup {
@@ -1646,6 +1731,32 @@ impl DataQualityHygieneOutcomeRecord {
             action_kind: self.action_kind,
             owner_persona: self.owner_persona,
         }
+    }
+}
+
+impl fmt::Debug for DataQualityHygieneOutcomeRecord {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("DataQualityHygieneOutcomeRecord")
+            .field("schema_version", &self.schema_version)
+            .field("outcome", &self.outcome)
+            .field("before_minutes", &self.before_minutes)
+            .field("actual_minutes", &self.actual_minutes)
+            .field("actor_persona", &self.actor_persona)
+            .field("source_ref_count", &self.source_refs.len())
+            .field("issue_ref_count", &self.issue_refs.len())
+            .field(
+                "resolution_status_after_review",
+                &self.resolution_status_after_review,
+            )
+            .field("action_kind", &self.action_kind)
+            .field("owner_persona", &self.owner_persona)
+            .field(
+                "reported_estimated_minutes_difference",
+                &self.reported_estimated_minutes_difference,
+            )
+            .field("sensitive_fields", &"[REDACTED]")
+            .finish()
     }
 }
 
@@ -1664,8 +1775,8 @@ pub struct DataQualityHygieneOutcomeSummary {
     pub correlation_id: Option<String>,
     /// Count of stored reviewed outcome records in scope.
     pub reviewed_outcome_count: usize,
-    /// Completed outcomes that may support actual labor-savings evidence.
-    pub completed_count: usize,
+    /// Outcomes whose serialized disposition reports completion; not accepted completion authority.
+    pub reported_completed_outcome_count: usize,
     /// Deferred outcomes kept visible but excluded from completed-savings proof.
     pub deferred_count: usize,
     /// Outcomes where source evidence was wrong and must not be hidden.
@@ -1674,12 +1785,11 @@ pub struct DataQualityHygieneOutcomeSummary {
     pub not_actionable_count: usize,
     /// Outcomes suppressed by a manager or reviewer.
     pub suppressed_by_manager_count: usize,
-    /// Sum of action-level estimated saved minutes in scope.
-    pub total_estimated_minutes_saved: u16,
+    /// Sum of caller-reported estimates retained as nonclaimable evidence.
+    pub total_reported_estimated_minutes_difference: u16,
     /// Sum of actual reviewed minutes spent in scope.
     pub total_actual_minutes_spent: u16,
-    /// Sum of actual saved minutes for completed outcomes only.
-    pub completed_actual_minutes_saved: u16,
+
     /// Source-record evidence retained for audit and reconciliation.
     pub source_refs: Vec<StoredSourceRecordRef>,
     /// Data-quality issue identifiers retained for audit and reconciliation.
@@ -1699,14 +1809,13 @@ impl DataQualityHygieneOutcomeSummary {
             operating_day: operating_day.to_owned(),
             correlation_id: correlation_id.map(str::to_owned),
             reviewed_outcome_count: 0,
-            completed_count: 0,
+            reported_completed_outcome_count: 0,
             deferred_count: 0,
             wrong_source_count: 0,
             not_actionable_count: 0,
             suppressed_by_manager_count: 0,
-            total_estimated_minutes_saved: 0,
+            total_reported_estimated_minutes_difference: 0,
             total_actual_minutes_spent: 0,
-            completed_actual_minutes_saved: 0,
             source_refs: Vec::new(),
             issue_refs: Vec::new(),
         };
@@ -1721,10 +1830,7 @@ impl DataQualityHygieneOutcomeSummary {
             summary.reviewed_outcome_count += 1;
             match record.outcome {
                 DataQualityHygieneOutcomeCode::Completed => {
-                    summary.completed_count += 1;
-                    summary.completed_actual_minutes_saved = summary
-                        .completed_actual_minutes_saved
-                        .saturating_add(record.actual_minutes_saved());
+                    summary.reported_completed_outcome_count += 1;
                 }
                 DataQualityHygieneOutcomeCode::Deferred => summary.deferred_count += 1,
                 DataQualityHygieneOutcomeCode::SuppressedByManager => {
@@ -1735,9 +1841,6 @@ impl DataQualityHygieneOutcomeSummary {
                 }
                 DataQualityHygieneOutcomeCode::NotActionable => summary.not_actionable_count += 1,
             }
-            summary.total_estimated_minutes_saved = summary
-                .total_estimated_minutes_saved
-                .saturating_add(record.estimated_minutes_saved);
             summary.total_actual_minutes_spent = summary
                 .total_actual_minutes_spent
                 .saturating_add(record.actual_minutes.get());
@@ -2876,8 +2979,7 @@ impl DataQualityHygieneLocalPersistenceRecords {
                     "action_id": outcome.action_id,
                     "outcome": outcome.outcome,
                     "resolution_status_after_review": outcome.resolution_status_after_review,
-                    "estimated_minutes_saved": outcome.estimated_minutes_saved,
-                    "actual_minutes_saved": outcome.actual_minutes_saved(),
+                    "reported_estimated_minutes_difference": outcome.reported_estimated_minutes_difference,
                     "live_side_effects_allowed": false,
                 }))
                 .internal_handoff(InternalHandoff::new(
@@ -3347,6 +3449,8 @@ pub struct ServiceOfferingRecord {
     pub daycare_eligibility_rules: Vec<daycare::EligibilityRuleCode>,
     /// Grooming service represented by the offering.
     pub grooming_service: Option<grooming::ServiceCode>,
+    /// Stable reason the grooming cadence does or does not carry an interval.
+    pub grooming_cadence_kind: Option<grooming::StoredCadenceKind>,
     /// Recommended grooming repeat cadence in weeks.
     pub grooming_cadence_weeks: Option<grooming::StoredCadenceWeeks>,
     /// Training program represented by the offering.
@@ -3383,6 +3487,7 @@ impl ServiceOfferingRecord {
                 self.daycare_format.is_some()
                     || !self.daycare_eligibility_rules.is_empty()
                     || self.grooming_service.is_some()
+                    || self.grooming_cadence_kind.is_some()
                     || self.grooming_cadence_weeks.is_some()
                     || self.training_program.is_some()
                     || self.retail_partner.is_some()
@@ -3393,6 +3498,7 @@ impl ServiceOfferingRecord {
                     || !self.boarding_included_care.is_empty()
                     || !self.boarding_add_ons.is_empty()
                     || self.grooming_service.is_some()
+                    || self.grooming_cadence_kind.is_some()
                     || self.grooming_cadence_weeks.is_some()
                     || self.training_program.is_some()
                     || self.retail_partner.is_some()
@@ -3415,6 +3521,7 @@ impl ServiceOfferingRecord {
                     || self.daycare_format.is_some()
                     || !self.daycare_eligibility_rules.is_empty()
                     || self.grooming_service.is_some()
+                    || self.grooming_cadence_kind.is_some()
                     || self.grooming_cadence_weeks.is_some()
                     || self.retail_partner.is_some()
                     || self.retail_product_category.is_some()
@@ -3426,6 +3533,7 @@ impl ServiceOfferingRecord {
                     || self.daycare_format.is_some()
                     || !self.daycare_eligibility_rules.is_empty()
                     || self.grooming_service.is_some()
+                    || self.grooming_cadence_kind.is_some()
                     || self.grooming_cadence_weeks.is_some()
                     || self.training_program.is_some()
             }
@@ -3481,17 +3589,12 @@ impl TryFrom<domain::operations::ServiceOffering> for ServiceOfferingRecord {
                 .daycare_eligibility_rules(eligibility_rules.into_iter().map(Into::into).collect())
                 .build(),
             domain::operations::ServiceOffering::Grooming { service, cadence } => {
-                let cadence_weeks = match cadence {
-                    domain::grooming::rebooking::Cadence::EveryWeeks(weeks) => {
-                        Some(weeks.try_into()?)
-                    }
-                    domain::grooming::rebooking::Cadence::AsNeeded
-                    | domain::grooming::rebooking::Cadence::GroomerRecommended
-                    | domain::grooming::rebooking::Cadence::Unknown => None,
-                };
+                let (cadence_kind, cadence_weeks) =
+                    grooming::StoredCadenceKind::from_domain(cadence)?;
                 let builder = Self::builder()
                     .service_kind(ServiceOfferingKindCode::Grooming)
-                    .grooming_service(service.into());
+                    .grooming_service(service.into())
+                    .grooming_cadence_kind(cadence_kind);
                 match cadence_weeks {
                     Some(weeks) => builder.grooming_cadence_weeks(weeks).build(),
                     None => builder.build(),
@@ -3566,11 +3669,16 @@ impl TryFrom<ServiceOfferingRecord> for domain::operations::ServiceOffering {
                         ServiceOfferingRecord::mismatch(ShapeMismatchReason::RequiredFieldMissing)
                     })?
                     .into();
-                let cadence = match record.grooming_cadence_weeks {
-                    Some(weeks) => {
-                        domain::grooming::rebooking::Cadence::EveryWeeks(weeks.try_into()?)
-                    }
-                    None => domain::grooming::rebooking::Cadence::Unknown,
+                let cadence = match record.grooming_cadence_kind {
+                    Some(kind) => kind.into_domain(record.grooming_cadence_weeks)?,
+                    // Legacy records overloaded missing weeks as unknown. New writes always
+                    // persist the kind, while this read path retains old interval records.
+                    None => match record.grooming_cadence_weeks {
+                        Some(weeks) => {
+                            domain::grooming::rebooking::Cadence::EveryWeeks(weeks.try_into()?)
+                        }
+                        None => domain::grooming::rebooking::Cadence::Unknown,
+                    },
                 };
                 Ok(Self::Grooming { service, cadence })
             }

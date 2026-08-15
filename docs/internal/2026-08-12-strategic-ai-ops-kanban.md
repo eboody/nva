@@ -16,7 +16,7 @@ Current repo framing still applies:
 - Customer-visible messages are drafts until human-approved.
 - Provider/PMS/CRM writes are blocked until explicitly approved through a system-of-record path.
 - Schedule, capacity, staffing, discount, payment, and policy decisions remain reviewed recommendations, not autonomous mandates.
-- Financial claims and labor-savings claims require outcome/provenance records.
+- Outcome/provenance records remain evidence and cannot by themselves establish financial or labor-savings claims.
 - Granular customer profile enrichment must respect access boundaries, consent, retention policy, role scope, and marketing-vs-operations separation.
 
 ## Board graph

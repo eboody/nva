@@ -472,8 +472,8 @@ pub enum SafeAgentAction {
     DraftInternalCleanupTask,
     /// Allows agents to preserve ambiguity for review for staff review without mutating records or contacting customers.
     PreserveAmbiguityForReview,
-    /// Allows agents to estimate reconciliation minutes saved for staff review without mutating records or contacting customers.
-    EstimateReconciliationMinutesSaved,
+    /// Allows agents to report a reconciliation estimate difference for staff review without claiming realized savings or enabling side effects.
+    ReportReconciliationEstimateDifference,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -519,8 +519,8 @@ impl LaborImpactEstimate {
         self.after_minutes
     }
 
-    /// Returns the minutes saved evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
-    pub const fn minutes_saved(&self) -> u16 {
+    /// Returns a caller-reported estimate difference for prioritization, never a realized-savings claim.
+    pub const fn reported_estimated_minutes_difference(&self) -> u16 {
         self.before_minutes.0.saturating_sub(self.after_minutes.0)
     }
 }
@@ -732,8 +732,8 @@ impl Packet {
         self.after_minutes
     }
 
-    /// Returns the minutes saved evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
-    pub const fn minutes_saved(&self) -> u16 {
+    /// Returns a caller-reported estimate difference for prioritization, never a realized-savings claim.
+    pub const fn reported_estimated_minutes_difference(&self) -> u16 {
         self.before_minutes.0.saturating_sub(self.after_minutes.0)
     }
 
@@ -868,9 +868,9 @@ pub enum FeedbackOutcome {
 }
 
 impl FeedbackOutcome {
-    /// Returns whether this reviewed disposition can support a labor-savings claim.
+    /// Serializable reviewed dispositions do not support a labor-savings claim.
     pub const fn can_claim_labor_savings(self) -> bool {
-        matches!(self, Self::Completed)
+        false
     }
 }
 
@@ -954,16 +954,9 @@ impl OutcomeRecord {
         self.actual_minutes
     }
 
-    /// Returns the actual minutes saved evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
-    pub const fn actual_minutes_saved(&self) -> u16 {
-        self.before_minutes.0.saturating_sub(self.actual_minutes.0)
-    }
-
-    /// Reports whether this reviewed outcome has enough source proof and a completed disposition to claim labor savings.
-    pub fn labor_minutes_are_claimable(&self) -> bool {
-        self.outcome.can_claim_labor_savings()
-            && self.source_record_refs.iter().len() > 0
-            && self.issue_refs.iter().len() > 0
+    /// Serializable outcome history remains non-claimable without opaque acceptance.
+    pub const fn labor_minutes_are_claimable(&self) -> bool {
+        false
     }
 
     /// Returns the source record refs evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
@@ -1912,7 +1905,7 @@ fn safe_agent_actions_for() -> Vec<SafeAgentAction> {
         SafeAgentAction::RankHygieneActions,
         SafeAgentAction::DraftInternalCleanupTask,
         SafeAgentAction::PreserveAmbiguityForReview,
-        SafeAgentAction::EstimateReconciliationMinutesSaved,
+        SafeAgentAction::ReportReconciliationEstimateDifference,
     ]
 }
 

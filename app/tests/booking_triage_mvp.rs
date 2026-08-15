@@ -57,7 +57,7 @@ fn deterministic_gates_block_confirmation_when_vaccine_review_is_pending() {
 }
 
 #[test]
-fn ready_request_produces_staff_bounded_ai_recommendation_confirmation_draft_and_audit_events() {
+fn positive_readiness_evidence_still_blocks_confirmation_draft_and_records_audit_events() {
     let evaluation = booking_triage::DeterministicResult::evaluate(vec![
         booking_triage::rule::Evaluation::pass(
             booking_triage::rule::Id::DateRangeAndServiceSupported,
@@ -74,21 +74,26 @@ fn ready_request_produces_staff_bounded_ai_recommendation_confirmation_draft_and
     ]);
 
     let packet = booking_triage::StaffEvaluationPacket::new(
-        entities::reservation::Id(Uuid::from_u128(123)),
+        entities::reservation::Id::new(Uuid::from_u128(123)),
         evaluation,
     )
-    .with_ai_recommendation(booking_triage::AiRecommendation::recommend_staff_confirmation(
-        booking_triage::RecommendationText::try_new(
-            "Hard rules pass; staff can review and create an approved offer/confirmation draft.",
-        )
-        .unwrap(),
-    ))
-    .with_confirmation_draft(booking_triage::ConfirmationDraft::new(
-        booking_triage::CustomerMessageDraft::try_new(
-            "Draft only: we can prepare your booking confirmation after staff approval.",
-        )
-        .unwrap(),
-    ));
+    .with_ai_recommendation(
+        booking_triage::AiRecommendation::recommend_staff_confirmation(
+            booking_triage::RecommendationText::try_new(
+                "Hard rules pass; staff can review the candidate without confirmation authority.",
+            )
+            .unwrap(),
+        ),
+    );
+    let draft_result =
+        packet
+            .clone()
+            .try_with_confirmation_draft(booking_triage::ConfirmationDraft::new(
+                booking_triage::CustomerMessageDraft::try_new(
+                    "Draft only: we can prepare your booking confirmation after staff approval.",
+                )
+                .unwrap(),
+            ));
 
     assert_eq!(
         packet.deterministic_result().recommended_status(),
@@ -99,12 +104,12 @@ fn ready_request_produces_staff_bounded_ai_recommendation_confirmation_draft_and
         booking_triage::AgentRecommendedAction::DraftConfirmationForStaffApproval
     );
     assert_eq!(
-        packet.confirmation_draft().approval_gate(),
-        booking_triage::ApprovalGate::CustomerMessageApproval
+        draft_result.unwrap_err(),
+        booking_triage::ConfirmationDraftError::DeterministicGateNotReadyForDraft
     );
     assert_eq!(
         packet.suggested_status(),
-        entities::reservation::Status::Offered
+        entities::reservation::Status::Requested
     );
     assert!(
         packet
@@ -112,7 +117,7 @@ fn ready_request_produces_staff_bounded_ai_recommendation_confirmation_draft_and
             .contains(&booking_triage::AuditEventDraft::ReservationStatusSuggested)
     );
     assert!(
-        packet
+        !packet
             .audit_event_drafts()
             .contains(&booking_triage::AuditEventDraft::ConfirmationDraftGenerated)
     );
@@ -166,7 +171,7 @@ fn hard_rejections_dominate_review_buckets_but_only_suggest_special_review() {
     ]);
 
     let packet = booking_triage::StaffEvaluationPacket::new(
-        entities::reservation::Id(Uuid::from_u128(456)),
+        entities::reservation::Id::new(Uuid::from_u128(456)),
         evaluation,
     );
 
@@ -199,7 +204,7 @@ fn confirmation_draft_cannot_attach_until_deterministic_result_is_ready() {
     ]);
 
     let packet = booking_triage::StaffEvaluationPacket::new(
-        entities::reservation::Id(Uuid::from_u128(789)),
+        entities::reservation::Id::new(Uuid::from_u128(789)),
         evaluation,
     );
     let draft = booking_triage::ConfirmationDraft::new(
@@ -335,7 +340,7 @@ fn missing_info_draft_is_reviewable_copy_not_confirmation_or_customer_send_autho
         ),
     ]);
     let packet = booking_triage::StaffEvaluationPacket::new(
-        entities::reservation::Id(Uuid::from_u128(45)),
+        entities::reservation::Id::new(Uuid::from_u128(45)),
         evaluation,
     );
 

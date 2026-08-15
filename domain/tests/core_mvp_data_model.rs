@@ -2,17 +2,17 @@ use domain::{audit, document, entities, incident, message, policy, vaccine};
 
 #[test]
 fn documents_and_vaccine_records_preserve_evidence_review_and_audit_lineage() {
-    let audit_id = audit::EventId(uuid::Uuid::nil());
+    let audit_id = audit::EventId::new(uuid::Uuid::from_u128(1));
     let document = entities::Document::builder()
-        .id(entities::DocumentId(uuid::Uuid::nil()))
-        .location_id(entities::LocationId(uuid::Uuid::nil()))
-        .subject(entities::DocumentSubject::Pet(entities::PetId(
-            uuid::Uuid::nil(),
+        .id(entities::DocumentId::new(uuid::Uuid::from_u128(1)))
+        .location_id(entities::LocationId::new(uuid::Uuid::from_u128(1)))
+        .subject(entities::DocumentSubject::Pet(entities::PetId::new(
+            uuid::Uuid::from_u128(1),
         )))
         .classification(document::Classification::VaccineProof)
         .source(document::Source::CustomerUpload)
-        .uploaded_by_actor(entities::ActorRef::Customer(entities::CustomerId(
-            uuid::Uuid::nil(),
+        .uploaded_by_actor(entities::ActorRef::Customer(entities::CustomerId::new(
+            uuid::Uuid::from_u128(1),
         )))
         .uploaded_at(chrono::DateTime::<chrono::Utc>::UNIX_EPOCH)
         .original_file(
@@ -50,8 +50,8 @@ fn documents_and_vaccine_records_preserve_evidence_review_and_audit_lineage() {
     assert_eq!(document.audit_refs(), &[audit_id]);
 
     let vaccine = entities::VaccineRecord::builder()
-        .id(entities::VaccineRecordId(uuid::Uuid::nil()))
-        .pet_id(entities::PetId(uuid::Uuid::nil()))
+        .id(entities::VaccineRecordId::new(uuid::Uuid::from_u128(1)))
+        .pet_id(entities::PetId::new(uuid::Uuid::from_u128(1)))
         .vaccine_name(policy::VaccineName::try_new("  Rabies  ").unwrap())
         .source_document_id(document.id())
         .status(vaccine::Status::PendingReview)
@@ -69,9 +69,9 @@ fn documents_and_vaccine_records_preserve_evidence_review_and_audit_lineage() {
 #[test]
 fn notes_incidents_messages_and_approvals_have_invariant_lifecycle_enums() {
     let note = entities::CareNote::builder()
-        .id(entities::care_note::Id(uuid::Uuid::nil()))
+        .id(entities::care_note::Id::new(uuid::Uuid::from_u128(1)))
         .subject(entities::care_note::Subject::Reservation(
-            entities::reservation::Id(uuid::Uuid::nil()),
+            entities::reservation::Id::new(uuid::Uuid::from_u128(1)),
         ))
         .kind(entities::care_note::Kind::Medication)
         .visibility(entities::care_note::Visibility::InternalOnly)
@@ -80,16 +80,16 @@ fn notes_incidents_messages_and_approvals_have_invariant_lifecycle_enums() {
             staff_id: entities::StaffId::try_new("kennel-1").unwrap(),
         })
         .recorded_at(chrono::DateTime::<chrono::Utc>::UNIX_EPOCH)
-        .audit_refs(vec![audit::EventId(uuid::Uuid::nil())])
+        .audit_refs(vec![audit::EventId::new(uuid::Uuid::from_u128(1))])
         .build();
     assert!(!note.is_customer_visible_without_review());
     assert_eq!(note.body.into_inner(), "gave medication with dinner");
 
     let incident = entities::Incident::builder()
-        .id(entities::IncidentId(uuid::Uuid::nil()))
-        .location_id(entities::LocationId(uuid::Uuid::nil()))
-        .primary_subject(entities::IncidentSubject::Pet(entities::PetId(
-            uuid::Uuid::nil(),
+        .id(entities::IncidentId::new(uuid::Uuid::from_u128(1)))
+        .location_id(entities::LocationId::new(uuid::Uuid::from_u128(1)))
+        .primary_subject(entities::IncidentSubject::Pet(entities::PetId::new(
+            uuid::Uuid::from_u128(1),
         )))
         .category(incident::Category::Medication)
         .severity(incident::Severity::High)
@@ -102,26 +102,26 @@ fn notes_incidents_messages_and_approvals_have_invariant_lifecycle_enums() {
             incident::Summary::try_new("  missed noon dose; manager review required  ").unwrap(),
         )
         .required_review_gates(vec![policy::ReviewGate::ManagerApproval])
-        .audit_refs(vec![audit::EventId(uuid::Uuid::nil())])
+        .audit_refs(vec![audit::EventId::new(uuid::Uuid::from_u128(1))])
         .build()
         .unwrap();
     assert!(incident.requires_manager_attention());
 
     let message = entities::Message::builder()
-        .id(entities::MessageId(uuid::Uuid::nil()))
+        .id(entities::MessageId::new(uuid::Uuid::from_u128(1)))
         .subject(entities::MessageSubject::Incident(incident.id()))
         .direction(message::Direction::OutboundDraft)
         .channel(message::Channel::Email)
         .status(message::Status::ApprovalRequested)
         .body_ref(message::BodyRef::try_new("message-body/evidence-1").unwrap())
         .approval_gate(policy::ReviewGate::CustomerMessageApproval)
-        .audit_refs(vec![audit::EventId(uuid::Uuid::nil())])
+        .audit_refs(vec![audit::EventId::new(uuid::Uuid::from_u128(1))])
         .build()
         .unwrap();
     assert!(message.requires_approval_before_send());
 
     let approval = entities::approval::Record::builder()
-        .id(entities::approval::Id(uuid::Uuid::nil()))
+        .id(entities::approval::Id::new(uuid::Uuid::from_u128(1)))
         .target(entities::approval::Target::Message(message.id()))
         .gate(policy::ReviewGate::CustomerMessageApproval)
         .lifecycle(entities::approval::Lifecycle::ApprovalRequested)
@@ -129,7 +129,7 @@ fn notes_incidents_messages_and_approvals_have_invariant_lifecycle_enums() {
             workflow: domain::agent::Name::try_new("incident-escalation").unwrap(),
         })
         .requested_at(chrono::DateTime::<chrono::Utc>::UNIX_EPOCH)
-        .audit_refs(vec![audit::EventId(uuid::Uuid::nil())])
+        .audit_refs(vec![audit::EventId::new(uuid::Uuid::from_u128(1))])
         .build()
         .unwrap();
     assert!(!approval.is_applicable());
@@ -143,9 +143,9 @@ fn terminal_approval_decisions_carry_actor_and_decision_time() {
     let decided_at = chrono::DateTime::<chrono::Utc>::UNIX_EPOCH;
 
     let approved = entities::approval::Record::builder()
-        .id(entities::approval::Id(uuid::Uuid::nil()))
+        .id(entities::approval::Id::new(uuid::Uuid::from_u128(1)))
         .target(entities::approval::Target::Reservation(
-            entities::reservation::Id(uuid::Uuid::nil()),
+            entities::reservation::Id::new(uuid::Uuid::from_u128(1)),
         ))
         .gate(policy::ReviewGate::RefundOrDepositException)
         .lifecycle(entities::approval::Lifecycle::Approved {
@@ -181,12 +181,12 @@ fn audit_subjects_and_actions_represent_required_write_paths() {
 
     assert!(actions.contains(&audit::Action::WorkflowEventRecorded));
     assert_eq!(
-        audit::Subject::Message(entities::MessageId(uuid::Uuid::nil())),
-        audit::Subject::Message(entities::MessageId(uuid::Uuid::nil()))
+        audit::Subject::Message(entities::MessageId::new(uuid::Uuid::from_u128(1))),
+        audit::Subject::Message(entities::MessageId::new(uuid::Uuid::from_u128(1)))
     );
     assert_eq!(
-        audit::Subject::Approval(entities::approval::Id(uuid::Uuid::nil())),
-        audit::Subject::Approval(entities::approval::Id(uuid::Uuid::nil()))
+        audit::Subject::Approval(entities::approval::Id::new(uuid::Uuid::from_u128(1))),
+        audit::Subject::Approval(entities::approval::Id::new(uuid::Uuid::from_u128(1)))
     );
 }
 

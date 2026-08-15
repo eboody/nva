@@ -73,7 +73,8 @@ async fn information_lifespan_run_endpoint_returns_report_artifact_and_visible_p
             .unwrap()
             .iter()
             .any(|entry| {
-                entry["name"] == "estimated_labor_minutes_saved" && entry["result"] == "42"
+                entry["name"] == "reported_estimated_labor_minutes_difference"
+                    && entry["result"] == "42"
             })
     );
     assert_eq!(

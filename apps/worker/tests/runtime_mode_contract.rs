@@ -94,19 +94,20 @@ fn unadmitted_data_quality_hygiene_projection()
     use storage::operations::{
         DataQualityHygieneActionKindCode, DataQualityHygieneLineageIds,
         DataQualityHygieneLocalPersistenceRecords, DataQualityHygieneOutcomeCode,
-        DataQualityHygieneOutcomeRecord, DataQualityHygienePersonaCode,
-        DataQualityResolutionStatusCode, StoredDataQualityHygieneLaborMinutes,
-        StoredSourceRecordRef,
+        DataQualityHygieneOutcomeRecord, DataQualityHygieneOutcomeSchemaVersion,
+        DataQualityHygienePersonaCode, DataQualityResolutionStatusCode,
+        StoredDataQualityHygieneLaborMinutes, StoredSourceRecordRef,
     };
 
     let recorded_at = "2026-06-17T13:15:00Z".to_owned();
     let subject_id = "00c0ffee-0000-0000-0000-000000000001".to_owned();
     let outcome = DataQualityHygieneOutcomeRecord {
+        schema_version: DataQualityHygieneOutcomeSchemaVersion::V1,
         action_id: "dq-action-demo-1".to_owned(),
         outcome: DataQualityHygieneOutcomeCode::Completed,
         before_minutes: StoredDataQualityHygieneLaborMinutes::try_new(20).unwrap(),
         actual_minutes: StoredDataQualityHygieneLaborMinutes::try_new(8).unwrap(),
-        estimated_minutes_saved: 12,
+        reported_estimated_minutes_difference: 12,
         actor_id: "front-desk-lead-17".to_owned(),
         actor_persona: DataQualityHygienePersonaCode::FrontDeskLead,
         feedback: "Reviewed local cleanup evidence without granting execution authority."

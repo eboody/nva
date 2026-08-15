@@ -19,7 +19,7 @@
 //! use domain::{analytics, entities, operations, source};
 //! use uuid::Uuid;
 //!
-//! let location_id = entities::LocationId(Uuid::from_u128(0x170));
+//! let location_id = entities::LocationId::new(Uuid::from_u128(0x170));
 //! let operating_day = operations::operating_day::Date::try_new(
 //!     NaiveDate::from_ymd_opt(2026, 6, 18).expect("fixture date is valid"),
 //! )?;
@@ -55,7 +55,7 @@
 //! assert!(packet.safe_agent_actions().contains(&brief::SafeAgentAction::RankManagerActions));
 //! assert!(packet.blocked_actions().contains(&brief::BlockedAction::ChangeStaffSchedule));
 //! assert!(packet.blocked_actions().contains(&brief::BlockedAction::MutateProviderOrPmsRecord));
-//! assert!(packet.minutes_saved() > 0);
+//! assert!(packet.reported_estimated_minutes_difference() > 0);
 //!
 //! let outcome = brief::OutcomeRecord::builder()
 //!     .action_id(packet.actions()[0].id().clone())
@@ -70,7 +70,7 @@
 //!
 //! assert!(outcome.records_feedback_without_external_mutation());
 //! assert!(outcome.blocked_actions().contains(&brief::BlockedAction::SendCustomerMessage));
-//! assert_eq!(outcome.actual_minutes_saved(), 33);
+//! assert!(!outcome.counts_as_labor_savings());
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 use domain::{analytics, entities, operations, policy, source};
@@ -319,8 +319,8 @@ pub enum SafeAgentAction {
     DraftInternalTaskForReview,
     /// Allows agents to record manager feedback for staff review without mutating records or contacting customers.
     RecordManagerFeedback,
-    /// Allows agents to estimate labor minutes saved for staff review without mutating records or contacting customers.
-    EstimateLaborMinutesSaved,
+    /// Allows agents to report a labor estimate difference for staff review without claiming realized savings or enabling side effects.
+    ReportLaborEstimateDifference,
 }
 
 #[derive(
@@ -406,8 +406,8 @@ impl LaborImpactEstimate {
         self.after_minutes
     }
 
-    /// Returns the minutes saved evidence available to manager daily brief review while leaving provider, customer, payment, and schedule systems unchanged.
-    pub const fn minutes_saved(&self) -> u16 {
+    /// Returns a caller-reported estimate difference for prioritization, never a realized-savings claim.
+    pub const fn reported_estimated_minutes_difference(&self) -> u16 {
         self.before_minutes.0.saturating_sub(self.after_minutes.0)
     }
 }
@@ -656,8 +656,8 @@ impl Packet {
         self.after_minutes
     }
 
-    /// Returns the minutes saved evidence available to manager daily brief review while leaving provider, customer, payment, and schedule systems unchanged.
-    pub const fn minutes_saved(&self) -> u16 {
+    /// Returns a caller-reported estimate difference for prioritization, never a realized-savings claim.
+    pub const fn reported_estimated_minutes_difference(&self) -> u16 {
         self.before_minutes.0.saturating_sub(self.after_minutes.0)
     }
 
@@ -681,15 +681,15 @@ pub enum FeedbackOutcome {
 }
 
 impl FeedbackOutcome {
-    /// Returns true only when the reviewed action was completed and may count toward measured labor savings.
+    /// Serializable feedback is evidence only and never counts as realized labor savings.
     pub const fn counts_as_labor_savings(self) -> bool {
-        matches!(self, Self::Completed)
+        false
     }
 
-    /// Explains why a non-completed disposition must not be counted as realized labor savings.
+    /// Explains why every serializable disposition remains nonclaimable labor evidence.
     pub const fn labor_savings_not_claimed_reason(self) -> Option<LaborSavingsNotClaimedReason> {
         match self {
-            Self::Completed => None,
+            Self::Completed => Some(LaborSavingsNotClaimedReason::MissingReviewableActionTrace),
             Self::Deferred => Some(LaborSavingsNotClaimedReason::ManagerDeferredReview),
             Self::SuppressedByManager => {
                 Some(LaborSavingsNotClaimedReason::ManagerSuppressedAction)
@@ -700,10 +700,10 @@ impl FeedbackOutcome {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Human/system-of-record disposition used by reports before counting labor savings.
+/// Human/system-of-record disposition retained as reported outcome evidence.
 pub enum ReviewDisposition {
-    /// Human completed the action and the measured minutes can be reported as realized savings.
-    CompletedWithMeasuredLaborSavings,
+    /// Human reported completion; the recorded time remains evidence and is not realized savings.
+    CompletedEvidenceOnly,
     /// Human deferred the action; the estimate remains useful, but no realized savings are claimed.
     DeferredByManager,
     /// Human suppressed the action; the brief preserved review authority and claims no savings.
@@ -728,13 +728,8 @@ pub enum LaborSavingsNotClaimedReason {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Reportable labor-savings claim after human disposition, not merely an agent estimate.
+/// Fail-closed labor-value claim disposition for serializable outcome history.
 pub enum LaborSavingsClaim {
-    /// Completed reviewed action with measured minutes saved.
-    Supported {
-        /// Actual minutes saved after the human/system-of-record disposition matches the reviewable action evidence.
-        minutes: u16,
-    },
     /// Reviewed feedback retained, but realized savings are intentionally not claimed.
     NotClaimed {
         /// Why the workflow preserves feedback without counting optimistic labor savings.
@@ -781,11 +776,6 @@ impl OutcomeRecord {
         self.actual_minutes
     }
 
-    /// Returns the actual minutes saved evidence available to manager daily brief review while leaving provider, customer, payment, and schedule systems unchanged.
-    pub const fn actual_minutes_saved(&self) -> u16 {
-        self.before_minutes.0.saturating_sub(self.actual_minutes.0)
-    }
-
     /// Returns the source record refs evidence available to manager daily brief review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn source_record_refs(&self) -> &[source::RecordRef] {
         &self.source_record_refs
@@ -810,15 +800,13 @@ impl OutcomeRecord {
             .all(|source_ref| self.source_record_refs.contains(source_ref))
     }
 
-    /// Returns true only for completed reviewed outcomes proven against a matching action and all cited source evidence.
+    /// Returns false because even action-matched serialized history cannot claim realized savings.
     pub fn counts_as_labor_savings_for_action(&self, action: &BriefAction) -> bool {
-        matches!(
-            self.labor_savings_claim_for_action(action),
-            LaborSavingsClaim::Supported { .. }
-        )
+        let _ = action;
+        false
     }
 
-    /// Returns false for raw outcome records because supportable claims require a reviewable action and source-evidence trace.
+    /// Returns false because raw outcome records are reported evidence, never claim authority.
     pub const fn counts_as_labor_savings(&self) -> bool {
         false
     }
@@ -826,17 +814,14 @@ impl OutcomeRecord {
     /// Converts the human disposition into the reporting disposition used by labor-loop proof.
     pub const fn review_disposition(&self) -> ReviewDisposition {
         match self.outcome {
-            FeedbackOutcome::Completed => ReviewDisposition::CompletedWithMeasuredLaborSavings,
+            FeedbackOutcome::Completed => ReviewDisposition::CompletedEvidenceOnly,
             FeedbackOutcome::Deferred => ReviewDisposition::DeferredByManager,
             FeedbackOutcome::SuppressedByManager => ReviewDisposition::SuppressedByManager,
             FeedbackOutcome::SourceFactWasWrong => ReviewDisposition::SourceFactRejected,
         }
     }
 
-    /// Returns the fail-closed claim state for a raw outcome without action/source proof.
-    ///
-    /// Completed outcomes must use [`Self::labor_savings_claim_for_action`] so the claim is tied
-    /// back to the reviewed [`BriefAction`] and its cited [`SourceFact`] records.
+    /// Returns the fail-closed claim state for serializable outcome evidence.
     pub const fn labor_savings_claim(&self) -> LaborSavingsClaim {
         match self.outcome.labor_savings_not_claimed_reason() {
             Some(reason) => LaborSavingsClaim::NotClaimed { reason },
@@ -846,26 +831,10 @@ impl OutcomeRecord {
         }
     }
 
-    /// Returns whether this completed feedback supports realized savings for the given reviewable action.
-    pub fn labor_savings_claim_for_action(&self, action: &BriefAction) -> LaborSavingsClaim {
-        if let Some(reason) = self.outcome.labor_savings_not_claimed_reason() {
-            return LaborSavingsClaim::NotClaimed { reason };
-        }
-
-        if !self.matches_action(action) {
-            return LaborSavingsClaim::NotClaimed {
-                reason: LaborSavingsNotClaimedReason::MissingReviewableActionTrace,
-            };
-        }
-
-        if !action.is_source_grounded() || !self.cites_action_source_evidence(action) {
-            return LaborSavingsClaim::NotClaimed {
-                reason: LaborSavingsNotClaimedReason::MissingActionSourceEvidence,
-            };
-        }
-
-        LaborSavingsClaim::Supported {
-            minutes: self.actual_minutes_saved(),
+    /// Returns the same nonclaimable state even when the caller supplies a reviewed action.
+    pub fn labor_savings_claim_for_action(&self, _action: &BriefAction) -> LaborSavingsClaim {
+        LaborSavingsClaim::NotClaimed {
+            reason: LaborSavingsNotClaimedReason::MissingReviewableActionTrace,
         }
     }
 
@@ -920,7 +889,7 @@ impl Workflow {
                 SafeAgentAction::RankManagerActions,
                 SafeAgentAction::DraftInternalTaskForReview,
                 SafeAgentAction::RecordManagerFeedback,
-                SafeAgentAction::EstimateLaborMinutesSaved,
+                SafeAgentAction::ReportLaborEstimateDifference,
             ],
             blocked_actions: blocked_actions_for(),
             before_minutes,
@@ -1051,12 +1020,7 @@ fn checkout_exception_actions(request: &Request) -> Vec<BriefAction> {
         .iter()
         .filter(|scoped| scoped_packet_matches_request_scope(scoped.location_id(), scoped.operating_day(), request))
         .map(ScopedCheckoutPacket::packet)
-        .filter(|packet| {
-            !matches!(
-                packet.completion_status(),
-                checkout_completion::CompletionStatus::StaffVerifiedCheckout
-            )
-        })
+
         .map(|packet| {
             BriefAction::builder()
                 .id(ActionId::try_new(format!(

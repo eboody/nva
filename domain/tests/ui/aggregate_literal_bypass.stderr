@@ -45,3 +45,33 @@ error[E0560]: struct `domain::entities::Message` has no field named `approval_ga
    |         ^^^^^^^^^^^^^ `domain::entities::Message` does not have this field
    |
    = note: all struct fields are already assigned
+
+error: cannot construct `domain::entities::Incident` with struct literal syntax due to private fields
+  --> tests/ui/aggregate_literal_bypass.rs:87:28
+   |
+87 |     let _incident_bypass = entities::Incident {
+   |                            ^^^^^^^^^^^^^^^^^^
+88 |         id: entities::IncidentId::new(Uuid::from_u128(56)),
+   |         -------------------------------------------------- private field
+89 |         location_id: entities::LocationId::new(Uuid::from_u128(57)),
+   |         ----------------------------------------------------------- private field
+90 |         primary_subject: entities::IncidentSubject::Pet(entities::PetId::new(Uuid::from_u128(58))),
+   |         ------------------------------------------------------------------------------------------ private field
+91 |         category: incident::Category::Medication,
+   |         ---------------------------------------- private field
+92 |         severity: incident::Severity::Critical,
+   |         -------------------------------------- private field
+93 |         status: incident::Status::CustomerMessageReview,
+   |         ----------------------------------------------- private field
+94 |         reported_by: entities::ActorRef::System,
+   |         --------------------------------------- private field
+95 |         reported_at: Utc.with_ymd_and_hms(2026, 8, 12, 9, 0, 0).unwrap(),
+   |         ---------------------------------------------------------------- private field
+96 |         summary: incident::Summary::try_new("missed medication dose").unwrap(),
+   |         ---------------------------------------------------------------------- private field
+97 |         required_review_gates: Vec::new(),
+   |         --------------------------------- private field
+98 |         audit_refs: Vec::new(),
+   |         ---------------------- private field
+   |
+   = note: ...and other private field `closure_evidence` that was not provided

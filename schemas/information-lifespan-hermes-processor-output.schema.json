@@ -56,7 +56,7 @@
         "normalized_facts",
         "workflow_packets",
         "review_gates",
-        "estimated_labor_minutes_saved",
+        "reported_estimated_labor_minutes_difference",
         "expression"
       ],
       "properties": {
@@ -64,7 +64,7 @@
         "normalized_facts": { "const": 3 },
         "workflow_packets": { "const": 1 },
         "review_gates": { "const": 5 },
-        "estimated_labor_minutes_saved": { "const": 42 },
+        "reported_estimated_labor_minutes_difference": { "const": 42 },
         "expression": { "const": "60 minute manual morning scan - 18 minute reviewed packet" }
       }
     },
@@ -86,7 +86,7 @@
         "artifact_kind": { "const": "manager_daily_report" },
         "artifact_ref": { "const": "artifact://manager-daily-report/synthetic-2026-06-29" },
         "title": { "const": "Manager Daily Report — synthetic 2026-06-29" },
-        "summary": { "type": "string", "pattern": "42 estimated labor minutes saved" },
+        "summary": { "type": "string", "pattern": "42 reported estimated labor minute difference" },
         "manager_actions": { "type": "array", "minItems": 2 }
       }
     },

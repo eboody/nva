@@ -23,12 +23,12 @@
 //!
 //! let provenance = source::Provenance::builder()
 //!     .system(source::System::Gingr)
-//!     .endpoint(source::Endpoint::try_new("GET /owners/{id}")?)
+//!     .endpoint(source::Endpoint::try_new("opaque://fixture/owner")?)
 //!     .record_id(source::record::Id::try_new(provider_record.id.to_string())?)
 //!     .extraction_batch(source::ExtractionBatchId::try_new("fixture-batch")?)
 //!     .pulled_at(source::Timestamp::try_new("2026-08-13T21:30:00Z")?)
 //!     .request_scope(source::RequestScope::try_new("customer-contact")?)
-//!     .schema_version(source::SchemaVersion::try_new("gingr-owner-v1")?)
+//!     .schema_version(source::SchemaVersion::try_new("unverified-owner-fixture")?)
 //!     .payload_hash(source::PayloadHash::try_new("sha256:fixture")?)
 //!     .raw_payload_ref(source::RawPayloadRef::try_new("fixture://gingr/owner-501")?)
 //!     .build();
@@ -56,13 +56,17 @@ use domain::source;
 pub type Result<T> = core::result::Result<T, Error>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// Stable identity of the verified provider-to-domain mapping contract used for a promotion.
+/// Stable identity of an NVA-local mapping implementation.
+///
+/// These variants do not assert provider endpoint or schema knowledge. The observed
+/// endpoint and source-shape labels remain opaque in `source::Provenance` until an
+/// authoritative provider contract is available.
 pub enum Version {
-    /// First verified Gingr owner-to-customer-contact mapping.
+    /// First local owner-shaped observation to customer-contact candidate mapper.
     CustomerContactV1,
-    /// First verified Gingr animal-to-pet-name mapping.
+    /// First local animal-shaped observation to pet-name candidate mapper.
     PetNameV1,
-    /// First verified Gingr retail-item-to-product mapping.
+    /// First local retail-item-shaped observation to product candidate mapper.
     RetailProductV1,
 }
 
@@ -101,18 +105,6 @@ impl<T> Promoted<T> {
             });
         }
 
-        let (expected_endpoint, expected_schema_version) = mapping_version.source_contract();
-        if provenance.endpoint().as_str() != expected_endpoint
-            || provenance.schema_version().as_str() != expected_schema_version
-        {
-            return Err(Error::SourceContractMismatch {
-                expected_endpoint,
-                actual_endpoint: provenance.endpoint().as_str().to_owned(),
-                expected_schema_version,
-                actual_schema_version: provenance.schema_version().as_str().to_owned(),
-            });
-        }
-
         Ok(Self {
             candidate,
             record_ref: source::RecordRef::from_provenance(&provenance),
@@ -136,7 +128,7 @@ impl<T> Promoted<T> {
         &self.provenance
     }
 
-    /// Verified mapping contract used to promote the provider record.
+    /// NVA-local mapper used to derive the candidate without claiming a verified provider contract.
     pub const fn mapping_version(&self) -> Version {
         self.mapping_version
     }
@@ -149,16 +141,6 @@ impl<T> Promoted<T> {
             self.provenance,
             self.mapping_version,
         )
-    }
-}
-
-impl Version {
-    const fn source_contract(self) -> (&'static str, &'static str) {
-        match self {
-            Self::CustomerContactV1 => ("GET /owners/{id}", "gingr-owner-v1"),
-            Self::PetNameV1 => ("GET /animals/{id}", "gingr-animal-v1"),
-            Self::RetailProductV1 => ("GET /retail/items/{id}", "gingr-retail-item-v1"),
-        }
     }
 }
 
@@ -221,19 +203,5 @@ pub enum Error {
         provider_record_id: source::record::Id,
         /// Identity carried by the supplied provenance.
         provenance_record_id: source::record::Id,
-    },
-    #[error(
-        "Gingr source contract mismatch: expected {expected_endpoint} ({expected_schema_version}), received {actual_endpoint} ({actual_schema_version})"
-    )]
-    /// Provenance identity matches the DTO but names a different provider record family or schema.
-    SourceContractMismatch {
-        /// Endpoint required by the selected mapping contract.
-        expected_endpoint: &'static str,
-        /// Endpoint carried by the supplied provenance.
-        actual_endpoint: String,
-        /// Provider schema required by the selected mapping contract.
-        expected_schema_version: &'static str,
-        /// Provider schema carried by the supplied provenance.
-        actual_schema_version: String,
     },
 }

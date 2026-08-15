@@ -1,0 +1,22 @@
+warning: unreachable expression
+ --> tests/ui/queue_authority_literal.rs:4:13
+  |
+4 |       let _ = entities::message_record::QueueAuthorization {
+  |  _____________^
+5 | |         message_id: entities::MessageId::new(uuid::Uuid::from_u128(1)),
+6 | |         evidence: todo!(),
+  | |                   ------- any code following this expression is unreachable
+7 | |     };
+  | |_____^ unreachable expression
+  |
+  = note: `#[warn(unreachable_code)]` (part of `#[warn(unused)]`) on by default
+
+error[E0451]: fields `message_id` and `evidence` of struct `QueueAuthorization` are private
+ --> tests/ui/queue_authority_literal.rs:5:9
+  |
+4 |     let _ = entities::message_record::QueueAuthorization {
+  |             -------------------------------------------- in this type
+5 |         message_id: entities::MessageId::new(uuid::Uuid::from_u128(1)),
+  |         ^^^^^^^^^^ private field
+6 |         evidence: todo!(),
+  |         ^^^^^^^^ private field

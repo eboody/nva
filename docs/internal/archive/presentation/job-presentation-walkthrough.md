@@ -23,7 +23,7 @@ From the repo root, use the one-command wrapper for the cleanest live path:
 Expected output anchors:
 
 - Contract lane: `openapi_title=NVA Pet Resorts Owned Operations API`, `openapi_version=0.1.0`, `openapi_paths=8`, `owned_route=/v0/agent/context/data-quality-hygiene`, `owned_route=/v0/read-models/source-quality-backlog`, and `contract_lane_ok live_side_effects_allowed=false`.
-- Workflow lane: `[data-quality-hygiene-smoke]` progress lines plus `context_ok workflow=data-quality-hygiene actions=1 estimated_minutes_saved=15 live_side_effects_allowed=false`, `draft_validation_ok accepted_actions=1 requested_side_effects=0`, `blocked_draft_validation_ok blocked_side_effect=send_customer_message`, `outcome_ok estimated_minutes_saved=15 actual_minutes_saved=17 live_side_effects_allowed=false`, and `smoke_assertions_ok estimated_minutes_saved=15 actual_minutes_saved=17`.
+- Workflow lane: `[data-quality-hygiene-smoke]` progress lines plus `context_ok workflow=data-quality-hygiene actions=1 reported_estimated_minutes_difference=15 live_side_effects_allowed=false`, `draft_validation_ok accepted_actions=1 requested_side_effects=0`, `blocked_draft_validation_ok blocked_side_effect=send_customer_message`, `outcome_ok reported_estimated_minutes_difference=15 actual_minutes_saved=17 live_side_effects_allowed=false`, and `smoke_assertions_ok reported_estimated_minutes_difference=15 actual_minutes_saved=17`.
 - Operations lane: the worker runtime contract test reports `test result: ok. 5 passed; 0 failed` and ends with `[data-quality-hygiene-worker-outbox-smoke] disabled worker/outbox proof passed as local internal handoff only`.
 - Wrapper close: `demo_owned_operations_api_ok local_fixture_only=true live_side_effects_allowed=false`.
 

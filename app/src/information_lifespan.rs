@@ -862,7 +862,7 @@ pub fn mock_gingr_manager_daily_report_trace() -> TraceEnvelope {
                 "3",
             ),
             CalculationProof::new(
-                "estimated_labor_minutes_saved",
+                "reported_estimated_labor_minutes_difference",
                 "60 minute manual morning scan - 18 minute reviewed packet",
                 "42",
             ),
@@ -898,7 +898,7 @@ pub fn mock_gingr_manager_daily_report_trace() -> TraceEnvelope {
             FinalArtifactKind::ManagerDailyReport,
             "Manager Daily Report — synthetic 2026-06-29",
             "artifact://manager-daily-report/synthetic-2026-06-29",
-            "3 source snapshots, 3 normalized facts, 6 DB proof refs, 5 review locks, 42 estimated labor minutes saved",
+            "3 source snapshots, 3 normalized facts, 6 DB proof refs, 5 review locks, 42 reported estimated labor minute difference",
         ),
     }
 }

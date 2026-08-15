@@ -83,9 +83,9 @@ pub enum ResourceId {
 impl std::fmt::Display for ResourceId {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Customer(id) => write!(formatter, "{}", id.0),
-            Self::Pet(id) => write!(formatter, "{}", id.0),
-            Self::Reservation(id) => write!(formatter, "{}", id.0),
+            Self::Customer(id) => write!(formatter, "{}", id.get()),
+            Self::Pet(id) => write!(formatter, "{}", id.get()),
+            Self::Reservation(id) => write!(formatter, "{}", id.get()),
             Self::Snapshot(id) => formatter.write_str(id.clone().into_inner().as_str()),
             Self::Draft(id) => formatter.write_str(id.clone().into_inner().as_str()),
             Self::External(id) => formatter.write_str(id),

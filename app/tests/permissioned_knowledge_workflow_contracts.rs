@@ -3,11 +3,11 @@ use domain::{access, agent, entities};
 use uuid::Uuid;
 
 fn location_id() -> entities::LocationId {
-    entities::LocationId(Uuid::from_u128(0x170))
+    entities::LocationId::new(Uuid::from_u128(0x170))
 }
 
 fn alternate_location_id() -> entities::LocationId {
-    entities::LocationId(Uuid::from_u128(0x171))
+    entities::LocationId::new(Uuid::from_u128(0x171))
 }
 
 fn front_desk_context(location_id: entities::LocationId) -> agent::assistant::ActorContext {
@@ -22,7 +22,7 @@ fn front_desk_context(location_id: entities::LocationId) -> agent::assistant::Ac
 }
 
 #[test]
-fn permissioned_knowledge_retrieval_authorizes_before_content_enters_assistant_context() {
+fn permissioned_knowledge_metadata_cannot_self_authorize_context_entry() {
     let request = app::permissioned_knowledge::Request::builder()
         .context(front_desk_context(location_id()))
         .service(entities::ServiceKind::Boarding)
@@ -33,15 +33,22 @@ fn permissioned_knowledge_retrieval_authorizes_before_content_enters_assistant_c
         .build();
 
     let packet = app::permissioned_knowledge::Workflow::answer(
-        &app::permissioned_knowledge::DeterministicFixtureRepository::default(),
+        &app::permissioned_knowledge::DeterministicFixtureRepository,
         request,
     );
 
-    assert_eq!(packet.answer_state(), agent::assistant::AnswerState::Cited);
-    assert!(packet.safe_to_enter_assistant_context());
-    assert_eq!(packet.authorized_passages().len(), 1);
-    assert_eq!(packet.citations().len(), 1);
-    assert!(packet.claims_are_cited());
+    assert_eq!(
+        packet.answer_state(),
+        agent::assistant::AnswerState::Escalated
+    );
+    assert!(!packet.safe_to_enter_assistant_context());
+    assert!(packet.authorized_passages().is_empty());
+    assert!(packet.citations().is_empty());
+    assert!(!packet.claims_are_cited());
+    assert_eq!(
+        packet.escalation_reason(),
+        Some(agent::assistant::EscalationReason::StaleOrMissingSource)
+    );
     assert!(
         packet
             .forbidden_actions()
@@ -64,7 +71,7 @@ fn permissioned_knowledge_retrieval_escalates_before_context_for_location_or_rol
         .build();
 
     let packet = app::permissioned_knowledge::Workflow::answer(
-        &app::permissioned_knowledge::DeterministicFixtureRepository::default(),
+        &app::permissioned_knowledge::DeterministicFixtureRepository,
         request,
     );
 
@@ -81,7 +88,7 @@ fn permissioned_knowledge_retrieval_escalates_before_context_for_location_or_rol
 }
 
 #[test]
-fn permissioned_knowledge_retrieval_escalates_conflicting_or_missing_sources_instead_of_citing() {
+fn permissioned_knowledge_retrieval_escalates_unaccepted_sources_instead_of_citing() {
     let repository = app::permissioned_knowledge::DeterministicFixtureRepository::with_conflicting_boarding_fixture();
     let request = app::permissioned_knowledge::Request::builder()
         .context(front_desk_context(location_id()))
@@ -99,7 +106,7 @@ fn permissioned_knowledge_retrieval_escalates_conflicting_or_missing_sources_ins
     );
     assert_eq!(
         conflict_packet.escalation_reason(),
-        Some(agent::assistant::EscalationReason::ConflictingSources)
+        Some(agent::assistant::EscalationReason::StaleOrMissingSource)
     );
     assert!(conflict_packet.citations().is_empty());
 
@@ -112,7 +119,7 @@ fn permissioned_knowledge_retrieval_escalates_conflicting_or_missing_sources_ins
         .requested_at(Utc.with_ymd_and_hms(2026, 8, 12, 15, 0, 0).unwrap())
         .build();
     let missing_packet = app::permissioned_knowledge::Workflow::answer(
-        &app::permissioned_knowledge::DeterministicFixtureRepository::default(),
+        &app::permissioned_knowledge::DeterministicFixtureRepository,
         missing_request,
     );
     assert_eq!(

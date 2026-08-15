@@ -15,8 +15,8 @@ use crate::{
     read_model::staff_queue_item::blocked_action_notice,
     storage::review_queue::codec,
     tables::{
-        LocationScopeRow, ReviewQueueItemRow, RoleAssignmentRow, StaffActorRow,
-        blocked_action_attempt, hygiene_audit_event, hygiene_outcome, location_scope,
+        LocationScopeV1Row, ReviewQueueItemRow, RoleAssignmentRow, StaffActorRow,
+        blocked_action_attempt, hygiene_audit_event, hygiene_outcome, location_scope_v1,
         review_queue_item, role_assignment, staff_actor,
     },
 };
@@ -43,9 +43,9 @@ impl HygieneCaptureRuntime {
                 .iter()
                 .collect::<Vec<RoleAssignmentRow>>(),
             ctx.db
-                .location_scope()
+                .location_scope_v1()
                 .iter()
-                .collect::<Vec<LocationScopeRow>>(),
+                .collect::<Vec<LocationScopeV1Row>>(),
         );
         let review_items = ctx
             .db
@@ -70,6 +70,8 @@ impl HygieneCaptureRuntime {
         let identity = ctx.sender().to_string();
         let actor_rows = ctx.db.staff_actor().iter().collect::<Vec<StaffActorRow>>();
         authz::actor_id_for_identity(&identity, actor_rows.iter())
+            .ok()
+            .flatten()
     }
 
     /// Invokes the app service and writes adapter rows back into SpacetimeDB.

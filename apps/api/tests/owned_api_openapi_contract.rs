@@ -6,6 +6,12 @@ use tower::ServiceExt;
 
 const OPENAPI: &str = include_str!("../openapi/owned-operations-v0.openapi.json");
 
+fn openapi_field_is_nullable(schema: &Value) -> bool {
+    schema["type"]
+        .as_array()
+        .is_some_and(|types| types.iter().any(|kind| kind == "null"))
+}
+
 async fn get_json(uri: &str) -> (axum_http::StatusCode, Value) {
     let response = http::router_with_test_auth_state(http::VaccineDocumentState::default())
         .oneshot(
@@ -145,6 +151,18 @@ fn checked_openapi_artifact_names_owned_v0_operations_and_safe_schemas() {
         schemas["ApiContractMetadata"]["properties"]["live_side_effects"]["const"],
         "disabled"
     );
+    assert_eq!(
+        schemas["ManagerDailyBriefOutcomeReporting"]["properties"]["location_id"]["format"],
+        "uuid"
+    );
+    assert_eq!(
+        schemas["ManagerDailyBriefOutcomeReporting"]["properties"]["operating_day"]["format"],
+        "date"
+    );
+    assert_eq!(
+        schemas["ManagerDailyBriefOutcomeAudit"]["properties"]["correlation_id"]["minLength"],
+        1
+    );
 }
 
 #[test]
@@ -158,6 +176,143 @@ fn checked_openapi_marks_authenticated_mutations_and_their_fail_closed_responses
             outcome["responses"][status]["content"]["application/json"]["schema"]["$ref"],
             "#/components/schemas/ErrorEnvelope"
         );
+    }
+}
+
+#[test]
+fn data_quality_validation_schema_requires_the_runtime_error_envelope() {
+    let spec: Value = serde_json::from_str(OPENAPI).expect("checked OpenAPI json parses");
+    let schema = &spec["components"]["schemas"]["DataQualityHygieneOutcomeValidationResponse"];
+    assert_eq!(schema["additionalProperties"], false);
+    let required = schema["required"].as_array().unwrap();
+    for field in [
+        "error",
+        "request_id",
+        "live_side_effects",
+        "accepted",
+        "outcome_persisted",
+        "reasons",
+    ] {
+        assert!(required.contains(&Value::String(field.to_owned())));
+    }
+    assert_eq!(schema["properties"]["error"]["additionalProperties"], false);
+}
+
+#[test]
+fn runtime_contract_manifest_matches_openapi_fields_requiredness_nullability_enums_and_refs() {
+    let spec: Value = serde_json::from_str(OPENAPI).expect("checked OpenAPI json parses");
+    for runtime in public_contract::runtime_schema_contracts() {
+        let schema = &spec["components"]["schemas"][runtime.name];
+        assert!(schema.is_object(), "OpenAPI is missing {}", runtime.name);
+        assert_eq!(
+            schema["additionalProperties"], false,
+            "{} must reject unknown fields",
+            runtime.name
+        );
+        assert_eq!(
+            schema["required"],
+            json!(runtime.required),
+            "{} requiredness drift",
+            runtime.name
+        );
+        for field in runtime.fields {
+            let openapi = &schema["properties"][field.name];
+            assert!(
+                openapi.is_object(),
+                "{}.{} is missing",
+                runtime.name,
+                field.name
+            );
+            let nested_ref = openapi
+                .get("$ref")
+                .or_else(|| openapi.get("items").and_then(|items| items.get("$ref")))
+                .and_then(Value::as_str);
+            assert_eq!(
+                nested_ref, field.nested_ref,
+                "{}.{} nested ref drift",
+                runtime.name, field.name
+            );
+            assert_eq!(
+                openapi_field_is_nullable(openapi),
+                field.nullable,
+                "{}.{} nullability drift",
+                runtime.name,
+                field.name
+            );
+            assert_eq!(
+                openapi.get("format").and_then(Value::as_str),
+                field.format,
+                "{}.{} format drift",
+                runtime.name,
+                field.name
+            );
+            assert_eq!(
+                openapi.get("minimum").and_then(Value::as_u64),
+                field.minimum,
+                "{}.{} numeric minimum drift",
+                runtime.name,
+                field.name
+            );
+            assert_eq!(
+                openapi.get("minLength").and_then(Value::as_u64),
+                field.min_length,
+                "{}.{} minimum length drift",
+                runtime.name,
+                field.name
+            );
+            if !field.enum_values.is_empty() {
+                assert_eq!(
+                    openapi["enum"],
+                    json!(field.enum_values),
+                    "{}.{} enum drift",
+                    runtime.name,
+                    field.name
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn runtime_route_inventory_matches_openapi_including_manager_daily_brief_mutations() {
+    let spec: Value = serde_json::from_str(OPENAPI).expect("checked OpenAPI json parses");
+    let documented = spec["paths"].as_object().expect("paths object");
+    for route in public_contract::owned_v0_routes() {
+        assert!(
+            documented.contains_key(*route),
+            "OpenAPI missing runtime route {route}"
+        );
+    }
+    assert_eq!(
+        documented["/v0/manager-daily-brief/actions/{action_id}/outcome"]["post"]["requestBody"]["content"]
+            ["application/json"]["schema"]["$ref"],
+        "#/components/schemas/ManagerDailyBriefOutcomeCaptureRequest"
+    );
+}
+
+#[test]
+fn manager_daily_brief_errors_advertise_the_actual_closed_workflow_envelope() {
+    let spec: Value = serde_json::from_str(OPENAPI).expect("checked OpenAPI json parses");
+    let operation = &spec["paths"]["/v0/manager-daily-brief/actions/{action_id}/outcome"]["post"];
+    for status in ["401", "403", "409", "422"] {
+        assert_eq!(
+            operation["responses"][status]["content"]["application/json"]["schema"]["$ref"],
+            "#/components/schemas/ManagerDailyBriefOutcomeErrorResponse"
+        );
+    }
+    let schema = &spec["components"]["schemas"]["ManagerDailyBriefOutcomeErrorResponse"];
+    assert_eq!(schema["additionalProperties"], false);
+    for field in [
+        "error",
+        "request_id",
+        "live_side_effects",
+        "api_contract",
+        "accepted",
+        "outcome_persisted",
+        "reasons",
+        "blocked_actions",
+    ] {
+        assert!(schema["properties"].get(field).is_some(), "missing {field}");
     }
 }
 
@@ -400,6 +555,39 @@ async fn v0_success_payloads_include_openapi_required_contract_fields() {
         &schemas["DataQualityHygieneOutcomeCaptureResponse"],
         &outcome,
     );
+}
+
+#[test]
+fn manager_outcome_response_openapi_binds_concrete_nested_contracts() {
+    let spec: Value = serde_json::from_str(OPENAPI).expect("checked OpenAPI json parses");
+    let schemas = &spec["components"]["schemas"];
+    let response = &schemas["ManagerDailyBriefOutcomeCaptureResponse"];
+
+    assert_eq!(
+        response["properties"]["outcome_record"]["$ref"],
+        "#/components/schemas/ManagerDailyBriefOutcomeRecord"
+    );
+    assert_eq!(
+        response["properties"]["reported_labor_evidence"]["$ref"],
+        "#/components/schemas/ManagerDailyBriefReportedLaborEvidence"
+    );
+    assert_eq!(
+        response["properties"]["audit"]["$ref"],
+        "#/components/schemas/ManagerDailyBriefOutcomeRecordedAudit"
+    );
+    for name in [
+        "ManagerDailyBriefOutcomeRecord",
+        "ManagerDailyBriefLaborGrouping",
+        "ManagerDailyBriefReportedLaborEvidence",
+        "ManagerDailyBriefOutcomeRecordedAudit",
+    ] {
+        assert!(schemas[name]["additionalProperties"] == false);
+        assert!(
+            schemas[name]["required"]
+                .as_array()
+                .is_some_and(|fields| !fields.is_empty())
+        );
+    }
 }
 
 fn assert_required_fields_present(schema: &Value, payload: &Value) {

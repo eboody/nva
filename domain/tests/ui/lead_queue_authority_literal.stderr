@@ -1,0 +1,9 @@
+error: cannot construct `QueueableContact` with struct literal syntax due to private fields
+ --> tests/ui/lead_queue_authority_literal.rs:4:19
+  |
+4 |     let _forged = QueueableContact {
+  |                   ^^^^^^^^^^^^^^^^
+5 |         action: LegalContactAction::QueueOnly,
+  |         ------------------------------------- private field
+  |
+  = note: ...and other private field `_authority` that was not provided

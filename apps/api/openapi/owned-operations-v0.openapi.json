@@ -103,18 +103,17 @@
       },
       "ActorRef": {
         "type": "object",
+        "additionalProperties": false,
         "required": [
-          "actor_kind"
+          "persona",
+          "id"
         ],
         "properties": {
-          "actor_kind": {
+          "persona": {
             "type": "string"
           },
-          "actor_id": {
-            "type": [
-              "string",
-              "null"
-            ]
+          "id": {
+            "type": "string"
           },
           "actor_role": {
             "type": [
@@ -335,6 +334,7 @@
       },
       "ErrorEnvelope": {
         "type": "object",
+        "additionalProperties": false,
         "required": [
           "error",
           "request_id",
@@ -343,6 +343,7 @@
         "properties": {
           "error": {
             "type": "object",
+            "additionalProperties": false,
             "required": [
               "code",
               "message",
@@ -350,28 +351,15 @@
             ],
             "properties": {
               "code": {
-                "enum": [
-                  "invalid_request",
-                  "authentication_required",
-                  "forbidden",
-                  "not_found",
-                  "idempotency_conflict",
-                  "workflow_validation_failed",
-                  "dependency_unavailable"
-                ]
+                "type": "string",
+                "minLength": 1
               },
               "message": {
                 "type": "string"
               },
               "safe_error_class": {
-                "enum": [
-                  "validation_failed",
-                  "auth_required",
-                  "authorization_failed",
-                  "not_found",
-                  "idempotency_conflict",
-                  "dependency_unavailable"
-                ]
+                "type": "string",
+                "minLength": 1
               },
               "details": {
                 "type": "array",
@@ -565,8 +553,8 @@
               "$ref": "#/components/schemas/DataQualityHygieneAction"
             }
           },
-          "labor_savings_estimate": {
-            "type": "object"
+          "reported_labor_estimate_evidence": {
+            "$ref": "#/components/schemas/ReportedLaborEstimateEvidence"
           },
           "allowed_agent_actions": {
             "type": "array",
@@ -735,6 +723,7 @@
       },
       "DataQualityHygieneOutcomeCaptureRequest": {
         "type": "object",
+        "additionalProperties": false,
         "required": [
           "outcome",
           "actual_minutes",
@@ -745,11 +734,19 @@
           "resolution_status_after_review",
           "timestamp",
           "audit",
-          "requested_side_effects"
+          "requested_side_effects",
+          "idempotency_key"
         ],
         "properties": {
           "outcome": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "completed",
+              "deferred",
+              "suppressed_by_manager",
+              "source_fact_was_wrong",
+              "not_actionable"
+            ]
           },
           "actual_minutes": {
             "type": "integer",
@@ -764,7 +761,7 @@
           "source_refs": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/SourceRef"
+              "$ref": "#/components/schemas/SourceRecordRef"
             }
           },
           "issue_refs": {
@@ -774,14 +771,20 @@
             }
           },
           "resolution_status_after_review": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "open",
+              "acknowledged",
+              "ignored",
+              "repaired"
+            ]
           },
           "timestamp": {
             "type": "string",
             "format": "date-time"
           },
           "audit": {
-            "type": "object"
+            "$ref": "#/components/schemas/OutcomeAudit"
           },
           "requested_side_effects": {
             "type": "array",
@@ -790,10 +793,9 @@
             }
           },
           "idempotency_key": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
           }
         }
       },
@@ -804,7 +806,7 @@
           "accepted",
           "outcome_persisted",
           "outcome_record",
-          "labor_savings_evidence",
+          "reported_labor_evidence",
           "local_demo_readiness",
           "storage_projection_proof",
           "observability",
@@ -825,9 +827,6 @@
           },
           "outcome_record": {
             "$ref": "#/components/schemas/DataQualityHygieneOutcomeRecord"
-          },
-          "labor_savings_evidence": {
-            "type": "object"
           },
           "local_demo_readiness": {
             "type": "object"
@@ -850,6 +849,9 @@
           },
           "audit": {
             "type": "object"
+          },
+          "reported_labor_evidence": {
+            "type": "object"
           }
         }
       },
@@ -868,10 +870,7 @@
           "actual_minutes": {
             "type": "integer"
           },
-          "estimated_minutes_saved": {
-            "type": "integer"
-          },
-          "actual_minutes_saved": {
+          "reported_estimated_minutes_difference": {
             "type": "integer"
           },
           "actor": {
@@ -978,7 +977,11 @@
       },
       "DataQualityHygieneOutcomeValidationResponse": {
         "type": "object",
+        "additionalProperties": false,
         "required": [
+          "error",
+          "request_id",
+          "live_side_effects",
           "accepted",
           "outcome_persisted",
           "reasons",
@@ -986,6 +989,60 @@
           "blocked_actions"
         ],
         "properties": {
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "code",
+              "message",
+              "safe_error_class"
+            ],
+            "properties": {
+              "code": {
+                "enum": [
+                  "invalid_request",
+                  "authentication_required",
+                  "forbidden",
+                  "not_found",
+                  "idempotency_conflict",
+                  "workflow_validation_failed",
+                  "dependency_unavailable"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "safe_error_class": {
+                "enum": [
+                  "validation_failed",
+                  "auth_required",
+                  "authorization_failed",
+                  "not_found",
+                  "idempotency_conflict",
+                  "dependency_unavailable"
+                ]
+              },
+              "details": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "live_side_effects": {
+            "type": "string",
+            "const": "disabled"
+          },
           "accepted": {
             "type": "boolean",
             "const": false
@@ -1342,26 +1399,7 @@
             "description": "Includes provider/PMS mutation, customer send, schedule/capacity, payment, and safety-sensitive actions."
           },
           "labor_impact": {
-            "type": "object",
-            "required": [
-              "before_minutes",
-              "after_minutes",
-              "minutes_saved"
-            ],
-            "properties": {
-              "before_minutes": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "after_minutes": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "minutes_saved": {
-                "type": "integer",
-                "minimum": 0
-              }
-            }
+            "$ref": "#/components/schemas/ReportedLaborEstimateEvidence"
           },
           "audit": {
             "type": "object",
@@ -1380,6 +1418,414 @@
           },
           "observability": {
             "type": "object"
+          }
+        }
+      },
+      "SourceRecordRef": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "system",
+          "record_type",
+          "record_id",
+          "observed_at",
+          "adapter_version"
+        ],
+        "properties": {
+          "system": {
+            "type": "string"
+          },
+          "record_type": {
+            "type": "string"
+          },
+          "record_id": {
+            "type": "string"
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "adapter_version": {
+            "type": "string"
+          }
+        }
+      },
+      "OutcomeAudit": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "correlation_id"
+        ],
+        "properties": {
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ManagerDailyBriefOutcomeAudit": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "correlation_id"
+        ],
+        "properties": {
+          "correlation_id": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "ManagerDailyBriefOutcomeReporting": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "location_id",
+          "operating_day"
+        ],
+        "properties": {
+          "location_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "operating_day": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "ManagerDailyBriefOutcomeCaptureRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "outcome",
+          "actual_minutes",
+          "actor",
+          "feedback",
+          "source_refs",
+          "timestamp",
+          "audit",
+          "reporting",
+          "requested_side_effects",
+          "idempotency_key"
+        ],
+        "properties": {
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "deferred",
+              "suppressed_by_manager",
+              "source_fact_was_wrong"
+            ]
+          },
+          "actual_minutes": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "actor": {
+            "$ref": "#/components/schemas/ActorRef"
+          },
+          "feedback": {
+            "type": "string"
+          },
+          "source_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SourceRecordRef"
+            }
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "audit": {
+            "$ref": "#/components/schemas/ManagerDailyBriefOutcomeAudit"
+          },
+          "reporting": {
+            "$ref": "#/components/schemas/ManagerDailyBriefOutcomeReporting"
+          },
+          "requested_side_effects": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "idempotency_key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      },
+      "ManagerDailyBriefOutcomeRecord": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "action_id",
+          "outcome",
+          "before_minutes",
+          "actual_minutes",
+          "actor",
+          "feedback",
+          "source_refs",
+          "timestamp",
+          "audit"
+        ],
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "deferred",
+              "suppressed_by_manager",
+              "source_fact_was_wrong"
+            ]
+          },
+          "before_minutes": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "actual_minutes": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "actor": {
+            "$ref": "#/components/schemas/ActorRef"
+          },
+          "feedback": {
+            "type": "string"
+          },
+          "source_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SourceRecordRef"
+            }
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "audit": {
+            "$ref": "#/components/schemas/ManagerDailyBriefOutcomeAudit"
+          }
+        }
+      },
+      "ManagerDailyBriefLaborGrouping": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "location_id",
+          "operating_day",
+          "action_kind",
+          "owner_persona"
+        ],
+        "properties": {
+          "location_id": {
+            "type": "string"
+          },
+          "operating_day": {
+            "type": "string",
+            "format": "date"
+          },
+          "action_kind": {
+            "type": "string"
+          },
+          "owner_persona": {
+            "type": "string"
+          }
+        }
+      },
+      "ManagerDailyBriefOutcomeRecordedAudit": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "event",
+          "policy_owner"
+        ],
+        "properties": {
+          "event": {
+            "type": "string",
+            "const": "manager_daily_brief_outcome_recorded"
+          },
+          "policy_owner": {
+            "type": "string",
+            "const": "deterministic_app"
+          }
+        }
+      },
+      "ManagerDailyBriefOutcomeCaptureResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "api_contract",
+          "accepted",
+          "outcome_persisted",
+          "idempotent_replay",
+          "outcome_record",
+          "reported_labor_evidence",
+          "live_side_effects_allowed",
+          "blocked_actions",
+          "audit"
+        ],
+        "properties": {
+          "api_contract": {
+            "$ref": "#/components/schemas/ApiContractMetadata"
+          },
+          "accepted": {
+            "type": "boolean"
+          },
+          "outcome_persisted": {
+            "type": "boolean"
+          },
+          "idempotent_replay": {
+            "type": "boolean"
+          },
+          "outcome_record": {
+            "$ref": "#/components/schemas/ManagerDailyBriefOutcomeRecord"
+          },
+          "live_side_effects_allowed": {
+            "type": "boolean",
+            "const": false
+          },
+          "blocked_actions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "audit": {
+            "$ref": "#/components/schemas/ManagerDailyBriefOutcomeRecordedAudit"
+          },
+          "reported_labor_evidence": {
+            "$ref": "#/components/schemas/ManagerDailyBriefReportedLaborEvidence"
+          }
+        }
+      },
+      "ManagerDailyBriefReportedLaborEvidence": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "reported_estimated_minutes_difference",
+          "reported_actual_minutes_spent",
+          "grouping",
+          "persisted_outcome_count"
+        ],
+        "properties": {
+          "grouping": {
+            "$ref": "#/components/schemas/ManagerDailyBriefLaborGrouping"
+          },
+          "persisted_outcome_count": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reported_estimated_minutes_difference": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "reported_actual_minutes_spent": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "ManagerDailyBriefOutcomeErrorResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "error",
+          "request_id",
+          "live_side_effects"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "code",
+              "message",
+              "safe_error_class"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "minLength": 1
+              },
+              "message": {
+                "type": "string"
+              },
+              "safe_error_class": {
+                "type": "string",
+                "minLength": 1
+              },
+              "details": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "live_side_effects": {
+            "type": "string",
+            "const": "disabled"
+          },
+          "api_contract": {
+            "$ref": "#/components/schemas/ApiContractMetadata"
+          },
+          "accepted": {
+            "type": "boolean",
+            "const": false
+          },
+          "outcome_persisted": {
+            "type": "boolean",
+            "const": false
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "blocked_actions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ReportedLaborEstimateEvidence": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "before_minutes",
+          "after_minutes",
+          "reported_estimated_minutes_difference"
+        ],
+        "properties": {
+          "before_minutes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "after_minutes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "reported_estimated_minutes_difference": {
+            "type": "integer",
+            "minimum": 0
           }
         }
       }
@@ -1797,6 +2243,98 @@
               "application/json": {
                 "schema": {
                   "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/manager-daily-brief/actions/{action_id}/outcome": {
+      "post": {
+        "operationId": "captureManagerDailyBriefOutcome",
+        "security": [
+          {
+            "StaffSessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "action_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManagerDailyBriefOutcomeCaptureRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Idempotent replay of an existing outcome",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagerDailyBriefOutcomeCaptureResponse"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Outcome recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagerDailyBriefOutcomeCaptureResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Trusted runtime authentication is required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagerDailyBriefOutcomeErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated actor is not authorized for this mutation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagerDailyBriefOutcomeErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key was reused with a different semantic payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagerDailyBriefOutcomeErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagerDailyBriefOutcomeErrorResponse"
                 }
               }
             }
