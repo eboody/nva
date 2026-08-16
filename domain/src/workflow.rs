@@ -571,26 +571,6 @@ pub struct Result<T> {
 }
 
 impl<T> Result<T> {
-    /// Records a completed workflow outcome with structured output and verification evidence.
-    pub fn completed(
-        summary: Summary,
-        structured_output: T,
-        recommended_actions: Vec<RecommendedAction>,
-        risk_flags: Vec<RiskFlag>,
-        verification: Vec<VerificationNote>,
-    ) -> std::result::Result<Self, Error> {
-        ensure_verification_evidence(&verification)?;
-        Ok(Self {
-            summary,
-            outcome: Outcome::Completed {
-                structured_output,
-                recommended_actions,
-                risk_flags,
-                verification,
-            },
-        })
-    }
-
     /// Records a workflow outcome that stopped at a human review gate.
     pub fn needs_human_review(
         summary: Summary,
@@ -867,6 +847,9 @@ impl<T> Outcome<T> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 /// Validation failures returned by workflow result/outcome construction and rehydration.
 pub enum Error {
+    /// Serialized caller output attempted to claim workflow completion.
+    #[error("serialized completed workflow outcome is not accepted")]
+    SerializedCompletedOutcomeNotAccepted,
     /// Completed outcome was missing structured output evidence.
     #[error("completed workflow outcome requires structured output evidence")]
     CompletedOutcomeRequiresStructuredOutput,
@@ -922,21 +905,7 @@ impl<T> TryFrom<ResultV1<T>> for Result<T> {
             return Err(Error::NonCompletedOutcomeMustNotCarryStructuredOutput);
         }
         match value.status {
-            Status::Completed => {
-                if value.human_review_reason.is_some() {
-                    return Err(Error::CompletedOutcomeMustNotCarryHumanReviewReason);
-                }
-                let Some(structured_output) = value.structured_output else {
-                    return Err(Error::CompletedOutcomeRequiresStructuredOutput);
-                };
-                Self::completed(
-                    value.summary,
-                    structured_output,
-                    value.recommended_actions,
-                    value.risk_flags,
-                    value.verification,
-                )
-            }
+            Status::Completed => Err(Error::SerializedCompletedOutcomeNotAccepted),
             Status::NeedsHumanReview => {
                 let Some(reason) = value.human_review_reason else {
                     return Err(Error::HumanReviewOutcomeRequiresReviewReason);

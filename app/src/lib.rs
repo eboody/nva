@@ -28,7 +28,7 @@ pub mod agents;
 pub mod booking_triage;
 /// Checkout-closeout packets, gates, and safe handoff drafts.
 pub mod checkout_completion;
-/// Source-grounded retention follow-up packets and review-only customer drafts.
+/// Evidence-only retention packets; current serialized inputs cannot issue eligibility, queue, task, draft, contact, conversion, completion, or value authority.
 pub mod crm_retention;
 /// Daily operational update packets built from deterministic source context.
 pub mod daily_update;

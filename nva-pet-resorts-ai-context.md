@@ -20,7 +20,7 @@ Use this pack for business context and discovery framing, then move into the cur
 | --- | --- |
 | The overall labor-cost reduction thesis and canonical reader path | [README canonical docs path](README.md#canonical-docs-path) and [Labor-cost reduction crosswalk](docs/design/labor-cost-reduction-crosswalk.md) |
 | Core pet-resort nouns: customer, pet, reservation, care/vaccine/incident facts, workflow packets, outcomes, storage/runtime shells | [NVA Pet Resorts entity index](docs/design/entity-index.md) |
-| How source evidence becomes domain facts, workflow packets, reviewed outcomes, and proof | [Entity atlas relationship map](docs/design/entity-atlas-relationships.md) |
+| How source evidence becomes domain facts, workflow packets, caller-reported outcomes, and separately authenticated proof | [Entity atlas relationship map](docs/design/entity-atlas-relationships.md) |
 | A workflow-first question such as booking triage, checkout, grooming retention, Pawgress drafts, manager brief, or regional exceptions | [Workflow-to-entity navigation map](docs/design/workflow-to-entity-navigation-map.md) and [Operator workflow index](docs/workflows/operator/README.md) |
 | The current strongest measurable labor loop | [Manager Daily Brief workflow](docs/workflows/operator/manager-daily-brief.md) and [Manager Daily Brief measurable labor loop](docs/design/manager-daily-brief-measurable-labor-loop.md) |
 | Missing, stale, duplicate, conflicting, or ambiguous facts across source systems | [Data Quality Hygiene workflow](docs/workflows/operator/data-quality-hygiene.md) and [Source/provenance/data-quality atlas](docs/design/source-provenance-data-quality-atlas.md) |

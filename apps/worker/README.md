@@ -29,7 +29,7 @@ That map matters because the rest of the repository already distinguishes determ
 
 Future background workflows should use this shell to run app-owned work asynchronously while preserving the workspace architecture from the root [`README`](../../README.md): `domain` defines what is true, `app` defines what the system needs to do, adapters satisfy those contracts, and runtime crates boot/wire the process.
 
-The current demo worker proof is intentionally narrower than a queue consumer. `pet_resort_worker::runtime::Config::process_data_quality_hygiene_projection` accepts the typed local Data-Quality Hygiene storage projection, reflects the reviewed outcome and approved internal outbox candidate, and returns an auditable `DataQualityHygieneWorkerProof`. That proof is fake/local-only: `AgentRuntimeMode::Disabled`, `SideEffectMode::Stubbed`, and `OutboxProcessingStatus::ReviewGatedStub` remain true, so the outbox row is a review-gated internal handoff candidate rather than a publisher.
+The current demo worker proof is intentionally narrower than a queue consumer. `pet_resort_worker::runtime::Config::process_data_quality_hygiene_projection` accepts the typed local Data-Quality Hygiene storage projection, reflects caller-reported outcome evidence and a separately admitted internal outbox candidate, and returns an auditable `DataQualityHygieneWorkerProof`. That proof is fake/local-only: `AgentRuntimeMode::Disabled`, `SideEffectMode::Stubbed`, and `OutboxProcessingStatus::ReviewGatedStub` remain true, so the outbox row is a review-gated internal handoff candidate rather than a publisher.
 
 Examples of work that belongs behind this shell once implemented:
 

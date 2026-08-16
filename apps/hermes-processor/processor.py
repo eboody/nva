@@ -145,7 +145,7 @@ def _build_output(data: dict[str, Any], hermes_cli_path: str | None, mode: str) 
             "workflow_packets": inputs["workflow_packet_count"],
             "review_gates": inputs["review_gate_count"],
             "reported_estimated_labor_minutes_difference": reported_estimated_minutes_difference,
-            "expression": f"{before} minute manual morning scan - {after} minute reviewed packet",
+            "expression": f"{before} minute caller-reported manual baseline - {after} minute caller-reported workflow estimate",
         },
         "review_gates": [
             {"gate": gate, "locked": True, "reason": "demo boundary keeps unsafe side effects review-required"}

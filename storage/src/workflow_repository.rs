@@ -101,7 +101,13 @@ fn validate_source_refs(value: &Value) -> crate::persistence::Result<()> {
 #[derive(Clone)]
 pub struct InMemoryOutcomes<T> {
     outcomes: Vec<T>,
-    idempotency: BTreeMap<IdempotencyKey, OperationFingerprint>,
+    idempotency: BTreeMap<IdempotencyKey, RetainedOperation>,
+}
+
+#[derive(Clone)]
+struct RetainedOperation {
+    fingerprint: OperationFingerprint,
+    outcome_index: usize,
 }
 
 impl<T> Default for InMemoryOutcomes<T> {
@@ -114,8 +120,14 @@ impl<T> Default for InMemoryOutcomes<T> {
 }
 
 /// Validated client operation key used to make one outcome command replay-safe.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct IdempotencyKey(String);
+
+impl core::fmt::Debug for IdempotencyKey {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        formatter.write_str("IdempotencyKey([REDACTED])")
+    }
+}
 
 impl IdempotencyKey {
     /// Promotes a non-empty boundary value into a storage idempotency identity.
@@ -128,8 +140,14 @@ impl IdempotencyKey {
 }
 
 /// Semantic fingerprint of every command fact that can change an outcome.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct OperationFingerprint(String);
+
+impl core::fmt::Debug for OperationFingerprint {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        formatter.write_str("OperationFingerprint([REDACTED])")
+    }
+}
 
 impl OperationFingerprint {
     /// Promotes a non-empty deterministic digest into a semantic fingerprint.
@@ -150,23 +168,33 @@ pub enum IdempotencyValueError {
 }
 
 /// Atomic outcome of checking and recording an idempotent operation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum IdempotentRecord {
+#[derive(Clone, PartialEq, Eq)]
+pub enum IdempotentRecord<T> {
     /// A new semantic operation was recorded exactly once.
     Recorded {
         /// Number of outcomes retained after recording.
         retained_count: usize,
+        /// Exact outcome durably retained for this operation.
+        retained_outcome: T,
     },
     /// The key and semantic fingerprint matched an already-recorded operation.
     Replay {
         /// Number of outcomes retained; replay never increments it.
         retained_count: usize,
+        /// Exact previously retained outcome; the replay candidate is discarded.
+        retained_outcome: T,
     },
     /// The key existed with a different semantic fingerprint.
     Conflict,
 }
 
-impl<T> InMemoryOutcomes<T> {
+impl<T> core::fmt::Debug for IdempotentRecord<T> {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        formatter.write_str("IdempotentRecord([REDACTED])")
+    }
+}
+
+impl<T: Clone> InMemoryOutcomes<T> {
     /// Atomically checks the key/fingerprint pair and records only a new operation.
     ///
     /// The caller must hold exclusive access to this repository value for the
@@ -176,17 +204,26 @@ impl<T> InMemoryOutcomes<T> {
         key: IdempotencyKey,
         fingerprint: OperationFingerprint,
         outcome: T,
-    ) -> IdempotentRecord {
+    ) -> IdempotentRecord<T> {
         match self.idempotency.get(&key) {
-            Some(existing) if existing == &fingerprint => IdempotentRecord::Replay {
+            Some(existing) if existing.fingerprint == fingerprint => IdempotentRecord::Replay {
                 retained_count: self.outcomes.len(),
+                retained_outcome: self.outcomes[existing.outcome_index].clone(),
             },
             Some(_) => IdempotentRecord::Conflict,
             None => {
-                self.idempotency.insert(key, fingerprint);
+                let outcome_index = self.outcomes.len();
+                self.idempotency.insert(
+                    key,
+                    RetainedOperation {
+                        fingerprint,
+                        outcome_index,
+                    },
+                );
                 self.outcomes.push(outcome);
                 IdempotentRecord::Recorded {
                     retained_count: self.outcomes.len(),
+                    retained_outcome: self.outcomes[outcome_index].clone(),
                 }
             }
         }
@@ -219,12 +256,28 @@ mod tests {
         let fingerprint = OperationFingerprint::try_new("sha256:first").unwrap();
 
         assert_eq!(
+            format!("{key:?}"),
+            "IdempotencyKey([REDACTED])",
+            "idempotency identities must not leak through diagnostics"
+        );
+        assert_eq!(
+            format!("{fingerprint:?}"),
+            "OperationFingerprint([REDACTED])",
+            "semantic request fingerprints must not leak through diagnostics"
+        );
+        assert_eq!(
             outcomes.record_idempotently(key.clone(), fingerprint.clone(), "record"),
-            IdempotentRecord::Recorded { retained_count: 1 }
+            IdempotentRecord::Recorded {
+                retained_count: 1,
+                retained_outcome: "record"
+            }
         );
         assert_eq!(
             outcomes.record_idempotently(key.clone(), fingerprint, "ignored replay"),
-            IdempotentRecord::Replay { retained_count: 1 }
+            IdempotentRecord::Replay {
+                retained_count: 1,
+                retained_outcome: "record"
+            }
         );
         assert_eq!(
             outcomes.record_idempotently(

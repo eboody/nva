@@ -145,8 +145,8 @@ impl ModelPath {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-/// Synthetic provider payload plus provenance labels.
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+/// Provider-shaped source evidence whose unrestricted payload and raw reference are redacted from diagnostics.
 pub struct SourcePayload {
     payload_kind: SourcePayloadKind,
     authority: PayloadAuthority,
@@ -154,6 +154,12 @@ pub struct SourcePayload {
     nva_target_model_path: String,
     raw_payload_ref: String,
     payload: serde_json::Value,
+}
+
+impl fmt::Debug for SourcePayload {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("SourcePayload([REDACTED])")
+    }
 }
 
 impl SourcePayload {
@@ -863,7 +869,7 @@ pub fn mock_gingr_manager_daily_report_trace() -> TraceEnvelope {
             ),
             CalculationProof::new(
                 "reported_estimated_labor_minutes_difference",
-                "60 minute manual morning scan - 18 minute reviewed packet",
+                "60 minute caller-reported manual baseline - 18 minute caller-reported workflow estimate",
                 "42",
             ),
         ],

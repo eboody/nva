@@ -1298,7 +1298,7 @@ pub mod package {
             Ok(Self(value))
         }
 
-        /// Returns the minute count used for labor-savings outcome records.
+        /// Returns caller-reported minute evidence retained without a realized-savings claim.
         pub const fn get(self) -> u16 {
             self.0
         }
@@ -1314,11 +1314,13 @@ pub mod package {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-    /// Actual staff minutes spent after the reviewer resolved a training package/session opportunity.
-    pub struct ActualLaborMinutes(u16);
+    /// Caller-reported minute label retained with a training package/session outcome.
+    ///
+    /// This serializable value does not prove resolution, staff time, labor effect, or value.
+    pub struct ReportedLaborMinutes(u16);
 
-    impl ActualLaborMinutes {
-        /// Accepts a positive actual-minute count for training opportunity outcome measurement.
+    impl ReportedLaborMinutes {
+        /// Accepts a positive caller-reported minute count for nonclaimable outcome history.
         pub const fn try_new(value: u16) -> std::result::Result<Self, LaborMinutesError> {
             if value == 0 {
                 return Err(LaborMinutesError::Zero);
@@ -1326,13 +1328,13 @@ pub mod package {
             Ok(Self(value))
         }
 
-        /// Returns the minute count used for labor-savings outcome records.
+        /// Returns caller-reported minute evidence retained without a realized-savings claim.
         pub const fn get(self) -> u16 {
             self.0
         }
     }
 
-    impl<'de> Deserialize<'de> for ActualLaborMinutes {
+    impl<'de> Deserialize<'de> for ReportedLaborMinutes {
         fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
         where
             D: Deserializer<'de>,
@@ -1369,13 +1371,19 @@ pub mod package {
         BlockedAction::MutateProviderRecord,
     ];
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+    #[derive(Clone, PartialEq, Eq, Serialize)]
     /// Source-backed training package/session opportunity for staff reconciliation or re-enrollment review.
     pub struct Opportunity {
         package_id: Id,
         source_record_refs: Vec<crate::source::RecordRef>,
         usage_decision: UsageDecision,
         estimated_minutes: EstimatedLaborMinutes,
+    }
+
+    impl std::fmt::Debug for Opportunity {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.write_str("training::package::Opportunity([REDACTED])")
+        }
     }
 
     impl Opportunity {
@@ -1428,18 +1436,18 @@ pub mod package {
             PACKAGE_OPPORTUNITY_BLOCKED_ACTIONS
         }
 
-        /// Captures reviewer disposition and actual minutes without authorizing provider or package mutation.
+        /// Retains caller-reported disposition and minute labels without proving review or authorizing provider or package mutation.
         pub fn record_outcome(
             &self,
             disposition: Disposition,
-            actual_minutes: ActualLaborMinutes,
+            reported_minutes: ReportedLaborMinutes,
         ) -> OutcomeRecord {
             OutcomeRecord {
                 package_id: self.package_id.clone(),
                 source_record_refs: self.source_record_refs.clone(),
                 disposition,
                 before_minutes: self.estimated_minutes,
-                actual_minutes,
+                reported_minutes,
             }
         }
     }
@@ -1469,52 +1477,55 @@ pub mod package {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Staff disposition for a training package/session opportunity after review.
+    /// Caller-reported training package/session disposition label retained as nonclaimable evidence; it proves no review, queue, confirmation, suppression, correction, deferral, action, completion, measurement, or value.
     pub enum Disposition {
-        /// Staff queued a balance/payment reconciliation task in the system of record.
-        ReconciliationQueued,
-        /// Staff confirmed no sessions remain and suppressed rebooking/customer copy.
-        NoRemainingSessionsConfirmed,
-        /// Source evidence was wrong or stale and needs correction before action.
-        WrongSourceOrNeedsCorrection,
-        /// Staff reviewed the opportunity and deferred follow-up.
-        DeferredByStaff,
+        /// Caller reports a reconciliation-queued label without proving any queue or system-of-record action.
+        ReconciliationQueuedLabel,
+        /// Caller reports a no-remaining-sessions label without proving confirmation or suppression.
+        NoRemainingSessionsLabel,
+        /// Caller reports a wrong-source label without adjudicating source truth or authorizing correction.
+        WrongSourceLabel,
+        /// Caller reports a deferred label without proving staff review or deferral.
+        DeferredLabel,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Outcome measurement proving whether a training opportunity reduced package/session lookup labor.
+    /// Caller-reported training opportunity outcome retained as nonclaimable history.
+    ///
+    /// Its disposition, source references, and minute labels do not prove review, resolution,
+    /// measured labor reduction, or value.
     pub struct OutcomeRecord {
         package_id: Id,
         source_record_refs: Vec<crate::source::RecordRef>,
         disposition: Disposition,
         before_minutes: EstimatedLaborMinutes,
-        actual_minutes: ActualLaborMinutes,
+        reported_minutes: ReportedLaborMinutes,
     }
 
     impl OutcomeRecord {
-        /// Returns the package whose review outcome was measured.
+        /// Returns the package label correlated with this caller-reported outcome evidence.
         pub fn package_id(&self) -> &Id {
             &self.package_id
         }
 
-        /// Returns source records used by the reviewer when measuring labor impact.
+        /// Returns caller-reported source-reference labels without authenticating a reviewer, review, measurement, or labor impact.
         pub fn source_record_refs(&self) -> &[crate::source::RecordRef] {
             &self.source_record_refs
         }
 
-        /// Returns reviewer disposition for reporting and quality loops.
+        /// Returns the caller-reported disposition label for evidence reporting.
         pub const fn disposition(&self) -> Disposition {
             self.disposition
         }
 
-        /// Returns the estimated manual lookup minutes before the opportunity packet.
+        /// Returns the caller-reported baseline-minute estimate.
         pub const fn before_minutes(&self) -> EstimatedLaborMinutes {
             self.before_minutes
         }
 
-        /// Returns the actual staff minutes spent after the opportunity packet.
-        pub const fn actual_minutes(&self) -> ActualLaborMinutes {
-            self.actual_minutes
+        /// Returns the caller-reported workflow-minute label; it is not an actual measurement.
+        pub const fn reported_minutes(&self) -> ReportedLaborMinutes {
+            self.reported_minutes
         }
 
         /// Serializable outcome history cannot publish saved labor minutes.

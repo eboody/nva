@@ -58,7 +58,7 @@ Agent output re-enters the app as a draft/recommendation packet. The app validat
 - every claim/action cites source refs from the packet;
 - required review gates match the workflow policy;
 - blocked side effects are absent;
-- customer-facing language, policy claims, and labor-savings claims satisfy deterministic checks.
+- customer-facing language and policy claims satisfy deterministic checks, while attempted realized-savings claims are rejected and labor fields remain reported evidence.
 
 Rejected drafts are audit events, not silent failures. Store the reason so future evaluations can distinguish agent hallucination, stale context, missing evidence, and app-policy rejection.
 
@@ -74,7 +74,7 @@ Every context packet, draft submission, validation result, review decision, side
 - which policy version allowed or blocked the recommendation?
 - who reviewed it?
 - what changed externally, if anything?
-- how many minutes were estimated and actually saved?
+- what before/actual minutes and estimate differences were reported, without treating them as realized savings?
 
 Replayability is what makes labor-cost reduction measurable instead of anecdotal.
 
@@ -361,7 +361,7 @@ Concrete work:
 5. Add staff UI surface:
    - view daily brief;
    - approve/defer/suppress actions;
-   - record actual minutes.
+   - retain caller-reported workflow-minute labels without calling them actual measurements.
 6. Add smoke test:
    - app creates context packet;
    - Hermes/tool bridge reads it;
@@ -416,7 +416,7 @@ The infrastructure is doing its job when:
 - deterministic app code validates every submitted draft;
 - unsafe actions are blocked even if the agent suggests them;
 - staff can review, approve, defer, suppress, or correct outputs;
-- outcome capture records actual labor impact;
+- outcome capture records caller-reported time fields, disposition, source evidence, and actor/persona labels as nonclaimable history; it does not authenticate review, completion, labor effect, or value;
 - smoke tests prove the full loop without live customer/PMS/payment side effects;
 - the pattern can be reused for the second and third agents without rebuilding the rails.
 

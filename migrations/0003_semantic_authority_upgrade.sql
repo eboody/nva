@@ -2,6 +2,13 @@ BEGIN;
 
 -- Forward-only semantic-authority upgrade for installations that already applied 0001.
 -- Existing incompatible rows are rejected rather than assigned invented authority metadata.
+-- Supported migration runners replay idempotent migrations in filename order. A replayed current
+-- 0001 may therefore have installed immutability triggers before this forward validator runs.
+-- Remove only the outcome-row immutability guards while this transaction validates existing rows;
+-- the guards are recreated below before COMMIT. Transaction rollback restores the pre-upgrade
+-- trigger state if any legacy row fails validation.
+DROP TRIGGER IF EXISTS manager_daily_brief_outcomes_immutable ON manager_daily_brief_outcomes;
+DROP TRIGGER IF EXISTS data_quality_hygiene_outcomes_immutable ON data_quality_hygiene_outcomes;
 
 ALTER TABLE review_packets
     ADD COLUMN IF NOT EXISTS reviewed_action_id text;
@@ -161,7 +168,8 @@ BEGIN
         OR approval_record.gate <> NEW.review_gate
         OR approval_record.decided_by_actor_kind <> NEW.authorized_by_actor_kind
         OR approval_record.decided_by_actor_id <> NEW.authorized_by_actor_id
-        OR approval_record.decided_by_actor_persona <> NEW.authorized_by_actor_persona
+        OR approval_record.legacy_persona_missing
+        OR approval_record.decided_by_actor_persona IS DISTINCT FROM NEW.authorized_by_actor_persona
         OR approval_record.decided_at <> NEW.authorized_at
     THEN
         RAISE EXCEPTION 'approval_outbox_bindings require the matching approved decision authority';
@@ -262,6 +270,24 @@ CREATE TRIGGER approval_records_open_outbox_guard
 
 ALTER TABLE manager_daily_brief_outcomes
     ADD COLUMN IF NOT EXISTS schema_version integer NOT NULL DEFAULT 1;
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'manager_daily_brief_outcomes'
+          AND column_name = 'estimated_minutes_saved'
+    ) AND NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'manager_daily_brief_outcomes'
+          AND column_name = 'reported_estimated_minutes_difference'
+    ) THEN
+        ALTER TABLE manager_daily_brief_outcomes
+            RENAME COLUMN estimated_minutes_saved TO reported_estimated_minutes_difference;
+    END IF;
+END;
+$$;
 ALTER TABLE manager_daily_brief_outcomes
     DROP CONSTRAINT IF EXISTS manager_daily_brief_outcomes_schema_version_check;
 ALTER TABLE manager_daily_brief_outcomes
@@ -282,6 +308,24 @@ ALTER TABLE manager_daily_brief_outcomes
 
 ALTER TABLE data_quality_hygiene_outcomes
     ADD COLUMN IF NOT EXISTS schema_version integer NOT NULL DEFAULT 1;
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'data_quality_hygiene_outcomes'
+          AND column_name = 'estimated_minutes_saved'
+    ) AND NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'data_quality_hygiene_outcomes'
+          AND column_name = 'reported_estimated_minutes_difference'
+    ) THEN
+        ALTER TABLE data_quality_hygiene_outcomes
+            RENAME COLUMN estimated_minutes_saved TO reported_estimated_minutes_difference;
+    END IF;
+END;
+$$;
 ALTER TABLE data_quality_hygiene_outcomes
     DROP CONSTRAINT IF EXISTS data_quality_hygiene_outcomes_schema_version_check;
 ALTER TABLE data_quality_hygiene_outcomes
@@ -289,6 +333,28 @@ ALTER TABLE data_quality_hygiene_outcomes
     CHECK (schema_version = 1);
 ALTER TABLE data_quality_hygiene_outcomes
     ALTER COLUMN location_id SET NOT NULL;
+
+CREATE OR REPLACE VIEW data_quality_hygiene_labor_outcomes AS
+SELECT
+    dqh.id,
+    dqh.location_id,
+    dqh.operating_day,
+    dqh.action_kind,
+    dqh.owner_persona,
+    dqh.actor_persona,
+    dqh.outcome,
+    dqh.resolution_status_after_review,
+    dqh.before_minutes,
+    dqh.actual_minutes,
+    dqh.reported_estimated_minutes_difference AS reported_estimated_minutes_difference,
+    dqh.issue_refs,
+    dqh.source_refs,
+    dqh.workflow_event_id,
+    dqh.approval_record_id,
+    dqh.correlation_id,
+    'data_quality_hygiene_labor_outcomes.v1'::text AS projection_version,
+    ARRAY['live_side_effects_disabled']::text[] AS caveats
+FROM data_quality_hygiene_outcomes dqh;
 
 -- Reviewed outcome evidence must be backed by one immutable approved decision whose packet binds
 -- the exact owned workflow event, action id, target, and gate. This does not invent provider

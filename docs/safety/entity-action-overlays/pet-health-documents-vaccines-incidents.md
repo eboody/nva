@@ -1,8 +1,8 @@
 # Pet health, documents, vaccines, temperament, and incidents safety overlay
 
-This overlay helps medical/vaccine reviewers, daycare leads, care teams, front-desk leads, and managers reduce stale-proof chasing, free-text care-note rereading, behavior-safety handoffs, and incident follow-up rework by showing what source facts automation may read, what it may draft or recommend, what a human must approve, and which outcome/audit record proves safe use.
+This overlay helps medical/vaccine reviewers, daycare leads, care teams, front-desk leads, and managers reduce stale-proof chasing, free-text care-note rereading, behavior-safety handoffs, and incident follow-up rework by showing what source facts automation may read, what it may draft or recommend, what a human must approve, and which outcome/audit evidence is retained without treating caller reports as proof of safe use.
 
-Safe outcome: automation may assemble reviewable evidence, draft internal tasks or customer-message copy for approval, rank safety queues, and record reviewed dispositions; it must not approve vaccine/medical/behavior/incident decisions, send customers messages, mutate Gingr/PMS/provider records, change schedules/capacity, move money, delete documents, or change local policy.
+Safe outcome: automation may assemble reviewable evidence, draft internal tasks or customer-message copy for approval, rank safety queues, and retain caller-reported disposition labels; it must not approve vaccine/medical/behavior/incident decisions, send customers messages, mutate Gingr/PMS/provider records, change schedules/capacity, move money, delete documents, or change local policy.
 
 ## 1. Plain-English entity/action definition and labor-cost problem
 
@@ -15,7 +15,7 @@ This family covers the pet-safety records staff use before a pet can enter care,
 - incidents: injury, altercation, behavior, medication, escape, property, or customer-service incidents with severity, lifecycle status, redacted summaries, evidence documents, customer-message review, legal hold, and audit history;
 - group-play/safety eligibility and approval actions: conservative play policy decisions, behavior-review gates, medical-document review gates, care-team approval, manager escalation, and customer-message approval.
 
-The labor problem is that staff otherwise re-open uploads, pet notes, incident reports, and provider records every time they triage a booking, prepare a daily update, assess daycare eligibility, or explain a safety follow-up. The safe automation win is a source-backed review packet or queue item that says what evidence exists, why review is needed, who owns the decision, and what value was captured after review.
+The labor problem is that staff otherwise re-open uploads, pet notes, incident reports, and provider records every time they triage a booking, prepare a daily update, assess daycare eligibility, or explain a safety follow-up. The safe automation target is source-backed, reviewable evidence that says what was reported, why separate review is needed, and which role would own a future decision. Current caller-reported rows create no queue authority and prove no review, decision, action, measurement, labor reduction, or value.
 
 ## 2. Workflows/contracts featuring it and adjacent entities
 
@@ -41,7 +41,7 @@ The labor problem is that staff otherwise re-open uploads, pet notes, incident r
 | Incident status/severity | `domain::incident::{Category, Severity, Status, Summary}` plus evidence documents and audit history. | What kind of source-backed incident is being routed and whether manager/customer-message/legal review is visible. | Legal/medical conclusion, disciplinary action, refund/discount, closure, or external communication. |
 | Reviewer gate | `domain::policy::ReviewGate` and booking-triage `ApprovalGate`. | Which reviewer lane must clear before sensitive work advances. | Approval by itself, or authority for unrelated customer/provider/payment/schedule actions. |
 | Workflow packet/action | `app::booking_triage::DeterministicResult`, `StaffEvaluationPacket`, safe agent actions, blocked actions, `AgentPromptPacket`. | What the app may summarize, draft, rank, validate, or route for review. | Live resort execution or permission to bypass source-of-record systems. |
-| Outcome/audit record | API audit events, workflow events/results, source refs, `storage::operations` stored evidence/outcome records where present. | What staff reviewed, approved/rejected/deferred/corrected, which source refs were used, and what labor value was captured. | That the agent took the downstream live action. |
+| Outcome/audit record | API audit events, workflow events/results, source refs, `storage::operations` stored evidence/outcome records where present. | Caller-reported actor, disposition, source-correlation, and time evidence retained for reconciliation. These fields do not authenticate staff review, prove approval/rejection/correction/completion, measure labor, or establish value. | That the agent or staff took the downstream live action, or that review or labor value occurred. |
 
 ## 4. Agent may read
 
@@ -73,9 +73,9 @@ Automation may prepare review work, not final sensitive decisions. Allowed artif
 - manager incident packets that summarize incident category/severity/status, missing fields, affected subjects, customer-message needs, legal-hold status, and evidence documents;
 - customer-message drafts for approval when the app contract allows drafting, preserving recipient/channel/body/review policy and never sending directly;
 - media snapshot requests/results only as review evidence for pet-status/facility-safety/incident-review context; unavailable results such as camera offline, permission denied, or retention expired must become review/failure evidence rather than silent retries;
-- reviewed outcome records after a human disposition: reviewer/actor, approval status, decision reason, source refs, blocked action reasons, actual minutes, minutes avoided, wrong-source findings, and correlation id.
+- caller-reported outcome records: actor/persona/disposition/time labels, source refs, blocked-action reasons, wrong-source labels, and correlation id. These do not prove identity, review, completion, minutes avoided, or value.
 
-Authority level wording: use `DraftOnly`, `InternalTaskOnly`, `ManagerApprovalRequired`, or named review gates for these workflows unless a later source/Rustdoc/test contract proves a deterministic approved path. Do not write that the agent “approves,” “clears,” “sends,” “updates,” “closes,” “changes eligibility,” or “fixes source data” unless a reviewed outcome record shows a human/system-of-record performed that separate step.
+Authority level wording: use `DraftOnly`, `InternalTaskOnly`, `ManagerApprovalRequired`, or named review gates for these workflows unless a later source/Rustdoc/test contract proves a deterministic approved path. A caller-reported outcome record never proves a human/system-of-record performed the step; require separate authoritative evidence before writing that the agent “approves,” “clears,” “sends,” “updates,” “closes,” “changes eligibility,” or “fixes source data.”
 
 ## 6. Agent must not do directly
 
@@ -129,18 +129,18 @@ Safe use is proven by a chain of evidence, not by a single source fact:
 | Draft/recommendation | `AgentPromptPacket`, `StaffEvaluationPacket`, readiness bucket, safe agent actions, draft id/status, review packet id, internal task id. | Automation prepared reviewable work inside app constraints. | That the downstream live action happened. |
 | Human approval/rejection | Review gate, reviewer role/staff id, status, timestamp, decision reason, audit event such as `approval.decision.recorded`. | The sensitive decision was reviewed by the named role. | Authority for unrelated payments, policy changes, provider writes, or sends. |
 | Blocked action proof | `BlockedAction::{ConfirmBooking, RejectRequest, AcceptSpecialCare, ApproveBehaviorException, MutateProviderRecord, SendCustomerMessage, MovePayment}`, requested side effects, validation result. | The system knew what it was not allowed to do and stopped or routed it. | That staff later performed the action. |
-| Outcome/value | Disposition, feedback, actual minutes, before/after minutes, minutes avoided, handle-time reduction, rework reduced, wrong-source findings, reporting group, correlation id. | Reviewed work happened and labor/safety value can be measured. | Guaranteed ROI or permission to automate future decisions. |
+| Caller-reported outcome/value evidence | Disposition, feedback, minute labels, reported estimate differences, wrong-source findings, reporting group, correlation id. | A caller report was retained for inspection. | Review, completed work, measured labor or safety value, guaranteed ROI, or permission to automate future decisions. |
 
-Value-measurement row for this family:
+Nonclaimable reporting-evidence row for this family:
 
-| Value measure | How to record it safely |
+| Reported observation | How to retain it safely |
 | --- | --- |
-| Minutes avoided | Reviewer records minutes not spent reopening vaccine documents, pet notes, incident reports, or source screens because the packet summarized source refs and uncertainty. |
-| Rework reduced | Count rejected/unclear proofs routed once with reason codes instead of repeated owner/staff back-and-forth; capture wrong-source findings and stale evidence. |
-| Handle time reduced | Compare time to prepare a vaccine/care/behavior/incident review packet before and after source-backed drafts; include actual minutes, not estimates alone. |
-| Wrong-source findings | Record low-confidence OCR, ambiguous dates, conflicting pet identity, missing required fields, stale temperament observation, or incident evidence mismatch as review outcomes. |
-| Manager/staff disposition | Store approved, rejected, deferred, corrected, escalated, suppressed, or owner-decision-needed with reviewer/actor and reason. |
-| Outcome capture | Link context packet id, review packet id, source refs, audit events, blocked actions, and correlation id so a non-coder can prove the agent stayed draft/review-only. |
+| Reported minutes | Retain caller-reported before/after or handling-minute labels for reconciliation only; they do not prove who worked, what work occurred, measured labor reduction, or value. |
+| Reported rework | Retain caller counts and reason labels for rejected or unclear evidence; they do not prove routing, review, reduced back-and-forth, or operational improvement. |
+| Reported handling comparison | Retain caller-labelled packet-preparation observations with source references; do not call them actual handling time, measured change, savings, or ROI. |
+| Reported source concerns | Retain low-confidence OCR, ambiguous-date, conflicting-identity, missing-field, stale-observation, or mismatch labels without treating them as authenticated source adjudication. |
+| Reported disposition | Retain caller-provided approved, rejected, deferred, corrected, escalated, suppressed, or owner-decision-needed labels without authenticating a manager, staff member, review, or decision. |
+| Correlation evidence | Link packet ids, source refs, audit labels, blocked-action labels, and correlation ids for inspection only; those links do not prove review, safe execution, completion, labor, or value without separate opaque authority. |
 
 The vaccine-document API tests demonstrate this distinction: upload creates `awaiting_review` document state, `pending_review` vaccine record, a `medical_document_review` packet, `rabies_current: false`, and audit events; staff approval later updates document verification, vaccine status, eligibility, approval status, and audit lineage. Staff rejection keeps eligibility false and marks the extracted record rejected.
 
@@ -179,7 +179,7 @@ Docs and tests:
 | Source inventory artifact `source-inventory.md` is still missing per parent handoff. | Writers lack a single family-by-family source list produced by the parent board. | Use `../source-evidence-map.md`, this overlay, and source paths above until the inventory exists. | Completed source inventory artifact or updated parent index. |
 | Production policy for live sends/provider writes/eligibility mutation is not proven by this overlay. | Product copy could overstate automation authority. | Draft/review-only; no autonomous customer sends, provider writes, eligibility changes, or incident/care/vaccine approvals. | Approved deterministic production policy, source/Rustdoc changes, tests, and approval records. |
 | Retention/destructive cleanup ownership for documents is not fully specified here. | Document deletion/retention affects PII, evidence, and compliance. | Do not delete/alter/archive documents autonomously; route to records/IT/security/manager as appropriate. | Retention policy source, storage lifecycle contract, reviewer role, and destructive-action tests. |
-| Labor value fields for this specific family may not have a dedicated storage projection yet. | Product value should be measured, not asserted from drafts. | Record available reviewer disposition, minutes avoided, rework reduced, wrong-source findings, and correlation ids in reviewed outcome/audit records. | Dedicated health/document/behavior/incident outcome projection or API contract showing value fields. |
+| Labor value fields for this specific family may not have a dedicated authoritative measurement projection yet. | Product value must not be asserted from drafts or caller reports. | Retain reported disposition/time/wrong-source/correlation fields as nonclaimable evidence only. | Dedicated authoritative measurement and review evidence, not merely a caller-serializable outcome row. |
 
 ## Final reviewer checklist
 

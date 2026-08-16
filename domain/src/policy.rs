@@ -1,6 +1,6 @@
 //! Policy gates that decide what automation may do safely.
 //!
-//! Policy values encode the operating line between labor-saving automation and human review:
+//! Policy values encode the operating line between manual-work-reduction assistance and human review:
 //! group-play eligibility, vaccine requirements, manager approval, medical-document review,
 //! customer-message approval, and refund/deposit exceptions. These types document why an agent may
 //! draft, route, suppress, or escalate work; they do not grant permission to override local resort

@@ -29,7 +29,7 @@ Allowed read inputs include:
 
 4. Prior outcomes and audit-friendly records.
    - Example: manager daily brief outcome records persist action id, outcome, before/actual minutes, actor, source refs, correlation id, location/day/action/persona, and reported estimated minute difference. The source map cites `storage/src/operations.rs`, `app/src/manager_daily_brief.rs`, and `docs/design/manager-daily-brief-measurable-labor-loop.md`.
-   - Operator translation: the system can remember what staff did with a recommendation and whether it saved time, without treating the recommendation as an executed action.
+   - Operator translation: the system can remember what staff reported doing with a recommendation and the time they reported spending, without treating the recommendation as an executed action or claiming realized savings.
 
 5. Policy instructions and review gates.
    - Example: `domain::policy::ReviewGate` names human approval gates such as manager approval, medical document review, behavior review, customer message approval, and refund/deposit exception. The source map cites `domain/src/policy.rs`, `app/src/agents.rs`, `app/src/booking_triage.rs`, and `app/src/manager_daily_brief.rs`.
@@ -46,7 +46,7 @@ Allowed draft outputs include:
    - Operator translation: the agent can help write a response, but staff or an approved deterministic send path must own sending.
 
 2. Manager brief recommendations.
-   - Example: Manager Daily Brief ranks service-demand, checkout-exception, retention, and data-quality actions with source facts, review gates, and labor-minute estimates. The source map cites `app/src/manager_daily_brief.rs`, `domain/src/daily_brief.rs`, and `docs/design/manager-daily-brief-measurable-labor-loop.md`.
+   - Example: Manager Daily Brief ranks service-demand, checkout-exception, capacity, and data-quality actions with source facts, review gates, and labor-minute estimates. Reported retention packets cannot create a brief action. The source map cites `app/src/manager_daily_brief.rs`, `domain/src/daily_brief.rs`, and `docs/design/manager-daily-brief-measurable-labor-loop.md`.
    - Operator translation: the agent helps build the morning action queue; it does not change staffing, schedules, PMS records, payments, or customer messages.
 
 3. Staff evaluation packets for booking triage.
@@ -63,7 +63,7 @@ Allowed draft outputs include:
 
 6. Proposed next actions.
    - Example: `domain::workflow` preserves workflow events, policy context, allowed actions, review reasons, recommended actions, risk flags, and verification notes. The source map cites `domain/src/workflow.rs`.
-   - Operator translation: the agent can say “review this vaccine document,” “check this checkout exception,” or “approve this retention follow-up draft,” but the responsible staff or manager still decides.
+   - Operator translation: the agent can say “review this vaccine document” or “check this checkout exception.” Current serialized retention evidence can only be inspected as ineligible evidence; it cannot produce an “approve retention follow-up draft” action.
 
 ## What agents may never do directly
 
@@ -120,7 +120,7 @@ The labor-cost thesis is not that the agent replaces accountable operators. The 
 Safe labor reduction comes from:
 
 1. Less dashboard reconciliation.
-   - Manager Daily Brief turns service demand, checkout exceptions, retention opportunities, and data-quality issues into a prioritized review queue. Evidence: `app/src/manager_daily_brief.rs` and `docs/design/manager-daily-brief-measurable-labor-loop.md`.
+   - Manager Daily Brief turns service demand, checkout exceptions, capacity recommendations, and data-quality issues into a prioritized review queue. Reported retention packets remain ineligible evidence and cannot create an action, queue item, task, or draft. Evidence: `app/src/manager_daily_brief.rs` and `docs/design/manager-daily-brief-measurable-labor-loop.md`.
    - Example: instead of a manager manually comparing demand and staffing dashboards, the brief can point to a demand-versus-staffing review action with source facts and reported estimated minute difference.
 
 2. Fewer repeated handoffs.
@@ -129,7 +129,7 @@ Safe labor reduction comes from:
 
 3. Faster triage.
    - Booking triage readiness buckets and deterministic results help staff see whether work is ready, missing information, blocked, or approval-required. Evidence: `app/src/booking_triage.rs`.
-   - Manager brief action kinds prioritize demand/staffing, checkout exceptions, retention follow-up drafts, and data-quality investigations. Evidence: `app/src/manager_daily_brief.rs`.
+   - Manager brief action kinds prioritize demand/staffing, checkout exceptions, and data-quality investigations. Reported retention packets cannot produce a brief action, queue item, task, or draft. Evidence: `app/src/manager_daily_brief.rs`.
 
 4. Reusable evidence packets.
    - `AgentPromptPacket`, workflow packets, source refs, provenance, and storage outcome records make evidence reusable across review, audit, and later outcome measurement. Evidence: `app/src/agents.rs`, `domain/src/source.rs`, and `storage/src/operations.rs`.
@@ -154,7 +154,7 @@ Do not hide these caveats in operator or product-facing material:
    - The source map says current docs and code define draft/review/payment/provider boundaries but did not find a production runtime that executes those live side effects.
    - Owner decision needed: if any live-action path is desired, add a deterministic approved write contract, source evidence, review/audit behavior, and explicit operational approval before claiming it.
 
-4. Labor savings are recordable, not automatically proven.
+4. Reported labor evidence is recordable; realized savings are not proven.
    - Manager Daily Brief can record reported estimate differences and actual time spent, but serialized outcomes cannot establish product value claims. Evidence: `storage/src/operations.rs` and `docs/design/manager-daily-brief-measurable-labor-loop.md`.
    - Owner decision needed: define which outcome metrics NVA will accept as labor-cost evidence.
 
@@ -167,6 +167,6 @@ Before describing an agent workflow as safe, confirm all of the following are tr
 - Every sensitive area has a named review gate or blocked action.
 - The docs do not imply autonomous customer, provider, reservation, payment, schedule, medical, cleanup, policy, or approval authority.
 - Source evidence can be cited.
-- Outcomes can be captured if the workflow is used to support labor-savings claims.
+- Outcomes can be captured as reported, nonclaimable labor evidence; no serialized workflow artifact supports a realized-savings claim.
 
 If any item is missing, describe the workflow as a draft/review concept or evidence gap, not as autonomous live operations.

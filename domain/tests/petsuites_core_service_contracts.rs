@@ -504,6 +504,27 @@ fn grooming_no_show_policy_requires_deposit_or_manager_review_for_repeat_no_show
 }
 
 #[test]
+fn grooming_no_show_history_without_repeat_behavior_remains_suppressed_evidence() {
+    let decision =
+        grooming::no_show::Policy::new(grooming::no_show::Rule::RequireDepositForRebooking)
+            .evaluate(
+                entities::CustomerId::new(uuid::Uuid::from_u128(1)),
+                entities::PetId::new(uuid::Uuid::from_u128(1)),
+                grooming::no_show::History::new(
+                    grooming::no_show::Count::try_new(0).unwrap(),
+                    grooming::no_show::LateCancelCount::try_new(0).unwrap(),
+                ),
+            );
+
+    assert_eq!(
+        decision,
+        grooming::no_show::Decision::SuppressedRebookingEvidence {
+            reason: grooming::no_show::SuppressionReason::EligibilityAuthorityUnavailable,
+        }
+    );
+}
+
+#[test]
 fn grooming_rebooking_policy_marks_pet_overdue_from_last_service_history_and_cadence() {
     let history_entry = grooming::history::ServiceHistoryEntry::builder()
         .pet_id(entities::PetId::new(uuid::Uuid::from_u128(1)))
@@ -533,21 +554,54 @@ fn grooming_rebooking_policy_marks_pet_overdue_from_last_service_history_and_cad
 }
 
 #[test]
-fn grooming_reminder_plan_requires_customer_consent_before_member_facing_send() {
+fn grooming_reminder_plan_cannot_be_minted_from_serialized_consent() {
     let plan = grooming::reminder::Policy.plan(
         entities::CustomerId::new(uuid::Uuid::from_u128(1)),
         grooming::reminder::Kind::RebookingDue,
-        grooming::reminder::Consent::NotGranted,
+        grooming::reminder::Consent::Granted,
     );
 
     assert_eq!(
         plan.send_boundary(),
-        grooming::reminder::SendBoundary::SuppressedUntilConsent
+        grooming::reminder::SendBoundary::EligibilityAuthorityUnavailable
     );
-    assert_eq!(
-        plan.customer_message_gate(),
-        Some(domain::policy::ReviewGate::CustomerMessageApproval)
+    assert_eq!(plan.customer_message_gate(), None);
+}
+
+#[test]
+fn grooming_identity_containment_debug_is_opaque() {
+    let customer_id = entities::CustomerId::new(uuid::Uuid::from_u128(
+        0x1111_2222_3333_4444_5555_6666_7777_8888,
+    ));
+    let pet_id = entities::PetId::new(uuid::Uuid::from_u128(
+        0x9999_aaaa_bbbb_cccc_dddd_eeee_ffff_0001,
+    ));
+    let evaluation = grooming::no_show::Evaluation {
+        customer_id,
+        pet_id,
+        history: grooming::no_show::History::new(
+            grooming::no_show::Count::try_new(1).unwrap(),
+            grooming::no_show::LateCancelCount::try_new(1).unwrap(),
+        ),
+    };
+    assert_eq!(format!("{evaluation:?}"), "Evaluation([REDACTED])");
+
+    let recommendation = grooming::rebooking::Policy.recommend_from_history(
+        pet_id,
+        &[],
+        grooming::rebooking::Cadence::EveryWeeks(
+            grooming::rebooking::CadenceWeeks::try_new(6).unwrap(),
+        ),
+        chrono::NaiveDate::from_ymd_opt(2026, 8, 15).unwrap(),
     );
+    assert_eq!(format!("{recommendation:?}"), "Recommendation([REDACTED])");
+
+    let plan = grooming::reminder::Policy.plan(
+        customer_id,
+        grooming::reminder::Kind::RebookingDue,
+        grooming::reminder::Consent::Granted,
+    );
+    assert_eq!(format!("{plan:?}"), "Plan([REDACTED])");
 }
 
 #[test]

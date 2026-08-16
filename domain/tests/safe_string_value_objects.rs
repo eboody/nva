@@ -1,4 +1,4 @@
-use domain::{care, customer, source};
+use domain::{care, customer, pet, source};
 
 fn string_with_chars(count: usize) -> String {
     "x".repeat(count)
@@ -24,6 +24,19 @@ fn customer_contact_values_trim_reject_blank_and_validate_serde() {
     let serialized = serde_json::to_string(&customer::Name::try_new("  Grace  ").unwrap()).unwrap();
     assert_eq!(serialized, "\"Grace\"");
     assert!(serde_json::from_str::<customer::Name>("\"   \"").is_err());
+}
+
+#[test]
+fn pet_and_customer_identity_debug_output_is_redacted() {
+    let pet_name = pet::Name::try_new("Miso Secret").unwrap();
+    let customer_name = customer::Name::try_new("Avery Secret").unwrap();
+    let email = customer::Email::try_new("avery.secret@example.com").unwrap();
+    let phone = customer::Phone::try_new("+1 555 0199").unwrap();
+
+    assert_eq!(format!("{pet_name:?}"), "Name(<redacted>)");
+    assert_eq!(format!("{customer_name:?}"), "Name(<redacted>)");
+    assert_eq!(format!("{email:?}"), "Email(<redacted>)");
+    assert_eq!(format!("{phone:?}"), "Phone(<redacted>)");
 }
 
 #[test]

@@ -2,14 +2,14 @@
 //!
 //! ## Operator summary
 //!
-//! Staff use this workflow to decide whether a departure belongs in the verified-checkout queue,
-//! the staff-handoff-review queue, or the source-status-reconciliation queue. It compares the
-//! source reservation status with front-desk handoff evidence such as belongings return, care
-//! summary, and departure-note review so operators do not manually audit every checkout record
-//! across the PMS, care notes, and follow-up queues.
+//! Staff use this workflow to route a departure to manager-gated handoff review or
+//! source-status reconciliation. It compares observed source reservation status with caller-reported
+//! front-desk handoff evidence such as belongings return, care summary, and departure-note review.
+//! Serialized handoff evidence never creates verified-checkout or retention authority.
 //!
-//! The workflow can reduce labor by summarizing checkout evidence, creating an internal handoff
-//! task, drafting retention follow-up for review, and producing audit-event drafts. It is not
+//! The workflow may summarize checkout evidence, create an internal handoff task, and produce
+//! audit-event drafts. It never grants the retention-follow-up draft action from serialized packet
+//! state. It is not
 //! allowed to close a live PMS/provider record, send a customer message, apply a checkout status
 //! without staff/source agreement, release capacity, waive/discount/refund, collect payment, or
 //! move money. Payment and closeout surfaces remain review queues, not autonomous execution.
@@ -26,10 +26,11 @@ use chrono::{DateTime, Utc};
 use domain::{entities, policy, source};
 use nutype::nutype;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 pub use domain::boarding::handoff::DepartureTaskDraft as StaffTaskDraft;
 pub use domain::payment::CheckoutException as PaymentException;
-pub use domain::reservation::CheckoutCompletionDisposition as ReviewedDisposition;
+pub use domain::reservation::CheckoutCompletionDisposition as ReportedDisposition;
 pub use domain::reservation::CheckoutSourceException as SourceException;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -108,40 +109,36 @@ impl LaborImpact {
 #[nutype(
     sanitize(trim),
     validate(not_empty, len_char_max = 1200),
-    derive(
-        Debug,
-        Clone,
-        PartialEq,
-        Eq,
-        PartialOrd,
-        Ord,
-        Hash,
-        Serialize,
-        Deserialize
-    )
+    derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)
 )]
 pub struct CareSummary(String);
 
+impl fmt::Debug for CareSummary {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("CareSummary(<redacted>)")
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Decision choices for belongings status in the checkout completion workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
+/// Caller-reported belongings-status labels retained as compatibility evidence; they route no queue, draft, gate, or checkout authority.
 pub enum BelongingsStatus {
-    /// Routes the item to returned to customer for staff queueing, review, and downstream agent context.
+    /// Caller reports a returned-to-customer label; it creates no staff queue, review, draft, gate, action, or checkout authority.
     ReturnedToCustomer,
-    /// Routes the item to needs staff follow up for staff queueing, review, and downstream agent context.
+    /// Caller reports a needs-follow-up label; it creates no staff queue, review, draft, gate, action, or checkout authority.
     NeedsStaffFollowUp,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Decision choices for departure notes review in the checkout completion workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
+/// Caller-reported departure-note review labels retained as compatibility evidence; they route no queue, draft, gate, or checkout authority.
 pub enum DepartureNotesReview {
-    /// Selects staff reviewed for the checkout completion decision model so the app can choose a review, evidence, or draft path without taking live action.
+    /// Retains a caller-reported staff-reviewed label without authenticating staff, review, provider state, or checkout completion.
     StaffReviewed,
-    /// Selects manager review required for the checkout completion decision model so the app can choose a review, evidence, or draft path without taking live action.
+    /// Retains a caller-reported manager-review-required label without authenticating a manager, review request, gate, or queue authority.
     ManagerReviewRequired,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Decision choices for completion status in the checkout completion workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
+/// Caller-reported checkout status labels retained as compatibility evidence; they route no queue, draft, gate, or completion authority.
 pub enum CompletionStatus {
     /// Reports that serialized evidence labels checkout as staff-complete; this is never completion authority.
     ReportedStaffCheckout,
@@ -152,13 +149,16 @@ pub enum CompletionStatus {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Review-safe agent tasks allowed to save staff time without crossing mutation or send gates.
+/// Current review-safe checkout tasks plus legacy compatibility labels.
+///
+/// Only variants returned by workflow evaluation are executable capabilities; the retention-draft
+/// variant is retained for compatibility and is never emitted by the current workflow.
 pub enum SafeAgentAction {
     /// Allows agents to summarize checkout evidence for staff review without mutating records or contacting customers.
     SummarizeCheckoutEvidence,
     /// Allows agents to create internal handoff task for staff review without mutating records or contacting customers.
     CreateInternalHandoffTask,
-    /// Allows agents to draft retention follow up for review for staff review without mutating records or contacting customers.
+    /// Legacy compatibility label for retention drafting that the current checkout workflow cannot emit.
     DraftRetentionFollowUpForReview,
 }
 
@@ -176,7 +176,7 @@ pub enum BlockedAction {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Decision choices for audit event draft in the checkout completion workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
+/// Internal audit-draft labels describe pending evidence only; they prove no review, event, action, queue admission, or checkout completion.
 pub enum AuditEventDraft {
     /// Selects source checkout observed for the checkout completion decision model so the app can choose a review, evidence, or draft path without taking live action.
     SourceCheckoutObserved,
@@ -191,25 +191,31 @@ pub enum AuditEventDraft {
     CustomerMessageApprovalRequested,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
-/// Staff handoff used by the checkout completion workflow; it keeps checkout tasks, payment exceptions, and handoff notes explicit for staff review.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+/// Caller-reported handoff compatibility data retained for review; its actor, time, status, summary, and disposition labels prove no staff identity, handoff, review, action, queue admission, or checkout completion.
 pub struct StaffHandoff {
-    completed_by: entities::ActorRef,
-    completed_at: DateTime<Utc>,
+    reported_completed_by: entities::ActorRef,
+    reported_completed_at: DateTime<Utc>,
     belongings_status: BelongingsStatus,
     care_summary: CareSummary,
     departure_notes_review: DepartureNotesReview,
 }
 
+impl fmt::Debug for StaffHandoff {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("StaffHandoff([REDACTED])")
+    }
+}
+
 impl StaffHandoff {
-    /// Returns the completed by evidence available to checkout completion review while leaving provider, customer, payment, and schedule systems unchanged.
-    pub const fn completed_by(&self) -> &entities::ActorRef {
-        &self.completed_by
+    /// Returns the caller-reported completion-actor label; it authenticates no actor, completion, or review.
+    pub const fn reported_completed_by(&self) -> &entities::ActorRef {
+        &self.reported_completed_by
     }
 
-    /// Returns the completed at evidence available to checkout completion review while leaving provider, customer, payment, and schedule systems unchanged.
-    pub const fn completed_at(&self) -> DateTime<Utc> {
-        self.completed_at
+    /// Returns the caller-reported completion-time label; it proves no completion, review, or action.
+    pub const fn reported_completed_at(&self) -> DateTime<Utc> {
+        self.reported_completed_at
     }
 
     /// Returns the belongings status evidence available to checkout completion review while leaving provider, customer, payment, and schedule systems unchanged.
@@ -236,7 +242,7 @@ impl StaffHandoff {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
 /// Input rules for building the workflow packet from source-grounded records.
 pub struct Request {
     reservation_id: entities::reservation::Id,
@@ -249,6 +255,12 @@ pub struct Request {
     estimated_manual_audit_minutes: LaborMinutes,
     #[builder(default = LaborMinutes::try_new(5).expect("default checkout packet minutes are non-zero"))]
     estimated_packet_review_minutes: LaborMinutes,
+}
+
+impl fmt::Debug for Request {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("Request([REDACTED])")
+    }
 }
 
 impl Request {
@@ -283,8 +295,11 @@ impl Request {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize)]
 /// Reviewable packet handed to staff or agents with deterministic gates already applied.
+///
+/// Deserialization preserves identifiers and reported evidence but discards caller-supplied
+/// completion, status-suggestion, action, audit, disposition, gate, and blocker authority.
 pub struct Packet {
     reservation_id: entities::reservation::Id,
     provenance: source::Provenance,
@@ -297,8 +312,70 @@ pub struct Packet {
     audit_event_drafts: Vec<AuditEventDraft>,
     unresolved_exceptions: Vec<UnresolvedException>,
     staff_task_drafts: Vec<StaffTaskDraft>,
-    reviewed_disposition: ReviewedDisposition,
+    reported_disposition: ReportedDisposition,
     labor_impact: LaborImpact,
+}
+
+impl<'de> Deserialize<'de> for Packet {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct SerializedPacketEvidence {
+            reservation_id: entities::reservation::Id,
+            provenance: source::Provenance,
+            staff_handoff: StaffHandoff,
+            #[serde(rename = "completion_status")]
+            _completion_status: CompletionStatus,
+            #[serde(rename = "suggested_reservation_status")]
+            _suggested_reservation_status: Option<entities::reservation::Status>,
+            #[serde(rename = "required_review_gates")]
+            _required_review_gates: Vec<policy::ReviewGate>,
+            #[serde(rename = "safe_agent_actions")]
+            _safe_agent_actions: Vec<SafeAgentAction>,
+            #[serde(rename = "blocked_actions")]
+            _blocked_actions: Vec<BlockedAction>,
+            #[serde(rename = "audit_event_drafts")]
+            _audit_event_drafts: Vec<AuditEventDraft>,
+            unresolved_exceptions: Vec<UnresolvedException>,
+            #[serde(rename = "staff_task_drafts")]
+            _staff_task_drafts: Vec<StaffTaskDraft>,
+            #[serde(rename = "reported_disposition")]
+            _reported_disposition: ReportedDisposition,
+            labor_impact: LaborImpact,
+        }
+
+        let serialized = SerializedPacketEvidence::deserialize(deserializer)?;
+        let completion_status = CompletionStatus::NeedsStaffHandoffReview;
+        let unresolved_exceptions = serialized.unresolved_exceptions;
+        let staff_task_drafts = staff_task_drafts_for(&unresolved_exceptions);
+
+        Ok(Self {
+            reservation_id: serialized.reservation_id,
+            provenance: serialized.provenance,
+            staff_handoff: serialized.staff_handoff,
+            completion_status,
+            suggested_reservation_status: None,
+            required_review_gates: required_review_gates_for(completion_status),
+            safe_agent_actions: safe_agent_actions_for(completion_status),
+            blocked_actions: blocked_actions_for(completion_status),
+            audit_event_drafts: vec![
+                AuditEventDraft::StaffHandoffRecorded,
+                AuditEventDraft::StaffHandoffReviewRequested,
+            ],
+            unresolved_exceptions,
+            staff_task_drafts,
+            reported_disposition: ReportedDisposition::ManagerReviewRequired,
+            labor_impact: serialized.labor_impact,
+        })
+    }
+}
+
+impl fmt::Debug for Packet {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("Packet([REDACTED])")
+    }
 }
 
 impl Packet {
@@ -358,8 +435,8 @@ impl Packet {
     }
 
     /// Returns the review disposition used to keep outcome/labor reporting tied to human or system-of-record review.
-    pub const fn reviewed_disposition(&self) -> ReviewedDisposition {
-        self.reviewed_disposition
+    pub const fn reported_disposition(&self) -> ReportedDisposition {
+        self.reported_disposition
     }
 
     /// Returns estimated labor impact for open-stay audit packet review; this is not a realized savings claim.
@@ -383,7 +460,7 @@ impl Workflow {
         let audit_event_drafts = audit_event_drafts_for(completion_status);
         let unresolved_exceptions = unresolved_exceptions_for(&request, completion_status);
         let staff_task_drafts = staff_task_drafts_for(&unresolved_exceptions);
-        let reviewed_disposition = reviewed_disposition_for(completion_status);
+        let reported_disposition = reported_disposition_for(completion_status);
         let labor_impact = LaborImpact::new(
             request.estimated_manual_audit_minutes,
             request.estimated_packet_review_minutes,
@@ -401,7 +478,7 @@ impl Workflow {
             audit_event_drafts,
             unresolved_exceptions,
             staff_task_drafts,
-            reviewed_disposition,
+            reported_disposition,
             labor_impact,
         }
     }
@@ -531,10 +608,10 @@ fn staff_task_drafts_for(exceptions: &[UnresolvedException]) -> Vec<StaffTaskDra
     drafts
 }
 
-const fn reviewed_disposition_for(completion_status: CompletionStatus) -> ReviewedDisposition {
+const fn reported_disposition_for(completion_status: CompletionStatus) -> ReportedDisposition {
     match completion_status {
-        CompletionStatus::ReportedStaffCheckout => ReviewedDisposition::ManagerReviewRequired,
-        CompletionStatus::NeedsStaffHandoffReview => ReviewedDisposition::ManagerReviewRequired,
-        CompletionStatus::SourceNotCheckedOut => ReviewedDisposition::SourceReconciliationRequired,
+        CompletionStatus::ReportedStaffCheckout => ReportedDisposition::ManagerReviewRequired,
+        CompletionStatus::NeedsStaffHandoffReview => ReportedDisposition::ManagerReviewRequired,
+        CompletionStatus::SourceNotCheckedOut => ReportedDisposition::SourceReconciliationRequired,
     }
 }

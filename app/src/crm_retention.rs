@@ -8,88 +8,78 @@ use crate::checkout_completion;
 #[nutype(
     sanitize(trim),
     validate(not_empty, len_char_max = 1200),
-    derive(
-        Debug,
-        Clone,
-        PartialEq,
-        Eq,
-        PartialOrd,
-        Ord,
-        Hash,
-        Serialize,
-        Deserialize
-    )
+    derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)
 )]
 pub struct EvidenceSummary(String);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Decision choices for source grounded reason code in the retention follow-up workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
+/// Reported source-grounded reason code retained for staff inspection; it cannot establish eligibility, queue work, drafting, conversion, completion, or value.
 pub enum SourceGroundedReasonCode {
-    /// Uses completed boarding stay as source-grounded evidence for the deterministic decision.
+    /// Retains a caller-reported boarding-completed label without proving a stay, checkout, source provenance, or completion.
     CompletedBoardingStay,
-    /// Uses completed daycare visit as source-grounded evidence for the deterministic decision.
+    /// Retains a caller-reported daycare-completed label without proving a visit, source provenance, or completion.
     CompletedDaycareVisit,
-    /// Uses completed grooming visit as source-grounded evidence for the deterministic decision.
+    /// Retains a caller-reported grooming-completed label without proving a visit, source provenance, or completion.
     CompletedGroomingVisit,
-    /// Uses customer asked about future stay as source-grounded evidence for the deterministic decision.
+    /// Retains a caller-reported future-stay-interest label without proving customer intent, consent, contact authority, or source provenance.
     CustomerAskedAboutFutureStay,
-    /// Uses pet eligible for recurring care as source-grounded evidence for the deterministic decision.
+    /// Retains a caller-reported recurring-care-eligibility label without proving eligibility, review, action authority, or source provenance.
     PetEligibleForRecurringCare,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Source-backed business reason that explains why a retention opportunity exists before any draft, outreach, or booking action is allowed.
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Caller-reported business-reason evidence retained for inspection; it cannot establish an opportunity, draft, outreach, booking, conversion, completion, or value.
 pub enum OpportunityReason {
-    /// Staff-verified boarding checkout can justify a next-stay follow-up review packet.
+    /// Reports a boarding-stay-completed label without proving checkout, eligibility, or review-packet authority.
     BoardingStayCompleted,
-    /// Staff-verified daycare visit can justify recurring-care follow-up review.
+    /// Reports a daycare-visit-completed label without proving completion, eligibility, or follow-up authority.
     DaycareVisitCompleted,
-    /// Grooming history/cadence evidence says the pet is due or overdue for rebooking.
+    /// Reports grooming cadence evidence without establishing rebooking eligibility or action authority.
     GroomingCadenceDue {
         /// Cadence status from the grooming domain recommendation.
         status: grooming::rebooking::Status,
         /// Source-backed rationale explaining the cadence decision.
         rationale: grooming::rebooking::Rationale,
     },
-    /// Customer source evidence asked about future resort services.
+    /// Reports a future-service-request label without proving current customer intent or contact authority.
     CustomerRequestedFutureService,
-    /// Staff-reviewed pet/customer state supports recurring-care review.
+    /// Reports a recurring-care-eligibility label without proving staff review or eligibility authority.
     RecurringCareEligible,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Decision choices for opportunity kind in the retention follow-up workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
+/// Reported opportunity kind retained for staff inspection; it cannot establish eligibility, queue work, drafting, conversion, completion, or value.
 pub enum OpportunityKind {
-    /// Selects next boarding stay for the retention follow-up decision model so the app can choose a review, evidence, or draft path without taking live action.
+    /// Reports next-boarding-stay context as evidence only.
     NextBoardingStay,
-    /// Selects recurring daycare for the retention follow-up decision model so the app can choose a review, evidence, or draft path without taking live action.
+    /// Reports recurring-daycare context as evidence only.
     RecurringDaycare,
-    /// Selects grooming rebook for the retention follow-up decision model so the app can choose a review, evidence, or draft path without taking live action.
+    /// Reports grooming-rebook context as evidence only.
     GroomingRebook,
-    /// Selects training consult for the retention follow-up decision model so the app can choose a review, evidence, or draft path without taking live action.
+    /// Reports training-consult context as evidence only.
     TrainingConsult,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Decision choices for consent status in the retention follow-up workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
+/// Reported consent history retained for staff inspection; it cannot establish current contact authority, eligibility, queue work, or drafting.
 pub enum ConsentStatus {
-    /// Routes the item to granted for staff queueing, review, and downstream agent context.
+    /// Reports a granted-consent label without establishing current consent or contact authority.
     Granted,
-    /// Routes the item to missing for staff queueing, review, and downstream agent context.
+    /// Reports that consent evidence is missing.
     Missing,
-    /// Routes the item to opted out for staff queueing, review, and downstream agent context.
+    /// Reports an opt-out label as evidence; it cannot be overridden by this workflow.
     OptedOut,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Decision choices for eligibility reason in the retention follow-up workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
+/// Modeled reason for future opaque eligibility; current serialized inputs cannot produce eligible authority.
 pub enum EligibilityReason {
-    /// Explains that the workflow is source grounded retention opportunity when deciding whether an agent draft is allowed.
+    /// Names the reason a future opaque issuer could use; current serialized inputs cannot issue it.
     SourceGroundedRetentionOpportunity,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Decision choices for ineligibility reason in the retention follow-up workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
+/// Evidence-only reason that current retention input remains ineligible and cannot create a queue, task, or draft.
 pub enum IneligibilityReason {
     /// Explains that the workflow is checkout not staff verified when deciding whether an agent draft is allowed.
     CheckoutNotStaffVerified,
@@ -114,7 +104,7 @@ pub enum IneligibilityReason {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Outcome of the deterministic contact-safety check for retention follow-up.
 pub enum FollowUpEligibility {
-    /// Reason copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
+    /// Modeled future eligibility state; current serialized inputs never produce this variant and cannot authorize queue work or drafting.
     Eligible {
         /// Reason value stored on this variant.
         reason: EligibilityReason,
@@ -132,8 +122,10 @@ pub enum SafeAgentAction {
     /// Allows agents to summarize retention evidence for staff review without mutating records or contacting customers.
     SummarizeRetentionEvidence,
     /// Allows agents to create internal staff review task for staff review without mutating records or contacting customers.
+    /// This action is modeled for a future opaque eligibility issuer and is unavailable from current serialized inputs.
     CreateInternalStaffReviewTask,
     /// Allows agents to draft customer follow up for review for staff review without mutating records or contacting customers.
+    /// This action is modeled for a future opaque eligibility issuer and is unavailable from current serialized inputs.
     DraftCustomerFollowUpForReview,
     /// Allows agents to record follow up outcome evidence for staff review without mutating records or contacting customers.
     RecordFollowUpOutcomeEvidence,
@@ -155,7 +147,7 @@ pub enum BlockedAction {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Source or policy conditions that suppress retention drafts until staff review resolves the reason.
+/// Source or policy conditions retained as suppression evidence; staff review alone cannot promote current serialized inputs into draft authority.
 pub enum SuppressionFlag {
     /// Customer is on a DNC, opt-out, or suppression list that the workflow must respect.
     DoNotContactOrSuppressionList,
@@ -183,21 +175,23 @@ pub enum EvidenceReviewStatus {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Reviewed attribution class that correlates a retention recommendation/action to a staff-observed outcome without claiming unsupported value.
-pub enum ReviewedOutcomeClassification {
-    /// Staff or system-of-record evidence records a later booking correlated to the recommendation.
-    /// This is temporal evidence, not authority to attribute the booking as recovered value.
+/// Caller-serializable compatibility classification retained as non-authoritative history.
+///
+/// No variant proves review, a booking, recommendation impact, conversion, completion, or value;
+/// current reporting normalizes these labels to no-action evidence.
+pub enum ReportedOutcomeClassification {
+    /// Reports a correlated-booking-observation label without proving a booking or attribution.
     CorrelatedBookingObservation,
-    /// The recommendation produced no reviewed booking or remains deferred/suppressed/wrong-source.
+    /// Reports a no-action label for deferred, suppressed, wrong-source, or otherwise ineligible evidence.
     NoActionOutcome,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Concrete conversion type recorded after human/system-of-record action proves follow-up impact.
+/// Caller-reported conversion label retained as historical evidence; it does not prove conversion, attribution, completion, or value.
 pub enum ConversionKind {
-    /// Staff or the booking system confirmed a grooming rebook after review.
+    /// Reports a grooming-rebook label without proving that a rebook occurred or was caused by follow-up.
     GroomingRebooked,
-    /// Staff or the booking system confirmed a boarding/daycare/training conversion after review.
+    /// Reports a resort-service-booking label without proving that a booking occurred or was caused by follow-up.
     ResortServiceBooked,
 }
 
@@ -211,39 +205,39 @@ pub enum DeferralReason {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Decision choices for follow up outcome in the retention follow-up workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
+/// Caller-reported retention disposition history; no value grants queue, task, draft, contact, conversion, completion, or value authority.
 pub enum FollowUpOutcome {
-    /// Records a booked next stay result so follow-up impact is auditable.
+    /// Reports a booked-next-stay label without proving a booking or follow-up impact.
     BookedNextStay,
-    /// Records a interested needs staff call result so follow-up impact is auditable.
+    /// Reports interest or a requested staff call without creating contact authority or a task.
     InterestedNeedsStaffCall,
-    /// Records a not interested result so follow-up impact is auditable.
+    /// Reports a not-interested disposition as evidence only.
     NotInterested,
-    /// Records a no response result so follow-up impact is auditable.
+    /// Reports a no-response disposition as evidence only.
     NoResponse,
-    /// Records a suppressed by staff result so follow-up impact is auditable.
+    /// Reports a staff-suppression disposition as evidence only.
     SuppressedByStaff,
-    /// Records a human/system-of-record conversion without granting the agent booking authority.
+    /// Retains a caller-reported conversion label without proving conversion or granting booking authority.
     Converted {
-        /// Kind of conversion staff/system evidence confirmed.
+        /// Caller-reported conversion kind retained as non-authoritative evidence.
         conversion: ConversionKind,
     },
-    /// Records a human-reviewed deferral for later staff/customer action.
+    /// Retains a caller-reported deferral label without proving review or authorizing action.
     Deferred {
-        /// Reason staff deferred the opportunity.
+        /// Caller-reported deferral reason retained as evidence only.
         reason: DeferralReason,
     },
-    /// Records a suppression outcome with the flag that blocked outreach.
+    /// Retains a caller-reported suppression label without proving staff action.
     Suppressed {
-        /// Suppression or review reason that blocked customer copy or outreach.
+        /// Caller-reported suppression reason retained as evidence only.
         reason: SuppressionFlag,
     },
-    /// Records that source facts pointed at the wrong customer/pet/service and must not drive outreach.
+    /// Retains a caller-reported wrong-source label that cannot drive outreach.
     WrongSource,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
-/// Opportunity evidence used by the retention follow-up workflow; it turns source-grounded visit evidence into safe follow-up drafts without sending customer messages automatically.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+/// Reported retention evidence preserved for staff inspection; serialized values cannot establish eligibility, queue work, or a customer draft.
 pub struct OpportunityEvidence {
     reason_code: SourceGroundedReasonCode,
     summary: EvidenceSummary,
@@ -268,7 +262,7 @@ impl OpportunityEvidence {
         &self.provenance
     }
 
-    /// Returns the reviewed evidence status that decides whether this source fact may personalize a marketing draft or only internal staff work.
+    /// Returns caller-reported review-status evidence; it cannot authorize marketing personalization or internal work.
     pub const fn review_status(&self) -> EvidenceReviewStatus {
         self.review_status
     }
@@ -282,8 +276,8 @@ impl OpportunityEvidence {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
-/// Retention opportunity used by the retention follow-up workflow; it turns source-grounded visit evidence into safe follow-up drafts without sending customer messages automatically.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+/// Caller-reported opportunity evidence that remains ineligible until a future opaque authenticated authority promotes it.
 pub struct RetentionOpportunity {
     kind: OpportunityKind,
     #[builder(default = OpportunityReason::BoardingStayCompleted)]
@@ -308,8 +302,8 @@ impl RetentionOpportunity {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
-/// Contact permission used by the retention follow-up workflow; it turns source-grounded visit evidence into safe follow-up drafts without sending customer messages automatically.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+/// Historical contact-permission evidence that cannot establish current contact eligibility or authorize queue work or drafting.
 pub struct ContactPermission {
     preferred_channel: message::Channel,
     #[builder(default)]
@@ -359,7 +353,7 @@ impl ContactPermission {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
 /// Input rules for building the workflow packet from source-grounded records.
 pub struct Request {
     reservation_id: entities::reservation::Id,
@@ -398,14 +392,14 @@ impl Request {
         &self.opportunities
     }
 
-    /// Returns source/policy suppression flags that force retention work into staff review instead of customer drafts.
+    /// Returns source/policy suppression evidence without creating staff work or a customer draft.
     pub fn suppression_flags(&self) -> &[SuppressionFlag] {
         &self.suppression_flags
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Reviewable customer follow-up draft metadata; the body remains a draft reference and never authorizes delivery.
+/// Historical follow-up metadata retained in suppressed form; it does not represent a current draft or authorize work or delivery.
 pub struct DraftFollowUp {
     channel: message::Channel,
     review_state: message::ReviewState,
@@ -418,19 +412,19 @@ impl DraftFollowUp {
         self.channel
     }
 
-    /// Returns whether the draft is pending approval or suppressed before any send can happen.
+    /// Returns the reported historical review state; deserialization normalizes it to suppressed evidence.
     pub const fn review_state(&self) -> message::ReviewState {
         self.review_state
     }
 
-    /// Returns suppression flags carried into the draft review packet.
+    /// Returns suppression flags carried in the evidence packet.
     pub fn suppression_flags(&self) -> &[SuppressionFlag] {
         &self.suppression_flags
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Staff-facing packet that explains the evidence, draft limits, and required review gates.
+#[derive(Clone, PartialEq, Eq, Serialize)]
+/// Staff-facing evidence packet; current serialized values cannot create eligibility, queue work, a task, or a draft.
 pub struct StaffReviewPacket {
     reservation_id: entities::reservation::Id,
     customer_id: entities::CustomerId,
@@ -441,6 +435,72 @@ pub struct StaffReviewPacket {
     draft_follow_up: DraftFollowUp,
     required_review_gates: Vec<policy::ReviewGate>,
 }
+
+#[derive(Deserialize)]
+struct SerializedStaffReviewPacket {
+    reservation_id: entities::reservation::Id,
+    customer_id: entities::CustomerId,
+    eligibility: FollowUpEligibility,
+    draft_channel: Option<message::Channel>,
+    opportunities: Vec<RetentionOpportunity>,
+    staff_evidence: Vec<OpportunityEvidence>,
+    draft_follow_up: DraftFollowUp,
+    required_review_gates: Vec<policy::ReviewGate>,
+}
+
+impl<'de> Deserialize<'de> for StaffReviewPacket {
+    fn deserialize<Deserializer>(deserializer: Deserializer) -> Result<Self, Deserializer::Error>
+    where
+        Deserializer: serde::Deserializer<'de>,
+    {
+        let serialized = SerializedStaffReviewPacket::deserialize(deserializer)?;
+        let _reported_authority = (
+            serialized.eligibility,
+            serialized.draft_channel,
+            serialized.required_review_gates,
+        );
+        let eligibility = FollowUpEligibility::Ineligible {
+            reason: IneligibilityReason::AcceptedConsentAuthorityUnavailable,
+        };
+
+        Ok(Self {
+            reservation_id: serialized.reservation_id,
+            customer_id: serialized.customer_id,
+            eligibility,
+            draft_channel: None,
+            opportunities: serialized.opportunities,
+            staff_evidence: serialized.staff_evidence,
+            draft_follow_up: DraftFollowUp {
+                channel: serialized.draft_follow_up.channel,
+                review_state: message::ReviewState::Suppressed,
+                suppression_flags: serialized.draft_follow_up.suppression_flags,
+            },
+            required_review_gates: required_review_gates_for(eligibility),
+        })
+    }
+}
+
+macro_rules! impl_sensitive_retention_debug {
+    ($($type:ident),+ $(,)?) => {
+        $(
+            impl std::fmt::Debug for $type {
+                fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    formatter.write_str(concat!(stringify!($type), "([REDACTED])"))
+                }
+            }
+        )+
+    };
+}
+
+impl_sensitive_retention_debug!(
+    EvidenceSummary,
+    OpportunityReason,
+    OpportunityEvidence,
+    RetentionOpportunity,
+    ContactPermission,
+    Request,
+    StaffReviewPacket,
+);
 
 impl StaffReviewPacket {
     /// Returns the reservation id evidence available to retention follow-up review while leaving provider, customer, payment, and schedule systems unchanged.
@@ -468,12 +528,12 @@ impl StaffReviewPacket {
         &self.staff_evidence
     }
 
-    /// Returns the source-grounded opportunity records staff review before a draft or disposition is allowed.
+    /// Returns caller-reported opportunity records for inspection without creating draft or disposition authority.
     pub fn opportunities(&self) -> &[RetentionOpportunity] {
         &self.opportunities
     }
 
-    /// Returns only accepted opportunities that may personalize a customer follow-up draft after the required review gate.
+    /// Returns an empty set because serialized opportunity evidence cannot personalize a customer follow-up draft.
     pub fn marketable_opportunities(&self) -> Vec<&RetentionOpportunity> {
         self.opportunities
             .iter()
@@ -481,7 +541,7 @@ impl StaffReviewPacket {
             .collect()
     }
 
-    /// Returns the review-only follow-up draft metadata; callers must still honor review gates and blocked actions.
+    /// Returns suppressed historical draft metadata; it does not authorize queue work, drafting, or contact.
     pub const fn draft_follow_up(&self) -> &DraftFollowUp {
         &self.draft_follow_up
     }
@@ -497,7 +557,7 @@ impl StaffReviewPacket {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize)]
 /// Reviewable packet handed to staff or agents with deterministic gates already applied.
 pub struct Packet {
     reservation_id: entities::reservation::Id,
@@ -509,6 +569,56 @@ pub struct Packet {
     safe_agent_actions: Vec<SafeAgentAction>,
     blocked_actions: Vec<BlockedAction>,
     source_record_refs: Vec<source::RecordRef>,
+}
+
+#[derive(Deserialize)]
+struct SerializedPacket {
+    reservation_id: entities::reservation::Id,
+    customer_id: entities::CustomerId,
+    eligibility: FollowUpEligibility,
+    draft_channel: Option<message::Channel>,
+    review_packet: StaffReviewPacket,
+    required_review_gates: Vec<policy::ReviewGate>,
+    safe_agent_actions: Vec<SafeAgentAction>,
+    blocked_actions: Vec<BlockedAction>,
+    source_record_refs: Vec<source::RecordRef>,
+}
+
+impl<'de> Deserialize<'de> for Packet {
+    fn deserialize<Deserializer>(deserializer: Deserializer) -> Result<Self, Deserializer::Error>
+    where
+        Deserializer: serde::Deserializer<'de>,
+    {
+        let serialized = SerializedPacket::deserialize(deserializer)?;
+        let _reported_authority = (
+            serialized.eligibility,
+            serialized.draft_channel,
+            serialized.required_review_gates,
+            serialized.safe_agent_actions,
+            serialized.blocked_actions,
+        );
+        let eligibility = FollowUpEligibility::Ineligible {
+            reason: IneligibilityReason::AcceptedConsentAuthorityUnavailable,
+        };
+
+        Ok(Self {
+            reservation_id: serialized.reservation_id,
+            customer_id: serialized.customer_id,
+            eligibility,
+            draft_channel: None,
+            review_packet: serialized.review_packet,
+            required_review_gates: required_review_gates_for(eligibility),
+            safe_agent_actions: safe_agent_actions_for(eligibility),
+            blocked_actions: blocked_actions_for(),
+            source_record_refs: serialized.source_record_refs,
+        })
+    }
+}
+
+impl std::fmt::Debug for Packet {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("Packet([REDACTED])")
+    }
 }
 
 impl Packet {
@@ -559,11 +669,14 @@ impl Packet {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// Workflow used by the retention follow-up workflow; it turns source-grounded visit evidence into safe follow-up drafts without sending customer messages automatically.
+/// Evidence-only retention workflow. Current serialized checkout, contact, consent, and
+/// opportunity records cannot establish eligibility, create queue work, or produce a
+/// customer follow-up draft.
 pub struct Workflow;
 
 impl Workflow {
-    /// Builds the evaluate result for the retention follow-up workflow from reviewed source facts while preserving human review gates and draft-only side effects.
+    /// Builds a suppressed evidence packet. Draft and internal-task actions remain absent
+    /// unless a future non-serializable authority boundary establishes eligibility.
     pub fn evaluate(request: Request) -> Packet {
         let draft_channel = request.contact_permission.retention_draft_channel();
         let eligibility = eligibility_for(&request, draft_channel);
@@ -641,10 +754,10 @@ fn required_review_gates_for(eligibility: FollowUpEligibility) -> Vec<policy::Re
 fn safe_agent_actions_for(eligibility: FollowUpEligibility) -> Vec<SafeAgentAction> {
     let mut actions = vec![
         SafeAgentAction::SummarizeRetentionEvidence,
-        SafeAgentAction::CreateInternalStaffReviewTask,
         SafeAgentAction::RecordFollowUpOutcomeEvidence,
     ];
     if matches!(eligibility, FollowUpEligibility::Eligible { .. }) {
+        actions.push(SafeAgentAction::CreateInternalStaffReviewTask);
         actions.push(SafeAgentAction::DraftCustomerFollowUpForReview);
     }
     actions
@@ -660,8 +773,8 @@ fn blocked_actions_for() -> Vec<BlockedAction> {
     ]
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
-/// Outcome record used by the retention follow-up workflow; it turns source-grounded visit evidence into safe follow-up drafts without sending customer messages automatically.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+/// Reported retention disposition history for staff inspection; it cannot establish eligibility, queue work, drafting, conversion, completion, or value.
 pub struct OutcomeRecord {
     reservation_id: entities::reservation::Id,
     customer_id: entities::CustomerId,
@@ -671,6 +784,12 @@ pub struct OutcomeRecord {
     source_provenance: source::Provenance,
     #[builder(default)]
     evidence: Vec<OpportunityEvidence>,
+}
+
+impl std::fmt::Debug for OutcomeRecord {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("OutcomeRecord([REDACTED])")
+    }
 }
 
 impl OutcomeRecord {
@@ -719,8 +838,8 @@ impl OutcomeRecord {
         blocked_actions_for()
     }
 
-    /// Reports whether this outcome cites the same reservation, customer, and accepted source evidence as the reviewed packet.
-    pub fn matches_reviewed_packet(&self, packet: &Packet) -> bool {
+    /// Reports whether caller-reported outcome labels correlate with the same reservation, customer, and source-reference labels as the evidence packet. This shape check authenticates no accepted source evidence, review, booking, action, contact, completion, or value.
+    pub fn matches_reported_packet_evidence(&self, packet: &Packet) -> bool {
         self.reservation_id == packet.reservation_id
             && self.customer_id == packet.customer_id
             && self.evidence.iter().any(|evidence| {
@@ -731,12 +850,15 @@ impl OutcomeRecord {
             })
     }
 
-    /// Classifies reviewed retention outcomes for durable reporting while keeping no-action, wrong-source, and suppressed outcomes out of recovered-booking counts.
-    pub fn reviewed_outcome_classification_for(
+    /// Normalizes caller-reported retention history to no-action compatibility evidence.
+    ///
+    /// The current workflow has no accepted booking-correlation authority, so the positive
+    /// compatibility variant is unreachable and cannot contribute to recovered-booking counts.
+    pub fn reported_outcome_classification_for(
         &self,
         packet: &Packet,
-    ) -> ReviewedOutcomeClassification {
-        if self.matches_reviewed_packet(packet)
+    ) -> ReportedOutcomeClassification {
+        if self.matches_reported_packet_evidence(packet)
             && matches!(
                 self.outcome,
                 FollowUpOutcome::BookedNextStay
@@ -746,9 +868,9 @@ impl OutcomeRecord {
                     }
             )
         {
-            ReviewedOutcomeClassification::CorrelatedBookingObservation
+            ReportedOutcomeClassification::CorrelatedBookingObservation
         } else {
-            ReviewedOutcomeClassification::NoActionOutcome
+            ReportedOutcomeClassification::NoActionOutcome
         }
     }
 }

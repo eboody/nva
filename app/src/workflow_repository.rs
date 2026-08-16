@@ -13,7 +13,7 @@ pub struct RuntimeCounters {
     pub review_packet_count: usize,
     /// Append-only audit facts.
     pub audit_event_count: usize,
-    /// Reviewed workflow outcomes.
+    /// Caller-reported workflow outcomes retained by the repository.
     pub outcome_count: usize,
     /// Internal outbox candidates; these are not live sends or provider writes.
     pub internal_outbox_candidate_count: usize,
@@ -27,18 +27,18 @@ pub trait Repository {
     fn runtime_counters(&self) -> RuntimeCounters;
 }
 
-/// App-owned persistence capability for one workflow's reviewed outcomes.
+/// App-owned persistence capability for one workflow's caller-reported outcomes.
 ///
 /// The associated value remains workflow-specific; this port owns record/list semantics
 /// without forcing application code to depend on a storage row representation.
 pub trait OutcomeRepository {
-    /// Reviewed outcome value accepted by this workflow repository.
+    /// Reported-outcome value accepted by this workflow repository.
     type Outcome;
 
-    /// Records one reviewed outcome and returns the number retained by this adapter.
+    /// Records one reported outcome and returns the number retained by this adapter.
     fn record(&mut self, outcome: Self::Outcome) -> usize;
 
-    /// Returns reviewed outcomes for app-owned reporting use cases.
+    /// Returns caller-reported outcomes for app-owned reporting use cases.
     fn outcomes(&self) -> &[Self::Outcome];
 }
 

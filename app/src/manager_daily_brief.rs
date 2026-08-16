@@ -1,10 +1,10 @@
-//! Manager Daily Brief workflow rules for labor-saving internal review.
+//! Manager Daily Brief workflow rules for internal review and nonclaimable reported labor evidence.
 //!
 //! The workflow starts from app-owned, source-grounded context and produces a
 //! deterministic packet that an agent may summarize or rank, but not use as
 //! authority to mutate schedules, provider/PMS records, customer channels, or
-//! money movement. Outcome records then capture whether the reviewed action
-//! actually reduced manager/front-desk labor.
+//! money movement. Outcome records retain caller-reported baseline and workflow-minute
+//! labels as nonclaimable evidence; they prove no review, measurement, completion, or labor reduction.
 //!
 //! Crosswalk navigation: operator docs link this workflow to the
 //! Manager Daily Brief packet row in
@@ -76,81 +76,66 @@
 use domain::{analytics, entities, operations, policy, source};
 use nutype::nutype;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 use crate::{checkout_completion, crm_retention};
 
 #[nutype(
     sanitize(trim),
     validate(not_empty, len_char_max = 1200),
-    derive(
-        Debug,
-        Clone,
-        PartialEq,
-        Eq,
-        PartialOrd,
-        Ord,
-        Hash,
-        Serialize,
-        Deserialize
-    )
+    derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)
 )]
 pub struct BriefSummary(String);
+
+impl fmt::Debug for BriefSummary {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("BriefSummary(<redacted>)")
+    }
+}
 
 #[nutype(
     sanitize(trim),
     validate(not_empty, len_char_max = 120),
-    derive(
-        Debug,
-        Clone,
-        PartialEq,
-        Eq,
-        PartialOrd,
-        Ord,
-        Hash,
-        Serialize,
-        Deserialize
-    )
+    derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)
 )]
 pub struct ActionId(String);
 
-#[nutype(
-    sanitize(trim),
-    validate(not_empty, len_char_max = 500),
-    derive(
-        Debug,
-        Clone,
-        PartialEq,
-        Eq,
-        PartialOrd,
-        Ord,
-        Hash,
-        Serialize,
-        Deserialize
-    )
-)]
-pub struct ActionRationale(String);
+impl fmt::Debug for ActionId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("ActionId([REDACTED])")
+    }
+}
 
 #[nutype(
     sanitize(trim),
     validate(not_empty, len_char_max = 500),
-    derive(
-        Debug,
-        Clone,
-        PartialEq,
-        Eq,
-        PartialOrd,
-        Ord,
-        Hash,
-        Serialize,
-        Deserialize
-    )
+    derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)
 )]
-/// Manager or front-desk feedback recorded after a reviewed brief action.
+pub struct ActionRationale(String);
+
+impl fmt::Debug for ActionRationale {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("ActionRationale(<redacted>)")
+    }
+}
+
+#[nutype(
+    sanitize(trim),
+    validate(not_empty, len_char_max = 500),
+    derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)
+)]
+/// Caller-reported manager or front-desk feedback retained as nonclaimable evidence.
 ///
-/// Feedback is evidence for the labor loop only; it explains the human/system-of-record
-/// disposition and never grants the agent authority to change schedules, provider records,
-/// customer messages, payments, refunds, discounts, or source data.
+/// The text authenticates no actor and proves no review, action, completion, source-of-record
+/// disposition, measured labor, or realized value. It never grants authority to change schedules,
+/// provider records, customer messages, payments, refunds, discounts, or source data.
 pub struct ManagerFeedback(String);
+
+impl fmt::Debug for ManagerFeedback {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("ManagerFeedback(<redacted>)")
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 /// Labor minutes used by the manager daily brief workflow; it assembles reviewable manager brief packets from deterministic context and agent drafts.
@@ -176,7 +161,7 @@ impl LaborMinutes {
 pub struct AggregateLaborMinutes(u16);
 
 impl AggregateLaborMinutes {
-    /// Stores the reviewed value for the manager daily brief workflow without triggering provider, customer, payment, or schedule side effects.
+    /// Retains a caller-reported numeric label without authenticating review, measurement, action, completion, labor reduction, or value.
     pub const fn new(value: u16) -> Self {
         Self(value)
     }
@@ -207,7 +192,7 @@ impl DemandThresholdUnits {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Decision choices for manager brief persona in the manager daily brief workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
+/// Caller-selected manager-brief persona label used for reviewable presentation; it authenticates no person and creates no queue, draft, gate, action, or completion authority.
 pub enum ManagerBriefPersona {
     /// Selects general manager for the manager brief decision model so the app can choose a review, evidence, or draft path without taking live action.
     GeneralManager,
@@ -220,7 +205,7 @@ pub enum ManagerBriefPersona {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Decision choices for removed manual work in the manager daily brief workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
+/// Reported categories of manual work associated with manager-brief evidence; serialized labels do not create workflow authority.
 pub enum RemovedManualWork {
     /// Selects morning dashboard reconciliation for the manager brief decision model so the app can choose a review, evidence, or draft path without taking live action.
     MorningDashboardReconciliation,
@@ -228,7 +213,7 @@ pub enum RemovedManualWork {
     DemandVersusStaffingScan,
     /// Selects checkout exception audit for the manager brief decision model so the app can choose a review, evidence, or draft path without taking live action.
     CheckoutExceptionAudit,
-    /// Selects retention follow up queue prioritization for the manager brief decision model so the app can choose a review, evidence, or draft path without taking live action.
+    /// Legacy reported retention-queue label retained for compatibility; the current workflow never emits a retention action or labor estimate from it.
     RetentionFollowUpQueuePrioritization,
     /// Selects data quality exception triage for the manager brief decision model so the app can choose a review, evidence, or draft path without taking live action.
     DataQualityExceptionTriage,
@@ -237,13 +222,13 @@ pub enum RemovedManualWork {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Decision choices for source fact kind in the manager daily brief workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
+/// Source-fact labels carried by manager-brief evidence; labels alone cannot create an action, queue, task, draft, completion, or value claim.
 pub enum SourceFactKind {
     /// Selects service demand forecast for the manager brief decision model so the app can choose a review, evidence, or draft path without taking live action.
     ServiceDemandForecast,
     /// Selects checkout completion status for the manager brief decision model so the app can choose a review, evidence, or draft path without taking live action.
     CheckoutCompletionStatus,
-    /// Selects retention follow up eligibility for the manager brief decision model so the app can choose a review, evidence, or draft path without taking live action.
+    /// Legacy reported retention-eligibility label retained for compatibility; current retention packets cannot create a brief action.
     RetentionFollowUpEligibility,
     /// Selects source data quality issue for the manager brief decision model so the app can choose a review, evidence, or draft path without taking live action.
     SourceDataQualityIssue,
@@ -283,13 +268,13 @@ impl SourceFact {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Decision choices for brief action kind in the manager daily brief workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
+/// Manager-brief action labels; caller-created or serialized labels do not prove that the workflow emitted or completed an action.
 pub enum BriefActionKind {
     /// Selects review demand against staffing plan for the manager brief decision model so the app can choose a review, evidence, or draft path without taking live action.
     ReviewDemandAgainstStaffingPlan,
     /// Selects resolve checkout exception for the manager brief decision model so the app can choose a review, evidence, or draft path without taking live action.
     ResolveCheckoutException,
-    /// Selects approve retention follow up draft for the manager brief decision model so the app can choose a review, evidence, or draft path without taking live action.
+    /// Legacy reported retention-draft label retained for compatibility; the current workflow cannot emit this action.
     ApproveRetentionFollowUpDraft,
     /// Selects investigate source data quality issue for the manager brief decision model so the app can choose a review, evidence, or draft path without taking live action.
     InvestigateSourceDataQualityIssue,
@@ -298,7 +283,7 @@ pub enum BriefActionKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Decision choices for brief action priority in the manager daily brief workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
+/// Caller-visible priority label for reviewable manager-brief evidence; it creates no queue, draft, gate, action, or completion authority.
 pub enum BriefActionPriority {
     /// Selects high for the manager brief decision model so the app can choose a review, evidence, or draft path without taking live action.
     High,
@@ -365,7 +350,7 @@ impl BlockedAction {
         }
     }
 
-    /// Builds the from requested side effect code result for the manager daily brief workflow from reviewed source facts while preserving human review gates and draft-only side effects.
+    /// Parses a requested-side-effect label into blocked-action evidence without asserting reviewed source facts or creating a queue, draft, gate, action, or completion authority.
     pub fn from_requested_side_effect_code(code: &str) -> Option<Self> {
         code.parse().ok()
     }
@@ -388,7 +373,7 @@ pub struct LaborImpactEstimate {
 }
 
 impl LaborImpactEstimate {
-    /// Stores the reviewed value for the manager daily brief workflow without triggering provider, customer, payment, or schedule side effects.
+    /// Retains a caller-reported numeric label without authenticating review, measurement, action, completion, labor reduction, or value.
     pub const fn new(before_minutes: LaborMinutes, after_minutes: LaborMinutes) -> Self {
         Self {
             before_minutes,
@@ -412,7 +397,7 @@ impl LaborImpactEstimate {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
 /// Brief action used by the manager daily brief workflow; it assembles reviewable manager brief packets from deterministic context and agent drafts.
 pub struct BriefAction {
     id: ActionId,
@@ -426,6 +411,12 @@ pub struct BriefAction {
     capacity_labor_recommendation: Option<operations::capacity::OptimizationRecommendation>,
     #[builder(default)]
     required_review_gates: Vec<policy::ReviewGate>,
+}
+
+impl fmt::Debug for BriefAction {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("BriefAction([REDACTED])")
+    }
 }
 
 impl BriefAction {
@@ -491,12 +482,18 @@ impl BriefAction {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
 /// Scoped checkout packet used by the manager daily brief workflow; it assembles reviewable manager brief packets from deterministic context and agent drafts.
 pub struct ScopedCheckoutPacket {
     location_id: entities::LocationId,
     operating_day: operations::operating_day::Date,
     packet: checkout_completion::Packet,
+}
+
+impl fmt::Debug for ScopedCheckoutPacket {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("ScopedCheckoutPacket([REDACTED])")
+    }
 }
 
 impl ScopedCheckoutPacket {
@@ -516,12 +513,18 @@ impl ScopedCheckoutPacket {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
 /// Scoped retention packet used by the manager daily brief workflow; it assembles reviewable manager brief packets from deterministic context and agent drafts.
 pub struct ScopedRetentionPacket {
     location_id: entities::LocationId,
     operating_day: operations::operating_day::Date,
     packet: crm_retention::Packet,
+}
+
+impl fmt::Debug for ScopedRetentionPacket {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("ScopedRetentionPacket([REDACTED])")
+    }
 }
 
 impl ScopedRetentionPacket {
@@ -541,7 +544,7 @@ impl ScopedRetentionPacket {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
 /// Input rules for building the workflow packet from source-grounded records.
 pub struct Request {
     location_id: entities::LocationId,
@@ -556,6 +559,12 @@ pub struct Request {
     retention_packets: Vec<ScopedRetentionPacket>,
     #[builder(default)]
     capacity_labor_recommendations: Vec<operations::capacity::OptimizationRecommendation>,
+}
+
+impl fmt::Debug for Request {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("Request([REDACTED])")
+    }
 }
 
 impl Request {
@@ -602,8 +611,11 @@ impl Request {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Reviewable packet handed to staff or agents with deterministic gates already applied.
+#[derive(Clone, PartialEq, Eq, Serialize)]
+/// Server-issued review packet with deterministic gates already applied.
+///
+/// It is serializable for presentation but intentionally not caller-deserializable; callers must
+/// submit source evidence through [`Request`] so the workflow can issue ranked actions.
 pub struct Packet {
     location_id: entities::LocationId,
     operating_day: operations::operating_day::Date,
@@ -613,6 +625,12 @@ pub struct Packet {
     blocked_actions: Vec<BlockedAction>,
     before_minutes: AggregateLaborMinutes,
     after_minutes: AggregateLaborMinutes,
+}
+
+impl fmt::Debug for Packet {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("Packet([REDACTED])")
+    }
 }
 
 impl Packet {
@@ -668,15 +686,15 @@ impl Packet {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Decision choices for feedback outcome in the manager daily brief workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
+/// Caller-reported feedback labels retained as nonclaimable evidence.
 pub enum FeedbackOutcome {
-    /// Records a completed result so follow-up impact is auditable.
+    /// Retains a caller-reported completion label without proving completion.
     Completed,
-    /// Records a deferred result so follow-up impact is auditable.
+    /// Retains a caller-reported deferral label without proving review.
     Deferred,
-    /// Records a suppressed by manager result so follow-up impact is auditable.
+    /// Retains a caller-reported suppression label without proving review.
     SuppressedByManager,
-    /// Records a source fact was wrong result so follow-up impact is auditable.
+    /// Retains a caller-reported wrong-source label without proving review.
     SourceFactWasWrong,
 }
 
@@ -686,58 +704,68 @@ impl FeedbackOutcome {
         false
     }
 
+    /// Normalizes each caller-provided label without attributing manager action or source rejection.
+    pub const fn reported_disposition(self) -> ReportedDisposition {
+        match self {
+            Self::Completed => ReportedDisposition::CompletedLabel,
+            Self::Deferred => ReportedDisposition::DeferredLabel,
+            Self::SuppressedByManager => ReportedDisposition::SuppressedLabel,
+            Self::SourceFactWasWrong => ReportedDisposition::WrongSourceLabel,
+        }
+    }
+
     /// Explains why every serializable disposition remains nonclaimable labor evidence.
     pub const fn labor_savings_not_claimed_reason(self) -> Option<LaborSavingsNotClaimedReason> {
         match self {
-            Self::Completed => Some(LaborSavingsNotClaimedReason::MissingReviewableActionTrace),
-            Self::Deferred => Some(LaborSavingsNotClaimedReason::ManagerDeferredReview),
+            Self::Completed => Some(LaborSavingsNotClaimedReason::ReportedCompletedLabel),
+            Self::Deferred => Some(LaborSavingsNotClaimedReason::ReportedDeferredLabel),
             Self::SuppressedByManager => {
-                Some(LaborSavingsNotClaimedReason::ManagerSuppressedAction)
+                Some(LaborSavingsNotClaimedReason::ReportedSuppressedLabel)
             }
-            Self::SourceFactWasWrong => Some(LaborSavingsNotClaimedReason::SourceFactWasWrong),
+            Self::SourceFactWasWrong => {
+                Some(LaborSavingsNotClaimedReason::ReportedWrongSourceLabel)
+            }
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Human/system-of-record disposition retained as reported outcome evidence.
-pub enum ReviewDisposition {
-    /// Human reported completion; the recorded time remains evidence and is not realized savings.
-    CompletedEvidenceOnly,
-    /// Human deferred the action; the estimate remains useful, but no realized savings are claimed.
-    DeferredByManager,
-    /// Human suppressed the action; the brief preserved review authority and claims no savings.
-    SuppressedByManager,
-    /// Human found the source fact was wrong; the workflow preserved provenance and claims no savings.
-    SourceFactRejected,
+/// Normalized caller-reported disposition retained as nonclaimable outcome evidence.
+pub enum ReportedDisposition {
+    /// Caller supplied a completion label; no human action or completion is proven.
+    CompletedLabel,
+    /// Caller supplied a deferral label; no review, manager action, or deferral is proven.
+    DeferredLabel,
+    /// Caller supplied a suppression label; no review, manager action, or suppression is proven.
+    SuppressedLabel,
+    /// Caller supplied a wrong-source label; no source adjudication or rejection is proven.
+    WrongSourceLabel,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 /// Reason an outcome is retained as feedback without counting optimistic labor savings.
 pub enum LaborSavingsNotClaimedReason {
-    /// The manager deferred review or action to a later time.
-    ManagerDeferredReview,
-    /// The manager suppressed the recommended action.
-    ManagerSuppressedAction,
-    /// The source fact was wrong, so the action is feedback for data quality rather than realized savings.
-    SourceFactWasWrong,
-    /// A completed outcome was not evaluated against the reviewable action that produced it.
-    MissingReviewableActionTrace,
-    /// A completed outcome did not cite all source records behind the reviewable action.
-    MissingActionSourceEvidence,
+    /// Caller supplied a deferral label without proving review, manager action, or deferral.
+    ReportedDeferredLabel,
+    /// Caller supplied a suppression label without proving review, manager action, or suppression.
+    ReportedSuppressedLabel,
+    /// Caller supplied a wrong-source label without proving adjudication or rejection.
+    ReportedWrongSourceLabel,
+    /// Caller supplied a completion label without proving action, review, completion, or source provenance.
+    ReportedCompletedLabel,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 /// Fail-closed labor-value claim disposition for serializable outcome history.
 pub enum LaborSavingsClaim {
-    /// Reviewed feedback retained, but realized savings are intentionally not claimed.
+    /// Caller-reported feedback retained, but review and realized savings are not claimed.
     NotClaimed {
         /// Why the workflow preserves feedback without counting optimistic labor savings.
         reason: LaborSavingsNotClaimedReason,
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
 /// Outcome record used by the manager daily brief workflow; it assembles reviewable manager brief packets from deterministic context and agent drafts.
 pub struct OutcomeRecord {
     action_id: ActionId,
@@ -748,6 +776,12 @@ pub struct OutcomeRecord {
     manager_feedback: Option<ManagerFeedback>,
     #[builder(default)]
     source_record_refs: Vec<source::RecordRef>,
+}
+
+impl fmt::Debug for OutcomeRecord {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("OutcomeRecord([REDACTED])")
+    }
 }
 
 impl OutcomeRecord {
@@ -771,7 +805,7 @@ impl OutcomeRecord {
         self.before_minutes
     }
 
-    /// Returns the actual minutes evidence available to manager daily brief review while leaving provider, customer, payment, and schedule systems unchanged.
+    /// Returns caller-reported minute evidence without proving measured labor, review, or completion.
     pub const fn actual_minutes(&self) -> LaborMinutes {
         self.actual_minutes
     }
@@ -781,7 +815,7 @@ impl OutcomeRecord {
         &self.source_record_refs
     }
 
-    /// Returns the optional manager feedback that explains the reviewed disposition without authorizing side effects.
+    /// Returns optional caller-reported feedback without authenticating a manager or reviewed disposition.
     pub const fn manager_feedback(&self) -> Option<&ManagerFeedback> {
         self.manager_feedback.as_ref()
     }
@@ -811,14 +845,9 @@ impl OutcomeRecord {
         false
     }
 
-    /// Converts the human disposition into the reporting disposition used by labor-loop proof.
-    pub const fn review_disposition(&self) -> ReviewDisposition {
-        match self.outcome {
-            FeedbackOutcome::Completed => ReviewDisposition::CompletedEvidenceOnly,
-            FeedbackOutcome::Deferred => ReviewDisposition::DeferredByManager,
-            FeedbackOutcome::SuppressedByManager => ReviewDisposition::SuppressedByManager,
-            FeedbackOutcome::SourceFactWasWrong => ReviewDisposition::SourceFactRejected,
-        }
+    /// Returns a normalized caller-reported label without attributing review or action.
+    pub const fn reported_disposition(&self) -> ReportedDisposition {
+        self.outcome.reported_disposition()
     }
 
     /// Returns the fail-closed claim state for serializable outcome evidence.
@@ -826,15 +855,15 @@ impl OutcomeRecord {
         match self.outcome.labor_savings_not_claimed_reason() {
             Some(reason) => LaborSavingsClaim::NotClaimed { reason },
             None => LaborSavingsClaim::NotClaimed {
-                reason: LaborSavingsNotClaimedReason::MissingReviewableActionTrace,
+                reason: LaborSavingsNotClaimedReason::ReportedCompletedLabel,
             },
         }
     }
 
-    /// Returns the same nonclaimable state even when the caller supplies a reviewed action.
+    /// Returns the same nonclaimable state even when caller-controlled action and source labels correlate.
     pub fn labor_savings_claim_for_action(&self, _action: &BriefAction) -> LaborSavingsClaim {
         LaborSavingsClaim::NotClaimed {
-            reason: LaborSavingsNotClaimedReason::MissingReviewableActionTrace,
+            reason: LaborSavingsNotClaimedReason::ReportedCompletedLabel,
         }
     }
 
@@ -850,7 +879,7 @@ impl OutcomeRecord {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-/// Decision choices for error in the manager daily brief workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
+/// Fail-closed validation error for manager-brief evidence; it creates no queue, draft, gate, action, review, or completion authority.
 pub enum Error {
     #[error("labor minutes must be greater than zero")]
     /// Identifies zero labor minutes as the reason the workflow must stop, retry, or request review.
@@ -868,7 +897,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub struct Workflow;
 
 impl Workflow {
-    /// Builds the evaluate result for the manager daily brief workflow from reviewed source facts while preserving human review gates and draft-only side effects.
+    /// Builds a reviewable manager-daily-brief packet from deterministic caller/source evidence while preserving review gates and draft-only side effects. Source correlation authenticates no review, action, completion, measurement, or value.
     pub fn evaluate(request: Request) -> Packet {
         let mut actions = Vec::new();
         actions.extend(service_demand_actions(&request));
@@ -933,7 +962,7 @@ fn capacity_labor_recommendation_actions(request: &Request) -> Vec<BriefAction> 
                 .rationale(ActionRationale::try_new("Manager receives a source-cited capacity/labor recommendation with alternatives and feasibility already checked, while the agent remains unable to mutate the schedule.").expect("static rationale is valid"))
                 .source_facts(vec![SourceFact::builder()
                     .kind(SourceFactKind::CapacityLaborRecommendation)
-                    .summary(BriefSummary::try_new("Capacity, forecast demand, and scheduled coverage produced a feasible manager-reviewed labor recommendation.").expect("static brief summary is valid"))
+                    .summary(BriefSummary::try_new("Capacity, forecast-demand, and scheduled-coverage evidence produced a reviewable labor-recommendation label; no manager review, schedule action, or labor effect is proven.").expect("static brief summary is valid"))
                     .source_record_refs(source_record_refs)
                     .build()])
                 .labor_impact(LaborImpactEstimate::new(
@@ -1049,50 +1078,8 @@ fn checkout_exception_actions(request: &Request) -> Vec<BriefAction> {
 }
 
 fn retention_actions(request: &Request) -> Vec<BriefAction> {
-    request
-        .retention_packets
-        .iter()
-        .filter(|scoped| scoped_packet_matches_request_scope(scoped.location_id(), scoped.operating_day(), request))
-        .map(ScopedRetentionPacket::packet)
-        .filter(|packet| {
-            matches!(
-                packet.eligibility(),
-                crm_retention::FollowUpEligibility::Eligible { .. }
-            )
-        })
-        .map(|packet| {
-            let source_record_refs = packet
-                .review_packet()
-                .staff_evidence()
-                .iter()
-                .map(|evidence| source::RecordRef::from_provenance(evidence.provenance()))
-                .chain(packet.source_record_refs().iter().cloned())
-                .collect::<Vec<_>>();
-
-            BriefAction::builder()
-                .id(ActionId::try_new(format!(
-                    "retention-follow-up-{:?}",
-                    packet.reservation_id()
-                ))
-                .expect("formatted reservation ids are non-empty"))
-                .kind(BriefActionKind::ApproveRetentionFollowUpDraft)
-                .priority(BriefActionPriority::Medium)
-                .owner_persona(ManagerBriefPersona::FrontDeskLead)
-                .removed_manual_work(RemovedManualWork::RetentionFollowUpQueuePrioritization)
-                .rationale(ActionRationale::try_new("Front desk lead receives eligible source-grounded retention opportunities instead of manually scanning completed stays for follow-up candidates.").expect("static rationale is valid"))
-                .source_facts(vec![SourceFact::builder()
-                    .kind(SourceFactKind::RetentionFollowUpEligibility)
-                    .summary(BriefSummary::try_new("CRM/retention contract says this stay has an eligible draft-only follow-up opportunity.").expect("static brief summary is valid"))
-                    .source_record_refs(source_record_refs)
-                    .build()])
-                .labor_impact(LaborImpactEstimate::new(
-                    LaborMinutes::try_new(30).expect("static minutes are valid"),
-                    LaborMinutes::try_new(10).expect("static minutes are valid"),
-                ))
-                .required_review_gates(packet.required_review_gates().to_vec())
-                .build()
-        })
-        .collect()
+    let _reported_retention_evidence = &request.retention_packets;
+    Vec::new()
 }
 
 fn total_before_minutes(actions: &[BriefAction]) -> AggregateLaborMinutes {

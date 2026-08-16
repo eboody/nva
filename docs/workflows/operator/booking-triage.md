@@ -6,10 +6,10 @@ Status: supported local/MVP app contract. The evidence supports source-grounded 
 
 Navigation: start with the [operator workflow index](README.md). Entity-first backlinks: [PetSuites core entities](../../design/entity-atlas-petsuites-core-entities.md), [source/provenance/data quality](../../design/source-provenance-data-quality-atlas.md), [review gates and blocked actions](../../design/entity-atlas-review-safety-boundaries.md), and [workflow packets](../../design/entity-atlas-workflow-packets-agents.md).
 
-## Problem solved and time saved
+## Problem solved and reported labor evidence
 
 - Problem solved: availability, vaccine/document, deposit/payment, behavior, special-care, holiday, staffing, and provider-state facts are often missing, stale, conflicting, or scattered before staff can safely answer a booking request.
-- First role whose time is saved: front-desk agents reviewing inquiries, booking requests, and reservation changes.
+- First role associated with caller-reported handling-time evidence: front-desk agents reviewing inquiries, booking requests, and reservation changes. The report does not establish measured labor.
 - Secondary reviewers/operators: front-desk leads, managers, medical/document reviewers, behavior leads, care-team reviewers, and payment/manager approvers.
 - Pet-resort example: a holiday boarding inquiry can be ranked as `vaccine_pending` plus `deposit_or_payment_review`, with source refs for missing dates/pet profile/vaccine/payment/policy blockers, a draft missing-info message, and a manager packet ready for staff approval instead of an unsafe confirmation.
 
@@ -46,7 +46,7 @@ Related entities to mention without making them the page center:
 | `app` | `app::booking_triage::{Request, Service, DeterministicResult, StaffEvaluationPacket, ConfirmationDraft, MissingInfoDraft, AuditEventDraft, SafeAgentAction, BlockedAction, ApprovalGate, MissingInfoReason, BlockerKind, BlockerEvidence}` | Source-grounded request progression, deterministic readiness ranking, missing-info reason capture, care/vaccine/payment/policy blocker evidence, review packet assembly, draft confirmation/missing-info language for approval, and audit-event draft markers. | Live booking confirmation/rejection, provider/PMS mutation, room/group assignment, waitlist promotion, customer sends, vaccine/care/behavior approvals, or payment movement. |
 | `domain` | `domain::entities::{Reservation, Customer, Pet, reservation::Status}`, `domain::policy::ReviewGate`, `domain::workflow::{PolicyContext, RecommendedAction}` | Business vocabulary for reservation state, customer/pet facts, policy review gates, workflow recommendations, and source-aware decisions. | Provider payload truth by itself, approved side effects, or local policy invention. |
 | `integrations/gingr` | `integrations/gingr::endpoint::reservations::{reservation::Types, reservation::SearchFilters, Reservations, BackOfHouse, GetServicesByType}` and mapping docs | Provider/read-model evidence for reservation types, dates, animal ids, statuses, services, and back-of-house context. | Domain authority, customer-safe messaging, or direct booking mutation from docs prose. |
-| `storage` | No dedicated booking-triage outcome projection is identified in the current evidence map. | Future durable labor/outcome capture could store handle-time, disposition, source-wrong, or reviewed outcome evidence. | Current page must not claim a shipped booking-triage storage outcome record unless code adds one. |
+| `storage` | No dedicated booking-triage outcome projection is identified in the current evidence map. | Future durable capture could retain caller-reported handle-time, disposition, or source-wrong evidence as nonclaimable history. | Current page must not claim a shipped booking-triage storage outcome, authenticated review, completion, or labor measurement unless authoritative code adds it. |
 
 ## Authority and source of truth
 

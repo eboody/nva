@@ -2,6 +2,8 @@
 
 Purpose: define the semantic domain surface for PetSuites grooming inside the NVA/PetSuites AI-operations foundation. This is a contract map for later Rust/domain cards, not an implementation patch. It preserves domain meaning in module paths and type names so scheduling, rebooking, reminders, history, and AI-agent recommendations do not collapse into raw strings, booleans, or helper-shaped workflow code.
 
+**Status: future-only and unavailable.** Current executable grooming behavior is limited to duration estimation plus suppressed, non-authoritative history/cadence/reminder evidence. It cannot create candidates, rankings, queues, tasks, review packets, reminder plans, holds, add-ons, or customer drafts. Every proposed policy, repository, agent, tool, approval flow, and “may/can/should” statement below requires a new opaque, non-serializable eligibility authority and separate action authority. Human review and caller-created labels cannot supply either authority.
+
 Assumptions:
 
 - PetSuites grooming is a core service line but often attaches to boarding/daycare reservations as an add-on or cross-sell.

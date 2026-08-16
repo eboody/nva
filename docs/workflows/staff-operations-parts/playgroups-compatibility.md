@@ -301,7 +301,7 @@ Semantic invariants for later implementation:
 - Known friends can improve candidate ranking only after exclusions, incident restrictions, care gates, and staff coverage pass.
 - Do-not-pair restrictions and incident suspensions are hard blockers unless manager policy explicitly permits an override.
 - Missing/stale compatibility inputs produce review tasks, not inferred compatibility.
-- Customer-safe text is generated from reviewed outcomes, not raw staff notes or AI rationale.
+- Customer-safe text requires separately authenticated decisions plus the message workflow's own draft/send gates; caller-reported outcomes, raw staff notes, and AI rationale are insufficient.
 
 ## Verification checklist for this workflow
 

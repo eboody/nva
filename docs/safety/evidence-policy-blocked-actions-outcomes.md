@@ -16,7 +16,7 @@ A workflow should move through this loop:
 2. Apply policy instructions, deterministic checks, and review gates.
 3. Prepare a staff-visible packet, brief, or draft.
 4. Stop on blocked actions that need human review or an approved app-owned write path.
-5. Capture the reviewed outcome and source references for future runs.
+5. Retain caller-reported outcome labels and source references as nonclaimable history; separately authenticate any review, completion, or live action.
 
 That is how the system can save labor without turning an agent into an autonomous resort operator.
 
@@ -28,7 +28,7 @@ Source evidence is the set of facts the app can point to when it explains why a 
 - Normalized domain facts: provider facts promoted into domain language such as `domain::source`, `domain::policy`, `domain::workflow`, `domain::daily_brief`, reservation status, vaccine requirements, or service-demand facts. The workspace glossary links these boundaries in [`README.md`](../../README.md), especially `domain::source`, `domain::policy`, `domain::workflow`, and manager daily brief truths.
 - Provenance and source refs: trace data that says where a fact came from, which source system or endpoint produced it, which record it refers to, when it was extracted, and which raw or batch reference supports it. The source/provenance vocabulary lives in [`domain::source`](../../domain/src/source.rs).
 - Prompt packets: app-owned packets that pass workflow identity, input, triggering event, policies, and expected output shape to an agent. The packet can ask for a summary, ranking, classification, or draft, but the packet is not live operational authority. See [`app::agents::AgentPromptPacket`](../../app/src/agents.rs) and the architecture draft on [agent prompt packets](../architecture/agent-prompt-packet.md).
-- Prior outcomes: records of what staff or managers did after reviewing a packet or draft, including disposition, actor, source refs, before/actual labor minutes, and reported estimated minute difference. Outcome persistence is represented in [`storage::operations`](../../storage/src/operations.rs) and connected to labor measurement in the [labor-cost reduction crosswalk](../design/labor-cost-reduction-crosswalk.md).
+- Prior outcomes: caller-reported, nonclaimable history associated with a packet or draft, including disposition, actor/persona labels, source refs, reported time fields, and reported estimated minute difference. Outcome persistence is represented in [`storage::operations`](../../storage/src/operations.rs); it does not authenticate staff action, review, completion, or labor measurement.
 
 A good workflow does not ask an agent to “figure out the truth” from scratch. It gives the agent a packet built from source evidence and asks for a constrained draft or recommendation that the app can validate.
 
@@ -62,21 +62,21 @@ The important phrasing for docs is: “the workflow prepares the evidence and dr
 
 ## What “outcome capture” means
 
-Outcome capture records what happened after a draft, review packet, or manager action. It turns a one-time review into reusable evidence.
+Outcome capture retains caller-reported labels associated with a draft, reviewable packet, or proposed manager action. It creates durable nonclaimable history but proves no review, manager action, completion, measurement, or value.
 
 A useful outcome record captures:
 
 - The workflow action or draft id.
-- The final disposition, such as completed, reviewed, deferred, suppressed, source-fact-wrong, or needs follow-up.
+- The caller-reported disposition label, such as completed-label, deferred-label, suppressed-label, wrong-source-label, or needs-follow-up; the label proves none of those events occurred.
 - Who recorded the outcome and in what role.
 - The source refs that justified the original recommendation.
 - The location, operating day, action kind, persona, or other reporting group.
-- Estimated manual minutes before the workflow and actual minutes after review, when labor measurement applies.
+- Caller-reported baseline and workflow-minute labels. These are not actual measurements and prove no review or labor effect.
 - Any caveat that should be visible next time, such as wrong source data, missing vaccine evidence, contact suppression, or manager override.
 
-[`storage::operations::ManagerDailyBriefOutcomeRecord`](../../storage/src/operations.rs) is the clearest current storage example: it persists action id, outcome, before/actual minutes, actor, source refs, reporting dimensions, and reported estimated minute difference. The [labor-cost reduction crosswalk](../design/labor-cost-reduction-crosswalk.md) says outcome capture retains reported labor evidence but cannot establish a labor-savings claim.
+[`storage::operations::ManagerDailyBriefOutcomeRecord`](../../storage/src/operations.rs) is the clearest current storage example: it persists action id plus caller-reported outcome, minute, actor, source-reference, reporting-dimension, and estimated-difference labels. The [labor-cost reduction crosswalk](../design/labor-cost-reduction-crosswalk.md) says outcome capture retains reported labor evidence but cannot establish a labor-savings claim.
 
-Outcome capture is what prevents repeated manual reconstruction. If a manager already reviewed a demand-versus-staffing action and recorded that the source was wrong or the task saved 30 minutes, the next brief should start from that record instead of asking another person to re-check every dashboard.
+Outcome capture is what prevents repeated manual reconstruction. If a caller reports a demand-versus-staffing disposition, wrong-source label, or 30-minute label, the next brief may display that nonclaimable history for inspection instead of silently discarding it. The record authenticates no manager, review, source adjudication, task execution, measurement, or realized value.
 
 ## Example 1: Booking triage
 
@@ -108,7 +108,7 @@ Flow:
    - Staff can record whether the packet was approved, deferred, missing information, source-fact-wrong, or routed to another review queue.
    - The record should keep reservation/action identity, source refs, actor, disposition, and any labor or rework signal so future booking triage does not require another manual reconstruction.
 
-Labor-saving effect: staff no longer have to hunt across reservation notes, pet profiles, vaccine documents, deposit status, and policy pages before deciding the next queue. Safety effect: the workflow still stops before live provider changes, customer communication, payment movement, or medical/behavior decisions.
+Intended efficiency hypothesis: the packet may reduce repeated hunting across reservation notes, pet profiles, vaccine documents, deposit status, and policy pages before deciding the next queue; serialized evidence does not prove that reduction. Safety effect: the workflow still stops before live provider changes, customer communication, payment movement, or medical/behavior decisions.
 
 ## Example 2: Manager daily brief
 
@@ -116,19 +116,19 @@ Manager Daily Brief is the manager/front-desk prioritization example. The releva
 
 Flow:
 
-1. Service demand, checkout, retention, and source-quality evidence arrives.
+1. Service demand, checkout, suppressed retention history, and source-quality evidence arrives.
    - Service-demand facts show demand units, projection version, source refs, and data-quality caveats.
-   - Checkout exception packets show unresolved departure or handoff work.
-   - Retention packets show source-grounded follow-up opportunities and contact/consent evidence.
-   - Prior outcomes show which similar actions were completed, deferred, or source-fact-wrong.
+   - Checkout exception packets show unresolved departure or handoff work. Hydrated checkout packets normalize caller-supplied completion, status-suggestion, action, audit, disposition, gate, and blocker claims to the canonical manager-reviewed boundary.
+   - Retention packets preserve reported history only as ineligible evidence; they contribute no brief action or labor estimate.
+   - Prior outcomes preserve caller-reported completion, deferral, and wrong-source labels; they do not prove review, action, or completion.
 
 2. The app builds a prioritized brief.
    - `app::manager_daily_brief::Request` scopes evidence to a location, operating day, and manager persona.
-   - `Packet` and `BriefAction` carry source facts, action kind, priority, rationale, and labor impact estimate.
-   - Safe agent work is internal: summarize evidence, rank manager actions, draft internal tasks, record feedback, and estimate labor reported time difference.
+   - `Packet` and `BriefAction` carry source facts, supported action kinds, priority, rationale, and labor impact estimate.
+   - Safe agent work is internal: summarize evidence, rank supported manager actions, draft supported internal tasks, record feedback, and estimate labor reported time difference.
 
-3. The manager chooses the action.
-   - The manager sees a ranked queue instead of manually reconciling demand, checkout, retention, and source-quality dashboards.
+3. The manager chooses a supported action.
+   - The manager sees a ranked queue of demand, checkout, capacity, and source-quality actions instead of manually reconciling those dashboards. Reported retention evidence creates no queue entry, candidate, task, or draft.
    - The manager may choose to adjust staffing, follow up with a front-desk task, defer, mark source data wrong, or route another review.
    - The agent does not make that operational decision.
 
@@ -136,20 +136,20 @@ Flow:
    - The brief must not change staff schedules, mutate provider/PMS records, send customer messages, issue refunds/discounts/payments, hide source data-quality issues, or perform member-facing actions.
    - If action requires a schedule edit, provider write, customer outreach, payment movement, or policy exception, the brief stops at recommendation/draft and asks the manager or approved downstream process.
 
-5. Outcome and labor minutes are captured.
-   - `OutcomeRecord` and `ManagerDailyBriefOutcomeRecord` capture action id, outcome, actor, before minutes, actual minutes, source refs, reporting group, and reported estimated minute difference.
-   - The next brief can use those records to avoid rediscovering the same facts and to support measured labor-savings claims.
+5. Caller-reported outcome and minute labels are retained.
+   - `OutcomeRecord` and `ManagerDailyBriefOutcomeRecord` retain action id plus caller-reported outcome, actor, baseline-minute, workflow-minute, source-reference, reporting-group, and estimated-difference labels.
+   - The next brief can use those records to avoid rediscovering the same facts, but the records remain nonclaimable and do not support realized-savings claims.
 
-Labor-saving effect: the manager starts the day with a source-backed action queue instead of scanning multiple dashboards and asking staff to reconstruct context. Safety effect: the system ranks and drafts only; it does not edit schedules, provider records, customer messages, or money.
+Intended efficiency hypothesis: the manager starts the day with a source-backed action queue instead of scanning multiple dashboards and asking staff to reconstruct context. This is not measured savings. Safety effect: the system ranks and drafts only; it does not edit schedules, provider records, customer messages, or money.
 
-## Why this saves labor without unsafe autonomous changes
+## Why this may reduce manual work without authorizing a savings claim
 
-The labor savings come from reducing search, reconciliation, rewriting, prioritization, and repeat explanation work:
+The workflow is intended to reduce search, reconciliation, rewriting, prioritization, and repeat explanation work; serialized records do not prove that reduction:
 
 - Source evidence removes “where did this fact come from?” backtracking.
 - Policy instructions and deterministic checks remove avoidable judgment calls from obvious routing work.
 - Prompt packets let agents summarize or draft from app-owned context instead of improvising from raw provider access.
 - Blocked actions make unsafe steps explicit instead of burying them in vague automation language.
-- Outcome capture turns staff/manager review into durable evidence for the next workflow.
+- Outcome capture retains caller-reported labels as durable nonclaimable evidence for later inspection; it does not authenticate staff, managers, review, action, completion, or value.
 
-The safety boundary is equally important: the same mechanism that saves labor also names what the agent cannot do. This repo’s current source-backed posture is draft/review/outcome capture, with live customer, payment, provider/PMS, schedule, medical, and behavior actions staying blocked unless a separate deterministic, approved, app-owned path is added and documented.
+The safety boundary is equally important: the same mechanism that may reduce repeated inspection also names what the agent cannot do, without claiming measured labor reduction. This repo’s current source-backed posture is draft/review/outcome capture, with live customer, payment, provider/PMS, schedule, medical, and behavior actions staying blocked unless a separate deterministic, approved, app-owned path is added and documented.

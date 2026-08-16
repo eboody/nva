@@ -1,6 +1,6 @@
 # Manager Daily Brief measurable labor loop contract
 
-Purpose: define the first measurable labor-cost loop before building runtime automation. The loop turns reviewed source facts into manager/front-desk actions, keeps AI draft/review-only, captures staff feedback, and measures before/after labor minutes. The broader driver map and next-loop sequence live in [labor-cost-reduction-crosswalk.md](labor-cost-reduction-crosswalk.md).
+Purpose: define a reviewable labor-cost hypothesis before building runtime automation. The loop assembles deterministic caller/source evidence into non-executable recommendations, keeps AI draft-only, retains caller-reported feedback and minute labels, and proves no review, manager/front-desk action, completion, labor measurement, savings, or value. The broader driver map and next-loop sequence live in [labor-cost-reduction-crosswalk.md](labor-cost-reduction-crosswalk.md).
 
 ## Repetitive work removed
 
@@ -8,14 +8,14 @@ The first brief removes repeated morning/manual checks that are already represen
 
 1. Demand-versus-staffing scan: manager compares reservation/service-demand dashboards to the schedule.
 2. Checkout exception audit: front-desk lead scans open stays and handoffs to find unresolved checkout/completion issues.
-3. Retention follow-up queue prioritization: front desk scans completed stays for safe follow-up opportunities.
+3. Reported retention evidence inspection: current serialized packets remain ineligible and cannot enter a retention queue, task, or draft path.
 4. Data-quality exception triage: manager keeps nonblocking source ambiguity visible instead of rediscovering it downstream.
 
 ## Affected personas
 
 - General manager: owns demand/staffing review and data-quality visibility.
 - Assistant general manager: can receive the same operating-day brief and manager approval gates.
-- Front-desk lead: owns checkout exception and retention follow-up review queues.
+- Front-desk lead: owns checkout exception review and may inspect reported retention evidence; current retention packets create no review queue.
 - Front-desk agent: may execute approved internal tasks, but the contract does not authorize customer sends or source mutations.
 
 ## Required source facts
@@ -24,7 +24,7 @@ Every brief action must carry source evidence. The executable contract is `app::
 
 - `analytics::service_demand::Fact` with `operations::operating_day::Key`, demand units, projection version, source record refs, and data-quality issues.
 - `checkout_completion::Packet` from the checkout/completion contract, including source provenance and review gates.
-- `crm_retention::Packet` from the retention contract, including staff evidence and draft-only follow-up eligibility.
+- `crm_retention::Packet` from the retention contract, containing ineligible reported evidence that cannot establish eligibility, queue work, a task, or a customer draft.
 
 Actions are valid only when their `SourceFact` entries have non-empty `source::RecordRef` evidence. Source data-quality issues are preserved as `SourceFactKind::SourceDataQualityIssue` and add manager review rather than being hidden.
 
@@ -42,12 +42,14 @@ Each `BriefAction` names:
 - review gates;
 - labor impact estimate with before minutes, after minutes, and reported time difference.
 
-The current action kinds are:
+The current workflow-emitted action kinds are:
 
 - `ReviewDemandAgainstStaffingPlan`
 - `ResolveCheckoutException`
-- `ApproveRetentionFollowUpDraft`
 - `InvestigateSourceDataQualityIssue`
+- `ReviewCapacityLaborRecommendation`
+
+`ApproveRetentionFollowUpDraft` remains a legacy serialized label for compatibility, but the current workflow never emits it and callers cannot promote it into queue, task, draft, completion, or value authority.
 
 ## Review boundaries
 
@@ -67,7 +69,7 @@ Blocked actions remain explicit no-go areas:
 - move refunds, discounts, or payments;
 - hide source data-quality issues.
 
-Retention actions preserve `CustomerMessageApproval`. Checkout/data-quality exceptions preserve `ManagerApproval`. The brief may recommend and prioritize; it does not execute live schedule, PMS, customer-message, payment, refund, or discount changes.
+Current retention packets produce no action. Checkout/data-quality exceptions preserve `ManagerApproval`. The brief may recommend and prioritize supported actions; it does not execute live schedule, PMS, customer-message, payment, refund, or discount changes.
 
 ## Feedback/outcome capture
 
@@ -93,9 +95,9 @@ Initial executable contract estimates:
 
 - demand-versus-staffing scan: 45 min before, 15 min after;
 - checkout exception audit: 20 min before, 8 min after;
-- retention follow-up prioritization: 30 min before, 10 min after.
+- retention follow-up prioritization: unavailable in the current executable contract; reported retention packets contribute zero actions and no labor estimate.
 
-The packet also totals before/after minutes across ranked actions. Tests prove a source-grounded demand + retention brief produces 75 minutes before, 25 minutes after, and 50 reported time difference.
+The packet totals before/after minutes only across supported ranked actions. Tests prove that adding a reported retention packet to a source-grounded demand brief does not change its 45 minutes before, 15 minutes after, or 30-minute reported estimate difference, because retention evidence contributes no action.
 
 ## Verification
 

@@ -5,15 +5,95 @@ use app::checkout_completion;
 use domain::{entities, policy, source};
 
 #[test]
+fn serialized_checkout_packet_authority_claims_rehydrate_fail_closed() {
+    let packet = checkout_completion::Workflow::evaluate(
+        checkout_completion::Request::builder()
+            .reservation_id(reservation_id())
+            .source_provenance(source_provenance())
+            .observed_source_status(source::reservation::Status::CheckedOut)
+            .staff_handoff(resolved_staff_handoff())
+            .build(),
+    );
+    let mut forged = serde_json::to_value(packet).unwrap();
+    forged["completion_status"] =
+        serde_json::to_value(checkout_completion::CompletionStatus::ReportedStaffCheckout).unwrap();
+    forged["suggested_reservation_status"] =
+        serde_json::to_value(entities::reservation::Status::CheckedOut).unwrap();
+    forged["required_review_gates"] = serde_json::json!([]);
+    forged["safe_agent_actions"] = serde_json::to_value([
+        checkout_completion::SafeAgentAction::DraftRetentionFollowUpForReview,
+    ])
+    .unwrap();
+    forged["blocked_actions"] = serde_json::json!([]);
+    forged["audit_event_drafts"] = serde_json::to_value([
+        checkout_completion::AuditEventDraft::CheckoutCompletionSuggested,
+        checkout_completion::AuditEventDraft::CustomerMessageApprovalRequested,
+    ])
+    .unwrap();
+    forged["reported_disposition"] =
+        serde_json::to_value(checkout_completion::ReportedDisposition::StaffVerified).unwrap();
+
+    let hydrated: checkout_completion::Packet = serde_json::from_value(forged).unwrap();
+
+    assert_eq!(
+        hydrated.completion_status(),
+        checkout_completion::CompletionStatus::NeedsStaffHandoffReview
+    );
+    assert_eq!(hydrated.suggested_reservation_status(), None);
+    assert_eq!(
+        hydrated.required_review_gates(),
+        &[policy::ReviewGate::ManagerApproval]
+    );
+    assert_eq!(
+        hydrated.safe_agent_actions(),
+        &[
+            checkout_completion::SafeAgentAction::SummarizeCheckoutEvidence,
+            checkout_completion::SafeAgentAction::CreateInternalHandoffTask,
+        ]
+    );
+    for blocked in [
+        checkout_completion::BlockedAction::SuggestCheckedOutStatus,
+        checkout_completion::BlockedAction::SendCustomerMessage,
+        checkout_completion::BlockedAction::MutateProviderOrPmsRecord,
+        checkout_completion::BlockedAction::MoveRefundDiscountOrPayment,
+    ] {
+        assert!(hydrated.blocked_actions().contains(&blocked));
+    }
+    assert_eq!(
+        hydrated.audit_event_drafts(),
+        &[
+            checkout_completion::AuditEventDraft::StaffHandoffRecorded,
+            checkout_completion::AuditEventDraft::StaffHandoffReviewRequested,
+        ]
+    );
+    assert_eq!(
+        hydrated.reported_disposition(),
+        checkout_completion::ReportedDisposition::ManagerReviewRequired
+    );
+}
+
+#[test]
 fn serialized_checkout_and_handoff_evidence_remains_under_manager_review() {
+    let handoff = resolved_staff_handoff();
+    assert_eq!(format!("{handoff:?}"), "StaffHandoff([REDACTED])");
+    let serialized_handoff = serde_json::to_value(&handoff).unwrap();
+    assert!(serialized_handoff.get("reported_completed_by").is_some());
+    assert!(serialized_handoff.get("reported_completed_at").is_some());
+    assert!(serialized_handoff.get("completed_by").is_none());
+    assert!(serialized_handoff.get("completed_at").is_none());
+
     let request = checkout_completion::Request::builder()
         .reservation_id(reservation_id())
         .source_provenance(source_provenance())
         .observed_source_status(source::reservation::Status::CheckedOut)
-        .staff_handoff(resolved_staff_handoff())
+        .staff_handoff(handoff)
         .build();
 
+    assert_eq!(format!("{request:?}"), "Request([REDACTED])");
+
     let packet = checkout_completion::Workflow::evaluate(request);
+
+    assert_eq!(format!("{packet:?}"), "Packet([REDACTED])");
 
     assert_eq!(
         packet.completion_status(),
@@ -121,7 +201,7 @@ fn checkout_completion_with_open_staff_handoff_routes_to_review_without_checkout
 }
 
 #[test]
-fn checkout_exception_packet_names_unresolved_work_and_reviewed_outcome_without_side_effects() {
+fn checkout_exception_packet_names_unresolved_work_and_reported_outcome_without_side_effects() {
     let request = checkout_completion::Request::builder()
         .reservation_id(reservation_id())
         .source_provenance(source_provenance())
@@ -162,8 +242,8 @@ fn checkout_exception_packet_names_unresolved_work_and_reviewed_outcome_without_
         ]
     );
     assert_eq!(
-        packet.reviewed_disposition(),
-        checkout_completion::ReviewedDisposition::ManagerReviewRequired
+        packet.reported_disposition(),
+        checkout_completion::ReportedDisposition::ManagerReviewRequired
     );
     assert_eq!(packet.labor_impact().manual_audit_minutes().get(), 18);
     assert_eq!(packet.labor_impact().packet_review_minutes().get(), 6);
@@ -243,10 +323,10 @@ fn reservation_id() -> entities::reservation::Id {
 
 fn resolved_staff_handoff() -> checkout_completion::StaffHandoff {
     checkout_completion::StaffHandoff::builder()
-        .completed_by(entities::ActorRef::Staff {
+        .reported_completed_by(entities::ActorRef::Staff {
             staff_id: entities::StaffId::try_new("front-desk-erin").unwrap(),
         })
-        .completed_at(DateTime::<Utc>::UNIX_EPOCH)
+        .reported_completed_at(DateTime::<Utc>::UNIX_EPOCH)
         .belongings_status(checkout_completion::BelongingsStatus::ReturnedToCustomer)
         .care_summary(
             checkout_completion::CareSummary::try_new(
@@ -260,10 +340,10 @@ fn resolved_staff_handoff() -> checkout_completion::StaffHandoff {
 
 fn open_staff_handoff() -> checkout_completion::StaffHandoff {
     checkout_completion::StaffHandoff::builder()
-        .completed_by(entities::ActorRef::Staff {
+        .reported_completed_by(entities::ActorRef::Staff {
             staff_id: entities::StaffId::try_new("front-desk-erin").unwrap(),
         })
-        .completed_at(DateTime::<Utc>::UNIX_EPOCH)
+        .reported_completed_at(DateTime::<Utc>::UNIX_EPOCH)
         .belongings_status(checkout_completion::BelongingsStatus::NeedsStaffFollowUp)
         .care_summary(
             checkout_completion::CareSummary::try_new("Medication bag needs second staff check.")

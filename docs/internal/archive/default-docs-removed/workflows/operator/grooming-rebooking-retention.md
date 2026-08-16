@@ -25,7 +25,7 @@ The retention packet needs source-backed facts, not model memory or raw provider
 
 | Source fact or entity | Why the workflow needs it | Source of record / authority | Evidence citation |
 | --- | --- | --- | --- |
-| Completed checkout or stay evidence | A retention draft is only safe after staff-verified completion evidence exists. | Provider/read-model evidence normalized into `checkout_completion::Packet`; staff checkout completion remains authoritative for checkout state. | `app/src/crm_retention.rs` `Request.checkout_packet`; `app/tests/crm_retention_workflow_contracts.rs` checkout packet fixture. |
+| Reported checkout or stay evidence | A retention draft can enter staff review only after reported checkout evidence exists. | Provider/read-model evidence normalized into `checkout_completion::Packet` remains historical evidence; an opaque accepted capability is required for downstream authority. | `app/src/crm_retention.rs` `Request.checkout_packet`; `app/tests/crm_retention_workflow_contracts.rs` checkout packet fixture. |
 | Customer and reservation ids | Staff need to know which customer/reservation the follow-up queue item belongs to. | `domain::entities` ids carried by the app packet. | `app/src/crm_retention.rs` `Request`, `Packet`, `StaffReviewPacket`, `OutcomeRecord`. |
 | Pet and grooming service history | Cadence and service-history context explain why grooming follow-up is due, normal, risky, or not supported. | `domain::grooming::history`, `domain::grooming::rebooking`, and promoted source/provider records. | `domain/src/grooming/mod.rs`; `domain/src/grooming/README.md#grooming-workflow-surface`. |
 | Grooming cadence and timing | Determines whether a completed service is due later, due now, overdue, or needs recommendation review. | `domain::grooming::rebooking::Policy` and `Cadence` after source facts are promoted into domain values. | `domain/src/grooming/mod.rs`; generated Rustdoc `target/doc/domain/grooming/index.html` after docs build. |
@@ -47,7 +47,7 @@ Featured entities:
 
 Related entities that matter but should not become the page center:
 
-- Checkout packet: prerequisite completion evidence for retention work; checkout authority belongs to the checkout workflow.
+- Checkout packet: reported evidence used to prepare retention review; it cannot itself establish checkout or retention authority.
 - Pet, customer, reservation, location, and staff ids: identity anchors that connect the retention packet to resort records.
 - Grooming service history and style/care notes: context for cadence and risk, but sensitive handling/medical interpretation remains reviewed.
 - Message channel/body state: vocabulary for drafts and sends; it does not authorize live outreach.

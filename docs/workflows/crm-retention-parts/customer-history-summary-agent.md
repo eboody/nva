@@ -1,6 +1,6 @@
 # Customer history summary agent
 
-Status: staff-facing workflow design handoff. This document defines a conservative customer/pet history summary used to prepare front-desk, lodging, daycare, grooming, training, care, and manager staff. It does not authorize customer-facing automation, customer profile edits, incident closure, medical/vaccine approval, eligibility decisions, discounts/refunds, provider writes, or outbound messages.
+Status: staff-facing evidence-summary design. Current CRM/retention runtime may summarize suppressed source-backed history, but it cannot create a candidate, ranking, queue, internal task, review packet, customer draft, contact, conversion, completion, or value authority. Any broader behavior below is future-only and requires new opaque, non-serializable eligibility authority that review of current evidence cannot mint.
 
 Source basis:
 
@@ -17,8 +17,8 @@ The agent answers: “What should authorized staff know before serving this cust
 Allowed outcomes:
 
 - Produce a staff-facing customer/pet history summary with cited source refs, freshness, missing/conflicting data markers, and review gates.
-- Highlight unresolved concerns, safety/care/behavior/payment/document flags, suppression reasons, and manager/staff follow-up tasks.
-- Suggest internal opportunities such as rebooking reminders, VIP/loyalty handling, package/membership review, grooming cadence reminder, daycare recurrence review, or retention follow-up candidates, only as staff tasks/review prompts.
+- Highlight unresolved concerns, safety/care/behavior/payment/document flags, suppression reasons, and existing source-backed task references without creating tasks.
+- Preserve rebooking, VIP/loyalty, package/membership, grooming cadence, daycare recurrence, reminder, or retention labels only as nonclaimable reported evidence, never as opportunities, candidates, tasks, or review prompts.
 - Route sensitive, stale, conflicting, or unresolved facts to human review.
 
 Not allowed:

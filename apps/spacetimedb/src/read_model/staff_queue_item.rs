@@ -16,7 +16,7 @@ use crate::storage::review_queue::{
 
 /// Private staff queue projection pending an actor- and location-scoped subscription view.
 #[spacetimedb::table(accessor = staff_queue_item)]
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct StaffQueueItemRow {
     /// Action id shown to dashboard clients.
     #[primary_key]
@@ -50,7 +50,7 @@ pub struct StaffQueueItemRow {
 
 /// Private notice for denied actions and blocked live side-effect attempts.
 #[spacetimedb::table(accessor = blocked_action_notice)]
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct BlockedActionNoticeRow {
     /// Synthetic notice id.
     #[primary_key]
@@ -74,16 +74,44 @@ pub struct BlockedActionNoticeRow {
     pub schema_version: u32,
 }
 
-/// Private reviewed-outcome card pending an authorized subscription view.
+/// Legacy reviewed-outcome card retained unchanged for additive schema compatibility.
+///
+/// Current reducers never read or write this historical table because its
+/// `minutes_saved` field encodes a realized-value claim that caller-created
+/// history cannot establish.
 #[spacetimedb::table(accessor = hygiene_outcome_card)]
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct HygieneOutcomeCardRow {
     /// Action id shown to dashboard clients.
     #[primary_key]
     pub action_id: String,
     /// Compact actor label for display.
     pub recorded_by: ActorRefColumn,
-    /// Reviewed outcome label for display.
+    /// Legacy caller-reported outcome label for display; it proves no review, action, completion, measurement, or value.
+    pub outcome: FeedbackOutcomeColumn,
+    /// Legacy claimed minutes value retained only to preserve deployed row shape.
+    pub minutes_saved: u32,
+    /// Whether protected live side effects remain blocked.
+    pub live_delivery_allowed: bool,
+    /// Source refs displayed for review traceability.
+    pub source_record_refs: Vec<SourceRecordRefColumn>,
+    /// Issue refs displayed for review traceability.
+    pub issue_refs: Vec<IssueRefColumn>,
+}
+
+/// Version-one caller-reported outcome card with evidence-only labor semantics.
+///
+/// Admission and projection preserve reported labels; they do not prove review,
+/// completion, suppression, resolution, measured labor, or realized value.
+#[spacetimedb::table(accessor = hygiene_outcome_card_v1)]
+#[derive(Clone)]
+pub struct HygieneOutcomeCardV1Row {
+    /// Action id shown to dashboard clients.
+    #[primary_key]
+    pub action_id: String,
+    /// Compact actor label for display.
+    pub recorded_by: ActorRefColumn,
+    /// Caller-reported outcome label for display; it proves no review or completion.
     pub outcome: FeedbackOutcomeColumn,
     /// Staff-reported actual minutes spent; never a realized-savings claim.
     pub reported_actual_minutes_spent: u32,
@@ -95,8 +123,8 @@ pub struct HygieneOutcomeCardRow {
     pub issue_refs: Vec<IssueRefColumn>,
 }
 
-impl HygieneOutcomeCardRow {
-    /// Creates a public read-model row from already accepted storage facts.
+impl HygieneOutcomeCardV1Row {
+    /// Creates a current read-model row from admitted caller-reported storage evidence.
     pub fn new(
         action_id: String,
         recorded_by: ActorRefColumn,
@@ -116,3 +144,22 @@ impl HygieneOutcomeCardRow {
         }
     }
 }
+
+macro_rules! redacted_debug {
+    ($($row:ty => $name:literal),+ $(,)?) => {
+        $(
+            impl std::fmt::Debug for $row {
+                fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    formatter.write_str(concat!($name, "([REDACTED])"))
+                }
+            }
+        )+
+    };
+}
+
+redacted_debug!(
+    StaffQueueItemRow => "StaffQueueItemRow",
+    BlockedActionNoticeRow => "BlockedActionNoticeRow",
+    HygieneOutcomeCardRow => "HygieneOutcomeCardRow",
+    HygieneOutcomeCardV1Row => "HygieneOutcomeCardV1Row",
+);

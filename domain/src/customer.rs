@@ -153,7 +153,7 @@ pub mod intelligence {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+    #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
     /// Structured customer/pet note with allowed-use and visibility boundaries.
     pub struct StructuredNote {
         id: NoteId,
@@ -170,6 +170,12 @@ pub mod intelligence {
         reviewed_by: Option<access::ActorId>,
         effective_interval: EffectiveInterval,
         recorded_at: DateTime<Utc>,
+    }
+
+    impl std::fmt::Debug for StructuredNote {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.write_str("StructuredNote([REDACTED])")
+        }
     }
 
     impl StructuredNote {
@@ -599,19 +605,15 @@ pub mod intelligence {
 #[nutype(
     sanitize(trim),
     validate(not_empty, len_char_max = 120),
-    derive(
-        Debug,
-        Clone,
-        PartialEq,
-        Eq,
-        PartialOrd,
-        Ord,
-        Hash,
-        Serialize,
-        Deserialize
-    )
+    derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)
 )]
 pub struct Name(String);
+
+impl fmt::Debug for Name {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("Name(<redacted>)")
+    }
+}
 
 /// Customer email address captured from a portal, staff entry, import, or message source.
 ///
@@ -620,19 +622,15 @@ pub struct Name(String);
 #[nutype(
     sanitize(trim),
     validate(not_empty, len_char_max = 254),
-    derive(
-        Debug,
-        Clone,
-        PartialEq,
-        Eq,
-        PartialOrd,
-        Ord,
-        Hash,
-        Serialize,
-        Deserialize
-    )
+    derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)
 )]
 pub struct Email(String);
+
+impl fmt::Debug for Email {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("Email(<redacted>)")
+    }
+}
 
 /// Customer phone number text used for call, SMS, and staff-note correlation.
 ///
@@ -641,16 +639,12 @@ pub struct Email(String);
 #[nutype(
     sanitize(trim),
     validate(not_empty, len_char_max = 40),
-    derive(
-        Debug,
-        Clone,
-        PartialEq,
-        Eq,
-        PartialOrd,
-        Ord,
-        Hash,
-        Serialize,
-        Deserialize
-    )
+    derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)
 )]
 pub struct Phone(String);
+
+impl fmt::Debug for Phone {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("Phone(<redacted>)")
+    }
+}

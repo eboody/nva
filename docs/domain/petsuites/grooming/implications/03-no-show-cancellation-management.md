@@ -2,6 +2,8 @@
 
 Purpose: define the operational domain contract for grooming no-show and cancellation management. This is a modeling artifact for later serialized Rust/domain cards. It refines the grooming service-domain map without changing code, and keeps provider payloads, payment execution, calendar mutation, and customer messaging behind typed policy and approval boundaries.
 
+**Status: future-only except for suppressed history and deposit-policy review labels.** Current code cannot create a rebooking candidate, hold, queue, task, review packet, payment action, reminder plan, or customer draft from no-show/cancellation evidence. Every broader policy, repository, agent, tool, approval flow, and “may/can/should” statement below requires new opaque, non-serializable eligibility authority plus separately authenticated action authority. Human review, serializable history, and caller-created rules cannot mint either authority.
+
 Safe assumption: PetSuites locations may vary in notice windows, deposit amounts, waitlist behavior, and whether a late cancellation counts the same as a no-show. The safest extensible model is to preserve distinct semantic outcomes (`CancelledWithNotice`, `LateCancellation`, `NoShow`) while allowing a location contract to map them to deposit, hold-release, rebooking, and review decisions.
 
 ## 1. Operational story

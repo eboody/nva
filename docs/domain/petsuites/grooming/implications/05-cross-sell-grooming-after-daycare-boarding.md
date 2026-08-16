@@ -2,6 +2,8 @@
 
 Purpose: model the operational implication that grooming should be offered after daycare or boarding when it is safe, relevant, available, and reviewable. This is a domain contract for later Rust implementation, not an instruction to auto-sell, auto-book, charge, or message members.
 
+**Status: future-only and unavailable.** Current executable grooming and retention workflows cannot identify or rank a cross-sell candidate, create an opportunity, queue, staff task, review packet, add-on, hold, message draft, or customer contact. Every type, decision, repository, agent, tool, approval flow, and “may/can/should” statement below is a proposed design that requires a new opaque, non-serializable eligibility authority plus separate action authority. Human approval, consent labels, serialized history, and compatibility recommendations cannot mint that authority.
+
 Assumptions:
 
 - PetSuites commonly exposes grooming as both a standalone service and an add-on/cross-sell to boarding/daycare reservations.

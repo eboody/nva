@@ -49,22 +49,22 @@ Related entities to mention without making them the page center:
 
 - Provider/PMS reservation state is authoritative for observed checkout status and must carry source/provenance evidence.
 - Staff handoff evidence is authoritative for what staff recorded about belongings, care summary, and departure-note review.
-- The app workflow is authoritative for deterministic classification into `StaffVerifiedCheckout`, `NeedsStaffHandoffReview`, or `SourceNotCheckedOut` based on the packet inputs.
+- The app workflow preserves `ReportedStaffCheckout`, `NeedsStaffHandoffReview`, or `SourceNotCheckedOut` as review evidence. None is checkout-completion authority, and every serialized packet stays under manager review.
 - `domain::policy::ReviewGate` is authoritative vocabulary for human approval gates; the assigned human role still owns the approval.
 - Payment, refund, discount, invoice, and waiver facts remain in approved payment/ledger/provider records, not in the checkout-completion agent.
 - Customer communication remains draft-only until an approved staff/customer-message path sends it.
 
 ## Agent work, approvals, and blocked actions
 
-- Agent may: summarize checkout evidence, create an internal handoff task, name unresolved belongings/care/payment/source exceptions, estimate manual-audit minutes saved by packet review, draft retention follow-up for review when checkout evidence is safe, and prepare [draft](../../glossary-workflow-state-terms.md#draft) audit-event artifacts.
-- Agent may rank/recommend: whether the packet appears ready for staff verification, needs staff handoff review, or should be treated as source not checked out.
+- Agent may: summarize checkout evidence, create an internal handoff task, name unresolved belongings/care/payment/source exceptions, report estimated packet-review effort, and prepare [draft](../../glossary-workflow-state-terms.md#draft) audit-event artifacts.
+- Agent may rank/recommend only manager-review or source-reconciliation work. Serialized checkout evidence cannot enable a retention draft or suppress an exception queue item.
 - Human must approve: unresolved handoffs, departure-note concerns, manager-review routes, customer-message drafts, provider/PMS changes, final checkout-status execution, and all payment/refund/discount/waiver or billing decisions.
-- Blocked by default: suggest checked-out status when source/staff evidence is incomplete, send customer messages, mutate provider/PMS records, move refunds/discounts/payments, hide source disagreement, release capacity, or treat a draft audit event as a completed external action.
+- Blocked by default: suggest checked-out status, send customer messages, mutate provider/PMS records, move refunds/discounts/payments, hide source disagreement, release capacity, or treat a draft audit event as a completed external action.
 
 ## Outcome and labor value
 
 - Estimated labor value: fewer minutes spent rediscovering checkout state across PMS status, care notes, belongings/handoff records, payment exceptions, and manager review threads.
-- Measured outcome candidates: checkout audit minutes avoided, count of exceptions resolved or reviewed, count of wrong-source findings, count of incomplete handoffs routed, count of payment/care/source exception tasks drafted, and count of safe retention follow-up drafts prepared for review.
+- Reported outcome candidates: caller-reported checkout review effort, count of exceptions routed for review, count of wrong-source findings, count of incomplete handoffs routed, and count of payment/care/source exception tasks drafted. These remain evidence and do not prove completion, realized savings, or retention authority.
 - Current evidence status: supported local app workflow/test contract for review packets, unresolved exception task drafts, reviewed disposition/labor estimate, and blocked actions.
 - Gap/future source need: durable checkout-specific [outcome capture](../../glossary-workflow-state-terms.md#outcome-capture) is planned/future until a storage projection or equivalent outcome record is added. The page should not claim production NVA savings, live billing completion, provider checkout writes, or customer-message sends.
 

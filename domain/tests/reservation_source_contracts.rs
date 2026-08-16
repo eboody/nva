@@ -34,6 +34,47 @@ fn source_provenance() -> source::Provenance {
     gingr_provenance().promote()
 }
 
+#[test]
+fn provenance_debug_redacts_provider_lineage_and_raw_payload_location() {
+    let provenance = source_provenance();
+    let debug = format!("{provenance:?}");
+
+    assert_eq!(debug, "Provenance([REDACTED])");
+    assert_eq!(
+        format!("{:?}", gingr_provenance()),
+        "source::gingr::Provenance([REDACTED])"
+    );
+    assert_eq!(
+        format!("{:?}", source::RecordRef::from_provenance(&provenance)),
+        "RecordRef([REDACTED])"
+    );
+    for leaf_debug in [
+        format!("{:?}", provenance.endpoint()),
+        format!("{:?}", provenance.record_id()),
+        format!("{:?}", provenance.related_record_ids()[0]),
+        format!("{:?}", provenance.extraction_batch()),
+        format!("{:?}", provenance.pulled_at()),
+        format!("{:?}", provenance.request_scope()),
+        format!("{:?}", provenance.schema_version()),
+        format!("{:?}", provenance.payload_hash()),
+        format!("{:?}", provenance.raw_payload_ref()),
+    ] {
+        assert!(leaf_debug.contains("[REDACTED]"));
+    }
+
+    let snapshot_debug = format!("{:?}", complete_source_snapshot());
+    for sensitive in [
+        "GET /reservations",
+        "batch-2026-06-16",
+        "account=nva-demo",
+        "sha256:reservation42",
+        "restricted://gingr/reservations/42.json",
+    ] {
+        assert!(!debug.contains(sensitive));
+        assert!(!snapshot_debug.contains(sensitive));
+    }
+}
+
 fn complete_source_snapshot() -> source::reservation::Snapshot {
     source::reservation::Snapshot::builder()
         .provenance(source_provenance())
@@ -273,6 +314,10 @@ fn complete_source_reservation_facts_project_to_stay_fact() {
         analytics::ProjectionVersion::try_new("stay-v1").unwrap(),
     )
     .expect("complete source reservation facts can project to stay fact");
+
+    assert_eq!(format!("{fact:?}"), "stay::Fact([REDACTED])");
+    assert!(!format!("{fact:?}").contains("stay-fact-42"));
+    assert!(!format!("{fact:?}").contains("stay-v1"));
 
     assert_eq!(fact.id().as_str(), "stay-fact-42");
     assert_eq!(fact.source_system(), source::System::Gingr);

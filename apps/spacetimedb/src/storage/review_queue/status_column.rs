@@ -3,18 +3,20 @@
 //! These enums are adapter storage values, not domain enums. Codecs convert them
 //! explicitly at the boundary before app/domain logic runs.
 
-/// Reviewed feedback outcome encoded in review-queue storage.
+/// Caller-reported feedback label encoded in review-queue storage.
+///
+/// These compatibility values do not prove review, completion, suppression, or resolution.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, spacetimedb::SpacetimeType)]
 pub enum FeedbackOutcomeColumn {
-    /// Cleanup was completed.
+    /// Caller reported a completed label; cleanup completion is not proven.
     Completed,
-    /// Reviewer deferred the work.
+    /// Caller reported a deferred label; reviewer action is not proven.
     Deferred,
-    /// Manager suppressed the recommendation.
+    /// Caller reported a manager-suppressed label; manager action is not proven.
     SuppressedByManager,
-    /// Reviewer determined the source fact was wrong.
+    /// Caller reported a wrong-source label; reviewer action is not proven.
     SourceFactWasWrong,
-    /// Reviewer determined the action was not actionable.
+    /// Caller reported a not-actionable label; reviewer action is not proven.
     NotActionable,
 }
 
@@ -29,7 +31,7 @@ impl FeedbackOutcomeColumn {
     ];
 }
 
-/// Reviewed resolution status encoded in review-queue storage.
+/// Caller-reported resolution-status label encoded in review-queue storage.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, spacetimedb::SpacetimeType)]
 pub enum ResolutionStatusColumn {
     /// Open issue.
@@ -223,7 +225,7 @@ impl BlockedActionColumn {
     ];
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, spacetimedb::SpacetimeType)]
+#[derive(Clone, PartialEq, Eq, spacetimedb::SpacetimeType)]
 /// Stable actor ref column representation used at this boundary.
 pub enum ActorRefColumn {
     /// Represents the `Customer` semantic case.
@@ -238,13 +240,25 @@ pub enum ActorRefColumn {
     Agent(String),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, spacetimedb::SpacetimeType)]
+impl std::fmt::Debug for ActorRefColumn {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("ActorRefColumn([REDACTED])")
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, spacetimedb::SpacetimeType)]
 /// Relationship-checked source record ref column used at this boundary.
 pub struct SourceRecordRefColumn {
     /// Stores the system component of this boundary value.
     pub system: SourceSystemColumn,
     /// Stores the record id component of this boundary value.
     pub record_id: String,
+}
+
+impl std::fmt::Debug for SourceRecordRefColumn {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("SourceRecordRefColumn([REDACTED])")
+    }
 }
 
 /// Canonical issue ref column used by this module.

@@ -1,8 +1,8 @@
 # Entity/action safety overlays
 
-Purpose: help a non-coding resort operator, reviewer, or docs writer choose an entity/action first, then see what automation may safely read, draft, rank, recommend, or record; what must stay human-reviewed; which evidence is required; and which outcome or audit record proves the work stayed safe while reducing manual labor.
+Purpose: help a non-coding resort operator, reviewer, or docs writer choose an entity/action first, then see what automation may safely read, draft, rank, recommend, or record; what must stay human-reviewed; which evidence is required; and which outcome or audit evidence is retained without treating caller reports as proof of safety, action, labor, or value.
 
-These overlays are not generic AI policy pages. Each page must name the pet-resort entity or action being handled, the expensive staff work it reduces, the source authority behind a recommendation, the human role that approves sensitive work, and the record that proves what actually happened.
+These overlays are not generic AI policy pages. Each page must name the pet-resort entity or action being handled, the manual work it is designed to reduce, the source evidence behind a recommendation, the human role required for sensitive work, and the records retained for reconciliation. Caller-reported records do not prove what actually happened.
 
 ## How this overlay set fits with the existing safety docs
 
@@ -26,7 +26,7 @@ If those pages disagree, source/Rustdoc/tests win over this navigation page. Mar
    - What must it not do directly?
    - Who approves, and under what condition?
    - Which source evidence is required before recommendation?
-   - Which outcome/audit record proves safe use and value?
+   - Which outcome/audit evidence is retained, and what separate authority would be required to prove safe use or value?
 
 ## Overlay pages and status
 
@@ -36,9 +36,9 @@ If those pages disagree, source/Rustdoc/tests win over this navigation page. Mar
 | Customer, pet, reservation, booking, checkout | Can automation inspect a customer/pet/reservation, triage a booking, suggest waitlist/capacity/confirmation/cancellation/check-in/out/checkout work, or prepare retention follow-up? | [`customer-pet-reservation-booking-checkout.md`](customer-pet-reservation-booking-checkout.md) | `ready`: source-backed overlay for customer/pet/reservation booking, checkout, waitlist/capacity, cancellation, and retention review boundaries. |
 | Pet health, documents, vaccines, temperament, incidents | Can automation extract document/vaccine/care/temperament/incident facts, flag risk, or suggest group-play/medical/behavior review? | [`pet-health-documents-vaccines-incidents.md`](pet-health-documents-vaccines-incidents.md) | `ready`: created from the shared overlay template. |
 | Service-line operations, capacity, assignments, packages | Can automation summarize boarding/daycare/grooming/training/retail service-line facts, capacity, packages, assignments, cancellation, or minimum-stay questions? | [`service-line-operations-capacity-assignments.md`](service-line-operations-capacity-assignments.md) | `ready`: source-backed overlay for service-line draft/review-only decisions. |
-| Customer communication, daily updates, retention, manager brief actions | Can automation draft daily updates/Pawgress notes, retention or grooming rebooking outreach, internal tasks, manager daily brief recommendations, or customer-message approval packets? | [`customer-communication-daily-updates-retention.md`](customer-communication-daily-updates-retention.md) | `ready`: source-backed overlay for draft/review-only communication and manager-brief actions. |
+| Customer communication, daily updates, retention, manager brief actions | Can automation draft supported daily updates/Pawgress notes, internal tasks, manager daily brief recommendations, or customer-message approval packets, and why is current retention/grooming-rebooking evidence categorically unable to create outreach, a queue, a task, or a draft? | [`customer-communication-daily-updates-retention.md`](customer-communication-daily-updates-retention.md) | `ready`: source-backed overlay for supported draft/review communication, evidence-only retention, and manager-brief actions. |
 | Money, payment, provider/source-data, tool-port actions | Can automation read payment/deposit/refund/discount/rate facts, prepare accounting review, inspect Gingr/source data, draft provider/tool-port work, or report external failures? | [`money-payment-provider-tools-source-data.md`](money-payment-provider-tools-source-data.md) | `ready` child overlay. |
-| Reviewer roles, outcome/audit proof, labor-value measurement | Which human role approves a sensitive action, and what evidence proves reviewed safe use rather than just source evidence or draft creation? | [`outcome-audit-review-roles.md`](outcome-audit-review-roles.md) | `ready` child crosswalk. |
+| Reviewer roles, outcome/audit evidence, labor-value boundaries | Which human role must approve a sensitive action, what caller-reported evidence remains nonclaimable, and what separate authority would be required to prove reviewed safe use or value? | [`outcome-audit-review-roles.md`](outcome-audit-review-roles.md) | `ready` child crosswalk. |
 | Final reviewer usability check | Can a non-coder, operator, IT/security reviewer, compliance reviewer, or product owner use the full overlay set without inventing authority? | [`reviewer-usability-check.md`](reviewer-usability-check.md) | `ready` final QA artifact. |
 
 Statuses deliberately distinguish missing/planned pages from ready pages so a non-coder does not mistake navigation for implemented evidence.
@@ -52,7 +52,7 @@ Every child overlay page must use `template.md` and keep the same section order.
 - “Agent may draft a staff evaluation packet and customer-message draft for approval” rather than “agent can handle booking.”
 - “Agent must not confirm, cancel, check in/out, allocate capacity, waive deposits, move money, mutate provider records, or send customer messages” rather than “human review required.”
 - “Front desk lead, manager, medical/vaccine qualified staff, customer-message reviewer, or payment/accounting reviewer approves under named conditions” rather than “a user approves.”
-- “Outcome record contains source refs, review gate, blocked action reasons, actor/reviewer, disposition, actual minutes, correlation id, and `live_side_effects_allowed` where present” rather than “logged.”
+- “Outcome record retains source-reference, review-gate, blocked-action, caller-reported actor/reviewer, disposition, minute, and correlation labels plus `live_side_effects_allowed` where present; these labels prove no review, action, measurement, completion, or value” rather than “logged.”
 
 ## Cross-cutting blocked actions
 
@@ -66,13 +66,13 @@ Unless a linked source/Rustdoc/test contract proves a narrower approved path, ov
 - no destructive source-data cleanup or broad PII/document exposure;
 - no secret-dependent or live external side effects.
 
-Writers may say an agent can prepare, draft, rank, validate, flag, route, summarize, or record reviewed outcomes only where the cited app/domain/storage contract allows it.
+Writers may say an agent can prepare, draft, rank, validate, flag, route, summarize, or retain caller-reported outcomes only where the cited app/domain/storage contract allows it. They must not call those rows reviewed, completed, measured, or claimable without separate authoritative evidence.
 
 ## Evidence and value rules for all overlays
 
 - Source evidence is not approval. A `domain::source::RecordRef`, `Provenance`, provider fixture, OCR result, or read-model fact explains where a recommendation came from; it does not authorize the live resort action.
 - Draft creation is not completion. A message draft, internal task draft, booking triage packet, manager brief action, or tool-port draft must still pass the named review gate before any sensitive downstream action.
-- Value is measured after review. Use outcome fields such as disposition, actual minutes, before/after minutes, reported time spent or estimate differences, wrong-source findings, data-quality issue refs, reviewer/actor, and correlation id. Do not claim realized ROI from intent or estimates alone.
+- Caller-reported outcome fields are evidence, not measurement. Disposition, minute labels, reported time or estimate differences, wrong-source findings, issue refs, actor labels, and correlation ids do not prove review, completion, measured labor, or realized ROI. A value claim requires separate authoritative evidence that authenticates the event and measurement.
 - Markdown is orientation. Behavioral authority stays in source/Rustdoc/tests such as `../../../app/src/agents.rs`, `../../../domain/src/policy.rs`, `../../../domain/src/workflow.rs`, `../../../domain/src/source.rs`, and `../../../storage/src/operations.rs`.
 
 ## Source anchors most overlays should cite
@@ -99,5 +99,5 @@ Before marking an overlay page ready, verify:
 - Every allowed automation verb is a draft/read/rank/recommend/record verb, not a live execution verb.
 - Every sensitive action names the blocked action and approval role.
 - Every recommendation requirement names the source evidence required before recommendation.
-- Every labor-saving claim points to an outcome/audit field and avoids unsupported ROI.
+- Every outcome/audit field is described as reported, nonclaimable evidence and never as sufficient authority for a labor-savings or ROI claim.
 - Every source path is current, local, and used as evidence rather than copied as generic implementation inventory.

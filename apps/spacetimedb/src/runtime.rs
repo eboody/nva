@@ -75,12 +75,12 @@ impl HygieneCaptureRuntime {
     }
 
     /// Invokes the app service and writes adapter rows back into SpacetimeDB.
-    pub fn record_reviewed_outcome(
+    pub fn record_reported_outcome(
         mut self,
         ctx: &ReducerContext,
         request: hygiene::OutcomeCaptureRequest,
     ) -> hygiene::Result<hygiene::OutcomeReceipt> {
-        let result = self.service.record_reviewed_outcome(request);
+        let result = self.service.record_reported_outcome(request);
         let outcome_rows = self.service.outcome_recorder().rows();
         let audit_rows = self.service.audit_log().rows();
         let blocked_rows = self.service.blocked_action_log().rows();

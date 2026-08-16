@@ -311,7 +311,7 @@ async fn data_quality_hygiene_outcome_capture_records_labor_evidence_without_pro
         "feedback": "Prepared source-grounded cleanup task for manager review without touching Gingr.",
         "source_refs": action["source_refs"],
         "issue_refs": action["issue_refs"],
-        "resolution_status_after_review": "acknowledged",
+        "reported_resolution_status": "acknowledged",
         "timestamp": "2026-06-17T13:15:00Z",
         "audit": {
             "correlation_id": context["audit"]["correlation_id"]
@@ -328,7 +328,12 @@ async fn data_quality_hygiene_outcome_capture_records_labor_evidence_without_pro
 
     assert_eq!(status, axum_http::StatusCode::CREATED);
     assert_eq!(payload["outcome_record"]["action_id"], action_id);
-    assert_eq!(payload["outcome_record"]["outcome"], "completed");
+    assert_eq!(payload["outcome_record"]["outcome"], "reported_completed");
+    assert_eq!(
+        payload["outcome_record"]["authority_disposition"],
+        "needs_review"
+    );
+    assert_eq!(payload["outcome_record"]["claimable"], false);
     assert_eq!(payload["outcome_record"]["actual_minutes"], 9);
     assert_eq!(
         payload["outcome_record"]["actor"]["persona"],
@@ -358,7 +363,7 @@ async fn data_quality_hygiene_outcome_capture_records_labor_evidence_without_pro
         action["issue_refs"]
     );
     assert_eq!(
-        payload["outcome_record"]["resolution_status_after_review"],
+        payload["outcome_record"]["reported_resolution_status"],
         "acknowledged"
     );
     assert_eq!(payload["live_side_effects_allowed"], false);
@@ -435,7 +440,7 @@ async fn data_quality_hygiene_outcome_capture_records_labor_evidence_without_pro
     );
     assert_eq!(
         payload["storage_projection_proof"]["workflow_result_status"],
-        "succeeded"
+        "needs_review"
     );
     assert_eq!(
         payload["storage_projection_proof"]["review_gate"],
@@ -445,7 +450,7 @@ async fn data_quality_hygiene_outcome_capture_records_labor_evidence_without_pro
     assert_eq!(
         payload["storage_projection_proof"]["outbox_candidate"],
         serde_json::Value::Null,
-        "a reviewed outcome is historical evidence, not manager approval or outbox authority"
+        "a caller-reported outcome is historical evidence, not review, manager approval, or outbox authority"
     );
     assert_eq!(
         payload["observability"]["what_happened"],
@@ -469,7 +474,7 @@ async fn data_quality_hygiene_outcome_capture_rejects_missing_source_or_issue_re
         "feedback": "Prepared source-grounded cleanup task for manager review without touching Gingr.",
         "source_refs": action["source_refs"],
         "issue_refs": action["issue_refs"],
-        "resolution_status_after_review": "acknowledged",
+        "reported_resolution_status": "acknowledged",
         "timestamp": "2026-06-17T13:15:00Z",
         "audit": {
             "correlation_id": context["audit"]["correlation_id"]
@@ -509,7 +514,7 @@ async fn data_quality_hygiene_outcome_capture_rejects_missing_source_or_issue_re
 }
 
 #[tokio::test]
-async fn data_quality_hygiene_outcome_summary_reports_reviewed_minutes_and_provenance() {
+async fn data_quality_hygiene_outcome_summary_reports_caller_minutes_and_provenance() {
     let state = http::VaccineDocumentState::default();
     let context = data_quality_context().await;
     let action = &context["hygiene_actions"][0];
@@ -525,7 +530,7 @@ async fn data_quality_hygiene_outcome_summary_reports_reviewed_minutes_and_prove
         "feedback": "Prepared source-grounded cleanup task for manager review without touching Gingr.",
         "source_refs": action["source_refs"],
         "issue_refs": action["issue_refs"],
-        "resolution_status_after_review": "acknowledged",
+        "reported_resolution_status": "acknowledged",
         "timestamp": "2026-06-17T13:15:00Z",
         "audit": {
             "correlation_id": context["audit"]["correlation_id"]
@@ -555,7 +560,7 @@ async fn data_quality_hygiene_outcome_summary_reports_reviewed_minutes_and_prove
     let (status, payload) = get_json_with_state(state.clone(), &summary_uri).await;
 
     assert_eq!(status, axum_http::StatusCode::OK);
-    assert_eq!(payload["summary"]["reviewed_outcome_count"], 1);
+    assert_eq!(payload["summary"]["reported_outcome_count"], 1);
     assert_eq!(payload["summary"]["reported_completed_outcome_count"], 1);
     assert_eq!(payload["summary"]["deferred_count"], 0);
     assert_eq!(payload["summary"]["wrong_source_count"], 0);

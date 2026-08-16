@@ -3,13 +3,86 @@ use http_body_util::BodyExt;
 use pet_resort_api::{
     http,
     public_contract::{
-        DataQualityHygieneDraftSubmissionRequest, DataQualityHygieneOutcomeCaptureRequest,
+        DataQualityAction, DataQualityCandidate, DataQualityHygieneDraftSubmissionRequest,
+        DataQualityHygieneOutcomeCaptureRequest, DataQualityHygieneSubmittedAction,
+        DataQualityIssue, ReportedLaborEstimateEvidence,
     },
 };
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
 const LOCATION_ID: &str = "00c0ffee-0000-0000-0000-000000000001";
+
+#[test]
+fn data_quality_public_dto_debug_redacts_issue_action_and_lineage_details() {
+    let issue = DataQualityIssue {
+        kind: "private-kind-8675309".to_owned(),
+        severity: "private-severity-8675309".to_owned(),
+        workflow_blocking: true,
+        detail: Some("private-issue-detail-8675309".to_owned()),
+        source_refs: vec![],
+    };
+    let candidate = DataQualityCandidate {
+        id: "private-candidate-8675309".to_owned(),
+        kind: "private-candidate-kind-8675309".to_owned(),
+        issue: issue.clone(),
+        source_refs: vec![],
+        source_freshness: "private-freshness-8675309".to_owned(),
+        sensitivity: "private-sensitivity-8675309".to_owned(),
+    };
+    let action = DataQualityAction {
+        id: "private-action-8675309".to_owned(),
+        kind: "private-action-kind-8675309".to_owned(),
+        priority: "private-priority-8675309".to_owned(),
+        owner_persona: "private-owner-8675309".to_owned(),
+        removed_manual_work: "private-manual-work-8675309".to_owned(),
+        rationale: "private-rationale-8675309".to_owned(),
+        source_refs: vec![],
+        issue_refs: vec!["private-issue-ref-8675309".to_owned()],
+        review_gates: vec!["private-review-gate-8675309".to_owned()],
+        labor_impact: ReportedLaborEstimateEvidence {
+            before_minutes: 12,
+            after_minutes: 8,
+            reported_estimated_minutes_difference: 4,
+        },
+        live_side_effects_allowed: false,
+    };
+    let submitted = DataQualityHygieneSubmittedAction {
+        action_id: "private-submitted-action-8675309".to_owned(),
+        kind: "private-submitted-kind-8675309".to_owned(),
+        source_refs: vec![],
+        issue_refs: vec!["private-submitted-issue-8675309".to_owned()],
+        review_gates: vec!["private-submitted-gate-8675309".to_owned()],
+        requested_side_effects: vec!["private-side-effect-8675309".to_owned()],
+        attempted_ambiguity_resolution: true,
+    };
+    let submission = DataQualityHygieneDraftSubmissionRequest {
+        context_packet_id: "private-context-8675309".to_owned(),
+        correlation_id: "private-correlation-8675309".to_owned(),
+        actions: vec![submitted.clone()],
+        idempotency_key: Some("private-idempotency-8675309".to_owned()),
+    };
+
+    let debug = format!("{issue:?}{candidate:?}{action:?}{submitted:?}{submission:?}");
+    for marker in [
+        "DataQualityIssue([REDACTED])",
+        "DataQualityCandidate([REDACTED])",
+        "DataQualityAction([REDACTED])",
+        "DataQualityHygieneSubmittedAction([REDACTED])",
+        "DataQualityHygieneDraftSubmissionRequest([REDACTED])",
+    ] {
+        assert!(debug.contains(marker), "missing redaction marker {marker}");
+    }
+    for private in [
+        "private-issue-detail-8675309",
+        "private-action-8675309",
+        "private-context-8675309",
+        "private-correlation-8675309",
+        "private-side-effect-8675309",
+    ] {
+        assert!(!debug.contains(private));
+    }
+}
 
 async fn request(
     app: axum::Router,
@@ -62,7 +135,7 @@ fn outcome(action: &Value) -> Value {
         "feedback": "Reviewed the source-backed issue.",
         "source_refs": action["source_refs"],
         "issue_refs": action["issue_refs"],
-        "resolution_status_after_review": "acknowledged",
+        "reported_resolution_status": "acknowledged",
         "timestamp": "2026-06-17T12:15:00Z",
         "audit": {"correlation_id": "data-quality-hygiene:strict-contract"},
         "requested_side_effects": [],
@@ -129,7 +202,7 @@ fn canonical_outcome_request_rejects_open_codes_and_invalid_idempotency_keys() {
     let valid = outcome(&action);
     for (field, invalid) in [
         ("outcome", "mostly_completed"),
-        ("resolution_status_after_review", "maybe_fixed"),
+        ("reported_resolution_status", "maybe_fixed"),
     ] {
         let mut payload = valid.clone();
         payload[field] = json!(invalid);
@@ -170,6 +243,12 @@ async fn outcome_capture_consumes_actor_role_and_is_really_idempotent() {
     let (created_status, created) = request(app.clone(), "POST", &uri, payload.clone()).await;
     assert_eq!(created_status, axum_http::StatusCode::CREATED);
     assert_eq!(created["outcome_persisted"], true);
+    assert_eq!(created["outcome_record"]["outcome"], "reported_completed");
+    assert_eq!(
+        created["outcome_record"]["authority_disposition"],
+        "needs_review"
+    );
+    assert_eq!(created["outcome_record"]["claimable"], false);
     let persisted_count = created["reported_labor_evidence"]["persisted_outcome_count"].clone();
     let projection_count = created["reported_labor_evidence"]["persisted_projection_count"].clone();
 

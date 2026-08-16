@@ -77,7 +77,7 @@ fn sensitive_outcome_capture_debug_redacts_identity_feedback_and_provenance() {
             "adapter_version": "gingr-v0-readonly"
         }],
         "issue_refs": ["sensitive-issue-9"],
-        "resolution_status_after_review": "acknowledged",
+        "reported_resolution_status": "acknowledged",
         "timestamp": "2026-06-17T12:00:00Z",
         "audit": {"correlation_id": "sensitive-correlation"},
         "requested_side_effects": [],
@@ -96,7 +96,7 @@ fn sensitive_outcome_capture_debug_redacts_identity_feedback_and_provenance() {
     ] {
         assert!(!debug.contains(sensitive), "Debug leaked {sensitive}");
     }
-    assert!(debug.contains("[REDACTED]"));
+    assert_eq!(debug, "DataQualityHygieneOutcomeCaptureRequest([REDACTED])");
 
     let manager_request = serde_json::from_value::<ManagerDailyBriefOutcomeCaptureRequest>(json!({
         "outcome": "completed",
@@ -135,7 +135,10 @@ fn sensitive_outcome_capture_debug_redacts_identity_feedback_and_provenance() {
             "manager Debug leaked {sensitive}"
         );
     }
-    assert!(manager_debug.contains("[REDACTED]"));
+    assert_eq!(
+        manager_debug,
+        "ManagerDailyBriefOutcomeCaptureRequest([REDACTED])"
+    );
 }
 
 #[test]
@@ -176,7 +179,7 @@ fn outcome_dtos_reject_zero_minutes_nil_locations_and_malformed_operating_days_d
         "feedback": "reported evidence",
         "source_refs": [],
         "issue_refs": [],
-        "resolution_status_after_review": "repaired",
+        "reported_resolution_status": "repaired",
         "timestamp": "2026-08-15T00:00:00Z",
         "audit": {"correlation_id": "corr-2"},
         "requested_side_effects": [],

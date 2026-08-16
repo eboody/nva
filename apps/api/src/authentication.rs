@@ -1,18 +1,25 @@
 use axum::http::HeaderMap;
+use std::fmt;
 use uuid::Uuid;
 
 use crate::error::{AuthenticationFailure, AuthorizationFailure, ErrorKind};
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub(crate) struct Context {
     actor: Option<Actor>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 struct Actor {
     actor_id: String,
     role: Role,
     location_id: Uuid,
+}
+
+impl fmt::Debug for Context {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("Context([REDACTED])")
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -290,5 +297,28 @@ fn role_allows(role: Role, mutation: Mutation) -> bool {
         Mutation::InformationLifespanDemo => {
             matches!(role, Role::FrontDeskLead | Role::GeneralManager)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn authenticated_context_debug_redacts_actor_identity_and_location() {
+        let actor_id = "private-actor-id";
+        let location_id = Uuid::parse_str("00000000-0000-4000-8000-000000000777").unwrap();
+        let context = Context {
+            actor: Some(Actor {
+                actor_id: actor_id.to_owned(),
+                role: Role::GeneralManager,
+                location_id,
+            }),
+        };
+
+        let debug = format!("{context:?}");
+        assert_eq!(debug, "Context([REDACTED])");
+        assert!(!debug.contains(actor_id));
+        assert!(!debug.contains(&location_id.to_string()));
     }
 }

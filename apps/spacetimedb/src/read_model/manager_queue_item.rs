@@ -15,7 +15,7 @@ use crate::storage::review_queue::{
 
 /// Private queue projection for manager dashboards pending an authorized subscription view.
 #[spacetimedb::table(accessor = manager_queue_item)]
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct ManagerQueueItemRow {
     /// Action id shown to dashboard clients.
     #[primary_key]
@@ -52,4 +52,10 @@ pub struct ManagerQueueItemRow {
     pub updated_at: u64,
     /// Schema version for additive read-model evolution.
     pub schema_version: u32,
+}
+
+impl std::fmt::Debug for ManagerQueueItemRow {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("ManagerQueueItemRow([REDACTED])")
+    }
 }

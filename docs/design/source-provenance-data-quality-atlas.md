@@ -168,10 +168,10 @@ This entry helps reviewers avoid re-checking raw dashboards by hand. If a manage
 
 | Workflow | How provenance appears | Safe workflow result |
 | --- | --- | --- |
-| Manager Daily Brief | actions and outcomes cite source refs | measurable action queue with traceable evidence |
-| Data Quality Hygiene | candidates carry issue provenance and source refs; outcomes preserve source refs | cleanup review with audit trail |
+| Manager Daily Brief | actions and caller-reported outcomes cite source refs | reviewable action evidence; source correlation proves no review, completion, measurement, or value |
+| Data Quality Hygiene | candidates carry issue provenance and source refs; caller-reported outcomes preserve source refs | reviewable cleanup evidence; retained audit labels prove no review, repair, or completion |
 | Booking/checkout workflows | source facts and audit drafts name evidence | staff packet, not automatic mutation |
-| Storage outcomes | stored source refs preserve proof after review | durable reporting/audit evidence |
+| Storage outcomes | stored source refs preserve caller-reported correlation evidence | durable reporting evidence only; persistence proves no review, reviewer identity, action, completion, or audit authority |
 
 ### Relationships and adjacency
 
@@ -221,7 +221,7 @@ A safe recommendation should show the source ref, pull/import time, endpoint or 
 | Type | Item | Why |
 | --- | --- | --- |
 | Example | `domain::source::Provenance` with system `Gingr`, endpoint `/reservations`, record id, batch, pulled-at time, request scope, schema version, payload hash, raw payload ref. | This is a complete source receipt. |
-| Example | `StoredSourceRecordRef` inside a data-quality outcome. | It proves the reviewed cleanup outcome remained traceable. |
+| Example | `StoredSourceRecordRef` inside a data-quality outcome. | It preserves traceability to source evidence; it does not prove review, cleanup, or completion. |
 | Non-example | Payload hash alone. | Hash proves drift/idempotency support, not operational meaning. |
 | Non-example | “Source says so.” | Missing endpoint, record id, time, and schema context. |
 
@@ -323,7 +323,7 @@ Safe use requires complete provenance, required source ids, known status, resolv
 
 | Type | Item | Why |
 | --- | --- | --- |
-| Example | Snapshot with provenance, customer/pet/location/service ids, `CheckedIn` status, resolved owner/pet link, and no blocking issues. | Usable as source evidence for a reviewed packet. |
+| Example | Snapshot with provenance, customer/pet/location/service ids, `CheckedIn` status, resolved owner/pet link, and no blocking issues. | Usable as caller-reported source evidence for a reviewable packet; it proves no review or acceptance. |
 | Example | Snapshot with `Status::Unknown { observed }` and a blocking data-quality issue. | Preserves provider text without pretending it is safe. |
 | Non-example | Treating missing pet id as “unknown pet is fine.” | Missing required ids block workflow projection. |
 | Non-example | Treating `quick_checkin` provider docs as read-safe source evidence. | Gingr inventory excludes side-effecting functions from the v0 read SDK surface. |
@@ -338,7 +338,7 @@ status: "draft"
 audience: ["front-desk", "general-manager", "regional-ops", "operations-analyst", "docs-writer"]
 plain_english_definition: "A data-quality issue is a tracked source-data defect; a hygiene packet turns those defects into reviewable cleanup work."
 primary_labor_problem: "Makes missing, stale, duplicate, incomplete, conflicting, ambiguous, unmapped, unclosed, and sensitive source facts visible before staff or agents waste time or take unsafe action."
-source_of_record: "domain::data_quality::Issue for the defect; app::data_quality_hygiene::Packet/Candidate/Action for review work; storage outcome records for measured cleanup results."
+source_of_record: "domain::data_quality::Issue for the defect; app::data_quality_hygiene::Packet/Candidate/Action for review work; storage records retain caller-reported outcome evidence but prove no review, cleanup, completion, measured labor, or value."
 authoritative_human_role: "front desk lead, general manager, operations analyst, or regional operator depending on issue sensitivity and workflow"
 workflow_links: ["data-quality-hygiene", "manager-daily-brief", "regional-exceptions", "booking-triage", "vaccine-document"]
 source_paths:
@@ -354,9 +354,9 @@ rustdoc_contracts:
 glossary_links:
   - "../glossary-source-data-terms.md#domaindata_qualityissue-data-quality-issue"
   - "../glossary-workflow-state-terms.md#review-gate"
-allowed_action_summary: "surface, rank, summarize, draft internal cleanup tasks, preserve ambiguity, estimate reconciliation minutes, and record reviewed outcomes"
+allowed_action_summary: "surface, rank, summarize, draft internal cleanup tasks, preserve ambiguity, estimate reconciliation minutes, and retain caller-reported outcomes"
 blocked_action_summary: "no autonomous source repair, provider/PMS mutation, ambiguity hiding, sensitive payload exposure, customer sends, payment movement, or schedule/staffing changes"
-outcome_fields: ["issue kind", "severity", "resolution status", "workflow blocking", "visible to BI", "source refs", "review gates", "actor persona", "before minutes", "actual minutes", "outcome", "notes"]
+outcome_fields: ["issue kind", "severity", "resolution status", "workflow blocking", "visible to BI", "source refs", "review gates", "actor persona", "reported baseline minutes", "reported workflow minutes", "reported outcome", "notes"]
 ---
 
 ### Plain-English pet-resort definition
@@ -385,7 +385,7 @@ Source snapshot / document / provider record
   -> HygieneCandidate(freshness, sensitivity, issue)
   -> HygieneAction(source refs, issue refs, review gates, labor estimate)
   -> DraftValidation(no stale packet, no missing refs, no blocked side effect)
-  -> OutcomeRecord(actual minutes, reviewed resolution status, notes)
+  -> OutcomeRecord(reported minutes, reported resolution status, notes)
 ```
 
 Data-quality issues are adjacent to field paths, provenance, source refs, source snapshots, documents, review gates, blocked actions, labor minutes, and storage outcomes. They are not the same as staff approval or automatic repair instructions.
@@ -409,11 +409,11 @@ Data-quality issues are adjacent to field paths, provenance, source refs, source
 | Whether workflow should stop | `workflow_blocking` and app workflow validation | manager/front desk lead for operational gate |
 | Cleanup priority/persona | hygiene `Action` owner persona and priority | general manager or regional operator |
 | Sensitive evidence handling | `Sensitivity` plus document/quarantine status | compliance/security, manager, or trained staff |
-| Resolution outcome | hygiene `OutcomeRecord` and storage projection | reviewer who performed/approved cleanup |
+| Caller-reported resolution evidence | hygiene `OutcomeRecord` and storage projection | no reviewer, approval, cleanup, or completion is proven; separate authenticated evidence is required |
 
 ### Allowed actions
 
-The workflow may summarize source evidence, rank hygiene actions, draft internal cleanup tasks, preserve ambiguity for review, estimate reconciliation reported time difference, validate that drafts carry source refs/issue refs/review gates, and record reviewed outcomes.
+The workflow may summarize source evidence, rank hygiene actions, draft internal cleanup tasks, preserve ambiguity for review, estimate reconciliation reported time difference, validate that drafts carry source refs/issue refs/review gates, and retain caller-reported outcome evidence. Outcome admission does not prove review, completion, actor identity, measured labor, or value.
 
 ### Blocked actions and review gates
 
@@ -421,7 +421,7 @@ The hygiene workflow blocks customer messages, provider/PMS mutations, staff sch
 
 ### Safe-use evidence and outcome fields
 
-Safe use requires issue kind, severity, provenance, source ref, detected-at time, resolution status, BI visibility, workflow-blocking flag, candidate freshness/sensitivity, action issue refs/source refs, required review gates, actor persona, outcome code, actual minutes, and resolution status after review when stored.
+Retained reconciliation evidence includes issue kind, severity, provenance, source ref, detected-at time, caller-reported resolution label, BI visibility, workflow-blocking flag, candidate freshness/sensitivity, action issue/source refs, required-review-gate labels, actor-persona label, outcome label, and reported minutes when stored. These fields do not prove safe use, authenticated review, resolution, completion, measured labor, or authority.
 
 ### Examples and non-examples
 
@@ -545,7 +545,7 @@ Before describing an agent or workflow as safe with these entities, verify each 
 4. Are missing, unknown, stale, conflicting, duplicate, ambiguous, unmapped, unclosed, incomplete, or sensitive states represented as `DataQualityIssue`, source freshness, sensitivity, document status, or review gates?
 5. Which human role can resolve the issue: front desk lead, general manager, operations analyst, regional operator, trained staff, compliance/security, or approved sender?
 6. Which actions are explicitly blocked until quality or review improves?
-7. What evidence proves safe use: source refs, provenance, document status/hash, review gates, audit event id, outcome record, actual minutes, notes, and resolution status?
+7. What evidence is retained for reconciliation: source refs, provenance, document status/hash, review-gate labels, audit-event correlation, caller-reported outcome, minute, note, and resolution labels? These fields do not prove safe use, review, completion, measured labor, or authority.
 8. If any answer is missing, write “review required” or “future source-contract gap” rather than implying live authority.
 
 ## Default blocked actions across this family

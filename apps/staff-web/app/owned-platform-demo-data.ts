@@ -338,7 +338,7 @@ export const informationLifespanStages: InformationLifespanStage[] = [
     label: "Calculations/ranking/review gates applied",
     headline: "Labor value and unsafe-action locks are computed into the report.",
     proofKind: "calculation",
-    proofSummary: "60 minute manual morning scan - 18 minute reviewed packet = 42 reported estimated minute difference; five review locks remain closed.",
+    proofSummary: "60 minute caller-reported manual baseline - 18 minute caller-reported workflow estimate = 42 reported estimated minute difference; five review locks remain closed.",
     inspect: ["app/src/manager_daily_brief.rs", "app/tests/information_lifespan_trace_contract.rs"]
   },
   {
@@ -354,7 +354,7 @@ export const informationLifespanStages: InformationLifespanStage[] = [
     id: "manager-report-appears",
     order: "09",
     label: "Manager Daily Report appears",
-    headline: "The final manager packet shows lineage, calculations, locks, and labor-value proof.",
+    headline: "The final manager packet shows lineage, calculations, locks, and nonclaimable labor evidence.",
     proofKind: "report",
     proofSummary: "artifact://manager-daily-report/synthetic-2026-06-29 stays tied to the active correlation id.",
     inspect: ["app/src/manager_daily_brief.rs", "apps/staff-web/app/page.tsx"]
@@ -494,7 +494,7 @@ export const dbProjectionLifecycleProofs: DbProjectionProofArtifact[] = [
     rowCount: 1,
     correlationId: "info-lifespan-demo-2026-06-29",
     stageLink: "lights up after source/model stages",
-    summary: "Manager Daily Report outcome records labor-value proof while side effects stay unavailable.",
+    summary: "Manager Daily Report outcome records retain reported labor evidence without claiming realized value; side effects stay unavailable.",
     rowPreview: {
       id: "00000000-0000-4000-8000-00000000ae01",
       action_id: "manager_daily_brief_outcome:synthetic-2026-06-29",
@@ -612,7 +612,7 @@ export const managerDailyReportArtifact: ManagerDailyReportArtifact = {
         "medical/vaccine acceptance remains locked"
       ],
       reportedEstimatedMinutesDifference: 18,
-      reviewRequirements: ["manager_approval", "medical_document_review", "record reviewed disposition"],
+      reviewRequirements: ["manager_approval", "medical_document_review", "record caller-reported disposition"],
       lockedSideEffects: ["medical_or_vaccine_acceptance", "customer_sends", "provider_pms_writes"]
     },
     {
@@ -627,12 +627,12 @@ export const managerDailyReportArtifact: ManagerDailyReportArtifact = {
         "manager_daily_brief_outcome:synthetic-2026-06-29"
       ],
       calculations: [
-        "60 minute manual morning scan",
-        "18 minute reviewed packet",
+        "60 minute caller-reported manual baseline",
+        "18 minute caller-reported workflow estimate",
         "42 total reported estimated minute difference across the report"
       ],
       reportedEstimatedMinutesDifference: 16,
-      reviewRequirements: ["manager_shift_review", "audit reviewed disposition"],
+      reviewRequirements: ["manager_shift_review", "audit caller-reported disposition labels"],
       lockedSideEffects: ["schedule_or_staffing_changes", "provider_pms_writes", "payments_refunds_discounts"]
     },
     {
@@ -660,7 +660,7 @@ export const managerDailyReportArtifact: ManagerDailyReportArtifact = {
   calculationProof: [
     "source_snapshots = reservation + care_note + vaccine = 3",
     "normalized_facts = reservation demand + care exception + vaccine review = 3",
-    "reported_estimated_labor_minutes_difference = 60 minute manual morning scan - 18 minute reviewed packet = 42"
+    "reported_estimated_labor_minutes_difference = 60 minute caller-reported manual baseline - 18 minute caller-reported workflow estimate = 42"
   ],
   reviewGates: ["provider_write_locked", "customer_send_locked", "medical_review_required", "schedule_change_locked", "payment_movement_locked"],
   lockedSideEffects: ["provider_pms_writes", "customer_sends", "medical_or_vaccine_acceptance", "schedule_or_staffing_changes", "payments_refunds_discounts"]
@@ -678,7 +678,7 @@ export const hermesProcessorPanel: HermesProcessorPanel = {
   inputSummary: [
     "3 synthetic mock Gingr source payloads accepted as provider evidence only",
     "DB projection proof read from information_lifespan_db_lifecycle_proof",
-    "calculation input: 60 minute manual morning scan - 18 minute reviewed packet",
+    "calculation input: 60 minute caller-reported manual baseline - 18 minute caller-reported workflow estimate",
     "live_side_effects_allowed=false; provider writes, sends, schedule/payment/medical paths locked"
   ],
   stages: [
@@ -766,7 +766,7 @@ export const hermesProcessorPanel: HermesProcessorPanel = {
     title: "Manager Daily Report — synthetic 2026-06-29",
     artifactRef: "artifact://manager-daily-report/synthetic-2026-06-29",
     summary: "3 source snapshots, 3 normalized facts, 1 workflow packet, 5 review locks, 42 reported estimated labor minute difference",
-    calculation: "60 minute manual morning scan - 18 minute reviewed packet = 42 reported estimated minute difference",
+    calculation: "60 minute caller-reported manual baseline - 18 minute caller-reported workflow estimate = 42 reported estimated minute difference",
     managerActions: [
       "Review near-expiry rabies vaccine evidence for animal 8101",
       "Check dinner appetite after internal feeding note before any customer-facing update"
@@ -809,7 +809,7 @@ export const ownedBackendSpineStages: OwnedBackendSpineStage[] = [
   {
     id: "audit-outcomes",
     title: "Audit + outcome events",
-    businessPurpose: "Reviewed dispositions become auditable outcomes for labor and source-quality learning.",
+    businessPurpose: "Caller-reported disposition labels become durable evidence for later inspection; they prove no review, labor effect, or source adjudication.",
     proofLabel: "audit_event_id"
   },
   {
@@ -980,7 +980,7 @@ export const proofArtifacts: ProofArtifact[] = [
     label: "read models / BI replacement",
     existsNow: "Read-model/projection proof maps reviewed operating meaning into read_model_projection outputs so BI reads owned facts, caveats, and owner-approved KPI definitions instead of reverse-engineered provider tables.",
     syntheticBoundary: "Current BI replacement proof is sample/query-inventory backed; production reporting claims stay locked until read-only validation and KPI owner review.",
-    realAccessValidation: "Existing BI query inventory plus read-only extracts would validate projection coverage, KPI definitions, reconciliation deltas, and analyst cleanup time saved.",
+    realAccessValidation: "Existing BI query inventory plus read-only extracts would validate projection coverage, KPI definitions, reconciliation deltas, and reported analyst cleanup time.",
     inspect: ["docs/architecture/audit-reporting-evidence-backbone.md", "storage/src/operations.rs", "docs/demo/local-demo-walkthrough.md"]
   },
   {

@@ -1,19 +1,21 @@
 # Grooming implication 04: Rebooking cadence every 2-8 weeks
 
-Purpose: model the operational implication that a PetSuites grooming relationship should normally produce a next-appointment recommendation every 2-8 weeks. This is a domain contract for later Rust code, not an implementation patch. It keeps cadence decisions in `operations::grooming` instead of burying them in date arithmetic helpers, message templates, CRM campaign rules, or raw provider fields.
+Purpose: preserve a future design exploration for a PetSuites grooming cadence model. This is not a current runtime contract or implemented capability.
 
-Primary assumption: the ordinary recurring grooming recommendation is constrained to 2-8 weeks. Exceptions are legal only when represented explicitly as groomer recommendation, staff/manager override, care/medical review, customer preference, or policy-disabled/lapsed state. Agents may detect and draft; they do not schedule, charge, or send member-facing messages without the approval boundary passing.
+**Current executable status: unavailable.** Current serialized grooming/retention evidence is always suppressed and ineligible. It creates no candidate, ranking, queue, internal task, customer draft, schedule proposal, contact, conversion, completion, or value authority. Every proposed recommendation, task, draft, outreach, scheduling, approval-token, or agent behavior below is hypothetical future design only. It requires a new opaque, non-serializable eligibility authority issued after accepted source and consent review. Human review of current evidence cannot mint that authority.
 
-## 1. Operational story
+Future-only assumption: if that opaque authority is designed and implemented, an ordinary recurring grooming recommendation could be constrained to 2-8 weeks, with explicit groomer, staff/manager, care/medical, customer-preference, and policy exceptions. Until then, agents may only preserve and summarize the suppressed evidence.
+
+## 1. Future-only operational story
 
 ### Trigger
 
-A rebooking evaluation starts when one of these domain events or scheduled jobs appears:
+A future rebooking evaluation could start when one of these domain events or scheduled jobs appears, but none currently creates eligibility or work:
 
 - A grooming appointment is completed and staff records the outcome/history.
 - A nightly or daily retention scan evaluates pets whose last completed grooming service is approaching or past the recommended cadence.
 - A groomer records a next-cadence recommendation during checkout, e.g. 4 weeks for a doodle with matting risk.
-- A boarding/daycare checkout flow identifies an exit bath or grooming history that should create a grooming follow-up draft.
+- A boarding/daycare checkout flow records exit-bath or grooming history as suppressed evidence; future opaque authority would be required before any follow-up draft could exist.
 - A customer asks about next grooming timing and front desk needs a policy-backed recommendation.
 
 The trigger produces a `operations::grooming::RebookingEvaluationRequested` workflow event or equivalent typed service call, not an immediate customer message.
@@ -21,11 +23,11 @@ The trigger produces a `operations::grooming::RebookingEvaluationRequested` work
 ### Actors
 
 - Groomer: owns professional style/coat recommendation and can propose a pet-specific cadence inside or outside the ordinary band.
-- Front desk / call center: reviews due recommendations, confirms customer preference, and converts approved drafts into outreach or booking actions.
+- Front desk / call center: currently inspects suppressed evidence only; a future authorized workflow could review recommendations and separately execute outreach or booking actions.
 - Manager: approves exceptions involving no-show/deposit restrictions, cadence outside ordinary policy, discounts, complaints, or calendar overrides.
 - Customer/member: receives only reviewed/approved outreach and confirms appointment details.
 - Pet/customer/profile stores: provide identity, history, consent, communication preferences, and care/medical references.
-- Grooming retention agent: detects candidates, ranks urgency, drafts message/task text, and returns typed evidence with an automation boundary.
+- Grooming retention agent: currently has no candidate, ranking, task, or draft capability; a future opaque-authority design could define those capabilities.
 - Provider tools: Gingr/calendar/messaging/POS adapters execute only approved commands.
 
 ### Inputs
@@ -37,7 +39,7 @@ The trigger produces a `operations::grooming::RebookingEvaluationRequested` work
 - Customer communication consent/channel preferences from `customer`.
 - Pet profile and care/medical/handling references from `pet`/`care`.
 - No-show/late-cancellation/deposit state from grooming/reservation/payment policy surfaces.
-- Calendar capacity summary when the workflow drafts concrete appointment windows.
+- Calendar capacity summary, only in a future opaque-authority workflow that explicitly permits schedule proposals.
 - Current business date/time in the location timezone.
 
 ### Decisions
@@ -50,39 +52,39 @@ The rebooking workflow decides:
 4. Is the pet not-yet-due, due soon, due now, overdue, lapsed, policy-blocked, or unknown because history/profile data is incomplete?
 5. Does the recommendation require groomer/staff/manager/care review before outreach?
 6. Is customer contact permitted for this channel and message purpose?
-7. Should the output be a staff task, a draft customer message, a draft appointment-window proposal, a manager review item, or no action?
+7. Does future opaque authority exist? In the current runtime the answer is no, so the output is suppressed evidence and no action; future design could separately model a staff task, customer draft, schedule proposal, or manager item.
 
-### Outputs
+### Future-only outputs, currently unavailable
 
-- `operations::grooming::RebookingRecommendation` carrying pet/customer/location, due window, status, cadence source, rationale, confidence/evidence, review requirement, and member-facing boundary.
-- `workflow::RecommendedAction::CreateInternalTask` or `operations::StaffTask` for staff/groomer/manager review when outreach is not automatically safe.
-- `workflow::RecommendedAction::DraftCustomerMessage` / `tools::MessageDraft` for an approved-to-draft rebooking reminder.
-- Optional `operations::grooming::ScheduleWindowProposal` values if the workflow is allowed to suggest windows, still draft-only until booking approval.
+- Current output: suppressed, ineligible serialized evidence with no candidate, ranking, queue, task, draft, or schedule proposal.
+- Future `operations::grooming::RebookingRecommendation`, internal-task, customer-draft, and schedule-proposal types require a new opaque, non-serializable eligibility authority and are not executable today.
 - `entities::AuditEvent` recording input snapshot IDs, actor, policy version, decision, and approval token if one later exists.
 - No provider-system mutation by default.
 
 ### Success state
 
-A successful run creates a typed recommendation whose status and review boundary are unambiguous:
+A successful current run preserves the evidence as suppressed and ineligible without creating work. The following states describe a future opaque-authority workflow only:
 
 - Not-yet-due pets produce no member-facing action and optionally a future evaluation date.
-- Due/overdue pets produce a staff-reviewable follow-up or draft customer message.
+- Due/overdue labels remain evidence only today; a future authorized workflow could produce a staff-reviewable follow-up or customer draft.
 - A customer-approved booking path eventually links the recommendation to an appointment request/plan and records the accepted cadence in service history.
 - The audit trail explains why the interval was chosen and who approved any customer-facing or provider-mutating action.
 
 ### Failure and exception states
 
-- Missing service history: return `RebookingDecision::InsufficientHistory`, optionally create a groomer/front-desk history-review task; do not invent a cadence.
+- Missing service history: preserve an `InsufficientHistory` evidence label; do not create a task or invent a cadence in the current runtime.
 - Missing pet profile/coat/service facts: return `NeedsStaffReview` or `NeedsGroomerReview` with a typed reason.
 - Cadence outside 2-8 weeks: reject as ordinary cadence; accept only as `GroomerRecommendedOutsideOrdinaryBand` or `ManagerOverride` with actor/evidence.
 - Repeated no-show/late cancellation/deposit restriction: route to manager review or deposit-required decision; do not draft casual outreach that hides the restriction.
-- Customer communication consent unavailable/denied: create internal task only; no member-facing draft send.
+- Customer communication consent unavailable/denied: preserve suppression evidence only; no internal task, customer draft, or send.
 - Calendar unavailable: recommendation can remain due/overdue, but concrete schedule windows are omitted or marked unavailable.
 - Care/medical-sensitive product or handling context: route through care/groomer review; do not tell the customer medical suitability.
 - Conflicting customer preference versus groomer policy: preserve both as typed evidence and route for staff resolution.
 - Provider ID/date parse failure: fail at the boundary conversion into semantic errors before policy runs.
 
-## 2. Domain types to add or refine
+## 2. Future-only domain types requiring opaque eligibility authority
+
+None of the types, actions, repositories, events, tools, signatures, or tests below exists as current executable retention authority. Names that resemble present code are design sketches and must not be wired to serialized evidence.
 
 ### Cadence values and invariants
 
@@ -177,7 +179,7 @@ enum RebookingCadence {
   - Typed packet containing recommendation context and allowed output schema.
   - Agent output should be `RebookingRecommendationDraft` or `RebookingAgentFinding`, not a tool command.
 
-## 3. Relationship map between types
+## 3. Future-only relationship map between types
 
 ### Entities
 
@@ -228,7 +230,7 @@ enum RebookingCadence {
 - Forbidden actions: booking/rescheduling/cancelling appointments, changing invoices/deposits, sending customer messages, waiving no-show/deposit restrictions.
 - Tool ports: `tools::MessageDraftStore`, `tools::InternalTaskDraftStore`, `tools::CalendarAvailabilityRead`, `tools::AppointmentBookingCommand` gated by approval.
 
-## 4. Interaction contract
+## 4. Future-only interaction contract
 
 Rust-like pseudo-signatures below name the intended owners. Exact modules may change, but behavior should stay on semantic policies/repositories/services rather than free functions.
 
@@ -357,7 +359,7 @@ Agent behavior:
 - Agent output cannot carry execution permission.
 - Validation rejects missing evidence, untyped dates, unsupported cadence intervals, and member-facing commands disguised as recommendations.
 
-## 5. Review and approval contract
+## 5. Future-only review and approval contract
 
 ### Automation level
 
@@ -411,7 +413,7 @@ Every recommendation and review action should record:
 
 Customer-facing copy must remain clear and non-committal until the customer/staff confirms booking: “Moose may be due for grooming around June 12 based on the last full groom” is safe as a reviewed draft; “Moose is booked” or “we added a full groom” is not. Any price, deposit, medical, or calendar promise requires the owning policy/tool result and approval token.
 
-## 6. Test contracts
+## 6. Future-only test contracts
 
 Later code cards should start with semantic tests named like executable glossary entries.
 
@@ -472,7 +474,7 @@ Later code cards should start with semantic tests named like executable glossary
 - `grooming_rebooking_agent_draft_message_carries_recommendation_id_and_required_reviews`
 - `grooming_rebooking_agent_flags_missing_history_or_consent_instead_of_hallucinating_outreach`
 
-## 7. Integration notes for later serialized Rust code card
+## 7. Future-only integration notes
 
 ### Files likely touched
 

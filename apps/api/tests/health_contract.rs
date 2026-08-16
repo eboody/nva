@@ -355,7 +355,7 @@ async fn inquiry_intake_records_are_visible_to_staff_review_queue() {
 }
 
 #[tokio::test]
-async fn lead_response_fixture_walks_source_to_reviewed_outcome_without_live_side_effects() {
+async fn caller_reported_lead_response_fixture_remains_nonclaimable_without_live_side_effects() {
     let app = http::router_with_test_auth_state(http::VaccineDocumentState::default());
     let fixture = json!({
         "source_event_key": "gingr-lead-response-fixture-001",
@@ -444,7 +444,7 @@ async fn lead_response_fixture_walks_source_to_reviewed_outcome_without_live_sid
     );
     assert_eq!(
         created["workflow"]["sla_status"],
-        "met_by_reviewed_draft_attempt"
+        "caller_reported_attempt_present"
     );
     assert_eq!(
         created["review_packet"]["status"],
@@ -458,12 +458,12 @@ async fn lead_response_fixture_walks_source_to_reviewed_outcome_without_live_sid
     );
     assert_eq!(created["api_response"]["safe_to_return_to_staff"], true);
     assert_eq!(
-        created["simulated_conversion"]["reservation_id"],
+        created["simulated_conversion"]["reported_reservation_id"],
         "reservation:simulated-9001"
     );
     assert_eq!(
-        created["outcome_attribution"]["review_status"],
-        "reviewed_simulated_outcome"
+        created["outcome_attribution"]["report_status"],
+        "caller_reported_simulated_conversion"
     );
     assert_eq!(
         created["outcome_attribution"]["supports_value_claim"],

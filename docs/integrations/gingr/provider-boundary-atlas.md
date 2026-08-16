@@ -62,7 +62,7 @@ This page helps front desk leads, managers, regional reviewers, docs writers, an
 - what Gingr says as provider evidence;
 - what NVA derives through explicit mapping code;
 - which fields remain raw DTOs or unknown provider payloads;
-- which workflow results are read-only evidence, draft-only recommendations, or reviewed outcomes;
+- which workflow results are read-only evidence, draft-only recommendations, or caller-reported outcome evidence;
 - which actions must stay blocked unless a separate approved tool and human gate exists.
 
 The safe labor outcome is a source-backed packet, queue, candidate, or draft that staff can review faster. It is not an autonomous customer send, check-in/out, booking mutation, payment action, or source-system write.
@@ -88,11 +88,11 @@ These are the family entries this page covers. Give one of them a separate atlas
 | Workflow | How the Gingr boundary appears | Safe workflow result |
 | --- | --- | --- |
 | Booking triage | Reservation, owner, pet, immunization/reference, and location evidence can support a readiness packet. | Reviewable packet or draft; no provider confirmation/write, schedule mutation, or customer send. |
-| Checkout completion | Reservation/check-out evidence and commerce/payment-sensitive records may identify exception candidates. | Staff-facing exception queue or reviewed outcome; no autonomous payment/refund/discount movement. |
+| Checkout completion | Reservation/check-out evidence and commerce/payment-sensitive records may identify exception candidates. | Staff-facing exception evidence or caller-reported outcome evidence; no checked-out status, completion, autonomous payment/refund/discount movement, or other executable authority. |
 | Daily care updates | Report-card files, reservation context, owner/pet contact evidence, and webhook events may support update drafts. | Draft or queue item for staff approval; no autonomous parent communication. |
-| CRM/retention and grooming/training follow-up | Owner, animal, reservation, service, retail, grooming/training gap, and email event evidence may support follow-up candidates. | Recommendation or draft; no marketing/customer send without approved sender and suppression rules. |
+| CRM/retention and grooming/training follow-up | Owner, animal, reservation, service, retail, grooming/training gap, and email event records remain source evidence. | Current retention/grooming processing preserves suppressed, ineligible evidence only: no candidate, ranking, queue, task, recommendation, or draft. Future follow-up requires new opaque eligibility and action authority. |
 | Data quality hygiene | Provider IDs, raw payload refs, unknown fields, and mapping errors identify duplicate/missing/conflicting source facts. | Cleanup candidate and disposition record; no source-data deletion or hiding. |
-| Manager daily brief / BI read model | Read-only endpoint inventory and mapped candidates help summarize labor-impacting queues. | Source-backed brief item or reporting signal; not staffing, payroll, or policy authority. |
+| Manager daily brief / BI read model | Read-only endpoint inventory and mapped evidence support demand, checkout-exception, capacity, and data-quality inspection. | Source-backed supported brief item or reporting signal; retention evidence creates no brief action, and nothing authorizes staffing, payroll, or policy changes. |
 
 ## 5. Relationships and adjacency
 
@@ -145,7 +145,7 @@ Ask “source of record for what?” before treating any Gingr value as authorit
 | Provider event occurrence | HMAC-verified Gingr webhook envelope plus event/entity id | integration owner or workflow reviewer decides whether event is relevant and safely mapped |
 | NVA customer/pet/product/reservation/workflow candidate | Explicit mapper output plus caller-owned source ref/provenance | workflow reviewer or manager accepts, corrects, or rejects candidate |
 | Policy, safety, vaccine, temperament, incident, checkout, schedule, payment, or customer-outreach approval | NVA domain/app workflow contract plus human review outcome | front desk lead, manager, trained staff, or approved sender as applicable |
-| Labor/result claim | Workflow outcome record in app/storage docs | reviewer who performed the work; regional ops interprets rollups |
+| Caller-reported labor/result evidence | Workflow outcome record in app/storage docs, treated as nonclaimable history | no authenticated performer or measured effect is established; separate authoritative evidence is required before regional ops may make a labor or value claim |
 
 ## 8. Allowed actions
 

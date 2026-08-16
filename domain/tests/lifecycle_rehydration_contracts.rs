@@ -464,24 +464,28 @@ fn persisted_workflow_results_reject_status_reason_output_mismatches() {
             .contains("workflow outcome needing human review requires review reason evidence")
     );
 
-    let completed_with_review_reason = serde_json::json!({
+    let caller_completed = serde_json::json!({
         "status": "Completed",
         "summary": "Daily care update draft prepared.",
         "structured_output": { "draft_id": "daily-update-1" },
-        "recommended_actions": [],
+        "recommended_actions": [{
+            "InternalTask": {
+                "title": "Send customer draft",
+                "body": "Caller-selected recommended action"
+            }
+        }],
         "risk_flags": [],
-        "verification": ["Staff notes were transformed into a customer-safe draft."],
-        "human_review_reason": "manager should still inspect it"
+        "verification": ["Caller-provided verification label."],
+        "human_review_reason": null
     });
 
-    let error =
-        serde_json::from_value::<workflow::Result<serde_json::Value>>(completed_with_review_reason)
-            .expect_err("completed workflow results must not smuggle review-stop reasons");
+    let error = serde_json::from_value::<workflow::Result<serde_json::Value>>(caller_completed)
+        .expect_err("serialized completion labels must remain non-authoritative evidence");
 
     assert!(
         error
             .to_string()
-            .contains("completed workflow outcome must not carry human review reason")
+            .contains("serialized completed workflow outcome is not accepted")
     );
 
     let review_required_with_completed_output = serde_json::json!({

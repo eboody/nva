@@ -273,7 +273,7 @@ struct ProductLaborMetricsPayload {
 #[derive(Debug, Serialize)]
 struct LaborOutcomeRollupPayload {
     metric_source: &'static str,
-    reviewed_outcome_count: usize,
+    reported_outcome_count: usize,
     reported_actual_minutes_spent: u16,
 }
 
@@ -1605,7 +1605,7 @@ fn manager_daily_brief_labor_rollup(
 
     LaborOutcomeRollupPayload {
         metric_source: "manager_daily_brief_outcome_records",
-        reviewed_outcome_count: records.len(),
+        reported_outcome_count: records.len(),
         reported_actual_minutes_spent,
     }
 }
@@ -1619,7 +1619,7 @@ fn data_quality_hygiene_labor_rollup(
 
     LaborOutcomeRollupPayload {
         metric_source: "data_quality_hygiene_outcome_records",
-        reviewed_outcome_count: records.len(),
+        reported_outcome_count: records.len(),
         reported_actual_minutes_spent,
     }
 }
@@ -2024,11 +2024,7 @@ async fn capture_manager_daily_brief_action_outcome(
                 .map(stored_source_record_ref_from_payload)
                 .collect(),
         )
-        .recorded_at(
-            request
-                .timestamp
-                .to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true),
-        )
+        .recorded_at(Utc::now().to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true))
         .correlation_id(
             request
                 .audit
@@ -2046,22 +2042,23 @@ async fn capture_manager_daily_brief_action_outcome(
                 .reported_estimated_minutes_difference(),
         )
         .build();
-    let reporting_group = record.reporting_group();
     let idempotent_result = {
         let mut store = state.store.lock().await;
         store.manager_daily_brief_outcomes.record_idempotently(
             idempotency_key,
             payload_fingerprint,
-            record.clone(),
+            record,
         )
     };
-    let (status, persisted_outcome_count, idempotent_replay) = match idempotent_result {
-        storage::workflow_repository::IdempotentRecord::Recorded { retained_count } => {
-            (StatusCode::CREATED, retained_count, false)
-        }
-        storage::workflow_repository::IdempotentRecord::Replay { retained_count } => {
-            (StatusCode::OK, retained_count, true)
-        }
+    let (status, persisted_outcome_count, idempotent_replay, record) = match idempotent_result {
+        storage::workflow_repository::IdempotentRecord::Recorded {
+            retained_count,
+            retained_outcome,
+        } => (StatusCode::CREATED, retained_count, false, retained_outcome),
+        storage::workflow_repository::IdempotentRecord::Replay {
+            retained_count,
+            retained_outcome,
+        } => (StatusCode::OK, retained_count, true, retained_outcome),
         storage::workflow_repository::IdempotentRecord::Conflict => {
             return (
                 StatusCode::CONFLICT,
@@ -2069,6 +2066,7 @@ async fn capture_manager_daily_brief_action_outcome(
             );
         }
     };
+    let reporting_group = record.reporting_group();
 
     (
         status,
@@ -2079,7 +2077,9 @@ async fn capture_manager_daily_brief_action_outcome(
             "idempotent_replay": idempotent_replay,
             "outcome_record": {
                 "action_id": record.action_id,
-                "outcome": record.outcome,
+                "outcome": reported_manager_daily_brief_outcome(record.outcome),
+                "authority_disposition": "needs_review",
+                "claimable": false,
                 "before_minutes": record.before_minutes.get(),
                 "actual_minutes": record.actual_minutes.get(),
                 "actor": {
@@ -2717,13 +2717,9 @@ async fn capture_data_quality_hygiene_action_outcome(
         )
         .issue_refs(request.issue_refs().to_vec())
         .resolution_status_after_review(stored_data_quality_resolution_status(
-            request.resolution_status_after_review(),
+            request.reported_resolution_status(),
         ))
-        .recorded_at(
-            request
-                .timestamp()
-                .to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true),
-        )
+        .recorded_at(Utc::now().to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true))
         .correlation_id(request.audit().correlation_id().to_owned())
         .location_id(packet.location_id().get().to_string())
         .operating_day(packet.operating_day().get().to_string())
@@ -2737,7 +2733,7 @@ async fn capture_data_quality_hygiene_action_outcome(
         .build();
     let reporting_group = record.reporting_group();
     let local_persistence_records =
-        storage::operations::DataQualityHygieneLocalPersistenceRecords::from_reviewed_outcome(
+        storage::operations::DataQualityHygieneLocalPersistenceRecords::from_reported_outcome(
             data_quality_hygiene_lineage_ids(&record),
             record.clone(),
         );
@@ -2776,7 +2772,9 @@ async fn capture_data_quality_hygiene_action_outcome(
             "idempotent_replay": false,
             "outcome_record": {
                 "action_id": record.action_id,
-                "outcome": record.outcome,
+                "outcome": reported_data_quality_hygiene_outcome(record.outcome),
+                "authority_disposition": "needs_review",
+                "claimable": false,
                 "before_minutes": record.before_minutes.get(),
                 "actual_minutes": record.actual_minutes.get(),
                 "actor": {
@@ -2786,7 +2784,7 @@ async fn capture_data_quality_hygiene_action_outcome(
                 "feedback": record.feedback,
                 "source_refs": record.source_refs,
                 "issue_refs": record.issue_refs,
-                "resolution_status_after_review": record.resolution_status_after_review,
+                "reported_resolution_status": record.resolution_status_after_review,
                 "timestamp": record.recorded_at,
                 "audit": {
                     "correlation_id": record.correlation_id
@@ -3149,6 +3147,39 @@ fn stored_manager_daily_brief_persona(
         }
         manager_daily_brief::ManagerBriefPersona::FrontDeskAgent => {
             storage::operations::ManagerDailyBriefPersonaCode::FrontDeskAgent
+        }
+    }
+}
+
+fn reported_manager_daily_brief_outcome(
+    outcome: storage::operations::ManagerDailyBriefOutcomeCode,
+) -> &'static str {
+    match outcome {
+        storage::operations::ManagerDailyBriefOutcomeCode::Completed => "reported_completed",
+        storage::operations::ManagerDailyBriefOutcomeCode::Deferred => "reported_deferred",
+        storage::operations::ManagerDailyBriefOutcomeCode::SuppressedByManager => {
+            "reported_suppressed_by_manager"
+        }
+        storage::operations::ManagerDailyBriefOutcomeCode::SourceFactWasWrong => {
+            "reported_source_fact_was_wrong"
+        }
+    }
+}
+
+fn reported_data_quality_hygiene_outcome(
+    outcome: storage::operations::DataQualityHygieneOutcomeCode,
+) -> &'static str {
+    match outcome {
+        storage::operations::DataQualityHygieneOutcomeCode::Completed => "reported_completed",
+        storage::operations::DataQualityHygieneOutcomeCode::Deferred => "reported_deferred",
+        storage::operations::DataQualityHygieneOutcomeCode::SuppressedByManager => {
+            "reported_suppressed_by_manager"
+        }
+        storage::operations::DataQualityHygieneOutcomeCode::SourceFactWasWrong => {
+            "reported_source_fact_was_wrong"
+        }
+        storage::operations::DataQualityHygieneOutcomeCode::NotActionable => {
+            "reported_not_actionable"
         }
     }
 }
@@ -3719,19 +3750,19 @@ fn build_inquiry_intake_record(request: InquirySubmissionRequest) -> InquiryInta
     let first_attempt = request.contact_attempts.first();
     let simulated_conversion = request.simulated_conversion.as_ref().map(|conversion| {
         json!({
-            "reservation_id": conversion.reservation_id,
-            "converted_at": conversion.converted_at,
-            "attribution_source": conversion.attribution_source,
+            "reported_reservation_id": conversion.reservation_id,
+            "reported_conversion_at": conversion.converted_at,
+            "reported_attribution_source": conversion.attribution_source,
             "source_event_key": request.source_event_key
         })
     });
     let outcome_attribution = simulated_conversion.as_ref().map(|conversion| {
         json!({
-            "review_status": "reviewed_simulated_outcome",
+            "report_status": "caller_reported_simulated_conversion",
             "source_event_key": request.source_event_key,
-            "converted_reservation_id": conversion["reservation_id"],
+            "reported_reservation_id": conversion["reported_reservation_id"],
             "supports_value_claim": false,
-            "value_claim_boundary": "synthetic conversion proves attribution semantics but not measured NVA value"
+            "value_claim_boundary": "caller-reported simulation proves no review, conversion, reservation attribution, completion, or measured value"
         })
     });
 
@@ -3771,14 +3802,14 @@ fn build_inquiry_intake_record(request: InquirySubmissionRequest) -> InquiryInta
             json!({
                 "identity_status": "candidate_match_from_contact_envelope",
                 "consent_status": "reply_draft_requires_staff_review",
-                "sla_status": if first_attempt.is_some() { "met_by_reviewed_draft_attempt" } else { "awaiting_reviewed_attempt" },
+                "sla_status": if first_attempt.is_some() { "caller_reported_attempt_present" } else { "no_caller_reported_attempt" },
                 "attempts": request.contact_attempts.iter().map(|attempt| json!({
-                    "attempted_at": attempt.attempted_at,
-                    "channel": attempt.channel,
-                    "purpose": attempt.purpose,
-                    "outcome": attempt.outcome,
-                    "review_gate": "front_desk_staff_review",
-                    "message_ref": attempt.message_ref
+                    "reported_attempted_at": attempt.attempted_at,
+                    "reported_channel": attempt.channel,
+                    "reported_purpose": attempt.purpose,
+                    "reported_outcome": attempt.outcome,
+                    "required_review_gate": "front_desk_staff_review",
+                    "reported_message_ref": attempt.message_ref
                 })).collect::<Vec<_>>()
             })
         }),
@@ -4756,11 +4787,11 @@ fn local_manager_daily_brief_operating_day() -> operations::operating_day::Date 
 
 fn open_manager_brief_staff_handoff() -> checkout_completion::StaffHandoff {
     checkout_completion::StaffHandoff::builder()
-        .completed_by(entities::ActorRef::Staff {
+        .reported_completed_by(entities::ActorRef::Staff {
             staff_id: entities::StaffId::try_new("front-desk-erin")
                 .expect("static staff id is valid"),
         })
-        .completed_at(DateTime::<Utc>::UNIX_EPOCH)
+        .reported_completed_at(DateTime::<Utc>::UNIX_EPOCH)
         .belongings_status(checkout_completion::BelongingsStatus::NeedsStaffFollowUp)
         .care_summary(
             checkout_completion::CareSummary::try_new("Medication bag needs review.")
@@ -4772,11 +4803,11 @@ fn open_manager_brief_staff_handoff() -> checkout_completion::StaffHandoff {
 
 fn resolved_manager_brief_staff_handoff() -> checkout_completion::StaffHandoff {
     checkout_completion::StaffHandoff::builder()
-        .completed_by(entities::ActorRef::Staff {
+        .reported_completed_by(entities::ActorRef::Staff {
             staff_id: entities::StaffId::try_new("front-desk-erin")
                 .expect("static staff id is valid"),
         })
-        .completed_at(DateTime::<Utc>::UNIX_EPOCH)
+        .reported_completed_at(DateTime::<Utc>::UNIX_EPOCH)
         .belongings_status(checkout_completion::BelongingsStatus::ReturnedToCustomer)
         .care_summary(
             checkout_completion::CareSummary::try_new("Clean checkout.")

@@ -1,6 +1,6 @@
 //! Boarding capacity decisions for room/suite availability.
 //!
-//! Capacity examples use semantic accommodation paths so a labor-saving agent can explain whether
+//! Capacity examples use semantic accommodation paths so a workflow assistant can explain whether
 //! the front desk should confirm, waitlist, or route an exception for manager review:
 //!
 //! ```

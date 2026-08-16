@@ -15,7 +15,7 @@
 //! the API details for implementers.
 //!
 //! `domain` owns the NVA pet-resort language: service lines, portfolio facts,
-//! workflow gates, source evidence, and labor-saving outcomes. This crate owns
+//! workflow gates, source evidence, and nonclaimable reported labor outcomes. This crate owns
 //! the persistence projection of that language: stable storage codes, JSON
 //! codecs, flattened records shaped for databases and fixtures, and explicit
 //! promotion/demotion between storage records and core domain types.

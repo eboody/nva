@@ -18,7 +18,7 @@ fn pet_id() -> entities::PetId {
 }
 
 #[test]
-fn realtime_lead_model_tracks_sla_contact_attempts_consent_and_conversion_attribution() {
+fn caller_consent_cannot_mint_realtime_lead_response_packet() {
     let received_at = Utc.with_ymd_and_hms(2026, 8, 12, 14, 0, 0).unwrap();
     let due_at = Utc.with_ymd_and_hms(2026, 8, 12, 14, 5, 0).unwrap();
 
@@ -72,18 +72,12 @@ fn realtime_lead_model_tracks_sla_contact_attempts_consent_and_conversion_attrib
                 .estimated_value(money(45_000))
                 .build(),
         )
-        .build()
-        .unwrap();
+        .build();
 
-    assert!(
-        packet.first_response_sla_is_met_at(Utc.with_ymd_and_hms(2026, 8, 12, 14, 3, 0).unwrap())
-    );
-    assert!(packet.requires_customer_message_approval());
-    assert!(packet.consent_allows_response(
-        consent::Channel::Sms,
-        consent::Purpose::TransactionalLeadResponse
+    assert!(matches!(
+        packet,
+        Err(lead::response::Error::ConsentDoesNotCoverAttempt)
     ));
-    assert_eq!(packet.event().source_system(), source::System::Telephony);
 }
 
 #[test]
@@ -155,7 +149,7 @@ fn lead_response_packet_rejects_channel_purpose_mismatch_or_opt_out() {
 }
 
 #[test]
-fn lead_response_packet_rejects_empty_attempts_at_builder_and_serde_boundaries() {
+fn lead_response_packet_rejects_empty_attempts_and_caller_consent() {
     let received_at = Utc.with_ymd_and_hms(2026, 8, 12, 14, 0, 0).unwrap();
 
     assert!(matches!(
@@ -163,17 +157,15 @@ fn lead_response_packet_rejects_empty_attempts_at_builder_and_serde_boundaries()
         Err(lead::response::Error::MissingContactAttempt)
     ));
 
-    let valid_packet = lead_response_packet_with(
-        received_at,
-        vec![lead_attempt_at(
-            Utc.with_ymd_and_hms(2026, 8, 12, 14, 2, 0).unwrap(),
-        )],
-    )
-    .unwrap();
-    let mut raw = serde_json::to_value(&valid_packet).unwrap();
-    raw["attempts"] = serde_json::json!([]);
-
-    assert!(serde_json::from_value::<lead::response::ResponsePacket>(raw).is_err());
+    assert!(matches!(
+        lead_response_packet_with(
+            received_at,
+            vec![lead_attempt_at(
+                Utc.with_ymd_and_hms(2026, 8, 12, 14, 2, 0).unwrap(),
+            )],
+        ),
+        Err(lead::response::Error::ConsentDoesNotCoverAttempt)
+    ));
 }
 
 #[test]
@@ -186,8 +178,7 @@ fn lead_response_review_evidence_remains_serializable_without_queue_authority() 
             lead_attempt_at(Utc.with_ymd_and_hms(2026, 8, 12, 14, 2, 0).unwrap())
                 .with_message_ref(message_ref.clone()),
         ],
-    )
-    .unwrap();
+    );
 
     let review_evidence = lead::response::ReviewApprovalEvidence::builder()
         .gate(policy::ReviewGate::CustomerMessageApproval)
@@ -199,8 +190,25 @@ fn lead_response_review_evidence_remains_serializable_without_queue_authority() 
         .message_ref(message_ref)
         .build();
 
-    assert!(serde_json::to_value(review_evidence).is_ok());
-    assert!(packet.requires_customer_message_approval());
+    assert!(serde_json::to_value(&review_evidence).is_ok());
+    let debug = format!("{review_evidence:?}");
+    assert_eq!(debug, "ReviewApprovalEvidence([REDACTED])");
+    for sensitive in [
+        "draft-body-42",
+        "front-desk",
+        "boarding",
+        "sms",
+        "transactional",
+    ] {
+        assert!(
+            !debug.to_ascii_lowercase().contains(sensitive),
+            "leaked {sensitive}: {debug}"
+        );
+    }
+    assert!(matches!(
+        packet,
+        Err(lead::response::Error::ConsentDoesNotCoverAttempt)
+    ));
 }
 
 #[test]
@@ -226,22 +234,20 @@ fn lead_response_booking_observation_requires_reservation_evidence_and_stays_non
 }
 
 #[test]
-fn lead_response_packet_deserialize_rejects_invalid_actionable_relationships_and_redacts_idempotency_key()
- {
+fn lead_response_packet_rejects_caller_consent_and_redacts_idempotency_key() {
     let received_at = Utc.with_ymd_and_hms(2026, 8, 12, 14, 0, 0).unwrap();
     let packet = lead_response_packet_with(
         received_at,
         vec![lead_attempt_at(
             Utc.with_ymd_and_hms(2026, 8, 12, 14, 2, 0).unwrap(),
         )],
-    )
-    .unwrap();
-    let mut raw = serde_json::to_value(&packet).unwrap();
-    raw["sla"]["due_at"] =
-        serde_json::to_value(Utc.with_ymd_and_hms(2026, 8, 12, 14, 6, 0).unwrap()).unwrap();
-
-    assert!(serde_json::from_value::<lead::response::ResponsePacket>(raw).is_err());
-    assert!(!format!("{:?}", packet.event().idempotency_key()).contains("masked-phone"));
+    );
+    assert!(matches!(
+        packet,
+        Err(lead::response::Error::ConsentDoesNotCoverAttempt)
+    ));
+    let event = lead_response_event(received_at);
+    assert!(!format!("{:?}", event.idempotency_key()).contains("masked-phone"));
 }
 
 #[test]
@@ -259,7 +265,10 @@ fn lead_sla_rejects_pre_receipt_and_breached_response_times() {
         .build()
         .unwrap();
 
-    assert!(!open_sla.is_met_at(Utc.with_ymd_and_hms(2026, 8, 12, 13, 59, 0).unwrap()));
+    assert_eq!(
+        serde_json::to_value(&open_sla).unwrap()["status"],
+        serde_json::Value::String("Open".to_owned())
+    );
 
     let breached_sla = lead::response::ResponseSla::builder()
         .target(lead::response::SlaTarget::FirstResponseWithinMinutes(
@@ -271,7 +280,10 @@ fn lead_sla_rejects_pre_receipt_and_breached_response_times() {
         .build()
         .unwrap();
 
-    assert!(!breached_sla.is_met_at(Utc.with_ymd_and_hms(2026, 8, 12, 14, 3, 0).unwrap()));
+    assert_eq!(
+        serde_json::to_value(&breached_sla).unwrap()["status"],
+        serde_json::Value::String("Breached".to_owned())
+    );
 }
 
 #[test]
@@ -304,7 +316,18 @@ fn crm_intelligence_model_separates_operations_personalization_from_marketing_se
         note.review_state(),
         customer::intelligence::ReviewState::Accepted
     );
-    assert!(!format!("{note:?}").contains("Bella prefers"));
+    let debug = format!("{note:?}");
+    assert_eq!(debug, "StructuredNote([REDACTED])");
+    for sensitive in [
+        "Bella prefers".to_owned(),
+        "note-123".to_owned(),
+        "manager-approval-1".to_owned(),
+        "00000000-0000-0000-0000-0000000c0570".to_owned(),
+        "00000000-0000-0000-0000-000000000d06".to_owned(),
+        "2026-08-12".to_owned(),
+    ] {
+        assert!(!debug.contains(&sensitive), "leaked {sensitive}: {debug}");
+    }
 }
 
 #[test]
@@ -324,10 +347,10 @@ fn crm_segment_membership_requires_opaque_accepted_evidence() {
 }
 
 #[test]
-fn consent_observation_binds_exact_customer_scope_and_current_interval() {
+fn caller_constructible_consent_observation_cannot_mint_customer_permission() {
     let now = Utc.with_ymd_and_hms(2026, 8, 12, 15, 0, 0).unwrap();
     let evidence = marketing_consent();
-    assert!(evidence.permits_customer(
+    assert!(!evidence.permits_customer(
         customer_id(),
         consent::Channel::Email,
         consent::Purpose::MarketingRetention,
@@ -391,6 +414,11 @@ fn capacity_labor_model_carries_time_bucket_constraints_shift_cost_and_reviewed_
         policy::ReviewGate::ManagerApproval
     );
     assert!(recommendation.blocks_live_schedule_change());
+    assert_eq!(
+        format!("{recommendation:?}"),
+        "OptimizationRecommendation([REDACTED])"
+    );
+    assert!(!format!("{recommendation:?}").contains(&location_id().get().to_string()));
 }
 
 #[test]
@@ -691,7 +719,7 @@ fn strategic_communication_channels_use_canonical_message_channels_and_exact_con
         .source(source::System::Crm)
         .build();
 
-    assert!(consent.permits(
+    assert!(!consent.permits(
         consent::Channel::Sms,
         consent::Purpose::TransactionalLeadResponse
     ));

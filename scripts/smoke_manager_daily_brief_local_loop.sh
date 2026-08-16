@@ -5,8 +5,14 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 PET_RESORT_API_HOST_PORT="${PET_RESORT_API_HOST_PORT:-3001}"
 PET_RESORT_API_URL="${PET_RESORT_API_URL:-http://127.0.0.1:${PET_RESORT_API_HOST_PORT}}"
+# The smoke path never consumes database or object-storage host ports. Let Docker allocate them so
+# long-lived local infrastructure cannot make an otherwise isolated smoke run fail at bind time.
+PET_RESORT_POSTGRES_HOST_PORT="${PET_RESORT_POSTGRES_HOST_PORT:-0}"
+PET_RESORT_MINIO_HOST_PORT="${PET_RESORT_MINIO_HOST_PORT:-0}"
+PET_RESORT_MINIO_CONSOLE_HOST_PORT="${PET_RESORT_MINIO_CONSOLE_HOST_PORT:-0}"
 SMOKE_TMP_DIR="${SMOKE_TMP_DIR:-$(mktemp -d)}"
-export PET_RESORT_API_URL
+export PET_RESORT_API_HOST_PORT PET_RESORT_API_URL
+export PET_RESORT_POSTGRES_HOST_PORT PET_RESORT_MINIO_HOST_PORT PET_RESORT_MINIO_CONSOLE_HOST_PORT
 
 log() {
   printf '[manager-daily-brief-smoke] %s\n' "$*" >&2

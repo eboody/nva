@@ -5,7 +5,7 @@ This runbook proves the second labor-cost workflow on local fake data only. It e
 1. building a source-grounded data-quality hygiene context packet;
 2. validating a Hermes-style internal cleanup draft;
 3. rejecting an unsafe side-effect request; and
-4. recording reviewed outcome evidence with estimated and actual labor reported time difference.
+4. retaining caller-reported outcome evidence with estimated and reported time fields, without proving review, completion, or measured labor.
 
 The acceptance lens is NVA Pet Resorts labor-cost reduction across a 170-location portfolio: reduce repeated manager/front-desk source reconciliation without turning the agent into a generic chatbot or a source-system writer.
 
@@ -60,7 +60,7 @@ The example uses a fake stale/missing vaccination source-evidence issue for a si
 - source evidence and provenance stay attached;
 - source ambiguity remains visible to a manager/front-desk review path;
 - the recommended work is an internal cleanup/review task, not a provider mutation;
-- the labor metric compares the pre-agent manual reconciliation estimate to the reviewed actual minutes spent.
+- the labor display compares a pre-agent estimate with caller-reported minute evidence; it does not prove review, measured labor, cleanup completion, or value.
 
 ## Troubleshooting
 

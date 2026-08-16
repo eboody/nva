@@ -6,6 +6,123 @@ use app::data_quality_hygiene::AuthorizationPolicy;
 use domain::{data_quality, entities, operations, policy, source};
 
 #[test]
+fn data_quality_identifier_leaf_debug_is_opaque() {
+    let values = [
+        format!(
+            "{:?}",
+            data_quality_hygiene::IssueRef::try_new("private-issue-leaf-8675309").unwrap()
+        ),
+        format!(
+            "{:?}",
+            data_quality_hygiene::ActionId::try_new("private-action-leaf-8675309").unwrap()
+        ),
+        format!(
+            "{:?}",
+            data_quality_hygiene::ContextPacketId::try_new("private-context-leaf-8675309").unwrap()
+        ),
+        format!(
+            "{:?}",
+            data_quality_hygiene::CorrelationId::try_new("private-correlation-leaf-8675309")
+                .unwrap()
+        ),
+    ];
+
+    assert_eq!(
+        values,
+        [
+            "IssueRef([REDACTED])",
+            "ActionId([REDACTED])",
+            "ContextPacketId([REDACTED])",
+            "CorrelationId([REDACTED])",
+        ]
+    );
+    for private in [
+        "private-issue-leaf-8675309",
+        "private-action-leaf-8675309",
+        "private-context-leaf-8675309",
+        "private-correlation-leaf-8675309",
+    ] {
+        assert!(!values.iter().any(|debug| debug.contains(private)));
+    }
+}
+
+#[test]
+fn data_quality_containment_graph_debug_redacts_sensitive_context_and_lineage() {
+    let candidate = candidate(
+        "private-issue-containment-8675309",
+        data_quality_hygiene::CandidateKind::SourceIssue,
+        data_quality::Kind::MissingVaccinationRecord,
+    );
+    let request = data_quality_hygiene::Request::builder()
+        .location_id(location_id())
+        .operating_day(operating_day())
+        .prepared_for(data_quality_hygiene::HygienePersona::GeneralManager)
+        .candidates(vec![candidate.clone()])
+        .build();
+    let packet = data_quality_hygiene::Workflow::evaluate(request.clone());
+    let action = packet.actions()[0].clone();
+    let draft_action = data_quality_hygiene::DraftAction::from_action(action.clone())
+        .with_requested_side_effect("private-forbidden-side-effect-8675309");
+    let draft = data_quality_hygiene::DraftSubmission::builder()
+        .context_packet_id(packet.context_packet_id().clone())
+        .correlation_id(packet.correlation_id().clone())
+        .actions(vec![draft_action.clone()])
+        .build();
+    let outcome_source_refs = data_quality_hygiene::OutcomeSourceRecordRefs::try_new(
+        action.source_record_refs().to_vec(),
+    )
+    .unwrap();
+    let outcome_issue_refs =
+        data_quality_hygiene::OutcomeIssueRefs::try_new(action.issue_refs().to_vec()).unwrap();
+
+    let debug = format!(
+        "{candidate:?}{action:?}{request:?}{packet:?}{draft_action:?}{draft:?}{outcome_source_refs:?}{outcome_issue_refs:?}"
+    );
+    for marker in [
+        "Candidate([REDACTED])",
+        "Action([REDACTED])",
+        "Request([REDACTED])",
+        "Packet([REDACTED])",
+        "DraftAction([REDACTED])",
+        "DraftSubmission([REDACTED])",
+        "OutcomeSourceRecordRefs([REDACTED])",
+        "OutcomeIssueRefs([REDACTED])",
+    ] {
+        assert!(debug.contains(marker), "missing redaction marker {marker}");
+    }
+    for private in [
+        "private-issue-containment-8675309",
+        "private-forbidden-side-effect-8675309",
+    ] {
+        assert!(!debug.contains(private));
+    }
+}
+
+#[test]
+fn data_quality_outcome_and_builder_debug_redact_actor_action_and_issue_identity() {
+    let outcome = outcome_record(data_quality_hygiene::FeedbackOutcome::Completed);
+    let builder = data_quality_hygiene::OutcomeRecord::builder()
+        .action_id(data_quality_hygiene::ActionId::try_new("private-action-8675309").unwrap())
+        .recorded_by(entities::ActorRef::Manager {
+            manager_id: entities::ManagerId::try_new("private-manager-8675309").unwrap(),
+        })
+        .outcome(data_quality_hygiene::FeedbackOutcome::Completed)
+        .before_minutes(data_quality_hygiene::LaborMinutes::try_new(25).unwrap())
+        .actual_minutes(data_quality_hygiene::LaborMinutes::try_new(9).unwrap())
+        .issue_refs(vec![issue_ref("private-issue-8675309")]);
+
+    assert_eq!(format!("{outcome:?}"), "OutcomeRecord([REDACTED])");
+    assert_eq!(format!("{builder:?}"), "OutcomeRecordBuilder([REDACTED])");
+    for private in [
+        "private-action-8675309",
+        "private-manager-8675309",
+        "private-issue-8675309",
+    ] {
+        assert!(!format!("{outcome:?}{builder:?}").contains(private));
+    }
+}
+
+#[test]
 fn data_quality_hygiene_context_builds_source_grounded_internal_actions_with_labor_delta() {
     let request = data_quality_hygiene::Request::builder()
         .location_id(location_id())
@@ -160,6 +277,10 @@ fn data_quality_hygiene_value_objects_deserialize_with_constructor_hygiene() {
         serde_json::to_value(&action_rationale).unwrap(),
         serde_json::json!("Review stale vaccine source evidence before cleanup")
     );
+    assert_eq!(
+        format!("{action_rationale:?}"),
+        "ActionRationale([REDACTED])"
+    );
 }
 
 #[test]
@@ -173,7 +294,7 @@ fn data_quality_hygiene_outcome_records_reject_empty_source_or_issue_proof() {
         .before_minutes(data_quality_hygiene::LaborMinutes::try_new(25).unwrap())
         .actual_minutes(data_quality_hygiene::LaborMinutes::try_new(9).unwrap())
         .issue_refs(vec![issue_ref("dq-missing-vaccine-42")])
-        .reviewed_resolution_status(data_quality::ResolutionStatus::Acknowledged)
+        .reported_resolution_status(data_quality::ResolutionStatus::Acknowledged)
         .build();
     assert_eq!(
         without_source_refs,
@@ -191,7 +312,7 @@ fn data_quality_hygiene_outcome_records_reject_empty_source_or_issue_proof() {
         .source_record_refs(vec![source::RecordRef::from_provenance(
             &source_provenance(),
         )])
-        .reviewed_resolution_status(data_quality::ResolutionStatus::Acknowledged)
+        .reported_resolution_status(data_quality::ResolutionStatus::Acknowledged)
         .build();
     assert_eq!(
         without_issue_refs,
@@ -372,13 +493,13 @@ fn data_quality_hygiene_outcome_records_actual_minutes_without_external_mutation
             &source_provenance(),
         )])
         .issue_refs(vec![issue_ref("dq-missing-vaccine-42")])
-        .reviewed_resolution_status(data_quality::ResolutionStatus::Acknowledged)
+        .reported_resolution_status(data_quality::ResolutionStatus::Acknowledged)
         .build()
         .unwrap();
 
     assert!(!outcome.labor_minutes_are_claimable());
     assert_eq!(
-        outcome.reviewed_resolution_status(),
+        outcome.reported_resolution_status(),
         Some(data_quality::ResolutionStatus::Acknowledged)
     );
     assert!(outcome.records_feedback_without_external_mutation());
@@ -395,12 +516,12 @@ fn data_quality_hygiene_outcome_records_actual_minutes_without_external_mutation
 }
 
 #[test]
-fn manager_actor_records_reviewed_outcome_through_app_owned_ports() {
+fn manager_actor_admits_caller_reported_outcome_evidence_through_app_owned_ports() {
     let action_id = data_quality_hygiene::ActionId::try_new("dq-action-1").unwrap();
     let mut service = fixture_outcome_capture_service();
 
     let receipt = service
-        .record_reviewed_outcome(data_quality_hygiene::OutcomeCaptureRequest::new(
+        .record_reported_outcome(data_quality_hygiene::OutcomeCaptureRequest::new(
             data_quality_hygiene::ActorId::try_new("gm-riley").unwrap(),
             outcome_record(data_quality_hygiene::FeedbackOutcome::Completed),
         ))
@@ -430,7 +551,7 @@ fn staff_actor_without_manager_gate_records_blocked_action_instead_of_outcome() 
             vec![location_id()],
         ));
 
-    let result = service.record_reviewed_outcome(data_quality_hygiene::OutcomeCaptureRequest::new(
+    let result = service.record_reported_outcome(data_quality_hygiene::OutcomeCaptureRequest::new(
         data_quality_hygiene::ActorId::try_new("front-desk-1").unwrap(),
         outcome_record(data_quality_hygiene::FeedbackOutcome::Completed),
     ));
@@ -670,7 +791,7 @@ fn outcome_record(
             &source_provenance(),
         )])
         .issue_refs(vec![issue_ref("dq-missing-vaccine-42")])
-        .reviewed_resolution_status(data_quality::ResolutionStatus::Acknowledged)
+        .reported_resolution_status(data_quality::ResolutionStatus::Acknowledged)
         .build()
         .unwrap()
 }

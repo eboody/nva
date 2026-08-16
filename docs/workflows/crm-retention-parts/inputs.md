@@ -2,7 +2,9 @@
 
 Purpose: collect the canonical source inputs and conservative assumptions downstream CRM/retention workflow cards should use. This is an input packet, not live operating policy. It does not authorize customer-facing automation, marketing sends, discounts, retention offers, complaint responses, provider writes, or lifecycle mutations without the review gates named below.
 
-Status: draft source inventory and constraints note for downstream definitions. Missing or location-specific facts must remain configurable or human-approved.
+Status: future source inventory and constraints note, not a current capability contract.
+
+**Current executable status: evidence-only and universally ineligible.** No combination of the serialized inputs below creates a lifecycle candidate, retention/rebooking candidate, ranking, queue, internal task, review packet, customer draft, contact, conversion, completion, or value authority. Current runtime may only preserve and summarize suppressed evidence. Every broader safe-output or downstream workflow statement below is future-only and requires new opaque, non-serializable eligibility authority that human review of current evidence cannot mint.
 
 ## Source inventory
 
@@ -51,27 +53,27 @@ Provisional journey states and inputs:
 
 4. Repeat customer.
    - Entry signals: multiple completed reservations/services, recurring daycare pattern, grooming history, training/package history, or repeated add-on usage.
-   - Safe output: staff-facing context and reviewed rebooking/retention draft candidates based on trusted history and policy.
-   - Missing-data behavior: if history is incomplete, stale, conflicting, or imported only as raw provider text, create a history-review task rather than infer cadence or value.
+   - Current safe output: staff-facing reported evidence only. Serialized history and policy claims cannot establish a rebooking/retention candidate, queue, task, draft, contact, conversion, completion, or value authority.
+   - Missing-data behavior: preserve the source gap and suppression evidence; do not create a history-review task or infer cadence or value from the current retention path.
 
 5. Lapsed customer.
    - Entry signals: no completed/active booking for a configurable location/service-specific interval after ordinary cadence would suggest follow-up; grooming ordinary cadence is 2-8 weeks when supported by completed grooming history; daycare/boarding/training lapsing windows are unresolved policy inputs.
-   - Safe output: staff-reviewed winback/rebooking candidate only if consent, DNC, complaint, incident, payment, and over-contact checks pass.
+   - Current safe output: suppressed lapsed-history evidence only. Passing serialized consent, DNC, complaint, incident, payment, or over-contact checks still cannot create a winback/rebooking candidate.
    - Unknowns: lapsed thresholds by service line, seasonality, customer segment, and channel are policy-configurable.
 
 6. VIP / high-value / loyal customer.
    - Entry signals: configurable history such as frequent stays/daycare cadence, recurring packages/memberships, high lifetime service volume, holiday boarding pattern, or staff/manager tag.
-   - Safe output: staff-facing prioritization/context and reviewed appreciation or concierge follow-up candidate.
+   - Current safe output: nonclaimable staff-facing VIP-history evidence with no prioritization, candidate, queue, task, or draft authority.
    - Hard limits: VIP status must not bypass DNC/consent/complaint suppression, capacity/eligibility/payment policy, or approval gates for discounts/offers.
 
 7. Complaint recovery / unresolved concern.
    - Entry signals: inbound complaint, negative sentiment, incident/customer concern, refund dispute, manager flag, public review needing response, unresolved service/care/payment issue, or staff-created complaint task.
-   - Safe output: manager task with summarized issue, source refs, related reservation/pet/service context, proposed next steps, and an empathetic response draft only for manager review.
+   - Current safe output: suppressed complaint/recovery evidence and source refs only; the retention path creates neither a manager task nor a response draft.
    - Hard stop: suppress marketing, review requests, routine rebooking prompts, VIP outreach, and promotional retention automation until the complaint is explicitly resolved/cleared.
 
 8. Do-not-contact / suppression.
    - Entry signals: opt-out/unsubscribe, DNC flag, legal/compliance/privacy suppression, channel failure/suppression policy, or manager/admin suppression.
-   - Safe output: internal-only notes/tasks. No customer-facing draft/send except legally/operationally required messages under separately approved policy.
+   - Current safe output: internal suppression evidence only. The retention path creates no task, customer draft, or send.
    - Precedence: DNC overrides lead, repeat, lapsed, VIP, review request, rebooking, and marketing retention flows.
 
 ## Reservation and service-history signals
@@ -94,7 +96,7 @@ Do not use raw provider payloads, unredacted customer free text, raw email/SMS b
 
 CRM/retention workflows inherit the customer-messaging constraints:
 
-- Default posture: AI may draft, summarize, classify, suppress, or create internal tasks; customer-facing sends are review-gated unless a later deterministic send path fixes recipient, channel, facts, template/copy, timing, suppression conditions, consent, idempotency, audit, and opt-out handling.
+- Current retention posture: AI may preserve and summarize suppressed evidence only. Classification authority, candidates, queues, tasks, drafts, and sends are unavailable; future behavior requires separate opaque, non-serializable authority in addition to any messaging approval.
 - Email, SMS, and portal are current canonical text channels; phone is a staff/call-task channel by default; WhatsApp is out of scope until typed consent/provider/template/audit semantics exist.
 - `Customer.preferred_contact` is a preference, not legal authorization. A send candidate must carry consent/opt-out/DNC/quiet-hours facts and prior delivery/suppression state.
 - Failed delivery creates staff/manual retry work or a reviewed replacement send. Do not silently switch channels without policy and audit.

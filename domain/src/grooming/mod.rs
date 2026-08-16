@@ -1,12 +1,12 @@
-//! Grooming service-line rules for pet-resort scheduling, no-show, rebooking, reminder, and review queues.
+//! Grooming service-line rules for duration estimation and evidence-only no-show, cadence, and reminder review.
 //!
-//! Operators use this module to answer grooming queue questions without rereading notes by hand: how much groomer time a mini/full groom, bath, nail service, or coat/skin add-on should reserve; whether repeat no-show history requires a deposit or manager review; when a completed service should become a rebooking prompt; and whether a reminder draft is safe to prepare. The labor reduction is triage and evidence assembly, not unattended execution.
+//! Operators use this module to estimate groomer time and inspect reported history. Serializable rebooking and reminder values remain suppressed evidence: they cannot create a candidate, queue, task, plan, slot proposal, review packet, or customer draft.
 //!
-//! Use it when the business question is "what grooming work can be prepared for staff or customer review, and what calendar, deposit, handling, or message approval still blocks live execution?" Next step: start with the location rules and `Service` for policy and request type, then follow `duration_estimate`, `no_show`, `rebooking`, `reminder`, or `calendar` depending on the queue you are trying to explain.
+//! Use it for duration and evidence classification, not follow-up preparation. Human review cannot mint the unavailable opaque, non-serializable rebooking eligibility authority.
 //!
 //! The authoritative facts are the location rules, the requested `Service`, breed/coat facts on `EstimationRequest`, prior approved `history::ServiceHistoryEntry` records, pet/customer/location/staff identity from `domain::entities`, and shared `domain::policy::ReviewGate` approvals. Provider catalog names, adapter defaults, and AI suggestions must be promoted into these values or remain pending review evidence.
 //!
-//! This module must not book or move appointments, assign a live provider-calendar slot, send a customer message, charge or waive a deposit, or decide medical/handling safety on its own. `ReviewRequirement::calendar_execution_gate`, `no_show::Decision`, and `reminder::Plan::customer_message_gate` preserve the human review gates that protect pets, customers, groomers, and managers before app/storage/integration layers perform live work.
+//! This module must not book or move appointments, assign a live provider-calendar slot, send a customer message, charge or waive a deposit, or decide medical/handling safety. `reminder::Plan::customer_message_gate` returns no gate because current reminder evidence cannot become a draft.
 
 use bon::Builder;
 use chrono::NaiveDate;
@@ -400,7 +400,7 @@ pub mod no_show {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Repeat grooming history staff review before clearing a rebooking path.
+    /// Caller-constructible repeat grooming history retained as evidence only.
     pub struct History {
         /// No shows from source or staff evidence used during grooming schedule/rebooking review; it does not authorize live changes by itself.
         pub no_shows: Count,
@@ -423,13 +423,18 @@ pub mod no_show {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Grooming rebooking outcome that tells staff whether to clear, collect a deposit, or seek manager review.
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+    /// Grooming no-show evidence disposition issued only by current policy evaluation.
     pub enum Decision {
-        /// Staff can see the clear to rebook grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
+        /// Inert compatibility variant that current policy evaluation never emits.
         RebookingCandidate {
-            /// Human approval required before history evidence can become a live calendar action.
+            /// Compatibility gate label; it is not eligibility or execution authority.
             gate: crate::policy::ReviewGate,
+        },
+        /// Reported history remains suppressed because opaque eligibility authority is unavailable.
+        SuppressedRebookingEvidence {
+            /// Why the serialized evidence cannot become a rebooking candidate.
+            reason: SuppressionReason,
         },
         /// Review gate that must clear before this grooming decision can trigger a live schedule, deposit, or message action.
         DepositRequired {
@@ -444,6 +449,13 @@ pub mod no_show {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+    /// Reason reported no-show evidence cannot become rebooking authority.
+    pub enum SuppressionReason {
+        /// Current workflows have no opaque, non-serializable eligibility issuer.
+        EligibilityAuthorityUnavailable,
+    }
+
+    #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
     /// Grooming rebooking evaluation packet tying customer, pet, and repeat-history facts together.
     pub struct Evaluation {
         /// Customer whose grooming reminder, deposit review, or rebooking packet is being prepared.
@@ -452,6 +464,12 @@ pub mod no_show {
         pub pet_id: PetId,
         /// No-show and late-cancel history staff review before choosing a rebooking path.
         pub history: History,
+    }
+
+    impl std::fmt::Debug for Evaluation {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.write_str("Evaluation([REDACTED])")
+        }
     }
 
     #[derive(Debug, Clone)]
@@ -466,7 +484,7 @@ pub mod no_show {
             Self { rule }
         }
 
-        /// Evaluates grooming source facts into a rebooking or review decision.
+        /// Evaluates reported no-show facts without minting rebooking eligibility.
         pub fn evaluate(
             &self,
             customer_id: CustomerId,
@@ -479,16 +497,16 @@ pub mod no_show {
                 history,
             };
             match self.rule {
-                Rule::NoteHistoryOnly => Decision::RebookingCandidate {
-                    gate: crate::policy::ReviewGate::ManagerApproval,
+                Rule::NoteHistoryOnly => Decision::SuppressedRebookingEvidence {
+                    reason: SuppressionReason::EligibilityAuthorityUnavailable,
                 },
                 Rule::RequireDepositForRebooking if history.repeat_behavior_count() > 0 => {
                     Decision::DepositRequired {
                         gate: crate::policy::ReviewGate::RefundOrDepositException,
                     }
                 }
-                Rule::RequireDepositForRebooking => Decision::RebookingCandidate {
-                    gate: crate::policy::ReviewGate::ManagerApproval,
+                Rule::RequireDepositForRebooking => Decision::SuppressedRebookingEvidence {
+                    reason: SuppressionReason::EligibilityAuthorityUnavailable,
                 },
                 Rule::ManagerReviewBeforeRebooking => Decision::ManagerReviewRequired {
                     gate: crate::policy::ReviewGate::ManagerApproval,
@@ -536,7 +554,7 @@ pub mod history {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Service outcome recorded for grooming history, estimates, and rebooking prompts.
+    /// Caller-reported service outcome retained for history and estimates.
     pub enum ServiceOutcome {
         /// Staff can see the completed grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         Completed,
@@ -588,7 +606,7 @@ pub mod history {
         pub service: super::Service,
         /// Date the grooming outcome was completed or recorded for cadence and history review.
         pub completed_on: NaiveDate,
-        /// Service outcome used to decide whether future estimates, rebooking prompts, or follow-up are appropriate.
+        /// Caller-reported service outcome used for history and estimate context, not follow-up authority.
         pub outcome: ServiceOutcome,
         /// Approval state that keeps sensitive grooming history out of automation until review clears.
         pub approval: ApprovalState,
@@ -627,7 +645,7 @@ pub mod rebooking {
     use super::*;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-    /// Grooming cadence in weeks for due/overdue rebooking prompts.
+    /// Reported grooming cadence in weeks; it does not establish rebooking eligibility.
     pub struct CadenceWeeks(u8);
 
     impl CadenceWeeks {
@@ -699,7 +717,7 @@ pub mod rebooking {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Rebooking cadence source used for due-date prompts and groomer-recommended follow-up.
+    /// Reported cadence source retained as non-authoritative evidence.
     pub enum Cadence {
         /// Staff can see the every weeks grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         EveryWeeks(CadenceWeeks),
@@ -725,7 +743,7 @@ pub mod rebooking {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Reason explaining why a grooming rebooking prompt is due or needs groomer input.
+    /// Caller-constructible rationale label for reported grooming cadence evidence.
     pub enum Rationale {
         /// Staff can see the last completed service cadence grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         LastCompletedServiceCadence,
@@ -735,17 +753,27 @@ pub mod rebooking {
         GroomerRecommendedCadenceRequired,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Grooming rebooking recommendation staff can review before drafting customer follow-up.
+    #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+    /// Compatibility record containing a reported grooming cadence assessment.
+    ///
+    /// Despite the retained type name, this serializable record is evidence only.
+    /// It cannot establish eligibility or create a candidate, ranking, queue,
+    /// task, slot proposal, reminder, or customer draft.
     pub struct Recommendation {
         /// Pet receiving the grooming or care service.
         pub pet_id: PetId,
-        /// Date when the next grooming reminder or rebooking prompt becomes due.
+        /// Derived cadence date retained as evidence; it cannot make a reminder or candidate due.
         pub due_on: Option<NaiveDate>,
-        /// Rebooking status staff use to decide whether to prompt, wait, or request groomer input.
+        /// Derived cadence label for inspection; it cannot authorize a prompt or review packet.
         pub status: Status,
         /// Reason explaining why the rebooking recommendation is due, overdue, or blocked for groomer input.
         pub rationale: Rationale,
+    }
+
+    impl std::fmt::Debug for Recommendation {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.write_str("Recommendation([REDACTED])")
+        }
     }
 
     #[derive(Debug, Clone, Default)]
@@ -753,7 +781,10 @@ pub mod rebooking {
     pub struct Policy;
 
     impl Policy {
-        /// Returns the recommend from history value used by grooming schedule/rebooking review.
+        /// Derives a non-authoritative cadence assessment from reported history.
+        ///
+        /// The returned compatibility record is not rebooking eligibility or
+        /// executable authority and must remain suppressed from downstream work.
         pub fn recommend_from_history(
             &self,
             pet_id: PetId,
@@ -806,7 +837,7 @@ pub mod rebooking {
     }
 }
 
-/// Reminder policy for drafting appointment confirmations, prep instructions, and cadence winback messages.
+/// Evidence-only reminder compatibility vocabulary; current policy creates no plan or draft.
 pub mod reminder {
     use super::*;
 
@@ -822,7 +853,7 @@ pub mod reminder {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Reminder purpose for grooming confirmations, prep instructions, and cadence follow-up drafts.
+    /// Caller-constructible reminder-purpose label retained as suppressed evidence.
     pub enum Kind {
         /// Staff can see the appointment confirmation grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         AppointmentConfirmation,
@@ -837,7 +868,7 @@ pub mod reminder {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Customer-message consent state used before grooming reminder drafts proceed.
+    /// Caller-constructible consent label that cannot establish current eligibility or draft authority.
     pub enum Consent {
         /// Staff can see the granted grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         Granted,
@@ -846,53 +877,57 @@ pub mod reminder {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Customer-message send status for grooming reminder plans.
+    /// Fail-closed status for reported grooming reminder evidence.
     pub enum SendBoundary {
-        /// Staff can see the draft requires approval grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
+        /// Inert compatibility label that current policy planning never emits.
         DraftRequiresApproval,
-        /// Staff can see the ready for approved send grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
+        /// Inert compatibility label that current policy planning never emits.
         ReadyForApprovedSend,
-        /// Staff can see the suppressed until consent grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
+        /// Consent is absent; evidence remains suppressed.
         SuppressedUntilConsent,
+        /// Serialized consent cannot replace unavailable opaque eligibility authority.
+        EligibilityAuthorityUnavailable,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Grooming reminder plan that separates message purpose from send approval.
+    #[derive(Clone, PartialEq, Eq, Serialize)]
+    /// Serialize-only compatibility packet preserving a reported reminder purpose without draft authority.
     pub struct Plan {
         /// Customer whose grooming reminder, deposit review, or rebooking packet is being prepared.
         pub customer_id: CustomerId,
-        /// Reminder purpose that controls whether the draft is confirmation, prep, same-day, or cadence follow-up copy.
+        /// Reported reminder purpose; it does not control or create customer copy.
         pub kind: Kind,
         boundary: SendBoundary,
     }
 
+    impl std::fmt::Debug for Plan {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.write_str("Plan([REDACTED])")
+        }
+    }
+
     impl Plan {
-        /// Returns the customer-message send gate value used by grooming schedule/rebooking review.
+        /// Returns the fail-closed boundary for this reported reminder evidence.
         pub const fn send_boundary(&self) -> SendBoundary {
             self.boundary
         }
 
-        /// Serializable reminder history always requires customer-message approval.
+        /// Returns no message gate because current evidence cannot create a draft.
         pub const fn customer_message_gate(&self) -> Option<crate::policy::ReviewGate> {
-            Some(crate::policy::ReviewGate::CustomerMessageApproval)
+            None
         }
     }
 
     #[derive(Debug, Clone, Default)]
-    /// Grooming policy object that turns local rules into staff review decisions.
+    /// Evidence-only policy object that cannot mint reminder eligibility.
     pub struct Policy;
 
     impl Policy {
-        /// Builds a grooming reminder plan from customer consent and reminder purpose.
-        pub const fn plan(&self, customer_id: CustomerId, kind: Kind, consent: Consent) -> Plan {
-            let boundary = match consent {
-                Consent::Granted => SendBoundary::DraftRequiresApproval,
-                Consent::NotGranted => SendBoundary::SuppressedUntilConsent,
-            };
+        /// Preserves reported reminder evidence without creating a plan or draft boundary.
+        pub const fn plan(&self, customer_id: CustomerId, kind: Kind, _consent: Consent) -> Plan {
             Plan {
                 customer_id,
                 kind,
-                boundary,
+                boundary: SendBoundary::EligibilityAuthorityUnavailable,
             }
         }
     }
@@ -908,10 +943,10 @@ pub struct Contract {
     pub time_estimates: Vec<breed_coat::TimeEstimate>,
     /// No-show rule that controls whether repeat history creates deposit or manager review.
     pub no_show: no_show::Rule,
-    /// Rebooking cadence staff use when preparing due or overdue grooming prompts.
+    /// Reported rebooking cadence retained as suppressed evidence.
     pub rebooking: rebooking::Cadence,
     #[builder(default)]
-    /// Reminder timing options that can be drafted only through customer-message review.
+    /// Compatibility reminder timing labels; current runtime cannot create drafts from them.
     pub reminders: Vec<reminder::Rule>,
     /// No-show and late-cancel history staff review before choosing a rebooking path.
     pub history: HistoryRequirement,

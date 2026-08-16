@@ -152,7 +152,7 @@ Why an operator should care:
   Data-quality issues prevent bad source facts from becoming unsafe automation, misleading labor reports, or customer-facing mistakes. They let managers distinguish “actual demand/staffing problem” from “source data needs repair” and reserve human review for records where the evidence is incomplete or contradictory.
 
 What not to infer:
-  Do not infer that a data-quality issue is just an engineering bug, a staff mistake, or something an AI can silently fix. Do not infer that a draft can mark an issue repaired, ignored, hidden, or superseded without reviewed outcome authority. A warning issue may allow reporting with caveats; a blocking issue must stop or route workflow according to the contract.
+  Do not infer that a data-quality issue is just an engineering bug, a staff mistake, or something an AI can silently fix. Do not infer that a draft or caller-reported outcome can mark an issue repaired, ignored, hidden, or superseded without separately authenticated resolution authority. A warning issue may allow reporting with caveats; a blocking issue must stop or route workflow according to the contract.
 
 Boundary and authority:
   `domain::data_quality` owns the issue vocabulary and invariant-bearing value. Source/provenance values tie the issue to upstream evidence. App workflows can route, display, or include the issue in review packets. BI/read models may expose issue status. Actual resolution decisions require the appropriate review/outcome process and must not be hidden by provider mappings or agent drafts.

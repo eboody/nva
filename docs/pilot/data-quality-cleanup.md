@@ -9,7 +9,7 @@ What the code does today:
 - Produces internal cleanup action drafts.
 - Requires review gates before any system-of-record change.
 - Rejects drafts that hide ambiguity or request live provider side effects.
-- Captures reviewed outcomes with source refs, issue refs, and labor-minute evidence.
+- Retains caller-reported outcomes with source refs, issue refs, and time fields as nonclaimable evidence; this does not prove review, cleanup, or measured labor.
 
 What it does not do yet:
 

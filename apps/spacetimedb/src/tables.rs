@@ -19,7 +19,7 @@ pub use crate::storage::review_queue::{
 
 /// Staff/manager actor known to the realtime adapter.
 #[spacetimedb::table(accessor = staff_actor)]
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct StaffActorRow {
     /// App actor id submitted by clients or issued by an auth adapter.
     #[primary_key]
@@ -37,7 +37,7 @@ pub struct StaffActorRow {
 
 /// Review role assigned to an actor.
 #[spacetimedb::table(accessor = role_assignment)]
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct RoleAssignmentRow {
     /// Synthetic row id because SpacetimeDB does not support composite primary keys.
     #[primary_key]
@@ -57,7 +57,7 @@ pub struct RoleAssignmentRow {
 /// This declaration preserves the deployed `location_scope` table shape exactly. Authorization
 /// never reads it; only `location_scope_v1` can promote rows into runtime authority.
 #[spacetimedb::table(accessor = location_scope)]
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct LocationScopeRow {
     /// Synthetic row id because SpacetimeDB does not support composite primary keys.
     #[primary_key]
@@ -76,7 +76,7 @@ pub struct LocationScopeRow {
 /// A new table identity avoids unsupported in-place column addition to the
 /// legacy `location_scope` table during module upgrades.
 #[spacetimedb::table(accessor = location_scope_v1)]
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct LocationScopeV1Row {
     /// Synthetic row id because SpacetimeDB does not support composite primary keys.
     #[primary_key]
@@ -91,6 +91,25 @@ pub struct LocationScopeV1Row {
     /// Schema version for authorization-scope row evolution.
     pub schema_version: u32,
 }
+
+macro_rules! redacted_debug {
+    ($($row:ty => $name:literal),+ $(,)?) => {
+        $(
+            impl std::fmt::Debug for $row {
+                fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    formatter.write_str(concat!($name, "([REDACTED])"))
+                }
+            }
+        )+
+    };
+}
+
+redacted_debug!(
+    StaffActorRow => "StaffActorRow",
+    RoleAssignmentRow => "RoleAssignmentRow",
+    LocationScopeRow => "LocationScopeRow",
+    LocationScopeV1Row => "LocationScopeV1Row",
+);
 
 /// Actor kind encoded in storage, not a domain entity.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, spacetimedb::SpacetimeType)]

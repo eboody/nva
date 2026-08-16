@@ -18,9 +18,13 @@ class SemanticDomainContractAtlasTest(unittest.TestCase):
             "note ↔ evidence/visibility/consent",
             "demand ↔ coverage ↔ shift/skill",
             "document ↔ applicability ↔ citation",
-            "recommendation ↔ reviewed action ↔ outcome",
+            "recommendation ↔ reviewed action ↔ reported outcome",
         ):
             self.assertIn(required, atlas)
+
+        self.assertIn("unconditionally returns `NotClaimed`", atlas)
+        self.assertIn("new opaque, non-serializable measurement authority", atlas)
+        self.assertNotIn("before value claim", atlas)
 
         for strategic_overlap in (
             "strategic_ai_ops::source::System",

@@ -18,7 +18,7 @@ use spacetimedb::{ReducerContext, Table};
 use crate::{
     read_model::{
         manager_queue_item::manager_queue_item,
-        staff_queue_item::{blocked_action_notice, hygiene_outcome_card, staff_queue_item},
+        staff_queue_item::{blocked_action_notice, hygiene_outcome_card_v1, staff_queue_item},
     },
     runtime::HygieneCaptureRuntime,
     storage::review_queue::{
@@ -291,26 +291,26 @@ pub fn attempt_blocked_side_effect(
     Ok(())
 }
 
-/// Captures a reviewed data-quality hygiene outcome through app-owned ports.
+/// Captures a caller-reported data-quality hygiene evidence through app-owned ports.
 #[allow(
     clippy::too_many_arguments,
     reason = "SpacetimeDB reducer ABI exposes primitive client arguments; the body immediately converts them into app/domain request types."
 )]
 #[spacetimedb::reducer]
-pub fn record_reviewed_hygiene_outcome(
+pub fn record_reported_hygiene_outcome(
     ctx: &ReducerContext,
     action_id: String,
     outcome: FeedbackOutcomeColumn,
     before_minutes: u32,
     actual_minutes: u32,
-    reviewed_resolution_status: Option<ResolutionStatusColumn>,
+    reported_resolution_status: Option<ResolutionStatusColumn>,
 ) -> Result<(), String> {
     let actor_id = actor_id_for_sender(ctx)?;
     let mut row = review_queue_row(ctx, &action_id)?;
     let Some(actor) = actor_authorized_for_row(ctx, &actor_id, &row)? else {
         return Ok(());
     };
-    let (source_record_ref, issue_ref) = reviewed_outcome_provenance(&row)?;
+    let (source_record_ref, issue_ref) = reported_outcome_provenance(&row)?;
     let mut outcome_builder = hygiene::OutcomeRecord::builder()
         .action_id(hygiene::ActionId::try_new(action_id.clone()).map_err(|err| err.to_string())?)
         .recorded_by(actor.actor().clone())
@@ -319,16 +319,16 @@ pub fn record_reviewed_hygiene_outcome(
         .actual_minutes(codec::labor_minutes(actual_minutes)?)
         .source_record_refs(vec![source_record_ref])
         .issue_refs(vec![issue_ref]);
-    if let Some(status) = reviewed_resolution_status {
+    if let Some(status) = reported_resolution_status {
         outcome_builder =
-            outcome_builder.reviewed_resolution_status(codec::resolution_status(status));
+            outcome_builder.reported_resolution_status(codec::resolution_status(status));
     }
     let outcome_record = outcome_builder.build().map_err(|err| err.to_string())?;
 
     ensure_authenticated_actor_scope_v1(ctx, &actor_id)?;
     let request = hygiene::OutcomeCaptureRequest::new(actor_id, outcome_record);
     let runtime = HygieneCaptureRuntime::load(ctx);
-    if runtime.record_reviewed_outcome(ctx, request).is_err() {
+    if runtime.record_reported_outcome(ctx, request).is_err() {
         return Ok(());
     }
     transition::capture_outcome(&mut row, outcome).map_err(transition_error)?;
@@ -339,7 +339,7 @@ pub fn record_reviewed_hygiene_outcome(
     Ok(())
 }
 
-pub(crate) fn reviewed_outcome_provenance(
+pub(crate) fn reported_outcome_provenance(
     row: &ReviewQueueItemRow,
 ) -> Result<(source::RecordRef, hygiene::IssueRef), String> {
     let source_ref = row
@@ -588,14 +588,14 @@ fn project_latest_outcome_cards(ctx: &ReducerContext) {
         let card = codec::staff_outcome_card(row);
         if ctx
             .db
-            .hygiene_outcome_card()
+            .hygiene_outcome_card_v1()
             .action_id()
             .find(card.action_id.clone())
             .is_some()
         {
-            ctx.db.hygiene_outcome_card().action_id().update(card);
+            ctx.db.hygiene_outcome_card_v1().action_id().update(card);
         } else {
-            ctx.db.hygiene_outcome_card().insert(card);
+            ctx.db.hygiene_outcome_card_v1().insert(card);
         }
     }
 }

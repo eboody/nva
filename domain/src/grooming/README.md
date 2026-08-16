@@ -1,8 +1,8 @@
 # `domain::grooming`
 
-Operator translation: grooming pages describe how the system helps staff estimate appointments, spot no-show/rebooking work, prepare reminder or follow-up drafts, and keep customer-facing grooming decisions under review. In code, that business meaning lives in `domain::grooming` so provider records, calendar notes, and storage rows do not become policy by accident; `Contract` means a source-backed grooming rule bundle, not a legal/customer contract.
+Operator translation: current grooming code helps staff estimate appointment duration and inspect suppressed no-show, cadence, rebooking, and reminder evidence. It creates no rebooking candidate, queue, task, reminder plan, review packet, customer draft, or message gate. In code, that business meaning lives in `domain::grooming` so provider records, calendar notes, serialized consent, and storage rows do not become policy by accident; `Contract` means a source-backed grooming rule bundle, not a legal/customer contract.
 
-`domain::grooming` is the domain crate's model for grooming-service policy, estimation, service history, rebooking, reminder planning, and no-show handling. It owns concepts that should not be flattened into calendar notes or provider service names: grooming services, breed/coat duration evidence, groomer-history estimates, review requirements, style/history notes, no-show deposit decisions, rebooking cadence, reminder send boundaries, and the location-level grooming contract.
+`domain::grooming` is the domain crate's model for grooming-service policy, estimation, service history, suppressed rebooking/reminder evidence, and no-show handling. It owns concepts that should not be flattened into calendar notes or provider service names: grooming services, breed/coat duration evidence, groomer-history estimates, review requirements, style/history notes, no-show deposit decisions, reported cadence/consent labels, and the location-level grooming contract. Compatibility types named `Recommendation`, `Plan`, and `SendBoundary` are inert evidence vocabulary under current policy, not executable authority.
 
 Start at [`mod.rs`](./mod.rs). The module is implemented in one file with nested semantic modules such as `domain::grooming::breed_coat`, `domain::grooming::history`, `domain::grooming::rebooking`, and `domain::grooming::reminder`; keep those paths visible because several nested modules intentionally expose generic leaves like `Policy`, `Decision`, and `Rule`.
 
@@ -13,8 +13,8 @@ Start at [`mod.rs`](./mod.rs). The module is implemented in one file with nested
 - `domain::grooming::breed_coat` in [`mod.rs`](./mod.rs) defines [`BreedCategory`](./mod.rs), [`CoatCondition`](./mod.rs), and [`TimeEstimate`](./mod.rs). `EstimationPolicy::estimate` uses those estimates before falling back to a positive default.
 - `domain::grooming::no_show` in [`mod.rs`](./mod.rs) defines [`Rule`](./mod.rs), [`History`](./mod.rs), [`Decision`](./mod.rs), and [`Policy`](./mod.rs). `Policy::evaluate` turns repeat no-show/late-cancel behavior into deposit or manager-review gates.
 - `domain::grooming::history` in [`mod.rs`](./mod.rs) defines service-history evidence: [`ServiceHistoryEntry`](./mod.rs), [`ServiceOutcome`](./mod.rs), [`ApprovalState`](./mod.rs), [`CareReference`](./mod.rs), and [`style_note::StyleNote`](./mod.rs). History entries can carry duration estimates and review/care references used by later estimation.
-- `domain::grooming::rebooking` in [`mod.rs`](./mod.rs) defines cadence and recommendation logic: [`CadenceWeeks`](./mod.rs), [`OrdinaryCadenceWeeks`](./mod.rs), [`Cadence`](./mod.rs), [`Status`](./mod.rs), [`Rationale`](./mod.rs), [`Recommendation`](./mod.rs), and [`Policy`](./mod.rs).
-- `domain::grooming::reminder` in [`mod.rs`](./mod.rs) defines reminder planning: [`Rule`](./mod.rs), [`Kind`](./mod.rs), [`Consent`](./mod.rs), [`SendBoundary`](./mod.rs), [`Plan`](./mod.rs), and [`Policy`](./mod.rs). `Plan::customer_message_gate` keeps customer-message approval explicit.
+- `domain::grooming::rebooking` in [`mod.rs`](./mod.rs) defines cadence evidence and compatibility vocabulary: [`CadenceWeeks`](./mod.rs), [`OrdinaryCadenceWeeks`](./mod.rs), [`Cadence`](./mod.rs), [`Status`](./mod.rs), [`Rationale`](./mod.rs), [`Recommendation`](./mod.rs), and [`Policy`](./mod.rs). Current policy emits no candidate, queue, task, packet, or draft authority.
+- `domain::grooming::reminder` in [`mod.rs`](./mod.rs) defines suppressed reminder evidence and inert compatibility vocabulary: [`Rule`](./mod.rs), [`Kind`](./mod.rs), [`Consent`](./mod.rs), [`SendBoundary`](./mod.rs), [`Plan`](./mod.rs), and [`Policy`](./mod.rs). Current policy returns `EligibilityAuthorityUnavailable`; `Plan::customer_message_gate` returns `None`, and no reminder plan, task, draft, or send authority exists.
 - `domain::grooming::appointment` and `domain::grooming::duration_estimate` in [`mod.rs`](./mod.rs) are public vocabulary modules that re-export the appointment request and duration-estimate decision surface without erasing the `domain::grooming` namespace.
 
 ## Type/module map
@@ -31,28 +31,28 @@ Start at [`mod.rs`](./mod.rs). The module is implemented in one file with nested
 | Grooming service history | `domain::grooming::history::ServiceHistoryEntry`, `ServiceOutcome`, `ApprovalState`, `CareReference` | [`mod.rs`](./mod.rs) |
 | Grooming style note | `domain::grooming::history::style_note::StyleNote` | [`mod.rs`](./mod.rs) |
 | Rebooking cadence and status | `domain::grooming::rebooking::Cadence`, `CadenceWeeks`, `OrdinaryCadenceWeeks`, `Status`, `Rationale` | [`mod.rs`](./mod.rs) |
-| Rebooking recommendation policy | `domain::grooming::rebooking::Policy`, `Recommendation` | [`mod.rs`](./mod.rs) |
-| Reminder plan | `domain::grooming::reminder::Policy`, `Rule`, `Kind`, `Consent`, `SendBoundary`, `Plan` | [`mod.rs`](./mod.rs) |
+| Reported rebooking cadence evidence | `domain::grooming::rebooking::Policy`, compatibility `Recommendation` | [`mod.rs`](./mod.rs) |
+| Suppressed reminder evidence | `domain::grooming::reminder::Policy`, `Rule`, `Kind`, `Consent`, `SendBoundary`, compatibility `Plan` | [`mod.rs`](./mod.rs) |
 | Location grooming contract | `domain::grooming::Contract` | [`mod.rs`](./mod.rs) |
 
 ## Operator summary
 
-`domain::grooming` supports the grooming scheduling and follow-up exception queue: how long a mini/full groom, bath, nail service, or coat/skin add-on should reserve on a groomer calendar; whether a repeat no-show should require a deposit or manager review; when a completed service should become a rebooking prompt; and whether a reminder draft is safe to prepare. It is meant to reduce staff labor spent looking through prior groomer notes, translating breed/coat facts into time estimates, checking no-show history, and remembering rebooking/reminder cadence by hand.
+`domain::grooming` currently supports duration estimation and evidence-only review of grooming history and no-show facts. Serializable cadence, consent, rebooking, and reminder labels remain suppressed evidence. They cannot create a candidate, exception queue, internal task, reminder plan, slot proposal, review packet, or customer draft. Human or manager review cannot mint the missing opaque, non-serializable eligibility authority.
 
-The module is deliberately not a live automation surface. It does not book or move appointments, assign a groomer in the provider calendar, send customer messages, charge deposits, waive no-show rules, or make medical/handling judgments. It returns typed estimates, queue statuses, and review requirements that app/storage/integration layers may compose into staff tasks, manager review packets, or customer-message drafts.
+The module is deliberately not a live automation surface. It does not book or move appointments, assign a groomer in the provider calendar, send customer messages, charge deposits, waive no-show rules, or make medical/handling judgments. Its current no-show and reminder policies cannot be composed into rebooking tasks, queues, packets, plans, or drafts. Such future behavior requires new opaque eligibility authority and separately authenticated action authority.
 
 Authoritative source facts must remain the grooming contract, pet/customer/location/staff identity from `domain::entities`, prior approved [`history::ServiceHistoryEntry`](./mod.rs) and style/care references, shared [`domain::policy::ReviewGate`](../policy.rs) values, and boundary records promoted explicitly from storage or provider adapters. Provider catalog discovery is not grooming policy by itself: Gingr currently has catalog endpoint discovery and a documented grooming DTO gap, so raw provider service names must not silently replace `domain::grooming::Service`, `Contract`, or history evidence.
 
-Review gates protect pets, customers, and staff at the points where automation could otherwise overstep: matted coats and weak history create groomer/staff review on duration estimates; sensitive handling or medical references map to care/medical-document review; repeat no-shows can require deposit or manager review before acceptance; and reminder plans expose a customer-message approval gate before any customer-facing send.
+Review gates protect supported duration, care, and deposit-policy review without creating rebooking eligibility. Matted coats and weak history can request groomer/staff review on duration estimates; sensitive handling or medical references map to care/medical-document review; repeat no-shows can require deposit review. Reminder evidence exposes no customer-message gate because no current reminder draft exists.
 
 ## Grooming workflow surface
 
 1. A location's grooming contract starts as [`domain::grooming::Contract`](./mod.rs): calendar ownership, breed/coat estimates, no-show rule, rebooking cadence, reminder rules, and history requirement. `Contract::standard_petsuites` is a fixture-like standard contract for service-contract storage and tests.
 2. Duration estimation combines an [`EstimationRequest`](./mod.rs), prior [`history::ServiceHistoryEntry`](./mod.rs) records, and the [`Contract`](./mod.rs). [`EstimationPolicy::estimate`](./mod.rs) prefers same-pet history with duration, otherwise uses breed/coat estimates and marks matted coats for groomer review.
 3. Review requirements map to shared [`domain::policy::ReviewGate`](../policy.rs) values through [`ReviewRequirement::calendar_execution_gate`](./mod.rs), so the scheduling surface can ask for manager, groomer, or care review without inventing new approval flags.
-4. No-show behavior is isolated in `domain::grooming::no_show`; repeat behavior can become a deposit requirement or manager-review gate rather than an implicit front-desk judgment.
-5. Rebooking logic in `domain::grooming::rebooking::Policy` turns completed-service history and cadence into due-later/due-now/overdue/recommendation-needed outcomes.
-6. Reminder planning in `domain::grooming::reminder::Policy` separates consent and approval state from the eventual customer-message sender; this module plans send boundaries but does not send messages.
+4. No-show behavior is isolated in `domain::grooming::no_show`; repeat behavior can require deposit-policy review, while history without that condition remains explicitly suppressed and cannot become a rebooking candidate.
+5. `domain::grooming::rebooking::Policy` derives non-authoritative cadence labels from reported history. Its retained `Recommendation` name is compatibility vocabulary, not candidate or action authority.
+6. `domain::grooming::reminder::Policy` preserves reported purpose and consent labels with `EligibilityAuthorityUnavailable`; it creates no reminder plan, message gate, task, or draft.
 
 ## Cross-crate relationships
 
@@ -69,5 +69,5 @@ Review gates protect pets, customers, and staff at the points where automation c
 ## Maintainer notes
 
 - Keep the generic leaves qualified in prose: `domain::grooming::no_show::Policy`, `domain::grooming::rebooking::Policy`, and `domain::grooming::reminder::Policy` are different policies.
-- Put service-history and style-note evidence in `domain::grooming::history`; put cadence decisions in `domain::grooming::rebooking`; put customer-message send boundaries in `domain::grooming::reminder`.
+- Put service-history and style-note evidence in `domain::grooming::history`; put reported cadence evidence in `domain::grooming::rebooking`; put suppressed consent/purpose evidence in `domain::grooming::reminder`. Do not describe compatibility `Recommendation`, `Plan`, or `SendBoundary` values as current candidate, draft, message-gate, or send authority.
 - Provider catalog/service payloads belong in `integrations/gingr` until they are promoted into validated `domain::grooming` values. Storage code should keep explicit code mappings in `storage::service_line::grooming` rather than duplicating domain enums.

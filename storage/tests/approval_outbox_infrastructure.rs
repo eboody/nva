@@ -8,7 +8,43 @@ use storage::operations::{
 };
 
 #[test]
-fn approval_outbox_projection_preserves_shared_review_lifecycle_for_multiple_slices() {
+fn approval_projection_debug_redacts_operational_payloads_and_actor_ids() {
+    let handoff = InternalHandoff::new(
+        InternalHandoffTopic::DataQualityHygieneReviewedHandoff,
+        json!({"payload": "private handoff payload"}),
+    );
+    assert_eq!(format!("{handoff:?}"), "InternalHandoff([REDACTED])");
+
+    let input = ApprovalOutboxProjectionInput::builder()
+        .workflow_name("private-workflow".to_owned())
+        .event_kind("private-event".to_owned())
+        .gate(ReviewGateCode::ManagerApproval)
+        .disposition(ApprovalReviewDisposition::pending())
+        .target_kind("private-target".to_owned())
+        .agent_actor_id("private-actor-id".to_owned())
+        .workflow_payload(json!({"care_note": "private workflow care note"}))
+        .result_payload(json!({"feedback": "private result feedback"}))
+        .audit_action("private-audit-action".to_owned())
+        .audit_metadata(json!({"source": "private provenance"}))
+        .internal_handoff(handoff)
+        .build();
+
+    let debug = format!("{input:?}");
+    assert_eq!(debug, "ApprovalOutboxProjectionInput([REDACTED])");
+    for secret in [
+        "private-workflow",
+        "private-actor-id",
+        "private workflow care note",
+        "private result feedback",
+        "private provenance",
+        "private handoff payload",
+    ] {
+        assert!(!debug.contains(secret));
+    }
+}
+
+#[test]
+fn caller_dispositions_cannot_mint_shared_review_lifecycle_for_multiple_slices() {
     let data_quality = ApprovalOutboxProjection::from_reviewed_internal_handoff(
         ApprovalOutboxLineageIds::builder()
             .workflow_event_id("00000000-0000-0000-0000-000000000101".to_owned())
@@ -47,7 +83,7 @@ fn approval_outbox_projection_preserves_shared_review_lifecycle_for_multiple_sli
                 "reviewable_output_only": true,
                 "live_side_effects_allowed": false
             }))
-            .audit_action("data_quality_hygiene.reviewed_outcome_recorded".to_owned())
+            .audit_action("data_quality_hygiene.reported_outcome_recorded".to_owned())
             .audit_metadata(json!({
                 "action_id": "dq-action-dq-missing-vaccine-42",
                 "live_side_effects_allowed": false
@@ -76,7 +112,7 @@ fn approval_outbox_projection_preserves_shared_review_lifecycle_for_multiple_sli
             .build(),
         ApprovalOutboxProjectionInput::builder()
             .workflow_name("site-finance".to_owned())
-            .event_kind("reviewed_recommendation_recorded".to_owned())
+            .event_kind("reported_recommendation_recorded".to_owned())
             .gate(ReviewGateCode::ManagerApproval)
             .disposition(ApprovalReviewDisposition::approved(
                 ActorKindCode::Manager,
@@ -101,7 +137,7 @@ fn approval_outbox_projection_preserves_shared_review_lifecycle_for_multiple_sli
                 "record_only_finance_action": true,
                 "live_side_effects_allowed": false
             }))
-            .audit_action("site_finance.reviewed_recommendation_recorded".to_owned())
+            .audit_action("site_finance.reported_recommendation_recorded".to_owned())
             .audit_metadata(json!({
                 "legal_action": "record_reviewed_recommendation_only",
                 "payment_actions_allowed": false
@@ -120,14 +156,16 @@ fn approval_outbox_projection_preserves_shared_review_lifecycle_for_multiple_sli
     for records in [&data_quality, &site_finance] {
         assert_eq!(
             records.workflow_result.status,
-            WorkflowResultStatusCode::Succeeded
+            WorkflowResultStatusCode::NeedsReview
         );
         assert_eq!(records.review_packet.gate, ReviewGateCode::ManagerApproval);
         assert_eq!(
             records.review_packet.status,
-            ReviewPacketStatusCode::Approved
+            ReviewPacketStatusCode::ReadyForReview
         );
-        assert_eq!(records.approval_record.status, "approved");
+        assert_eq!(records.approval_record.status, "approval_requested");
+        assert!(records.approval_record.decided_by_actor_kind.is_none());
+        assert!(records.approval_record.decided_by_actor_id.is_none());
         assert_eq!(records.audit_events.len(), 2);
 
         assert!(records.outbox_candidate().is_none());
@@ -228,27 +266,18 @@ fn approval_outbox_projection_records_rejection_evidence_without_approved_rows_o
     );
     assert_eq!(
         records.review_packet.status,
-        ReviewPacketStatusCode::Rejected
+        ReviewPacketStatusCode::ReadyForReview
     );
-    assert_eq!(records.approval_record.status, "rejected");
-    assert_eq!(
-        records.approval_record.decided_by_actor_kind,
-        Some(ActorKindCode::Manager)
-    );
-    assert_eq!(
-        records.approval_record.decided_by_actor_id.as_deref(),
-        Some("general-manager-1")
-    );
-    assert_eq!(
-        records.approval_record.decided_at.as_deref(),
-        Some("2026-06-17T14:35:00Z")
-    );
+    assert_eq!(records.approval_record.status, "approval_requested");
+    assert!(records.approval_record.decided_by_actor_kind.is_none());
+    assert!(records.approval_record.decided_by_actor_id.is_none());
+    assert!(records.approval_record.decided_at.is_none());
     assert!(records.outbox_candidate().is_none());
 }
 
 #[test]
 fn site_finance_persistence_records_reuse_approval_outbox_spine_without_payment_authority() {
-    let records = SiteFinanceLocalPersistenceRecords::from_reviewed_outcome(
+    let records = SiteFinanceLocalPersistenceRecords::from_reported_outcome(
         ApprovalOutboxLineageIds::builder()
             .workflow_event_id("00000000-0000-0000-0000-000000000401".to_owned())
             .review_packet_id("00000000-0000-0000-0000-000000000402".to_owned())
@@ -269,9 +298,9 @@ fn site_finance_persistence_records_reuse_approval_outbox_spine_without_payment_
     );
     assert_eq!(
         records.review_packet.status,
-        ReviewPacketStatusCode::Approved
+        ReviewPacketStatusCode::ReadyForReview
     );
-    assert_eq!(records.approval_record.status, "approved");
+    assert_eq!(records.approval_record.status, "approval_requested");
     assert_eq!(records.outcome.workflow_event_id, records.workflow_event.id);
     assert_eq!(
         records.outcome.approval_record_id,
@@ -291,7 +320,7 @@ fn site_finance_persistence_records_reuse_approval_outbox_spine_without_payment_
 
 #[test]
 fn site_finance_value_claim_evidence_does_not_control_workflow_completion_or_manager_approval() {
-    let records = SiteFinanceLocalPersistenceRecords::from_reviewed_outcome(
+    let records = SiteFinanceLocalPersistenceRecords::from_reported_outcome(
         ApprovalOutboxLineageIds::builder()
             .workflow_event_id("00000000-0000-0000-0000-000000000501".to_owned())
             .review_packet_id("00000000-0000-0000-0000-000000000502".to_owned())
@@ -306,7 +335,9 @@ fn site_finance_value_claim_evidence_does_not_control_workflow_completion_or_man
             .with_value_attribution(
                 storage::operations::SiteFinanceValueAttribution::CorrelatedOnly,
             )
-            .with_workflow_completion(storage::operations::SiteFinanceWorkflowCompletion::Completed)
+            .with_workflow_completion(
+                storage::operations::SiteFinanceWorkflowCompletion::ReportedCompleted,
+            )
             .with_manager_approval(
                 storage::operations::SiteFinanceManagerApproval::approved_by_manager(
                     "general-manager-1".to_owned(),
@@ -325,13 +356,13 @@ fn site_finance_value_claim_evidence_does_not_control_workflow_completion_or_man
     );
     assert_eq!(
         records.workflow_result.status,
-        WorkflowResultStatusCode::Succeeded
+        WorkflowResultStatusCode::NeedsReview
     );
     assert_eq!(
         records.review_packet.status,
-        ReviewPacketStatusCode::Approved
+        ReviewPacketStatusCode::ReadyForReview
     );
-    assert_eq!(records.approval_record.status, "approved");
+    assert_eq!(records.approval_record.status, "approval_requested");
     assert!(records.outbox_candidate.is_none());
     assert_eq!(
         records.workflow_result.result["value_attribution"],
@@ -339,10 +370,10 @@ fn site_finance_value_claim_evidence_does_not_control_workflow_completion_or_man
     );
     assert_eq!(
         records.workflow_result.result["workflow_completion"],
-        "completed"
+        "reported_completed"
     );
     assert_eq!(
-        records.workflow_result.result["manager_approval"],
+        records.workflow_result.result["reported_manager_approval"],
         "approved"
     );
     assert_eq!(
@@ -353,7 +384,7 @@ fn site_finance_value_claim_evidence_does_not_control_workflow_completion_or_man
 
 #[test]
 fn site_finance_manager_approval_and_completion_do_not_manufacture_value_claim_authority() {
-    let records = SiteFinanceLocalPersistenceRecords::from_reviewed_outcome(
+    let records = SiteFinanceLocalPersistenceRecords::from_reported_outcome(
         ApprovalOutboxLineageIds::builder()
             .workflow_event_id("00000000-0000-0000-0000-000000000601".to_owned())
             .review_packet_id("00000000-0000-0000-0000-000000000602".to_owned())
@@ -396,7 +427,7 @@ fn site_finance_manager_approval_and_completion_do_not_manufacture_value_claim_a
         "needs_review"
     );
     assert_eq!(
-        records.workflow_result.result["manager_approval"],
+        records.workflow_result.result["reported_manager_approval"],
         "pending"
     );
 }
@@ -413,7 +444,7 @@ fn site_finance_outcome() -> SiteFinanceOutcomeRecord {
         .audit_event_id("audit:site-finance-review:00c0ffee:2026-06".to_owned())
         .legal_action("record_reviewed_recommendation_only".to_owned())
         .value_attribution(storage::operations::SiteFinanceValueAttribution::ReportedReviewedAction)
-        .workflow_completion(storage::operations::SiteFinanceWorkflowCompletion::Completed)
+        .workflow_completion(storage::operations::SiteFinanceWorkflowCompletion::ReportedCompleted)
         .manager_approval(
             storage::operations::SiteFinanceManagerApproval::approved_by_manager(
                 "general-manager-1".to_owned(),

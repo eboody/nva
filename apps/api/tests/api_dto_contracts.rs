@@ -373,7 +373,7 @@ async fn ops_metrics_summary_counts_safe_local_state_without_prometheus_overbuil
             "feedback": "Recorded aggregate metrics smoke outcome without touching Gingr.",
             "source_refs": action["source_refs"],
             "issue_refs": action["issue_refs"],
-            "resolution_status_after_review": "acknowledged",
+            "reported_resolution_status": "acknowledged",
             "timestamp": "2026-06-17T13:15:00Z",
             "audit": {"correlation_id": context["audit"]["correlation_id"]},
             "requested_side_effects": [],
@@ -399,7 +399,7 @@ async fn ops_metrics_summary_counts_safe_local_state_without_prometheus_overbuil
     assert_eq!(metrics["local_runtime_counters"]["audit_event_count"], 3);
     assert_eq!(metrics["local_runtime_counters"]["outcome_count"], 1);
     assert_eq!(
-        metrics["product_labor_metrics"]["data_quality_hygiene"]["reviewed_outcome_count"],
+        metrics["product_labor_metrics"]["data_quality_hygiene"]["reported_outcome_count"],
         1
     );
     assert_eq!(
@@ -518,7 +518,7 @@ async fn data_quality_hygiene_payload_contract_preserves_review_packet_status_an
             "feedback": "Prepared source-grounded cleanup task for manager review without touching Gingr.",
             "source_refs": action["source_refs"],
             "issue_refs": action["issue_refs"],
-            "resolution_status_after_review": "acknowledged",
+            "reported_resolution_status": "acknowledged",
             "timestamp": "2026-06-17T13:15:00Z",
             "audit": {"correlation_id": context["audit"]["correlation_id"]},
             "requested_side_effects": [],

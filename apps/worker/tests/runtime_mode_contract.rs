@@ -69,7 +69,7 @@ fn disabled_agent_runtime_still_keeps_side_effects_stubbed() {
 }
 
 #[test]
-fn reviewed_outcome_without_authenticated_admission_remains_non_executable() {
+fn caller_reported_outcome_without_authenticated_admission_remains_non_executable() {
     let config = runtime::Config::disabled_for_tests();
     let records = unadmitted_data_quality_hygiene_projection();
 
@@ -77,7 +77,7 @@ fn reviewed_outcome_without_authenticated_admission_remains_non_executable() {
 
     assert_eq!(proof.outbox_candidate_id(), None);
     assert_eq!(proof.outbox_topic(), None);
-    assert!(!proof.has_reviewed_outcome());
+    assert!(!proof.has_executable_handoff_authority());
     assert_eq!(
         proof.outbox_status(),
         runtime::OutboxProcessingStatus::ReviewGatedStub
@@ -129,7 +129,7 @@ fn unadmitted_data_quality_hygiene_projection()
         owner_persona: DataQualityHygienePersonaCode::GeneralManager,
     };
 
-    DataQualityHygieneLocalPersistenceRecords::from_reviewed_outcome(
+    DataQualityHygieneLocalPersistenceRecords::from_reported_outcome(
         DataQualityHygieneLineageIds::builder()
             .workflow_event_id("dqh-workflow-event:demo-1".to_owned())
             .review_packet_id("dqh-review-packet:demo-1".to_owned())

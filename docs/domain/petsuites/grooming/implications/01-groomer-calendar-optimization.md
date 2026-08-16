@@ -2,6 +2,8 @@
 
 Purpose: model the grooming-specific calendar optimization workflow for PetSuites as a domain contract for later Rust implementation. This is a modeling artifact, not an automation permission. The optimizer may rank windows, expose conflicts, prepare draft holds, and route review tasks; it must not silently book, reschedule, double-book, charge, discount, or send customer/member-facing messages.
 
+**Status: future-only and unavailable.** Current executable grooming behavior cannot rank windows, create schedule candidates, holds, queues, tasks, or customer drafts. Every optimizer, repository, agent, tool, approval flow, and “may/can/should” statement below requires new opaque, non-serializable eligibility authority plus separately authenticated scheduling/action authority. Human review, serializable estimates, and caller labels cannot mint either authority.
+
 Source context:
 
 - `docs/domain/petsuites/grooming/service-domain-map.md`

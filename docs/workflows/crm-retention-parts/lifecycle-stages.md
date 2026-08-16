@@ -1,10 +1,10 @@
 # CRM lifecycle stages and transition rules
 
-Purpose: define operational, auditable lifecycle stages for pet-resort CRM and retention workflows. These rules classify a customer for internal workflow routing, suppression, review packets, and draft generation. They do not authorize autonomous customer-facing sends, discounts, refunds, booking/provider mutations, DNC changes, or complaint responses.
+Purpose: preserve a future design for operational lifecycle-stage vocabulary. This document does not describe current executable routing, task, queue, review-packet, or draft authority.
 
 Source basis: `docs/workflows/crm-retention-parts/inputs.md`.
 
-Status: draft operating definition for downstream CRM workflow design. Location-specific thresholds, consent policy, approved templates, quiet hours, over-contact windows, and authority matrices remain configurable policy inputs.
+Status: future-only operating definition. **Current serialized CRM/retention evidence is universally ineligible and may only be preserved or summarized as suppressed evidence.** Every stage-specific task, queue, review packet, draft, candidate, or outreach below is unavailable today and requires new opaque, non-serializable eligibility authority that review of current evidence cannot mint.
 
 ## Classification principles
 
@@ -15,7 +15,7 @@ Status: draft operating definition for downstream CRM workflow design. Location-
 
 2. Separate lifecycle state from send eligibility.
    - A customer may be classified as lead, repeat, lapsed, or VIP while still being ineligible for outreach because of DNC, consent gaps, quiet hours, over-contact, active complaint, incident, payment dispute, or missing data.
-   - Stage assignment may create internal tasks, summaries, suppression reasons, or review packets even when customer-facing contact is blocked.
+   - Current stage labels are evidence only: they may contribute to a suppressed summary or reason, but cannot create internal tasks, queues, review packets, candidates, or drafts.
 
 3. Prefer one primary operational stage plus secondary qualifiers.
    - Downstream workflow routing should select one primary stage using the priority order below.
@@ -236,7 +236,7 @@ Missing-data behavior:
 Allowed outputs:
 
 - Staff-facing customer context.
-- Reviewed rebooking, package, or retention draft candidate grounded in trusted history and approved policy.
+- Reported rebooking, package, or retention evidence for staff inspection. Current serialized evidence cannot become a candidate, queue item, task, draft, contact, conversion, completion, or value claim.
 - Suppression/no-action decision when checks fail.
 
 Blocked outputs without approval:
@@ -282,9 +282,7 @@ Missing-data behavior:
 
 Allowed outputs:
 
-- Staff-reviewed winback/rebooking candidate.
-- Internal lapsed-candidate queue item.
-- No-action/suppression reason.
+- Suppressed lapsed-history evidence and a no-action reason only. Candidate and queue outputs remain future-only and unavailable without opaque authority.
 
 Blocked outputs:
 
@@ -472,18 +470,18 @@ Override requirements:
 
 | Stage | Internal tasks/summaries | Drafts for review | Autonomous sends/actions |
 | --- | --- | --- | --- |
-| lead | Allowed | Allowed for acknowledgement/missing-info when facts support it | Blocked unless future deterministic policy approves |
-| first_time_customer | Allowed | Allowed for onboarding/post-service/review candidates after checks | Blocked unless future deterministic policy approves |
-| active_booking | Allowed | Allowed for operational updates from approved evidence | Promotional/review/rebooking automation blocked |
-| repeat | Allowed | Allowed for rebooking/retention candidates after checks | Blocked unless future deterministic policy approves |
-| lapsed | Allowed | Allowed for winback/rebooking candidates after checks | Blocked unless future deterministic policy approves |
-| VIP | Allowed | Allowed for appreciation/concierge candidates after checks | Offers/perks/actions blocked without approval |
-| complaint_recovery | Required when evidence exists | Manager-review-only recovery draft | Customer-facing recovery and promotional automations blocked |
-| do_not_contact | Allowed internally | Blocked for CRM/retention delivery; internal blocked-draft only if useful | Blocked except approved operational/legal-required policy |
+| lead | Reported evidence and suppression summary only | Unavailable | Blocked |
+| first_time_customer | Reported evidence and suppression summary only | Unavailable | Blocked |
+| active_booking | Reported evidence and suppression summary only | Unavailable | Blocked |
+| repeat | Reported evidence and suppression summary only | Unavailable; future opaque authority required | Blocked |
+| lapsed | Reported evidence and suppression summary only | Unavailable; future opaque authority required | Blocked |
+| VIP | Reported evidence and suppression summary only | Unavailable; future opaque authority required | Blocked |
+| complaint_recovery | Reported evidence and suppression summary only | Unavailable; retention creates no recovery task or draft | Blocked |
+| do_not_contact | Suppression evidence only | Unavailable | Blocked except a separate approved operational/legal workflow outside retention |
 
 ## Implementation checklist for downstream workflows
 
-Before producing a customer-facing CRM/retention candidate, verify:
+The current runtime must not produce a customer-facing CRM/retention candidate. The following checklist is future-only and applies only after an opaque eligibility-authority design exists:
 
 1. Primary lifecycle stage selected by priority order.
 2. Hard-stop checks completed: DNC/opt-out/legal suppression, complaint recovery, incident/concern, payment/refund dispute, care/medical/behavior review, active booking/in-care, over-contact, quiet hours, consent, template approval.

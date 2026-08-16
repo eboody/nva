@@ -234,10 +234,10 @@ impl CheckoutCompletion {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// Decision choices for retention next action in the local smoke-test workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
+/// Evidence-only retention dispositions for the local smoke workflow.
 pub enum RetentionNextAction {
-    /// Selects draft rebooking reminder for review for the local smoke decision model so the app can choose a review, evidence, or draft path without taking live action.
-    DraftRebookingReminderForReview,
+    /// Preserves serialized retention history as suppressed evidence without creating a candidate, queue, task, or draft.
+    PreserveSuppressedEvidence,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -377,8 +377,8 @@ pub fn run_fixture(fixture_json: &str) -> Result<FullChainEvidence> {
     let daily_update_preview = build_daily_update_preview(ids, &profile.pet.name, occurred_at)?;
     let checkout_completion = build_checkout_completion(ids, occurred_at)?;
     let retention_follow_up = RetentionFollowUp {
-        next_action: RetentionNextAction::DraftRebookingReminderForReview,
-        review_gate: policy::ReviewGate::CustomerMessageApproval,
+        next_action: RetentionNextAction::PreserveSuppressedEvidence,
+        review_gate: policy::ReviewGate::ManagerApproval,
     };
 
     let review_gated_evidence_refs = vec![
@@ -386,6 +386,7 @@ pub fn run_fixture(fixture_json: &str) -> Result<FullChainEvidence> {
         ReviewEvidenceRef::new("confirmation:customer_message_approval_required"),
         ReviewEvidenceRef::new("daily_update:send_stub_blocked_until_human_approval"),
         ReviewEvidenceRef::new("checkout_completion:manager_review_required"),
+        ReviewEvidenceRef::new("retention:serialized_evidence_suppressed_ineligible"),
     ];
 
     assert!(vaccine_docs.document.requires_human_review_before_use());
@@ -669,10 +670,10 @@ fn build_checkout_completion(
         )
         .build();
     let staff_handoff = checkout_completion::StaffHandoff::builder()
-        .completed_by(entities::ActorRef::Staff {
+        .reported_completed_by(entities::ActorRef::Staff {
             staff_id: entities::StaffId::try_new("local-smoke-front-desk").map_err(invalid)?,
         })
-        .completed_at(occurred_at)
+        .reported_completed_at(occurred_at)
         .belongings_status(checkout_completion::BelongingsStatus::ReturnedToCustomer)
         .care_summary(
             checkout_completion::CareSummary::try_new(

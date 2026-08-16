@@ -9,11 +9,11 @@ fn main() {
             pet_id: entities::PetId::new(Uuid::from_u128(2)),
         },
         title: workflow::task::Title::try_new("Give evening medication").unwrap(),
-        status: staff::task::Status::Completed,
+        status: staff::task::Status::ReportedCompleted,
         priority: staff::task::Priority::High,
         due_at: Utc.with_ymd_and_hms(2026, 8, 12, 9, 0, 0).unwrap(),
         assignment: staff::task::Assignment::Role(staff::Role::KennelTechnician),
         source: staff::task::Source::Reservation(entities::reservation::Id::new(Uuid::from_u128(3))),
-        completion_evidence: None,
+        reported_completion_evidence: None,
     };
 }

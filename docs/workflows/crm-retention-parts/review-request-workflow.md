@@ -1,12 +1,12 @@
 # Review request workflow
 
-Purpose: define the conservative post-checkout review-request workflow for the CRM/retention agent. This is a workflow-design artifact, not approval for autonomous marketing sends, public-review management, complaint handling, customer-facing copy, incentives, provider writes, refunds, discounts, or policy exceptions.
+Purpose: preserve a future design for a conservative post-checkout review-request workflow. This is not a current executable capability contract.
 
-Status: draft workflow definition. It builds on `docs/workflows/crm-retention-parts/inputs.md`, `docs/workflows/customer-messaging-parts/send-draft-approval-policy.md`, `docs/workflows/customer-messaging-parts/inputs.md`, staff-operations and incident-escalation inputs, and current workflow/domain constraints. Missing location policy, consent policy, review-link/template catalog, cadence thresholds, and over-contact windows remain configurable and human-approved.
+Status: future-only workflow definition. **Current serialized CRM/retention evidence is universally ineligible and creates no eligibility decision, candidate, queue, task, review packet, customer draft, contact, conversion, completion, or value authority.** Every broader path below requires new opaque, non-serializable eligibility authority that review of current evidence cannot mint.
 
 ## Operating principle
 
-A review request is considered only after a stay, visit, appointment, class/session, or other service has checked out or completed cleanly. The safest default is suppression or staff/manager review, not a customer-facing prompt. The workflow may classify eligibility, record suppression reasons, prepare a review packet, or draft a message for approval. It must not send automatically unless a later deterministic policy approves the exact category, template, channel, recipient facts, consent gates, suppression gates, timing, idempotency, audit, and opt-out handling.
+Current runtime only records suppression evidence and cannot classify review-request eligibility, prepare a review packet, or draft a message. The future design below would additionally require opaque eligibility authority before any deterministic messaging policy or approval could apply.
 
 ## Trigger and scope
 
@@ -185,7 +185,7 @@ Each run should emit a structured result with at least:
 
 ## Copy constraints, not final copy
 
-Until a local policy and template catalog exists, the workflow may only describe constraints or create internal draft placeholders. Any future review-request copy must:
+Current runtime creates no review-request copy or draft. A future workflow with opaque eligibility authority, an owner-approved local policy, and an owner-maintained template catalog could describe copy constraints before drafting. Any such future review-request copy must:
 
 - Be warm, concise, pet-parent-friendly, truthful, and source-grounded.
 - Refer only to approved facts such as pet name, completed service, location, and completion timing when policy allows those variables.

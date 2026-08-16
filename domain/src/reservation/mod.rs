@@ -132,13 +132,13 @@ pub enum CheckoutSourceException {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Human/system-of-record disposition for checkout completion before labor savings can be claimed.
+/// Caller-constructible compatibility label retained as checkout evidence; it proves no staff action, system-of-record state, completion, or labor value.
 pub enum CheckoutCompletionDisposition {
-    /// Handoff and source evidence support staff-verified checkout, with outbound communication still approval-gated.
+    /// Caller supplied the legacy `StaffVerified` label; no staff verification or checkout completion is proven.
     StaffVerified,
-    /// Manager or lead review is required before final closeout.
+    /// Caller supplied the legacy manager-review-required label; no review request or manager action is created.
     ManagerReviewRequired,
-    /// Provider/PMS source reconciliation is required before checkout can be trusted.
+    /// Caller supplied the legacy source-reconciliation label; no provider state or reconciliation action is established.
     SourceReconciliationRequired,
 }
 

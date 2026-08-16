@@ -77,7 +77,7 @@ Boundary and authority: persistence/projection boundary. It demotes domain value
 
 Evidence and review hooks: `storage/README.md` explains record/code/codec/error families; `storage/src/operations.rs` and `storage/src/service_line/*` hold the concrete records and conversions; `storage/tests` exercises storage contracts.
 
-Safe example: `storage::operations::ManagerDailyBriefOutcomeRecord` can store labor minutes, outcome, actor, source refs, reporting group, and reported time evidence after review, but it is not the manager's policy decision itself.
+Safe example: `storage::operations::ManagerDailyBriefOutcomeRecord` can retain caller-reported minute, outcome, actor, source-reference, and reporting-group labels, but persistence proves no review, policy decision, measured labor, completion, or value.
 
 Suggested public wording: `storage` is the repo's persisted projection layer. It saves normalized records and stable codes with explicit conversion back to `domain` truth, so reporting and workflow evidence stay durable without turning database rows into policy.
 
@@ -170,11 +170,11 @@ Why an operator should care: projections make review and reporting repeatable wi
 
 What not to infer: do not infer that a projected database row can change Gingr, approve a booking, send a customer message, override policy, or become the universal source of record. Projection is evidence/review shape, not live authority.
 
-Boundary and authority: `storage` and analytics/read-model docs own most projections. `domain` owns business meaning; provider systems and humans/systems of record own live facts/actions; `app` owns workflow packets that may read or write reviewed outcome projections.
+Boundary and authority: `storage` and analytics/read-model docs own most projections. `domain` owns business meaning; provider systems and humans/systems of record own live facts/actions; `app` owns workflow packets that may retain caller-reported outcome projections. Those projections do not authenticate review or action.
 
 Evidence and review hooks: cite storage records/conversion tests, analytics/read-model contracts, source refs/provenance, and outcome-record tests. Check that the projection names its source and review status.
 
-Safe example: `storage::operations::ManagerDailyBriefOutcomeRecord` is a projection that records reviewed labor evidence; it is not the manager's staffing decision or payroll truth.
+Safe example: `storage::operations::ManagerDailyBriefOutcomeRecord` is a projection that records caller-reported, nonclaimable disposition and time evidence; it does not authenticate review and is not the manager's staffing decision or payroll truth.
 
 Suggested public wording: a projection is a durable reporting/review view of source-grounded facts. It helps readers audit and measure work, but it does not replace the source of record or authorize live actions.
 
@@ -294,7 +294,7 @@ Boundary and authority: domain source-lineage contract consumed by app, storage,
 
 Evidence and review hooks: `domain/src/source.rs` Rustdoc/source examples show building provenance and deriving record refs; workflow/storage modules that carry provenance or source refs expose reviewable citations.
 
-Safe example: a CRM retention opportunity can carry provenance showing which checkout/completion evidence and contact-permission source supported the draft follow-up, without sending a customer message.
+Safe example: a CRM retention opportunity can carry provenance showing which checkout/completion and contact-permission records supplied reported evidence. Current serialized retention evidence cannot establish eligibility or support a queue, internal task, or customer draft.
 
 Suggested public wording: provenance (`domain::source::Provenance`) is the evidence trail attached to a normalized fact. It lets NVA trace which provider/import record and extraction context support a draft or recommendation, but it is not approval or proof of correctness.
 

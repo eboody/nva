@@ -1,12 +1,16 @@
 use crate::{
     adapter::{ActorDirectoryAdapter, BlockedActionLogAdapter},
     authz,
-    read_model::{BlockedActionNoticeRow, ManagerQueueItemRow, StaffQueueItemRow},
+    read_model::{
+        BlockedActionNoticeRow, HygieneOutcomeCardRow, HygieneOutcomeCardV1Row,
+        ManagerQueueItemRow, StaffQueueItemRow,
+    },
     storage::review_queue::{
         ActorRefColumn, BlockedActionAttemptRow, BlockedActionColumn, BlockedActionReasonColumn,
-        FeedbackOutcomeColumn, ManagerOutcomeColumn, ReviewGateColumn, ReviewQueueItemRow,
-        ReviewQueueStatusColumn, SourceRecordRefColumn, SourceSystemColumn, StaffDispositionColumn,
-        codec, transition,
+        DataQualityIssueRow, FeedbackOutcomeColumn, HygieneAuditEventRow, HygieneOutcomeRow,
+        ManagerOutcomeColumn, ReviewGateColumn, ReviewQueueItemRow, ReviewQueueStatusColumn,
+        SourceRecordRefColumn, SourceSystemColumn, StaffDispositionColumn, WorkflowEventRow,
+        WorkflowOutcomeRow, codec, transition,
     },
     tables::{
         ActorKindColumn, LocationScopeRow, LocationScopeV1Row, ReviewerRoleColumn,
@@ -49,10 +53,10 @@ fn pending_location_101_issue() -> ReviewQueueItemRow {
 }
 
 #[test]
-fn reviewed_outcome_provenance_is_derived_from_the_authorized_queue_row() {
+fn reported_outcome_provenance_is_derived_from_the_authorized_queue_row() {
     let row = pending_location_101_issue();
-    let (source_ref, issue_ref) = crate::reducers::reviewed_outcome_provenance(&row)
-        .expect("queue row carries the provenance required for reviewed outcome capture");
+    let (source_ref, issue_ref) = crate::reducers::reported_outcome_provenance(&row)
+        .expect("queue row carries the provenance required for reported outcome admission");
 
     assert_eq!(source_ref.system(), domain::source::System::Gingr);
     assert_eq!(source_ref.record_id().as_str(), "reservation:abc");
@@ -60,7 +64,7 @@ fn reviewed_outcome_provenance_is_derived_from_the_authorized_queue_row() {
 
     let mut missing_source = row;
     missing_source.source_ref = None;
-    assert!(crate::reducers::reviewed_outcome_provenance(&missing_source).is_err());
+    assert!(crate::reducers::reported_outcome_provenance(&missing_source).is_err());
 }
 
 #[test]
@@ -400,7 +404,18 @@ fn ai_service_actor_can_draft_but_outcome_cards_never_allow_live_delivery() {
     assert!(policy.can_work_queue_item(&ai, &review_item));
     assert!(!policy.can_record_outcome(&ai, &review_item));
 
-    let outcome_card = crate::read_model::HygieneOutcomeCardRow::new(
+    let legacy_card = HygieneOutcomeCardRow {
+        action_id: "legacy-dq-action-location-101".to_owned(),
+        recorded_by: ActorRefColumn::System,
+        outcome: FeedbackOutcomeColumn::Completed,
+        minutes_saved: 4,
+        live_delivery_allowed: false,
+        source_record_refs: Vec::new(),
+        issue_refs: Vec::new(),
+    };
+    assert_eq!(legacy_card.minutes_saved, 4);
+
+    let outcome_card = HygieneOutcomeCardV1Row::new(
         "dq-action-location-101".to_owned(),
         ActorRefColumn::System,
         FeedbackOutcomeColumn::Completed,
@@ -413,6 +428,155 @@ fn ai_service_actor_can_draft_but_outcome_cards_never_allow_live_delivery() {
     );
     assert!(!outcome_card.live_delivery_allowed);
     assert_eq!(outcome_card.reported_actual_minutes_spent, 9);
+}
+
+#[test]
+fn realtime_identity_provenance_and_parent_rows_redact_debug_output() {
+    let actor = ActorRefColumn::Staff("private-actor-id".to_owned());
+    let source_ref = SourceRecordRefColumn {
+        system: SourceSystemColumn::Gingr,
+        record_id: "private-source-record".to_owned(),
+    };
+    assert_eq!(format!("{actor:?}"), "ActorRefColumn([REDACTED])");
+    assert_eq!(
+        format!("{source_ref:?}"),
+        "SourceRecordRefColumn([REDACTED])"
+    );
+
+    let rows = [
+        format!(
+            "{:?}",
+            StaffActorRow {
+                actor_id: "private-actor-id".to_owned(),
+                identity: "private-identity".to_owned(),
+                actor_kind: ActorKindColumn::Staff,
+                actor_ref: "private-actor-ref".to_owned(),
+                schema_version: 1,
+            }
+        ),
+        format!(
+            "{:?}",
+            RoleAssignmentRow {
+                id: 1,
+                actor_id: "private-actor-id".to_owned(),
+                review_role: ReviewerRoleColumn::GeneralManager,
+                schema_version: 1,
+            }
+        ),
+        format!(
+            "{:?}",
+            LocationScopeRow {
+                id: 1,
+                actor_id: "private-actor-id".to_owned(),
+                location_id: "private-location".to_owned(),
+            }
+        ),
+        format!(
+            "{:?}",
+            LocationScopeV1Row {
+                id: 1,
+                actor_id: "private-actor-id".to_owned(),
+                location_id: "private-location".to_owned(),
+                schema_version: 1,
+            }
+        ),
+        format!(
+            "{:?}",
+            codec::staff_queue_item(&pending_location_101_issue())
+        ),
+        format!(
+            "{:?}",
+            codec::manager_queue_item(&pending_location_101_issue()).unwrap()
+        ),
+        format!("{:?}", pending_location_101_issue()),
+        format!(
+            "{:?}",
+            DataQualityIssueRow {
+                issue_ref: "private-issue".to_owned(),
+                location_id: "private-location".to_owned(),
+                source_ref: source_ref.clone(),
+                summary: "private issue summary".to_owned(),
+                created_at: 1,
+                schema_version: codec::REVIEW_QUEUE_SCHEMA_VERSION,
+            }
+        ),
+        format!(
+            "{:?}",
+            WorkflowEventRow {
+                id: 1,
+                action_id: "private-action".to_owned(),
+                actor_id: "private-actor-id".to_owned(),
+                event_label: "private-event".to_owned(),
+                detail: "private event detail".to_owned(),
+                created_at: 1,
+                schema_version: codec::REVIEW_QUEUE_SCHEMA_VERSION,
+            }
+        ),
+        format!(
+            "{:?}",
+            WorkflowOutcomeRow {
+                action_id: "private-action".to_owned(),
+                actor_id: "private-actor-id".to_owned(),
+                outcome: ManagerOutcomeColumn::Approved,
+                created_at: 1,
+                schema_version: codec::REVIEW_QUEUE_SCHEMA_VERSION,
+            }
+        ),
+        format!(
+            "{:?}",
+            HygieneOutcomeRow {
+                action_id: "private-action".to_owned(),
+                recorded_by: actor.clone(),
+                outcome: FeedbackOutcomeColumn::Completed,
+                before_minutes: 12,
+                actual_minutes: 9,
+                source_record_refs: vec![source_ref],
+                issue_refs: vec!["private-issue".to_owned()],
+                reviewed_resolution_status: None,
+                created_at: 1,
+                updated_at: 1,
+                schema_version: codec::REVIEW_QUEUE_SCHEMA_VERSION,
+            }
+        ),
+        format!(
+            "{:?}",
+            HygieneAuditEventRow {
+                id: 1,
+                action_id: "private-action".to_owned(),
+                actor_id: "private-actor-id".to_owned(),
+                actor,
+                blocked_actions: vec![BlockedActionColumn::SendCustomerMessage],
+                created_at: 1,
+                schema_version: codec::REVIEW_QUEUE_SCHEMA_VERSION,
+            }
+        ),
+        format!(
+            "{:?}",
+            BlockedActionAttemptRow {
+                id: 1,
+                action_id: "private-action".to_owned(),
+                actor_id: "private-actor-id".to_owned(),
+                location_id: "private-location".to_owned(),
+                attempted_side_effect: BlockedActionColumn::SendCustomerMessage,
+                reason: BlockedActionReasonColumn::ActorLacksReviewGate,
+                created_at: 1,
+                schema_version: codec::REVIEW_QUEUE_SCHEMA_VERSION,
+            }
+        ),
+    ];
+
+    for debug in rows {
+        assert!(debug.contains("[REDACTED]"));
+        for sensitive in [
+            "private-actor-id",
+            "private-source-record",
+            "private-location",
+            "private-action",
+            "private-issue",
+        ] {
+            assert!(!debug.contains(sensitive));
+        }
+    }
 }
 
 #[test]

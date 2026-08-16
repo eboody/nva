@@ -46,6 +46,18 @@ macro_rules! deserialize_via_try_new {
     };
 }
 
+macro_rules! redacted_debug {
+    ($($type:ty => $name:literal),+ $(,)?) => {
+        $(
+            impl std::fmt::Debug for $type {
+                fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    formatter.write_str(concat!($name, "([REDACTED])"))
+                }
+            }
+        )+
+    };
+}
+
 #[derive(
     Debug,
     Clone,
@@ -101,7 +113,7 @@ pub enum System {
     ManualImport,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 /// UTC instant reported by an upstream system for source-data lineage.
 pub struct Timestamp(DateTime<Utc>);
 
@@ -124,7 +136,7 @@ impl Timestamp {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 /// Provider API endpoint or import route that produced source data.
 pub struct Endpoint(String);
 
@@ -140,7 +152,7 @@ impl Endpoint {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 /// Identifier that groups records from the same provider extraction run.
 pub struct ExtractionBatchId(String);
 
@@ -156,7 +168,7 @@ impl ExtractionBatchId {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 /// Import or API scope requested from the provider during extraction.
 pub struct RequestScope(String);
 
@@ -172,7 +184,7 @@ impl RequestScope {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 /// Version tag for the source payload schema used during mapping.
 pub struct SchemaVersion(String);
 
@@ -188,7 +200,7 @@ impl SchemaVersion {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 /// Hash of the provider payload used for idempotency and drift checks.
 pub struct PayloadHash(String);
 
@@ -204,7 +216,7 @@ impl PayloadHash {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 /// Storage reference for the unnormalized provider payload.
 pub struct RawPayloadRef(String);
 
@@ -220,7 +232,7 @@ impl RawPayloadRef {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 /// Status text observed directly from the provider before normalization.
 pub struct ObservedStatus(String);
 
@@ -236,6 +248,17 @@ impl ObservedStatus {
     }
 }
 
+redacted_debug!(
+    Timestamp => "Timestamp",
+    Endpoint => "Endpoint",
+    ExtractionBatchId => "ExtractionBatchId",
+    RequestScope => "RequestScope",
+    SchemaVersion => "SchemaVersion",
+    PayloadHash => "PayloadHash",
+    RawPayloadRef => "RawPayloadRef",
+    ObservedStatus => "ObservedStatus",
+);
+
 /// Source-record identity and relationship vocabulary used for provenance joins.
 pub mod record {
     use nutype::nutype;
@@ -246,7 +269,6 @@ pub mod record {
         sanitize(trim),
         validate(not_empty, len_char_max = 120),
         derive(
-            Debug,
             Clone,
             PartialEq,
             Eq,
@@ -265,6 +287,12 @@ pub mod record {
         /// Provider/read-model record id exposed for reconciliation joins.
         pub fn as_str(&self) -> &str {
             self.as_ref()
+        }
+    }
+
+    impl std::fmt::Debug for Id {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.write_str("source::record::Id([REDACTED])")
         }
     }
 
@@ -303,7 +331,7 @@ pub mod record {
         Unknown,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
     /// Link from a source record to another related provider record.
     pub struct RelatedId {
         role: Role,
@@ -326,9 +354,15 @@ pub mod record {
             &self.id
         }
     }
+
+    impl std::fmt::Debug for RelatedId {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.write_str("source::record::RelatedId([REDACTED])")
+        }
+    }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Stable pointer to an upstream record and the system that owns it.
 pub struct RecordRef {
     system: System,
@@ -357,7 +391,9 @@ impl RecordRef {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+redacted_debug!(RecordRef => "RecordRef");
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
 /// Lineage metadata that ties normalized data back to its provider record.
 pub struct Provenance {
     system: System,
@@ -371,6 +407,12 @@ pub struct Provenance {
     schema_version: SchemaVersion,
     payload_hash: PayloadHash,
     raw_payload_ref: RawPayloadRef,
+}
+
+impl std::fmt::Debug for Provenance {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("Provenance([REDACTED])")
+    }
 }
 
 impl Provenance {
@@ -485,7 +527,7 @@ pub mod reservation {
         RefreshMutationPolicyUnknown,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
     /// Point-in-time source-data view used before promotion into core domain records.
     pub struct Snapshot {
         provenance: source::Provenance,
@@ -656,7 +698,7 @@ pub mod reservation {
         }
     }
 
-    #[derive(Debug, Clone)]
+    #[derive(Clone)]
     /// Builder for assembling a source snapshot with validated provider identifiers.
     pub struct SnapshotBuilder {
         provenance: Option<source::Provenance>,
@@ -762,6 +804,11 @@ pub mod reservation {
     }
 }
 
+redacted_debug!(
+    reservation::Snapshot => "source::reservation::Snapshot",
+    reservation::SnapshotBuilder => "source::reservation::SnapshotBuilder",
+);
+
 /// Gingr provider mapping vocabulary kept separate from app-owned policy decisions.
 pub mod gingr {
     use bon::Builder;
@@ -769,7 +816,7 @@ pub mod gingr {
 
     use crate::source;
 
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+    #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
     /// Provider API endpoint or import route that produced source data.
     pub struct Endpoint(String);
 
@@ -791,7 +838,7 @@ pub mod gingr {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+    #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
     /// Provider-native identifier for a source record.
     pub struct ProviderRecordId(String);
 
@@ -813,7 +860,7 @@ pub mod gingr {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
     /// Provider identifier relationship captured from source evidence for reconciliation and audit trails.
     pub enum RelatedProviderId {
         /// Gingr owner identifier related to the reservation snapshot.
@@ -870,7 +917,7 @@ pub mod gingr {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+    #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
     /// Identifier that groups records from the same provider extraction run.
     pub struct ExtractionBatchId(String);
 
@@ -893,7 +940,7 @@ pub mod gingr {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+    #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
     /// Import or API scope requested from the provider during extraction.
     pub struct RequestScope(String);
 
@@ -916,7 +963,7 @@ pub mod gingr {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+    #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
     /// Provider schema version observed for an imported payload.
     pub struct ProviderSchemaVersion(String);
 
@@ -939,7 +986,7 @@ pub mod gingr {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+    #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
     /// Provider-native status before mapping to a reservation workflow state.
     pub struct ProviderStatus(String);
 
@@ -971,7 +1018,17 @@ pub mod gingr {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+    redacted_debug!(
+        Endpoint => "source::gingr::Endpoint",
+        ProviderRecordId => "source::gingr::ProviderRecordId",
+        RelatedProviderId => "source::gingr::RelatedProviderId",
+        ExtractionBatchId => "source::gingr::ExtractionBatchId",
+        RequestScope => "source::gingr::RequestScope",
+        ProviderSchemaVersion => "source::gingr::ProviderSchemaVersion",
+        ProviderStatus => "source::gingr::ProviderStatus",
+    );
+
+    #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
     /// Lineage metadata that ties normalized data back to its provider record.
     pub struct Provenance {
         endpoint: Endpoint,
@@ -985,6 +1042,8 @@ pub mod gingr {
         source_payload_hash: source::PayloadHash,
         raw_payload_ref: source::RawPayloadRef,
     }
+
+    redacted_debug!(Provenance => "source::gingr::Provenance");
 
     impl Provenance {
         /// Source system for this Gingr provenance, always Gingr.
@@ -1074,7 +1133,7 @@ pub mod gingr {
             }
         }
 
-        #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+        #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
         /// Point-in-time source-data view used before promotion into core domain records.
         pub struct Snapshot {
             provenance: Provenance,
@@ -1153,7 +1212,7 @@ pub mod gingr {
             }
         }
 
-        #[derive(Debug, Clone)]
+        #[derive(Clone)]
         /// Builder for assembling a source snapshot with validated provider identifiers.
         pub struct SnapshotBuilder {
             provenance: Option<Provenance>,
@@ -1253,6 +1312,11 @@ pub mod gingr {
         }
     }
 }
+
+redacted_debug!(
+    gingr::reservation::Snapshot => "source::gingr::reservation::Snapshot",
+    gingr::reservation::SnapshotBuilder => "source::gingr::reservation::SnapshotBuilder",
+);
 
 deserialize_via_try_new!(Timestamp);
 deserialize_via_try_new!(Endpoint);

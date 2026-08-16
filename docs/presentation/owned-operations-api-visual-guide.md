@@ -10,7 +10,7 @@ The diagram compares two operating models:
 
 1. **Today: Gingr-centered extraction workaround.** Gingr or another provider PMS is treated as the operational source. BI extracts and a separate reporting database can answer some questions, but NVA still lacks a product-owned workflow gate. Labor outcomes, data-quality cleanup, and audit lineage are inferred downstream rather than captured as reviewed operations evidence.
 2. **Proposed: NVA-owned operations API and read-model layer.** Gingr becomes a source adapter with provenance, source refs, observed timestamps, adapter versions, and visible data-quality issues. The NVA-owned operations API owns reviewable workflow packets, audit/logging/metrics/events, and BI/read-model projections.
-3. **Safe demo slice: Data-Quality Hygiene.** The local proof demonstrates one narrow vertical slice: questionable source facts become reviewable cleanup work, draft recommendations are validated, unsafe side effects are rejected, reviewed outcomes record labor evidence, and BI can consume clearer read-model concepts later.
+3. **Safe demo slice: Data-Quality Hygiene.** The local proof demonstrates one narrow vertical slice: questionable source facts become reviewable cleanup work, draft recommendations are validated, unsafe side effects are rejected, caller-reported outcomes retain nonclaimable time evidence, and BI can consume clearer read-model concepts later.
 
 The core thesis is: **do not clone Gingr; build the operations API NVA needs, with Gingr as source evidence during migration.**
 
@@ -18,7 +18,7 @@ The core thesis is: **do not clone Gingr; build the operations API NVA needs, wi
 
 "This picture is the whole project in one frame. On the left is the current pain: Gingr or a provider PMS is the source, BI pulls extracts into a separate database, but the actual workflow authority is still not owned by NVA. Operators do cleanup and exception handling, but review gates, labor outcomes, and audit lineage are inferred after the fact.
 
-On the right is the product I would build toward. Gingr is not copied into a new public model; it is narrowed into a source adapter with provenance and caveats. NVA owns the operations API, the review-gated workflow packets, the audit and metrics events, and the BI/read-model projections. The local demo proves the safest first slice: Data-Quality Hygiene. It turns source-quality issues into reviewable internal cleanup work, records reviewed labor evidence, and keeps live side effects disabled.
+On the right is the product I would build toward. Gingr is not copied into a new public model; it is narrowed into a source adapter with provenance and caveats. NVA owns the operations API, the review-gated workflow packets, the audit and metrics events, and the BI/read-model projections. The local demo proves the safest first slice: Data-Quality Hygiene. It turns source-quality issues into reviewable internal cleanup work, retains caller-reported nonclaimable time evidence, and keeps live side effects disabled.
 
 The important safety line is at the bottom: no live customer sends, no provider/PMS writes, no payment, schedule, or medical decisions, and no production claim until read-only access validates the real mappings."
 
@@ -38,7 +38,7 @@ The important safety line is at the bottom: no live customer sends, no provider/
 What runs locally now:
 
 - checked OpenAPI artifact and local demo wrapper;
-- Data-Quality Hygiene workflow context, draft validation, blocked-action proof, reviewed outcome capture, and disabled worker/outbox posture;
+- Data-Quality Hygiene workflow context, draft validation, blocked-action proof, caller-reported outcome capture, and disabled worker/outbox posture;
 - local/fixture-only evidence with live side effects disabled.
 
 What this does **not** claim:

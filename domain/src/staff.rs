@@ -9,6 +9,7 @@ use chrono::{DateTime, Utc};
 use nutype::nutype;
 #[allow(unused_imports)]
 use serde::{Deserialize, Deserializer, Serialize};
+use std::fmt;
 
 use crate::daily_brief::{self, FollowUpReason};
 use crate::entities::{self, CustomerId, LocationId, PetId, StaffId};
@@ -21,20 +22,16 @@ pub mod completion_evidence {
     #[nutype(
         sanitize(trim),
         validate(not_empty, len_char_max = 500),
-        derive(
-            Debug,
-            Clone,
-            PartialEq,
-            Eq,
-            PartialOrd,
-            Ord,
-            Hash,
-            Serialize,
-            Deserialize
-        )
+        derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)
     )]
-    /// Evidence that a staff task was completed, retained for audit and BI reconciliation.
+    /// Caller-reported evidence retained for audit and review; it is not completion authority.
     pub struct Evidence(String);
+
+    impl fmt::Debug for Evidence {
+        fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            formatter.write_str("Evidence(<redacted>)")
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -64,15 +61,15 @@ pub enum TaskError {
     #[error("staff task source is required")]
     /// Represents the `SourceRequired` semantic case.
     SourceRequired,
-    #[error("completed staff task requires completion evidence")]
-    /// Represents the `CompletedRequiresCompletionEvidence` semantic case.
-    CompletedRequiresCompletionEvidence,
-    #[error("only completed staff tasks may carry completion evidence")]
-    /// Represents the `OnlyCompletedTasksMayCarryCompletionEvidence` semantic case.
-    OnlyCompletedTasksMayCarryCompletionEvidence,
+    #[error("reported staff-task completion requires evidence")]
+    /// Reported completion history omitted its supporting evidence.
+    ReportedCompletionRequiresEvidence,
+    #[error("only reported-completed staff tasks may carry reported completion evidence")]
+    /// Non-completion history attempted to carry reported completion evidence.
+    OnlyReportedCompletionMayCarryEvidence,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Clone, PartialEq, Eq, Serialize)]
 /// Staff task assembled from source-backed resort work so managers can route labor without guessing.
 pub struct Task {
     /// Resort location whose team owns this task.
@@ -91,8 +88,15 @@ pub struct Task {
     assignment: task::Assignment,
     /// Source record or workflow event that explains why this task exists.
     source: task::Source,
-    /// Optional closeout note proving the task was finished before reports treat it as done.
-    completion_evidence: Option<completion_evidence::Evidence>,
+    /// Caller-reported closeout evidence retained for review; it cannot prove realized completion.
+    #[serde(alias = "completion_evidence")]
+    reported_completion_evidence: Option<completion_evidence::Evidence>,
+}
+
+impl fmt::Debug for Task {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("Task([REDACTED])")
+    }
 }
 
 #[derive(Deserialize)]
@@ -105,16 +109,21 @@ struct RawTask {
     due_at: DateTime<Utc>,
     assignment: task::Assignment,
     source: task::Source,
-    completion_evidence: Option<completion_evidence::Evidence>,
+    #[serde(alias = "completion_evidence")]
+    reported_completion_evidence: Option<completion_evidence::Evidence>,
 }
 
 impl RawTask {
     fn try_into_task(self) -> std::result::Result<Task, TaskError> {
-        if self.status == task::Status::Completed && self.completion_evidence.is_none() {
-            return Err(TaskError::CompletedRequiresCompletionEvidence);
+        if self.status == task::Status::ReportedCompleted
+            && self.reported_completion_evidence.is_none()
+        {
+            return Err(TaskError::ReportedCompletionRequiresEvidence);
         }
-        if self.status != task::Status::Completed && self.completion_evidence.is_some() {
-            return Err(TaskError::OnlyCompletedTasksMayCarryCompletionEvidence);
+        if self.status != task::Status::ReportedCompleted
+            && self.reported_completion_evidence.is_some()
+        {
+            return Err(TaskError::OnlyReportedCompletionMayCarryEvidence);
         }
         Ok(Task {
             location_id: self.location_id,
@@ -125,7 +134,7 @@ impl RawTask {
             due_at: self.due_at,
             assignment: self.assignment,
             source: self.source,
-            completion_evidence: self.completion_evidence,
+            reported_completion_evidence: self.reported_completion_evidence,
         })
     }
 }
@@ -187,9 +196,9 @@ impl Task {
         &self.source
     }
 
-    /// Returns the aggregate completion evidence.
-    pub const fn completion_evidence(&self) -> Option<&completion_evidence::Evidence> {
-        self.completion_evidence.as_ref()
+    /// Returns caller-reported completion evidence without promoting it into completion authority.
+    pub const fn reported_completion_evidence(&self) -> Option<&completion_evidence::Evidence> {
+        self.reported_completion_evidence.as_ref()
     }
 
     /// Returns whether priority, status, or safety-sensitive kind should surface to managers.
@@ -208,15 +217,20 @@ impl Task {
         )
     }
 
-    /// Marks the task completed with auditable evidence for workflow/read-model closeout.
-    pub fn complete_with(mut self, evidence: completion_evidence::Evidence) -> Self {
-        self.status = task::Status::Completed;
-        self.completion_evidence = Some(evidence);
+    /// Records caller-reported completion evidence without closing queues or proving realized work.
+    pub fn record_reported_completion(mut self, evidence: completion_evidence::Evidence) -> Self {
+        self.status = task::Status::ReportedCompleted;
+        self.reported_completion_evidence = Some(evidence);
         self
+    }
+
+    /// Returns false because serialized task history cannot prove realized completion.
+    pub const fn counts_as_realized_completion(&self) -> bool {
+        false
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 /// Relationship-checked task builder used at this boundary.
 pub struct TaskBuilder {
     location_id: Option<LocationId>,
@@ -227,7 +241,13 @@ pub struct TaskBuilder {
     due_at: Option<DateTime<Utc>>,
     assignment: Option<task::Assignment>,
     source: Option<task::Source>,
-    completion_evidence: Option<completion_evidence::Evidence>,
+    reported_completion_evidence: Option<completion_evidence::Evidence>,
+}
+
+impl fmt::Debug for TaskBuilder {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("TaskBuilder([REDACTED])")
+    }
 }
 
 impl TaskBuilder {
@@ -279,9 +299,9 @@ impl TaskBuilder {
         self
     }
 
-    /// Returns the aggregate completion evidence.
-    pub fn completion_evidence(mut self, value: completion_evidence::Evidence) -> Self {
-        self.completion_evidence = Some(value);
+    /// Attaches caller-reported completion evidence for historical rehydration only.
+    pub fn reported_completion_evidence(mut self, value: completion_evidence::Evidence) -> Self {
+        self.reported_completion_evidence = Some(value);
         self
     }
 
@@ -296,7 +316,7 @@ impl TaskBuilder {
             due_at: self.due_at.ok_or(TaskError::DueAtRequired)?,
             assignment: self.assignment.ok_or(TaskError::AssignmentRequired)?,
             source: self.source.ok_or(TaskError::SourceRequired)?,
-            completion_evidence: self.completion_evidence,
+            reported_completion_evidence: self.reported_completion_evidence,
         }
         .try_into_task()
     }
@@ -306,7 +326,7 @@ impl TaskBuilder {
 pub mod task {
     use super::*;
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
     /// Type of labor a staff task represents across check-in, care, cleanup, and follow-up.
     pub enum Kind {
         /// Labor to prepare a reservation for arrival, documents, room, and front-desk handoff.
@@ -374,8 +394,9 @@ pub mod task {
         Blocked,
         /// Manager must review the task before staff treat it as complete.
         NeedsManagerReview,
-        /// Evidence says the resort work is complete and can feed reports.
-        Completed,
+        /// Caller-reported history says work was completed; this cannot close queues or prove value.
+        #[serde(alias = "Completed")]
+        ReportedCompleted,
         /// Staff task was cancelled or suppressed before completion and should not count as done labor.
         Cancelled,
     }
@@ -393,7 +414,7 @@ pub mod task {
         Critical,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
     /// Staff assignment state used to distinguish scheduled coverage from backup or inactive labor.
     pub enum Assignment {
         /// No staff member or role owns this work yet.
@@ -404,7 +425,7 @@ pub mod task {
         Role(super::Role),
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
     /// Staff source system retained so labor records can be reconciled with provider authority.
     pub enum Source {
         /// Reservation record participating in the workflow.
@@ -420,6 +441,20 @@ pub mod task {
         /// Staff created the task directly outside automated source ingestion.
         StaffCreated,
     }
+
+    macro_rules! impl_sensitive_task_debug {
+        ($($type:ident),+ $(,)?) => {
+            $(
+                impl std::fmt::Debug for $type {
+                    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        formatter.write_str(concat!(stringify!($type), "([REDACTED])"))
+                    }
+                }
+            )+
+        };
+    }
+
+    impl_sensitive_task_debug!(Kind, Assignment, Source);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

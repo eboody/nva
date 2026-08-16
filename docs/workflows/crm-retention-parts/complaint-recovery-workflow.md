@@ -1,8 +1,8 @@
 # Complaint recovery workflow
 
-Purpose: define the CRM/retention complaint-recovery workflow as a safe internal case-management and manager-review path. This workflow may summarize issues, create or route manager tasks, draft empathetic response copy for review, track resolution, and suppress promotional automation. It does not authorize autonomous customer sends, public-review replies, refunds, discounts, credits, waivers, retention offers, booking/provider mutations, policy exceptions, or legal/liability statements.
+Purpose: preserve a future design for complaint-recovery case management. Current CRM/retention runtime may preserve and summarize suppressed complaint evidence, but it does not create or route a manager task, review packet, response draft, resolution, or outreach.
 
-Status: draft workflow definition for downstream CRM/retention implementation. Location-specific policy, template copy, manager authority, refund/discount rules, public-review handling, and re-entry thresholds remain configurable or human-approved.
+Status: future-only workflow definition. **Current serialized evidence is universally ineligible.** Every task, packet, draft, recovery action, clearance, or execution path below requires new opaque, non-serializable eligibility authority that review of current evidence cannot mint, plus the owning operational authority.
 
 ## Source anchors
 

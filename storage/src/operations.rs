@@ -215,7 +215,7 @@ pub enum StorageField {
     DataQualityHygieneLaborMinutes,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Builder)]
+#[derive(Clone, PartialEq, Eq, Serialize, Builder)]
 /// Provider provenance attached to stored evidence so facts can be audited back to Gingr or another source system.
 pub struct StoredSourceRecordRef {
     /// Source system name, for example `gingr`, used to keep provider facts quarantined by origin.
@@ -228,6 +228,12 @@ pub struct StoredSourceRecordRef {
     pub observed_at: String,
     /// Adapter or fixture version that interpreted the source record.
     pub adapter_version: String,
+}
+
+impl fmt::Debug for StoredSourceRecordRef {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("StoredSourceRecordRef([REDACTED])")
+    }
 }
 
 impl StoredSourceRecordRef {
@@ -304,9 +310,9 @@ impl<'de> Deserialize<'de> for StoredSourceRecordRef {
 #[strum(serialize_all = "snake_case")]
 /// Persisted outcome states for manager daily-brief actions.
 pub enum ManagerDailyBriefOutcomeCode {
-    /// Workflow completed and can contribute final labor evidence.
+    /// Caller-reported completion label retained as nonclaimable disposition evidence.
     Completed,
-    /// Workflow was postponed and should not be counted as completed savings.
+    /// Caller-reported deferral retained as nonclaimable disposition evidence.
     Deferred,
     /// Manager intentionally hid or skipped the suggested workflow action.
     SuppressedByManager,
@@ -354,13 +360,16 @@ pub enum ManagerDailyBriefPersonaCode {
 )]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
-/// Persisted manager daily-brief actions that can produce labor-minute evidence.
+/// Persisted current and legacy manager daily-brief action codes.
+///
+/// A stable code is not authority or proof that the current workflow can emit the action. In
+/// particular, retention-draft approval is retained only for compatibility.
 pub enum ManagerDailyBriefActionKindCode {
     /// Stable storage code for review demand against staffing plan.
     ReviewDemandAgainstStaffingPlan,
     /// Stable storage code for resolve checkout exception.
     ResolveCheckoutException,
-    /// Stable storage code for approve retention follow up draft.
+    /// Legacy compatibility code for a retention action the current manager brief cannot emit.
     ApproveRetentionFollowUpDraft,
     /// Stable storage code for investigate source data quality issue.
     InvestigateSourceDataQualityIssue,
@@ -382,14 +391,14 @@ pub enum ManagerDailyBriefActionKindCode {
 )]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
-/// Persisted reviewed outcomes for CRM retention recommendation/action correlation.
+/// Persisted caller-reported CRM retention labels retained for historical correlation.
 pub enum CrmRetentionOutcomeCode {
-    /// Staff or system-of-record evidence observed a later booking after the recommendation.
-    /// This remains correlation evidence and does not attribute recovered value.
+    /// Caller reported a later booking after the compatibility recommendation label.
+    /// This does not prove a booking, recommendation, contact, conversion, or recovered value.
     BookingObservedAfterRecommendation,
-    /// Staff/customer follow-up remains pending or was explicitly deferred.
+    /// Caller reported that follow-up remained pending or deferred.
     Deferred,
-    /// Review suppressed outreach or action.
+    /// Caller reported a suppression label; no review or outreach is proven.
     Suppressed,
     /// Source facts were wrong and must not drive marketing or value attribution.
     WrongSource,
@@ -409,7 +418,7 @@ pub enum CrmRetentionOutcomeCode {
 )]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
-/// Stored evidence class for reviewed CRM retention outcomes.
+/// Stored evidence class for caller-reported CRM retention dispositions.
 pub enum CrmRetentionReviewedOutcomeClassificationCode {
     /// A booking observation is temporally correlated to a recommendation but is not an attributed recovery.
     CorrelatedBookingObservation,
@@ -417,31 +426,37 @@ pub enum CrmRetentionReviewedOutcomeClassificationCode {
     NoActionOutcome,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Stored CRM retention correlation row linking recommendation, review packet, source evidence, and reviewed outcome.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+/// Stored compatibility row correlating caller-reported retention labels and source evidence.
+///
+/// This serializable row cannot establish eligibility, recommendation authority,
+/// review authorization, contact, conversion, completion, or value. The retained
+/// recommendation and review-packet identifiers are correlation labels only.
 pub struct CrmRetentionOutcomeRecord {
-    /// Cross-system identifier tying recommendation, action, and outcome together.
+    /// Caller-provided correlation label tying historical evidence together.
     pub correlation_id: String,
-    /// Stable recommendation/action identifier produced by the retention workflow.
+    /// Compatibility correlation label; the current retention workflow produces no recommendation.
     pub recommendation_id: String,
-    /// Review packet id that authorized review-only handling of the recommendation.
+    /// Compatibility correlation label that does not prove or authorize review.
     pub review_packet_id: String,
-    /// Reviewed outcome disposition.
+    /// Caller-reported outcome disposition retained as nonclaimable evidence.
     pub outcome: CrmRetentionOutcomeCode,
-    /// Evidence class used by reporting to separate correlated observations from no-action outcomes.
+    /// Caller-reported compatibility classification retained for round-trip history.
+    ///
+    /// Reporting deliberately ignores this label and normalizes every row to no-action evidence.
     pub reviewed_outcome_classification: CrmRetentionReviewedOutcomeClassificationCode,
-    /// Staff, manager, or system actor that recorded the reviewed outcome.
+    /// Caller-reported actor label; this row does not authenticate identity.
     pub actor_id: String,
-    /// Persona accountable for reviewing or recording this retention outcome.
+    /// Caller-reported persona label; this row does not prove accountability or review.
     pub actor_persona: ManagerDailyBriefPersonaCode,
     /// Safe reviewer feedback without raw customer message body or provider payload.
     pub feedback: String,
     #[builder(default)]
-    /// Source evidence refs used to justify recommendation and outcome attribution.
+    /// Source refs correlated to the report; they do not justify recommendation or attribution.
     pub source_refs: Vec<StoredSourceRecordRef>,
-    /// Timestamp when the reviewed outcome was recorded.
+    /// Caller-reported timestamp retained for historical correlation.
     pub recorded_at: String,
-    /// Location whose retention opportunity was reviewed.
+    /// Caller-reported location correlation for suppressed retention evidence.
     pub location_id: String,
     /// Business date used for retention outcome grouping.
     pub operating_day: String,
@@ -461,12 +476,15 @@ impl CrmRetentionOutcomeRecord {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Stored site-finance row linking source evidence, manager review, record-only action, and outcome attribution.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+/// Stored caller-reported site-finance evidence and correlation labels.
+///
+/// This serializable row does not prove review, authorization, action, completion,
+/// measured finance or labor, or value attribution.
 pub struct SiteFinanceOutcomeRecord {
     /// Cross-system identifier tying projection, recommendation, action, and outcome together.
     pub correlation_id: String,
-    /// Location whose site-period finance evidence was reviewed.
+    /// Caller-reported location correlation; it does not prove review.
     pub location_id: String,
     /// Site finance reporting period start.
     pub period_start: String,
@@ -474,15 +492,15 @@ pub struct SiteFinanceOutcomeRecord {
     pub period_end: String,
     /// Service line included in the site finance projection.
     pub service: String,
-    /// Stable recommendation identifier produced by the reviewed finance workflow.
+    /// Caller-reported recommendation correlation; it proves no reviewed workflow.
     pub recommendation_id: String,
-    /// Review packet id that authorized record-only handling of the recommendation.
+    /// Caller-reported review-packet correlation; it grants no authorization.
     pub review_packet_id: String,
-    /// Audit event id proving the review/action path stayed record-only.
+    /// Caller-reported audit-event correlation; it proves no review or action.
     pub audit_event_id: String,
     /// Safe action label; this must not become a payment, discount, refund, or accounting mutation.
     pub legal_action: String,
-    /// Value-attribution evidence available for measured finance/labor claims.
+    /// Caller-reported value-attribution label; it supports no measured claim.
     pub value_attribution: SiteFinanceValueAttribution,
     /// Local workflow completion projection, separate from approval and value attribution.
     pub workflow_completion: SiteFinanceWorkflowCompletion,
@@ -498,7 +516,7 @@ pub struct SiteFinanceOutcomeRecord {
     #[builder(default)]
     /// Source evidence refs used to justify projection and outcome attribution.
     pub source_refs: Vec<StoredSourceRecordRef>,
-    /// Timestamp when the reviewed outcome was recorded.
+    /// Caller-reported timestamp retained for historical correlation.
     pub recorded_at: String,
 }
 
@@ -528,11 +546,14 @@ impl SiteFinanceValueAttribution {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, strum::Display, Default)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
-/// Completion state for the local site-finance workflow projection.
+/// Caller-reported state for the local site-finance workflow projection.
+///
+/// These serializable labels are evidence only and cannot establish executable completion.
 pub enum SiteFinanceWorkflowCompletion {
-    /// Workflow completed locally without authorizing live side effects.
+    /// Caller reports local completion; legacy `completed` JSON rehydrates as evidence only.
+    #[serde(alias = "completed")]
     #[default]
-    Completed,
+    ReportedCompleted,
     /// Workflow produced output that still needs review or follow-up.
     NeedsReview,
     /// Workflow was intentionally deferred.
@@ -544,20 +565,18 @@ pub enum SiteFinanceWorkflowCompletion {
 impl SiteFinanceWorkflowCompletion {
     const fn workflow_result_status(self) -> WorkflowResultStatusCode {
         match self {
-            Self::Completed => WorkflowResultStatusCode::Succeeded,
-            Self::NeedsReview => WorkflowResultStatusCode::NeedsReview,
+            Self::ReportedCompleted | Self::NeedsReview => WorkflowResultStatusCode::NeedsReview,
             Self::Deferred => WorkflowResultStatusCode::Deferred,
             Self::Cancelled => WorkflowResultStatusCode::Cancelled,
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
-/// Manager approval state for the site-finance handoff projection.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+/// Caller-reported manager-approval label for the site-finance handoff projection.
 ///
-/// Decision variants carry the real manager identity and decision timestamp. The
-/// private representation prevents callers from manufacturing approval by choosing
-/// a status enum while projection code invents the missing evidence.
+/// This serializable compatibility evidence does not authenticate a manager, prove a
+/// decision, or authorize approval, completion, audit attribution, or outbox work.
 pub struct SiteFinanceManagerApproval(SiteFinanceManagerApprovalDecision);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -575,7 +594,7 @@ impl SiteFinanceManagerApproval {
         Self(SiteFinanceManagerApprovalDecision::Pending)
     }
 
-    /// Records manager approval together with the evidence required by approval rows.
+    /// Retains a caller-reported approval label and correlation fields without proving approval.
     pub fn approved_by_manager(
         actor_id: String,
         decided_at: String,
@@ -598,7 +617,7 @@ impl SiteFinanceManagerApproval {
         ))
     }
 
-    /// Records manager rejection together with the evidence required by approval rows.
+    /// Retains a caller-reported rejection label and correlation fields without proving rejection.
     pub fn rejected_by_manager(
         actor_id: String,
         decided_at: String,
@@ -689,8 +708,8 @@ impl SiteFinanceOutcomeRecord {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Reporting summary for reviewed CRM retention outcome records.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Reporting summary for caller-reported CRM retention outcome records.
 pub struct CrmRetentionOutcomeSummary {
     /// Location whose outcomes are summarized.
     pub location_id: String,
@@ -698,11 +717,13 @@ pub struct CrmRetentionOutcomeSummary {
     pub operating_day: String,
     /// Optional correlation filter used to inspect one recommendation/action chain.
     pub correlation_id: Option<String>,
-    /// Count of reviewed outcome rows in scope.
-    pub reviewed_outcome_count: usize,
-    /// Count of correlated booking observations. This is never a recovered-value attribution count.
+    /// Count of caller-reported outcome rows in scope.
+    pub reported_outcome_count: usize,
+    /// Count of booking observations admitted by trusted correlation authority.
+    ///
+    /// Current caller-reported retention rows cannot supply that authority, so this remains zero.
     pub correlated_booking_observation_count: usize,
-    /// Count of outcomes classified as no-action.
+    /// Count of caller-reported rows normalized to no-action evidence.
     pub no_action_outcome_count: usize,
     /// Source evidence refs retained for audit and reconciliation.
     pub source_refs: Vec<StoredSourceRecordRef>,
@@ -711,7 +732,7 @@ pub struct CrmRetentionOutcomeSummary {
 }
 
 impl CrmRetentionOutcomeSummary {
-    /// Aggregates reviewed CRM retention outcomes by location, day, and optional correlation id.
+    /// Aggregates caller-reported CRM retention outcomes by location, day, and optional correlation id.
     pub fn from_records(
         records: &[CrmRetentionOutcomeRecord],
         location_id: &str,
@@ -722,7 +743,7 @@ impl CrmRetentionOutcomeSummary {
             location_id: location_id.to_owned(),
             operating_day: operating_day.to_owned(),
             correlation_id: correlation_id.map(str::to_owned),
-            reviewed_outcome_count: 0,
+            reported_outcome_count: 0,
             correlated_booking_observation_count: 0,
             no_action_outcome_count: 0,
             source_refs: Vec::new(),
@@ -735,15 +756,11 @@ impl CrmRetentionOutcomeSummary {
                 && correlation_id
                     .is_none_or(|correlation_id| record.correlation_id == correlation_id)
         }) {
-            summary.reviewed_outcome_count += 1;
-            match record.reviewed_outcome_classification {
-                CrmRetentionReviewedOutcomeClassificationCode::CorrelatedBookingObservation => {
-                    summary.correlated_booking_observation_count += 1;
-                }
-                CrmRetentionReviewedOutcomeClassificationCode::NoActionOutcome => {
-                    summary.no_action_outcome_count += 1;
-                }
-            }
+            summary.reported_outcome_count += 1;
+            // The classification is caller-serializable compatibility evidence. It cannot mint
+            // booking, conversion, or value authority in a reporting projection.
+            let _reported_classification = record.reviewed_outcome_classification;
+            summary.no_action_outcome_count += 1;
             summary.source_refs.extend(record.source_refs.clone());
             summary
                 .recommendation_ids
@@ -765,16 +782,16 @@ pub enum ManagerDailyBriefOutcomeSchemaVersion {
     V0,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Dimensions used to aggregate manager daily-brief labor outcomes by location, day, action, and owner role.
 pub struct ManagerDailyBriefReportingGroup {
     /// Location whose operating day or service rules is described.
     pub location_id: String,
-    /// Business date used for labor and reporting aggregation.
+    /// Caller-reported business date used to group retained evidence.
     pub operating_day: String,
-    /// Workflow action that generated the labor evidence.
+    /// Caller-reported action-kind label used to group retained evidence.
     pub action_kind: ManagerDailyBriefActionKindCode,
-    /// Role expected to own or review the workflow item.
+    /// Caller-reported owner-persona label; it does not prove ownership or review.
     pub owner_persona: ManagerDailyBriefPersonaCode,
 }
 
@@ -816,37 +833,36 @@ impl<'de> Deserialize<'de> for StoredManagerDailyBriefLaborMinutes {
 /// Stored evidence for a manager daily-brief action, including before/after labor minutes and source references.
 pub struct ManagerDailyBriefOutcomeRecord {
     #[builder(default)]
-    #[serde(default)]
     /// Stable schema version that makes row evolution explicit.
     pub schema_version: ManagerDailyBriefOutcomeSchemaVersion,
-    /// Stable workflow action identifier used for idempotent labor evidence.
+    /// Stable action correlation identifier used for idempotent reported evidence.
     pub action_id: String,
-    /// Final disposition recorded for the workflow action.
+    /// Caller-reported disposition label; not proof of review or completion.
     pub outcome: ManagerDailyBriefOutcomeCode,
-    /// Estimated manual minutes before automation or assisted workflow execution.
+    /// Caller-reported baseline estimate retained as nonclaimable evidence.
     pub before_minutes: StoredManagerDailyBriefLaborMinutes,
-    /// Observed minutes spent after the workflow was completed or reviewed.
+    /// Caller-reported minutes spent; not proof that the workflow completed or was reviewed.
     pub actual_minutes: StoredManagerDailyBriefLaborMinutes,
-    /// User, worker, or system actor that recorded the outcome.
+    /// Caller-reported actor label; this row does not authenticate identity.
     pub actor_id: String,
-    /// Role of the actor that completed or reviewed the action.
+    /// Caller-reported persona label; this row does not prove completion or review.
     pub actor_persona: ManagerDailyBriefPersonaCode,
-    /// Optional operator feedback explaining the decision or correction.
+    /// Caller-reported feedback retained as nonclaimable history.
     pub feedback: String,
     #[builder(default)]
-    /// Provider evidence records used to justify the workflow action.
+    /// Source refs correlated to the report; they do not prove the reported action occurred.
     pub source_refs: Vec<StoredSourceRecordRef>,
-    /// Timestamp when the labor evidence was written.
+    /// Server-issued durable recording timestamp.
     pub recorded_at: String,
     /// Cross-system identifier tying the record to a workflow run or request.
     pub correlation_id: String,
     /// Location whose operating day or service rules is described.
     pub location_id: String,
-    /// Business date used for labor and reporting aggregation.
+    /// Caller-reported business date used to group retained evidence.
     pub operating_day: String,
-    /// Workflow action that generated the labor evidence.
+    /// Caller-reported action-kind label used to group retained evidence.
     pub action_kind: ManagerDailyBriefActionKindCode,
-    /// Role expected to own or review the workflow item.
+    /// Caller-reported owner-persona label; it does not prove ownership or review.
     pub owner_persona: ManagerDailyBriefPersonaCode,
     /// Caller-reported estimate difference retained as nonclaimable evidence.
     pub reported_estimated_minutes_difference: u16,
@@ -867,7 +883,7 @@ impl ManagerDailyBriefOutcomeRecord {
         })
     }
 
-    /// Returns the aggregation dimensions used for labor reporting.
+    /// Returns dimensions used to group caller-reported, nonclaimable time evidence.
     pub fn reporting_group(&self) -> ManagerDailyBriefReportingGroup {
         ManagerDailyBriefReportingGroup {
             location_id: self.location_id.clone(),
@@ -880,22 +896,7 @@ impl ManagerDailyBriefOutcomeRecord {
 
 impl fmt::Debug for ManagerDailyBriefOutcomeRecord {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("ManagerDailyBriefOutcomeRecord")
-            .field("schema_version", &self.schema_version)
-            .field("outcome", &self.outcome)
-            .field("before_minutes", &self.before_minutes)
-            .field("actual_minutes", &self.actual_minutes)
-            .field("actor_persona", &self.actor_persona)
-            .field("source_ref_count", &self.source_refs.len())
-            .field("action_kind", &self.action_kind)
-            .field("owner_persona", &self.owner_persona)
-            .field(
-                "reported_estimated_minutes_difference",
-                &self.reported_estimated_minutes_difference,
-            )
-            .field("sensitive_fields", &"[REDACTED]")
-            .finish()
+        formatter.write_str("ManagerDailyBriefOutcomeRecord([REDACTED])")
     }
 }
 
@@ -915,9 +916,9 @@ impl fmt::Debug for ManagerDailyBriefOutcomeRecord {
 #[strum(serialize_all = "snake_case")]
 /// Persisted outcome states for data-quality hygiene actions.
 pub enum DataQualityHygieneOutcomeCode {
-    /// Workflow completed and can contribute final labor evidence.
+    /// Caller-reported completion label retained as nonclaimable disposition evidence.
     Completed,
-    /// Workflow was postponed and should not be counted as completed savings.
+    /// Caller-reported deferral retained as nonclaimable disposition evidence.
     Deferred,
     /// Manager intentionally hid or skipped the suggested workflow action.
     SuppressedByManager,
@@ -1005,17 +1006,17 @@ pub enum DataQualityHygieneActionKindCode {
 )]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
-/// Persisted lifecycle status for a data-quality issue after review.
+/// Persisted caller-reported lifecycle-status label for a data-quality issue; it proves no review, acknowledgement, repair, or supersession.
 pub enum DataQualityResolutionStatusCode {
-    /// Issue remains open after review.
+    /// Caller reports an open-status label without proving review.
     Open,
-    /// Issue was accepted for later repair or monitoring.
+    /// Caller reports an acknowledged-status label without proving acceptance or a repair commitment.
     Acknowledged,
-    /// Issue was intentionally ignored after review.
+    /// Caller reports an ignored-status label without proving review or an intentional decision.
     Ignored,
-    /// Issue was corrected during or after review.
+    /// Caller reports a repaired-status label without proving correction or review.
     Repaired,
-    /// Issue was replaced by fresher evidence or another issue record.
+    /// Caller reports a superseded-status label without proving replacement or fresher evidence.
     Superseded,
 }
 
@@ -1181,7 +1182,7 @@ pub enum DataQualityWorkflowBlockingCode {
     NonBlocking,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 /// Durable source-quality issue row that backs the Data-Quality Hygiene backlog read model.
 pub struct DataQualityIssueRecord {
     /// Stable issue identifier used in workflow outcomes and BI lineage.
@@ -1287,7 +1288,7 @@ pub enum DataQualitySourceImportStatusCode {
     Failed,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 /// Read-only source import run used to prove freshness and coverage caveats.
 pub struct DataQualitySourceImportRunRecord {
     /// Import run primary key.
@@ -1388,7 +1389,7 @@ pub enum DataQualitySyncGapStatusCode {
     Superseded,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 /// Durable sync/import gap row used by import freshness and backlog caveats.
 pub struct DataQualitySyncGapRecord {
     /// Sync gap primary key.
@@ -1435,7 +1436,7 @@ impl DataQualitySyncGapRecord {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// BI-safe source-quality backlog projection; it exposes dimensions and lineage, not raw provider payloads.
 pub struct SourceQualityBacklogRow {
     /// Stable issue identifier used for drill-through.
@@ -1470,7 +1471,7 @@ pub struct SourceQualityBacklogRow {
     pub source_refs: Vec<StoredSourceRecordRef>,
     /// Workflow event currently linked to the issue, if any.
     pub workflow_event_id: Option<String>,
-    /// Latest reviewed hygiene outcome linked to the issue, if known.
+    /// Latest caller-reported hygiene outcome evidence linked to the issue, if known; it proves no review or resolution.
     pub latest_outcome_id: Option<String>,
     /// Stable projection contract version.
     pub projection_version: String,
@@ -1510,7 +1511,7 @@ impl SourceQualityBacklogRow {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// BI-safe import freshness projection for caveating backlog rows.
 pub struct ImportFreshnessRow {
     /// Source system dimension.
@@ -1608,16 +1609,16 @@ impl ImportFreshnessRow {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Dimensions used to group data-quality hygiene outcomes by location, day, issue type, and owner role.
 pub struct DataQualityHygieneReportingGroup {
     /// Location whose operating day or service rules is described.
     pub location_id: String,
-    /// Business date used for labor and reporting aggregation.
+    /// Caller-reported business date used to group retained evidence.
     pub operating_day: String,
-    /// Workflow action that generated the labor evidence.
+    /// Caller-reported action-kind label used to group retained evidence.
     pub action_kind: DataQualityHygieneActionKindCode,
-    /// Role expected to own or review the workflow item.
+    /// Caller-reported owner-persona label; it does not prove ownership or review.
     pub owner_persona: DataQualityHygienePersonaCode,
 }
 
@@ -1670,39 +1671,39 @@ pub struct DataQualityHygieneOutcomeRecord {
     #[builder(default)]
     /// Stable schema version that makes durable row evolution explicit.
     pub schema_version: DataQualityHygieneOutcomeSchemaVersion,
-    /// Stable workflow action identifier used for idempotent labor evidence.
+    /// Stable action correlation identifier used for idempotent reported evidence.
     pub action_id: String,
-    /// Final disposition recorded for the workflow action.
+    /// Caller-reported disposition label; not proof of review or completion.
     pub outcome: DataQualityHygieneOutcomeCode,
-    /// Estimated manual minutes before automation or assisted workflow execution.
+    /// Caller-reported baseline estimate retained as nonclaimable evidence.
     pub before_minutes: StoredDataQualityHygieneLaborMinutes,
-    /// Observed minutes spent after the workflow was completed or reviewed.
+    /// Caller-reported minutes spent; not proof that the workflow completed or was reviewed.
     pub actual_minutes: StoredDataQualityHygieneLaborMinutes,
-    /// User, worker, or system actor that recorded the outcome.
+    /// Caller-reported actor label; this row does not authenticate identity.
     pub actor_id: String,
-    /// Role of the actor that completed or reviewed the action.
+    /// Caller-reported persona label; this row does not prove completion or review.
     pub actor_persona: DataQualityHygienePersonaCode,
-    /// Optional operator feedback explaining the decision or correction.
+    /// Caller-reported feedback retained as nonclaimable history.
     pub feedback: String,
     #[builder(default)]
-    /// Provider evidence records used to justify the workflow action.
+    /// Source refs correlated to the report; they do not prove the reported action occurred.
     pub source_refs: Vec<StoredSourceRecordRef>,
     #[builder(default)]
-    /// Data-quality issue identifiers reviewed by the hygiene workflow.
+    /// Caller-provided issue references correlated to the report.
     pub issue_refs: Vec<String>,
-    /// Issue lifecycle state after the hygiene review completed.
+    /// Caller-reported resolution-status label; not proof that review or repair completed.
     pub resolution_status_after_review: DataQualityResolutionStatusCode,
-    /// Timestamp when the labor evidence was written.
+    /// Server-issued durable recording timestamp.
     pub recorded_at: String,
     /// Cross-system identifier tying the record to a workflow run or request.
     pub correlation_id: String,
     /// Location whose operating day or service rules is described.
     pub location_id: String,
-    /// Business date used for labor and reporting aggregation.
+    /// Caller-reported business date used to group retained evidence.
     pub operating_day: String,
-    /// Workflow action that generated the labor evidence.
+    /// Caller-reported action-kind label used to group retained evidence.
     pub action_kind: DataQualityHygieneActionKindCode,
-    /// Role expected to own or review the workflow item.
+    /// Caller-reported owner-persona label; it does not prove ownership or review.
     pub owner_persona: DataQualityHygienePersonaCode,
     /// Caller-reported estimate difference retained as nonclaimable evidence.
     pub reported_estimated_minutes_difference: u16,
@@ -1723,7 +1724,7 @@ impl DataQualityHygieneOutcomeRecord {
         })
     }
 
-    /// Returns the aggregation dimensions used for labor reporting.
+    /// Returns dimensions used to group caller-reported, nonclaimable time evidence.
     pub fn reporting_group(&self) -> DataQualityHygieneReportingGroup {
         DataQualityHygieneReportingGroup {
             location_id: self.location_id.clone(),
@@ -1736,45 +1737,25 @@ impl DataQualityHygieneOutcomeRecord {
 
 impl fmt::Debug for DataQualityHygieneOutcomeRecord {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("DataQualityHygieneOutcomeRecord")
-            .field("schema_version", &self.schema_version)
-            .field("outcome", &self.outcome)
-            .field("before_minutes", &self.before_minutes)
-            .field("actual_minutes", &self.actual_minutes)
-            .field("actor_persona", &self.actor_persona)
-            .field("source_ref_count", &self.source_refs.len())
-            .field("issue_ref_count", &self.issue_refs.len())
-            .field(
-                "resolution_status_after_review",
-                &self.resolution_status_after_review,
-            )
-            .field("action_kind", &self.action_kind)
-            .field("owner_persona", &self.owner_persona)
-            .field(
-                "reported_estimated_minutes_difference",
-                &self.reported_estimated_minutes_difference,
-            )
-            .field("sensitive_fields", &"[REDACTED]")
-            .finish()
+        formatter.write_str("DataQualityHygieneOutcomeRecord([REDACTED])")
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Reviewed data-quality hygiene outcome rollup for location/day/correlation reporting.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Caller-reported data-quality hygiene outcome rollup for location/day/correlation reporting.
 ///
-/// The summary keeps source refs and issue refs visible while aggregating reviewed
-/// labor evidence and dispositions. It is a reporting readout only; it does not
+/// The summary keeps source refs and issue refs visible while aggregating caller-reported
+/// time evidence and dispositions. It is a reporting readout only; it does not
 /// authorize provider writes, customer sends, schedule changes, or payment movement.
 pub struct DataQualityHygieneOutcomeSummary {
-    /// Location whose reviewed hygiene outcomes are summarized.
+    /// Location whose reported hygiene outcomes are summarized.
     pub location_id: String,
-    /// Business date whose reviewed hygiene outcomes are summarized.
+    /// Business date whose reported hygiene outcomes are summarized.
     pub operating_day: String,
     /// Optional workflow correlation filter used to compare one run or request.
     pub correlation_id: Option<String>,
-    /// Count of stored reviewed outcome records in scope.
-    pub reviewed_outcome_count: usize,
+    /// Count of stored caller-reported outcome records in scope.
+    pub reported_outcome_count: usize,
     /// Outcomes whose serialized disposition reports completion; not accepted completion authority.
     pub reported_completed_outcome_count: usize,
     /// Deferred outcomes kept visible but excluded from completed-savings proof.
@@ -1787,7 +1768,7 @@ pub struct DataQualityHygieneOutcomeSummary {
     pub suppressed_by_manager_count: usize,
     /// Sum of caller-reported estimates retained as nonclaimable evidence.
     pub total_reported_estimated_minutes_difference: u16,
-    /// Sum of actual reviewed minutes spent in scope.
+    /// Sum of caller-reported minute fields retained as nonclaimable evidence.
     pub total_actual_minutes_spent: u16,
 
     /// Source-record evidence retained for audit and reconciliation.
@@ -1797,7 +1778,7 @@ pub struct DataQualityHygieneOutcomeSummary {
 }
 
 impl DataQualityHygieneOutcomeSummary {
-    /// Aggregates reviewed outcome records by location, operating day, and optional correlation.
+    /// Aggregates caller-reported outcome records by location, day, and optional correlation.
     pub fn from_records(
         records: &[DataQualityHygieneOutcomeRecord],
         location_id: &str,
@@ -1808,7 +1789,7 @@ impl DataQualityHygieneOutcomeSummary {
             location_id: location_id.to_owned(),
             operating_day: operating_day.to_owned(),
             correlation_id: correlation_id.map(str::to_owned),
-            reviewed_outcome_count: 0,
+            reported_outcome_count: 0,
             reported_completed_outcome_count: 0,
             deferred_count: 0,
             wrong_source_count: 0,
@@ -1827,7 +1808,7 @@ impl DataQualityHygieneOutcomeSummary {
                 && correlation_id
                     .is_none_or(|correlation_id| record.correlation_id == correlation_id)
         }) {
-            summary.reviewed_outcome_count += 1;
+            summary.reported_outcome_count += 1;
             match record.outcome {
                 DataQualityHygieneOutcomeCode::Completed => {
                     summary.reported_completed_outcome_count += 1;
@@ -1853,8 +1834,10 @@ impl DataQualityHygieneOutcomeSummary {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Caller-supplied identifiers used to project one reviewed Data-Quality Hygiene outcome into durable local-demo rows.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+/// Caller-supplied correlation identifiers used to project one reported Data-Quality Hygiene outcome into durable local-demo rows.
+///
+/// These serializable labels do not authenticate review, approval, identity, or execution.
 pub struct DataQualityHygieneLineageIds {
     /// Durable workflow event id supplied by the repository adapter before insert.
     pub workflow_event_id: String,
@@ -1872,8 +1855,10 @@ pub struct DataQualityHygieneLineageIds {
     pub recorded_at: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Caller-supplied identifiers used to project reviewed workflow output into approval/outbox rows.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+/// Caller-supplied correlation identifiers used to project reported workflow output into approval/outbox rows.
+///
+/// These serializable labels do not themselves prove review or authorize an outbox operation.
 pub struct ApprovalOutboxLineageIds {
     /// Durable workflow event id supplied by the repository adapter before insert.
     pub workflow_event_id: String,
@@ -1893,7 +1878,7 @@ pub struct ApprovalOutboxLineageIds {
     pub recorded_at: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 /// Workflow-specific values used by the shared approval/outbox projection.
 ///
 /// The input deliberately keeps workflow names, topics, payloads, and actor ids explicit
@@ -1905,7 +1890,7 @@ pub struct ApprovalOutboxProjectionInput {
     pub event_kind: String,
     /// Review gate used for packet, approval, and outbox rows.
     pub gate: ReviewGateCode,
-    /// Evidence-bearing human/system-of-record disposition for the local handoff candidate.
+    /// Caller-reported disposition retained as compatibility evidence and normalized to pending.
     pub disposition: ApprovalReviewDisposition,
     /// Target aggregate kind matching the approved outbox candidate.
     pub target_kind: String,
@@ -1915,12 +1900,18 @@ pub struct ApprovalOutboxProjectionInput {
     pub workflow_payload: serde_json::Value,
     /// Reviewable result payload; never execution proof for live side effects.
     pub result_payload: serde_json::Value,
-    /// Audit action used for the reviewed outcome row.
+    /// Audit-action label correlated to the reported-outcome row.
     pub audit_action: String,
-    /// Audit metadata proving review, source refs, and side-effect posture.
+    /// Caller-supplied audit metadata retained for inspection; it does not prove review, identity, source validity, or side-effect posture.
     pub audit_metadata: serde_json::Value,
     /// Closed topic and exact payload reviewed for a possible internal handoff.
     pub internal_handoff: InternalHandoff,
+}
+
+impl fmt::Debug for ApprovalOutboxProjectionInput {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("ApprovalOutboxProjectionInput([REDACTED])")
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -1945,11 +1936,17 @@ impl InternalHandoffTopic {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Exact closed topic and JSON payload presented to approval review.
 pub struct InternalHandoff {
     topic: InternalHandoffTopic,
     payload: serde_json::Value,
+}
+
+impl fmt::Debug for InternalHandoff {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("InternalHandoff([REDACTED])")
+    }
 }
 
 impl InternalHandoff {
@@ -1969,7 +1966,7 @@ impl InternalHandoff {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 /// Current authenticated reviewer capability projected into the storage boundary.
 ///
 /// No production constructor is exposed. Live admission therefore remains
@@ -2001,18 +1998,17 @@ impl CurrentApprovalReviewerCapability {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Human/system-of-record disposition that controls approval rows and outbox eligibility.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Caller-reported approval disposition retained as non-authoritative compatibility evidence.
 ///
-/// Pending carries no decision evidence. Approved and rejected carry the reviewer and
-/// timestamp evidence together so callers cannot construct incoherent approval rows such
-/// as `status = approved` without a deciding actor.
+/// Every public projection normalizes these labels to pending. Approved and rejected labels do
+/// not authenticate an actor, prove review, create completion, or authorize an outbox operation.
 pub enum ApprovalReviewDisposition {
     /// Review has not produced a decision; no approval or outbox authority exists.
     Pending,
-    /// Review approved the handoff candidate and may expose the approved internal outbox row.
+    /// Caller reports an approved label; this does not prove approval or expose an outbox row.
     Approved(ApprovalDecisionEvidence),
-    /// Review rejected the candidate; decision evidence is recorded but no outbox authority exists.
+    /// Caller reports a rejected label; this does not prove review or rejection.
     Rejected(ApprovalDecisionEvidence),
 }
 
@@ -2022,7 +2018,7 @@ impl ApprovalReviewDisposition {
         Self::Pending
     }
 
-    /// Creates an approved disposition with the evidence required for approved rows and outbox candidates.
+    /// Creates caller-reported approved compatibility evidence; projection remains pending.
     pub fn approved(
         actor_kind: ActorKindCode,
         actor_id: String,
@@ -2042,7 +2038,7 @@ impl ApprovalReviewDisposition {
         })
     }
 
-    /// Creates a rejected disposition with the evidence required for rejected rows.
+    /// Creates caller-reported rejected compatibility evidence; projection remains pending.
     pub fn rejected(
         actor_kind: ActorKindCode,
         actor_id: String,
@@ -2091,44 +2087,9 @@ impl ApprovalReviewDisposition {
             Self::Approved(evidence) | Self::Rejected(evidence) => Some(evidence),
         }
     }
-
-    fn authorized_for_projection(
-        self,
-        approval_record_id: &str,
-        target_kind: &str,
-        target_id: &str,
-        gate: ReviewGateCode,
-    ) -> Self {
-        let actor_kind = self.decision_evidence().map(|evidence| evidence.actor_kind);
-        let evidence_matches = self.decision_evidence().is_none_or(|evidence| {
-            evidence.approval_record_id == approval_record_id
-                && evidence.target_kind == target_kind
-                && evidence.target_id == target_id
-                && evidence.gate == gate
-        });
-        let role_authorized = match gate {
-            ReviewGateCode::ManagerApproval
-            | ReviewGateCode::CustomerMessageApproval
-            | ReviewGateCode::RefundOrDepositException => {
-                actor_kind == Some(ActorKindCode::Manager)
-            }
-            ReviewGateCode::MedicalDocumentReview | ReviewGateCode::BehaviorReview => {
-                actor_kind.is_none()
-                    || matches!(
-                        actor_kind,
-                        Some(ActorKindCode::Staff | ActorKindCode::Manager)
-                    )
-            }
-        };
-        if role_authorized && evidence_matches {
-            self
-        } else {
-            Self::Pending
-        }
-    }
 }
 
-/// Exact approval-row and operational-target binding carried by a review decision.
+/// Caller-reported approval-row and operational-target correlation evidence.
 pub struct ApprovalTargetBinding {
     approval_record_id: String,
     target_kind: String,
@@ -2137,7 +2098,7 @@ pub struct ApprovalTargetBinding {
 }
 
 impl ApprovalTargetBinding {
-    /// Binds review evidence to one approval row, target, and gate.
+    /// Correlates reported evidence to one approval row, target, and gate without proving review.
     pub fn new(
         approval_record_id: String,
         target_kind: String,
@@ -2154,23 +2115,26 @@ impl ApprovalTargetBinding {
 }
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Evidence proving who decided an approval disposition and when.
+/// Caller-reported approval-decision compatibility evidence.
+///
+/// These serializable fields do not authenticate an actor, prove a decision, authorize
+/// a target or gate, or permit approval, completion, audit attribution, or outbox work.
 pub struct ApprovalDecisionEvidence {
-    /// Actor kind that decided the review.
+    /// Caller-reported actor-kind label; it does not authenticate a reviewer.
     pub actor_kind: ActorKindCode,
-    /// Actor id that decided the review.
+    /// Caller-reported actor identifier; it does not authenticate a reviewer.
     pub actor_id: String,
-    /// Decision timestamp copied into approval and audit rows.
+    /// Caller-reported timestamp retained only as compatibility evidence.
     pub decided_at: String,
-    /// Optional human review rationale.
+    /// Optional caller-reported rationale; it does not prove human review.
     pub reason: Option<String>,
-    /// Exact approval row authorized by this decision.
+    /// Caller-reported approval-row correlation; it grants no authority.
     approval_record_id: String,
-    /// Exact target kind authorized by this decision.
+    /// Caller-reported target-kind correlation; it grants no authority.
     target_kind: String,
-    /// Exact target id authorized by this decision.
+    /// Caller-reported target-id correlation; it grants no authority.
     target_id: String,
-    /// Exact review gate authorized by this decision.
+    /// Caller-reported gate correlation; it grants no authority.
     gate: ReviewGateCode,
 }
 
@@ -2267,7 +2231,7 @@ pub enum OutboxStatusCode {
     DeadLetter,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Storage-shaped workflow event row for the local Data-Quality Hygiene demo slice.
 pub struct WorkflowEventRecord {
     /// Workflow event primary key.
@@ -2290,7 +2254,13 @@ pub struct WorkflowEventRecord {
     pub recorded_at: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+impl fmt::Debug for WorkflowEventRecord {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("WorkflowEventRecord([REDACTED])")
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Storage-shaped workflow result row for reviewable fake/deterministic output.
 pub struct WorkflowResultRecord {
     /// Workflow result primary key or derived local identifier.
@@ -2307,7 +2277,7 @@ pub struct WorkflowResultRecord {
     pub created_at: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Storage-shaped review packet row for the manager/front-desk review gate.
 pub struct ReviewPacketRecord {
     /// Review packet primary key.
@@ -2332,7 +2302,7 @@ pub struct ReviewPacketRecord {
     pub updated_at: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Storage-shaped approval row for a reviewed local handoff candidate.
 pub struct ApprovalRecordRow {
     /// Approval primary key.
@@ -2361,7 +2331,7 @@ pub struct ApprovalRecordRow {
     pub review_packet_id: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Storage-shaped Data-Quality Hygiene outcome row with workflow and approval foreign keys.
 pub struct DataQualityHygieneOutcomeRow {
     /// Parent workflow event id.
@@ -2372,7 +2342,7 @@ pub struct DataQualityHygieneOutcomeRow {
     pub record: DataQualityHygieneOutcomeRecord,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Storage-shaped site-finance outcome row with workflow and approval foreign keys.
 pub struct SiteFinanceOutcomeRow {
     /// Parent workflow event id.
@@ -2383,7 +2353,7 @@ pub struct SiteFinanceOutcomeRow {
     pub record: SiteFinanceOutcomeRecord,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Storage-shaped audit event row for append-only local proof.
 pub struct AuditEventRecord {
     /// Actor kind that produced the audit event.
@@ -2406,7 +2376,7 @@ pub struct AuditEventRecord {
     pub recorded_at: String,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 /// Pending storage row admitted by consuming one opaque approved internal-handoff authority.
 pub struct PendingOutboxRecord {
     /// Outbox primary key.
@@ -2469,12 +2439,11 @@ impl PendingOutboxRecord {
 }
 
 /// Opaque, non-clone, non-serializable, one-shot authority for pending outbox admission.
-#[derive(Debug)]
 pub struct ApprovedInternalHandoffAuthority {
     pending: PendingOutboxRecord,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Persisted relationship between one approval row and the exact reviewed handoff.
 pub struct ApprovalOutboxBindingRecord {
     approval_record_id: String,
@@ -2503,8 +2472,8 @@ struct PendingOutboxIdentity {
     available_at: String,
 }
 
-#[derive(Debug, PartialEq, Eq)]
-/// Complete storage projection for one reviewed local Data-Quality Hygiene workflow outcome.
+#[derive(PartialEq, Eq)]
+/// Complete storage projection for one caller-reported local Data-Quality Hygiene outcome; it proves no review, repair, or completion.
 pub struct DataQualityHygieneLocalPersistenceRecords {
     /// Workflow event row.
     pub workflow_event: WorkflowEventRecord,
@@ -2516,13 +2485,13 @@ pub struct DataQualityHygieneLocalPersistenceRecords {
     pub approval_record: ApprovalRecordRow,
     /// Outcome row linked to workflow and approval rows.
     pub outcome: DataQualityHygieneOutcomeRow,
-    /// Append-only audit rows for context creation and reviewed outcome capture.
+    /// Append-only audit rows for context creation and reported-outcome admission.
     pub audit_events: Vec<AuditEventRecord>,
     /// Optional approved internal handoff candidate.
     pub outbox_candidate: Option<PendingOutboxRecord>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 /// Complete storage projection for one reviewed local site-finance workflow outcome.
 pub struct SiteFinanceLocalPersistenceRecords {
     /// Workflow event row.
@@ -2535,13 +2504,13 @@ pub struct SiteFinanceLocalPersistenceRecords {
     pub approval_record: ApprovalRecordRow,
     /// Outcome row linked to workflow and approval rows.
     pub outcome: SiteFinanceOutcomeRow,
-    /// Append-only audit rows for context creation and reviewed outcome capture.
+    /// Append-only audit rows for context creation and reported-outcome admission.
     pub audit_events: Vec<AuditEventRecord>,
     /// Optional approved internal handoff candidate.
     pub outbox_candidate: Option<PendingOutboxRecord>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 /// Complete shared storage projection for a reviewed local workflow handoff.
 ///
 /// This is the common approval/outbox spine proven by multiple vertical slices. Outcome
@@ -2556,7 +2525,7 @@ pub struct ApprovalOutboxProjection {
     pub review_packet: ReviewPacketRecord,
     /// Approval record row.
     pub approval_record: ApprovalRecordRow,
-    /// Append-only audit rows for context creation and reviewed outcome capture.
+    /// Append-only audit rows for context creation and reported-outcome admission.
     pub audit_events: Vec<AuditEventRecord>,
     /// Exact topic/payload relation persisted before any admission is attempted.
     pub outbox_binding: ApprovalOutboxBindingRecord,
@@ -2567,17 +2536,15 @@ pub struct ApprovalOutboxProjection {
 }
 
 impl ApprovalOutboxProjection {
-    /// Projects a reviewed workflow handoff into storage-shaped MVP rows without enabling live side effects.
+    /// Projects caller-reported handoff evidence into pending review rows.
+    ///
+    /// Serializable disposition, actor, target, gate, and timestamp labels are normalized to
+    /// pending. They cannot mint completion, approval, reviewer attribution, or outbox authority.
     pub fn from_reviewed_internal_handoff(
         ids: ApprovalOutboxLineageIds,
         input: ApprovalOutboxProjectionInput,
     ) -> Self {
-        let disposition = input.disposition.authorized_for_projection(
-            &ids.approval_record_id,
-            &input.target_kind,
-            &ids.subject_id,
-            input.gate,
-        );
+        let disposition = ApprovalReviewDisposition::Pending;
         let decision_evidence = disposition.decision_evidence().cloned();
         let internal_handoff = input.internal_handoff.clone();
         let workflow_event = WorkflowEventRecord {
@@ -2690,7 +2657,7 @@ impl ApprovalOutboxProjection {
             outbox_binding,
             outbox_candidate: None,
             expected_pending_outbox_identity,
-            admission_authority_available: true,
+            admission_authority_available: false,
         }
     }
 
@@ -2799,8 +2766,10 @@ const fn reviewer_role_authorizes_gate(actor_kind: ActorKindCode, gate: ReviewGa
 }
 
 impl SiteFinanceLocalPersistenceRecords {
-    /// Projects a reviewed site-finance outcome into storage-shaped MVP rows without enabling payments or accounting writes.
-    pub fn from_reviewed_outcome(
+    /// Projects caller-reported site-finance evidence into pending storage-shaped MVP rows.
+    ///
+    /// Projection proves no review, authorization, completion, action, measurement, or value.
+    pub fn from_reported_outcome(
         ids: ApprovalOutboxLineageIds,
         outcome: SiteFinanceOutcomeRecord,
     ) -> Self {
@@ -2811,7 +2780,7 @@ impl SiteFinanceLocalPersistenceRecords {
             ids.clone(),
             ApprovalOutboxProjectionInput::builder()
                 .workflow_name("site-finance".to_owned())
-                .event_kind("reviewed_recommendation_recorded".to_owned())
+                .event_kind("reported_recommendation_recorded".to_owned())
                 .gate(ReviewGateCode::ManagerApproval)
                 .disposition(manager_approval.approval_review_disposition())
                 .target_kind("message".to_owned())
@@ -2831,17 +2800,17 @@ impl SiteFinanceLocalPersistenceRecords {
                     "legal_action": outcome.legal_action,
                     "value_attribution": value_attribution.to_string(),
                     "workflow_completion": workflow_completion.to_string(),
-                    "manager_approval": manager_approval.to_string(),
+                    "reported_manager_approval": manager_approval.to_string(),
                     "can_support_value_claim": value_attribution.can_support_value_claim(),
                     "live_side_effects_allowed": false,
                 }))
-                .audit_action("site_finance.reviewed_recommendation_recorded".to_owned())
+                .audit_action("site_finance.reported_recommendation_recorded".to_owned())
                 .audit_metadata(json!({
                     "recommendation_id": outcome.recommendation_id,
                     "legal_action": outcome.legal_action,
                     "value_attribution": value_attribution.to_string(),
                     "workflow_completion": workflow_completion.to_string(),
-                    "manager_approval": manager_approval.to_string(),
+                    "reported_manager_approval": manager_approval.to_string(),
                     "can_support_value_claim": value_attribution.can_support_value_claim(),
                     "payment_actions_allowed": false,
                     "accounting_mutations_allowed": false,
@@ -2931,8 +2900,8 @@ impl DataQualityHygieneLocalPersistenceRecords {
         })
     }
 
-    /// Projects a reviewed Data-Quality Hygiene outcome into storage-shaped MVP rows without enabling live side effects.
-    pub fn from_reviewed_outcome(
+    /// Projects caller-reported Data Quality Hygiene evidence into pending storage rows without proving review, repair, completion, labor, or value.
+    pub fn from_reported_outcome(
         ids: DataQualityHygieneLineageIds,
         outcome: DataQualityHygieneOutcomeRecord,
     ) -> Self {
@@ -2974,11 +2943,11 @@ impl DataQualityHygieneLocalPersistenceRecords {
                     "outcome": outcome.outcome,
                     "live_side_effects_allowed": false,
                 }))
-                .audit_action("data_quality_hygiene.reviewed_outcome_recorded".to_owned())
+                .audit_action("data_quality_hygiene.reported_outcome_recorded".to_owned())
                 .audit_metadata(json!({
                     "action_id": outcome.action_id,
                     "outcome": outcome.outcome,
-                    "resolution_status_after_review": outcome.resolution_status_after_review,
+                    "reported_resolution_status": outcome.resolution_status_after_review,
                     "reported_estimated_minutes_difference": outcome.reported_estimated_minutes_difference,
                     "live_side_effects_allowed": false,
                 }))
@@ -2995,14 +2964,9 @@ impl DataQualityHygieneLocalPersistenceRecords {
                 ))
                 .build(),
         );
-        let mut workflow_result = projection.workflow_result;
-        workflow_result.status = match outcome.outcome {
-            DataQualityHygieneOutcomeCode::Completed => WorkflowResultStatusCode::Succeeded,
-            DataQualityHygieneOutcomeCode::Deferred
-            | DataQualityHygieneOutcomeCode::SuppressedByManager
-            | DataQualityHygieneOutcomeCode::SourceFactWasWrong
-            | DataQualityHygieneOutcomeCode::NotActionable => WorkflowResultStatusCode::NeedsReview,
-        };
+        // Every caller-serializable outcome remains review evidence. In particular, the
+        // historical `Completed` label cannot manufacture an executable success result.
+        let workflow_result = projection.workflow_result;
 
         Self {
             workflow_event: projection.workflow_event,
@@ -3880,6 +3844,49 @@ impl From<TechnologyEcosystemRecord> for domain::operations::TechnologyEcosystem
             .build()
     }
 }
+
+macro_rules! impl_sensitive_storage_debug {
+    ($($type:ident),+ $(,)?) => {
+        $(
+            impl std::fmt::Debug for $type {
+                fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    formatter.write_str(concat!(stringify!($type), "([REDACTED])"))
+                }
+            }
+        )+
+    };
+}
+
+impl_sensitive_storage_debug!(
+    CrmRetentionOutcomeRecord,
+    SiteFinanceOutcomeRecord,
+    SiteFinanceManagerApproval,
+    CrmRetentionOutcomeSummary,
+    ManagerDailyBriefReportingGroup,
+    DataQualityIssueRecord,
+    DataQualitySourceImportRunRecord,
+    DataQualitySyncGapRecord,
+    SourceQualityBacklogRow,
+    ImportFreshnessRow,
+    DataQualityHygieneReportingGroup,
+    DataQualityHygieneOutcomeSummary,
+    DataQualityHygieneLineageIds,
+    ApprovalOutboxLineageIds,
+    CurrentApprovalReviewerCapability,
+    ApprovalReviewDisposition,
+    WorkflowResultRecord,
+    ReviewPacketRecord,
+    ApprovalRecordRow,
+    DataQualityHygieneOutcomeRow,
+    SiteFinanceOutcomeRow,
+    AuditEventRecord,
+    PendingOutboxRecord,
+    ApprovedInternalHandoffAuthority,
+    ApprovalOutboxBindingRecord,
+    DataQualityHygieneLocalPersistenceRecords,
+    SiteFinanceLocalPersistenceRecords,
+    ApprovalOutboxProjection,
+);
 
 macro_rules! bidirectional_code_map {
     ($storage:ty, $domain:ty, { $($storage_variant:ident => $domain_variant:ident),+ $(,)? }) => {

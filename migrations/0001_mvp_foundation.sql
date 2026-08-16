@@ -290,6 +290,12 @@ CREATE TABLE IF NOT EXISTS review_packets (
     updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- Replay bridge for databases created by the deployed pre-0003 schema. Migration runners apply
+-- the ordered files again, so 0001 must not reference current authority columns before 0003 can
+-- validate and constrain them.
+ALTER TABLE review_packets
+    ADD COLUMN IF NOT EXISTS reviewed_action_id text;
+
 CREATE TABLE IF NOT EXISTS approval_records (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     target_kind text NOT NULL CHECK (target_kind IN ('reservation', 'document', 'vaccine_record', 'incident', 'message')),
@@ -334,6 +340,11 @@ CREATE TABLE IF NOT EXISTS approval_records (
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now()
 );
+
+ALTER TABLE approval_records
+    ADD COLUMN IF NOT EXISTS decided_by_actor_persona text;
+ALTER TABLE approval_records
+    ADD COLUMN IF NOT EXISTS legacy_persona_missing boolean;
 
 CREATE OR REPLACE FUNCTION reject_approval_legacy_persona_marker_forgery()
 RETURNS trigger

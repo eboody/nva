@@ -31,9 +31,9 @@ fn crm_retention_outcome_records_roundtrip_booking_observation_and_no_action_evi
         None,
     );
 
-    assert_eq!(summary.reviewed_outcome_count, 2);
-    assert_eq!(summary.correlated_booking_observation_count, 1);
-    assert_eq!(summary.no_action_outcome_count, 1);
+    assert_eq!(summary.reported_outcome_count, 2);
+    assert_eq!(summary.correlated_booking_observation_count, 0);
+    assert_eq!(summary.no_action_outcome_count, 2);
     assert_eq!(summary.source_refs.len(), 2);
     assert_eq!(
         summary.recommendation_ids,
@@ -85,6 +85,10 @@ fn manager_daily_brief_outcome_records_roundtrip_nonclaimable_reported_labor_evi
 
     assert_eq!(decoded, record);
     assert_eq!(
+        format!("{decoded:?}"),
+        "ManagerDailyBriefOutcomeRecord([REDACTED])"
+    );
+    assert_eq!(
         serialized["schema_version"],
         "manager_daily_brief_outcome.v0"
     );
@@ -101,10 +105,21 @@ fn manager_daily_brief_outcome_records_roundtrip_nonclaimable_reported_labor_evi
         decoded.reporting_group().owner_persona,
         storage::operations::ManagerDailyBriefPersonaCode::FrontDeskLead
     );
+
+    let mut unversioned = serialized;
+    unversioned
+        .as_object_mut()
+        .expect("outcome fixture is an object")
+        .remove("schema_version");
+    assert!(
+        storage::operations::ManagerDailyBriefOutcomeRecord::decode_json(&unversioned.to_string())
+            .is_err(),
+        "unversioned outcome history must not silently enter the current schema"
+    );
 }
 
 #[test]
-fn manager_daily_brief_capacity_labor_outcome_records_roundtrip_reviewed_recommendation_correlation()
+fn manager_daily_brief_capacity_labor_outcome_records_roundtrip_reported_recommendation_correlation()
  {
     let record = storage::operations::ManagerDailyBriefOutcomeRecord::builder()
         .action_id("capacity-labor-boarding-front-desk".to_owned())
@@ -171,7 +186,7 @@ fn site_finance_outcome_records_roundtrip_review_audit_and_claimability_links() 
         .audit_event_id("audit:site-finance-review:00c0ffee:2026-06".to_owned())
         .legal_action("record_reviewed_recommendation_only".to_owned())
         .value_attribution(storage::operations::SiteFinanceValueAttribution::ReportedReviewedAction)
-        .workflow_completion(storage::operations::SiteFinanceWorkflowCompletion::Completed)
+        .workflow_completion(storage::operations::SiteFinanceWorkflowCompletion::ReportedCompleted)
         .manager_approval(
             storage::operations::SiteFinanceManagerApproval::approved_by_manager(
                 "general-manager-1".to_owned(),
@@ -213,6 +228,21 @@ fn site_finance_outcome_records_roundtrip_review_audit_and_claimability_links() 
     assert_eq!(decoded.legal_action, "record_reviewed_recommendation_only");
     assert!(!decoded.can_support_value_claim());
     assert_eq!(decoded.source_refs.len(), 1);
+}
+
+#[test]
+fn legacy_site_finance_completed_label_rehydrates_as_non_authoritative_reported_evidence() {
+    let legacy: storage::operations::SiteFinanceWorkflowCompletion =
+        serde_json::from_str("\"completed\"").unwrap();
+
+    assert_eq!(
+        legacy,
+        storage::operations::SiteFinanceWorkflowCompletion::ReportedCompleted
+    );
+    assert_eq!(
+        serde_json::to_string(&legacy).unwrap(),
+        "\"reported_completed\""
+    );
 }
 
 #[test]

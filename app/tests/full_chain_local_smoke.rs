@@ -81,11 +81,17 @@ fn local_demo_smoke_proves_review_gated_inquiry_to_retention_chain() {
     );
     assert_eq!(
         evidence.retention_follow_up().next_action(),
-        local_smoke::RetentionNextAction::DraftRebookingReminderForReview
+        local_smoke::RetentionNextAction::PreserveSuppressedEvidence
     );
     assert_eq!(
         evidence.retention_follow_up().review_gate(),
-        domain::policy::ReviewGate::CustomerMessageApproval
+        domain::policy::ReviewGate::ManagerApproval
+    );
+    assert!(
+        evidence
+            .review_gated_evidence_refs()
+            .iter()
+            .any(|e| e.as_ref() == "retention:serialized_evidence_suppressed_ineligible")
     );
     assert!(
         evidence

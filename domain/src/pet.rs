@@ -7,6 +7,7 @@
 use nutype::nutype;
 #[allow(unused_imports)]
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 /// Pet display name from the customer portal, staff intake, or imported operating record.
 ///
@@ -15,16 +16,12 @@ use serde::{Deserialize, Serialize};
 #[nutype(
     sanitize(trim),
     validate(not_empty, len_char_max = 80),
-    derive(
-        Debug,
-        Clone,
-        PartialEq,
-        Eq,
-        PartialOrd,
-        Ord,
-        Hash,
-        Serialize,
-        Deserialize
-    )
+    derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)
 )]
 pub struct Name(String);
+
+impl fmt::Debug for Name {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("Name(<redacted>)")
+    }
+}

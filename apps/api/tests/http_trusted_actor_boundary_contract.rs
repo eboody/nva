@@ -139,7 +139,7 @@ fn data_quality_outcome_body(
         "feedback": "Prepared source-grounded cleanup task for manager review without touching Gingr.",
         "source_refs": action["source_refs"],
         "issue_refs": action["issue_refs"],
-        "resolution_status_after_review": "acknowledged",
+        "reported_resolution_status": "acknowledged",
         "timestamp": "2026-06-17T13:15:00Z",
         "audit": {"correlation_id": "trusted-actor-boundary-test"},
         "requested_side_effects": [],

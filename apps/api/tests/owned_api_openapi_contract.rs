@@ -166,6 +166,72 @@ fn checked_openapi_artifact_names_owned_v0_operations_and_safe_schemas() {
 }
 
 #[test]
+fn data_quality_outcome_response_has_closed_nested_runtime_schemas() {
+    let spec: Value = serde_json::from_str(OPENAPI).expect("checked OpenAPI json parses");
+    let schemas = &spec["components"]["schemas"];
+    let response = &schemas["DataQualityHygieneOutcomeCaptureResponse"];
+
+    assert_eq!(response["additionalProperties"], false);
+    for (field, schema_name) in [
+        ("outcome_record", "DataQualityHygieneOutcomeRecord"),
+        (
+            "reported_labor_evidence",
+            "DataQualityHygieneReportedLaborEvidence",
+        ),
+        (
+            "local_demo_readiness",
+            "DataQualityHygieneLocalDemoReadiness",
+        ),
+        (
+            "storage_projection_proof",
+            "DataQualityHygieneStorageProjectionProof",
+        ),
+        ("observability", "DataQualityHygieneOutcomeObservability"),
+        ("audit", "DataQualityHygieneOutcomeAudit"),
+    ] {
+        assert_eq!(
+            response["properties"][field]["$ref"],
+            format!("#/components/schemas/{schema_name}")
+        );
+        assert_eq!(schemas[schema_name]["additionalProperties"], false);
+        assert!(schemas[schema_name]["required"].is_array());
+    }
+    assert!(
+        response["required"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("idempotent_replay"))
+    );
+    let outcome_record = &schemas["DataQualityHygieneOutcomeRecord"];
+    assert_eq!(
+        outcome_record["properties"]["authority_disposition"]["const"],
+        "needs_review"
+    );
+    assert_eq!(outcome_record["properties"]["claimable"]["const"], false);
+    assert_eq!(
+        outcome_record["properties"]["outcome"]["enum"],
+        json!([
+            "reported_completed",
+            "reported_deferred",
+            "reported_suppressed_by_manager",
+            "reported_source_fact_was_wrong",
+            "reported_not_actionable"
+        ])
+    );
+
+    let summary_response = &schemas["DataQualityHygieneOutcomeSummaryResponse"];
+    assert_eq!(summary_response["additionalProperties"], false);
+    assert_eq!(
+        summary_response["properties"]["summary"]["$ref"],
+        "#/components/schemas/DataQualityHygieneOutcomeSummary"
+    );
+    assert_eq!(
+        summary_response["properties"]["audit"]["$ref"],
+        "#/components/schemas/DataQualityHygieneOutcomeSummaryAudit"
+    );
+}
+
+#[test]
 fn checked_openapi_marks_authenticated_mutations_and_their_fail_closed_responses() {
     let spec: Value = serde_json::from_str(OPENAPI).expect("checked OpenAPI json parses");
     let outcome = &spec["paths"]["/v0/data-quality-hygiene/actions/{action_id}/outcome"]["post"];
@@ -287,6 +353,42 @@ fn runtime_route_inventory_matches_openapi_including_manager_daily_brief_mutatio
         documented["/v0/manager-daily-brief/actions/{action_id}/outcome"]["post"]["requestBody"]["content"]
             ["application/json"]["schema"]["$ref"],
         "#/components/schemas/ManagerDailyBriefOutcomeCaptureRequest"
+    );
+}
+
+#[test]
+fn manager_daily_brief_outcome_schema_exposes_reported_nonclaimable_disposition() {
+    let spec: Value = serde_json::from_str(OPENAPI).expect("checked OpenAPI json parses");
+    let schema = &spec["components"]["schemas"]["ManagerDailyBriefOutcomeRecord"];
+
+    assert_eq!(schema["additionalProperties"], false);
+    assert!(
+        schema["required"]
+            .as_array()
+            .expect("required fields")
+            .iter()
+            .any(|field| field == "authority_disposition")
+    );
+    assert!(
+        schema["required"]
+            .as_array()
+            .expect("required fields")
+            .iter()
+            .any(|field| field == "claimable")
+    );
+    assert_eq!(
+        schema["properties"]["authority_disposition"]["const"],
+        "needs_review"
+    );
+    assert_eq!(schema["properties"]["claimable"]["const"], false);
+    assert_eq!(
+        schema["properties"]["outcome"]["enum"],
+        json!([
+            "reported_completed",
+            "reported_deferred",
+            "reported_suppressed_by_manager",
+            "reported_source_fact_was_wrong"
+        ])
     );
 }
 
@@ -542,7 +644,7 @@ async fn v0_success_payloads_include_openapi_required_contract_fields() {
             "feedback": "Resolved duplicate aliases after manager review.",
             "source_refs": action["source_refs"],
             "issue_refs": action["issue_refs"],
-            "resolution_status_after_review": "repaired",
+            "reported_resolution_status": "repaired",
             "timestamp": "2026-06-17T16:00:00Z",
             "audit": { "correlation_id": "data-quality-hygiene:test-v0-outcome" },
             "requested_side_effects": [],

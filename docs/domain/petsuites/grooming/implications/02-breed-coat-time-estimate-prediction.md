@@ -2,6 +2,8 @@
 
 Purpose: define the grooming-domain contract for predicting appointment time from breed, coat, service, pet profile, and history. This is a modeling artifact for later Rust/domain work. It intentionally keeps provider payloads, LLM prompts, storage rows, customer identity, care/medical facts, reservation mutation, and message delivery outside `operations::grooming` until they are promoted through typed ports and approval gates.
 
+**Status: future-only except for evidence-only duration estimation.** Current code can derive a non-authoritative duration estimate and review requirement, but it cannot create a schedule candidate, ranking, hold, queue, task, appointment plan, or customer draft. Every broader policy, repository, agent, tool, approval flow, and “may/can/should” statement below requires new opaque, non-serializable eligibility authority plus separately authenticated scheduling/action authority. Human review, serializable estimates, and caller labels cannot mint either authority.
+
 Source context:
 
 - Parent service map: `docs/domain/petsuites/grooming/service-domain-map.md`.
@@ -61,7 +63,7 @@ Optional but estimate-shaping inputs:
 
 The estimate flow must decide:
 
-1. Whether the input is sufficient to produce a policy estimate, an AI-suggested estimate pending review, or a review-only placeholder.
+1. Whether the future input would be sufficient to produce a policy estimate, an AI-suggested estimate pending review, or an explicitly unavailable evidence-only result.
 2. Which estimate basis is authoritative: configured breed/coat table, groomer history, location/provider default, manual staff override, or AI suggestion pending review.
 3. Whether the estimate requires no review, staff review, groomer review, manager review, or care/medical review.
 4. Whether the estimate can be used for calendar search only, draft hold creation, or approved booking execution.

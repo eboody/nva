@@ -224,6 +224,43 @@ fn baseline_agent_specs_include_context_driven_operations_agents() {
 }
 
 #[test]
+fn baseline_grooming_rebooking_spec_preserves_suppressed_evidence_without_draft_authority() {
+    let spec = agents::baseline_agent_specs()
+        .into_iter()
+        .find(|spec| spec.name.clone().into_inner() == "grooming-rebooking")
+        .expect("baseline grooming evidence spec exists");
+
+    let allowed_tools: Vec<_> = spec
+        .allowed_tools
+        .iter()
+        .cloned()
+        .map(domain::agent::ToolName::into_inner)
+        .collect();
+    let forbidden_actions: Vec<_> = spec
+        .forbidden_actions
+        .iter()
+        .cloned()
+        .map(domain::agent::ForbiddenAction::into_inner)
+        .collect();
+
+    assert_eq!(allowed_tools, ["grooming-history-read"]);
+    assert!(
+        forbidden_actions
+            .iter()
+            .any(|action| action == "create rebooking candidate")
+    );
+    assert!(
+        forbidden_actions
+            .iter()
+            .any(|action| action == "draft customer follow-up")
+    );
+    assert_eq!(
+        spec.default_review_gates,
+        [policy::ReviewGate::ManagerApproval]
+    );
+}
+
+#[test]
 fn application_prelude_consolidates_agent_and_tool_boundaries() {
     use app::prelude as api;
 

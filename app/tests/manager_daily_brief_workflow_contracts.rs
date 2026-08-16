@@ -6,6 +6,60 @@ use app::{checkout_completion, crm_retention, manager_daily_brief};
 use domain::{analytics, data_quality, entities, message, operations, policy, source};
 
 #[test]
+fn manager_brief_sensitive_text_debug_output_is_redacted() {
+    let summary = manager_daily_brief::BriefSummary::try_new("private shift summary").unwrap();
+    let rationale =
+        manager_daily_brief::ActionRationale::try_new("private action rationale").unwrap();
+    let feedback =
+        manager_daily_brief::ManagerFeedback::try_new("private manager feedback").unwrap();
+    let care = checkout_completion::CareSummary::try_new("private medication handoff").unwrap();
+
+    assert_eq!(format!("{summary:?}"), "BriefSummary(<redacted>)");
+    assert_eq!(format!("{rationale:?}"), "ActionRationale(<redacted>)");
+    assert_eq!(format!("{feedback:?}"), "ManagerFeedback(<redacted>)");
+    assert_eq!(format!("{care:?}"), "CareSummary(<redacted>)");
+
+    let request = manager_daily_brief::Request::builder()
+        .location_id(location_id())
+        .operating_day(operating_day())
+        .prepared_for(manager_daily_brief::ManagerBriefPersona::GeneralManager)
+        .demand_attention_threshold(manager_daily_brief::DemandThresholdUnits::try_new(10).unwrap())
+        .retention_packets(vec![scoped_retention_packet(eligible_retention_packet())])
+        .build();
+    let debug = format!("{request:?}");
+    assert_eq!(debug, "Request([REDACTED])");
+
+    let action_request = manager_daily_brief::Request::builder()
+        .location_id(location_id())
+        .operating_day(operating_day())
+        .prepared_for(manager_daily_brief::ManagerBriefPersona::GeneralManager)
+        .demand_attention_threshold(manager_daily_brief::DemandThresholdUnits::try_new(10).unwrap())
+        .service_demand_facts(vec![service_demand_fact(12, vec![])])
+        .build();
+    let action_packet = manager_daily_brief::Workflow::evaluate(action_request);
+    assert_eq!(
+        format!("{:?}", action_packet.actions()[0].id()),
+        "ActionId([REDACTED])"
+    );
+    assert_eq!(
+        format!("{:?}", &action_packet.actions()[0]),
+        "BriefAction([REDACTED])"
+    );
+    assert_eq!(format!("{action_packet:?}"), "Packet([REDACTED])");
+
+    let scoped_checkout = scoped_checkout_packet(open_checkout_packet());
+    assert_eq!(
+        format!("{scoped_checkout:?}"),
+        "ScopedCheckoutPacket([REDACTED])"
+    );
+    let scoped_retention = scoped_retention_packet(eligible_retention_packet());
+    assert_eq!(
+        format!("{scoped_retention:?}"),
+        "ScopedRetentionPacket([REDACTED])"
+    );
+}
+
+#[test]
 fn manager_daily_brief_contract_builds_source_grounded_actions_with_labor_delta() {
     let request = manager_daily_brief::Request::builder()
         .location_id(location_id())
@@ -76,8 +130,7 @@ fn manager_daily_brief_contract_builds_source_grounded_actions_with_labor_delta(
 }
 
 #[test]
-fn manager_daily_brief_turns_capacity_labor_recommendation_into_reviewed_source_cited_action_and_outcome_trace()
- {
+fn manager_daily_brief_retains_capacity_labor_recommendation_and_reported_outcome_trace() {
     let recommendation = capacity_labor_recommendation(
         entities::ServiceKind::Boarding,
         operations::labor::Role::FrontDesk,
@@ -152,7 +205,7 @@ fn manager_daily_brief_turns_capacity_labor_recommendation_into_reviewed_source_
     assert_eq!(
         outcome.labor_savings_claim_for_action(action),
         manager_daily_brief::LaborSavingsClaim::NotClaimed {
-            reason: manager_daily_brief::LaborSavingsNotClaimedReason::MissingReviewableActionTrace
+            reason: manager_daily_brief::LaborSavingsNotClaimedReason::ReportedCompletedLabel
         }
     );
     assert!(outcome.records_feedback_without_external_mutation());
@@ -421,6 +474,7 @@ fn manager_daily_brief_outcome_capture_records_feedback_without_external_mutatio
         )])
         .build();
 
+    assert_eq!(format!("{outcome:?}"), "OutcomeRecord([REDACTED])");
     assert!(!outcome.counts_as_labor_savings());
     assert!(outcome.records_feedback_without_external_mutation());
     assert!(
@@ -451,7 +505,7 @@ fn manager_daily_brief_outcome_capture_records_feedback_without_external_mutatio
 }
 
 #[test]
-fn manager_daily_brief_trace_links_source_fact_reviewable_action_and_completed_outcome() {
+fn manager_daily_brief_trace_links_source_fact_reviewable_action_and_reported_outcome_label() {
     let request = manager_daily_brief::Request::builder()
         .location_id(location_id())
         .operating_day(operating_day())
@@ -492,19 +546,19 @@ fn manager_daily_brief_trace_links_source_fact_reviewable_action_and_completed_o
     assert_eq!(
         outcome.labor_savings_claim_for_action(action),
         manager_daily_brief::LaborSavingsClaim::NotClaimed {
-            reason: manager_daily_brief::LaborSavingsNotClaimedReason::MissingReviewableActionTrace
+            reason: manager_daily_brief::LaborSavingsNotClaimedReason::ReportedCompletedLabel
         }
     );
     assert!(!outcome.counts_as_labor_savings_for_action(action));
     assert_eq!(
         outcome.labor_savings_claim(),
         manager_daily_brief::LaborSavingsClaim::NotClaimed {
-            reason: manager_daily_brief::LaborSavingsNotClaimedReason::MissingReviewableActionTrace
+            reason: manager_daily_brief::LaborSavingsNotClaimedReason::ReportedCompletedLabel
         }
     );
     assert_eq!(
-        outcome.review_disposition(),
-        manager_daily_brief::ReviewDisposition::CompletedEvidenceOnly
+        outcome.reported_disposition(),
+        manager_daily_brief::ReportedDisposition::CompletedLabel
     );
     assert!(outcome.records_feedback_without_external_mutation());
     assert!(
@@ -515,8 +569,8 @@ fn manager_daily_brief_trace_links_source_fact_reviewable_action_and_completed_o
 }
 
 #[test]
-fn manager_daily_brief_completed_outcome_needs_matching_action_and_source_trace_before_claiming_savings()
- {
+fn manager_daily_brief_reported_completed_label_remains_nonclaimable_with_action_and_source_trace()
+{
     let request = manager_daily_brief::Request::builder()
         .location_id(location_id())
         .operating_day(operating_day())
@@ -546,7 +600,7 @@ fn manager_daily_brief_completed_outcome_needs_matching_action_and_source_trace_
     assert_eq!(
         wrong_action_record.labor_savings_claim_for_action(action),
         manager_daily_brief::LaborSavingsClaim::NotClaimed {
-            reason: manager_daily_brief::LaborSavingsNotClaimedReason::MissingReviewableActionTrace
+            reason: manager_daily_brief::LaborSavingsNotClaimedReason::ReportedCompletedLabel
         }
     );
 
@@ -562,25 +616,25 @@ fn manager_daily_brief_completed_outcome_needs_matching_action_and_source_trace_
     assert_eq!(
         missing_source_record.labor_savings_claim_for_action(action),
         manager_daily_brief::LaborSavingsClaim::NotClaimed {
-            reason: manager_daily_brief::LaborSavingsNotClaimedReason::MissingReviewableActionTrace
+            reason: manager_daily_brief::LaborSavingsNotClaimedReason::ReportedCompletedLabel
         }
     );
 }
 
 #[test]
-fn manager_daily_brief_wrong_source_deferred_and_suppressed_outcomes_do_not_claim_labor_savings() {
+fn caller_reported_wrong_source_deferred_and_suppressed_labels_do_not_claim_labor_savings() {
     for (outcome, expected_reason) in [
         (
             manager_daily_brief::FeedbackOutcome::Deferred,
-            manager_daily_brief::LaborSavingsNotClaimedReason::ManagerDeferredReview,
+            manager_daily_brief::LaborSavingsNotClaimedReason::ReportedDeferredLabel,
         ),
         (
             manager_daily_brief::FeedbackOutcome::SuppressedByManager,
-            manager_daily_brief::LaborSavingsNotClaimedReason::ManagerSuppressedAction,
+            manager_daily_brief::LaborSavingsNotClaimedReason::ReportedSuppressedLabel,
         ),
         (
             manager_daily_brief::FeedbackOutcome::SourceFactWasWrong,
-            manager_daily_brief::LaborSavingsNotClaimedReason::SourceFactWasWrong,
+            manager_daily_brief::LaborSavingsNotClaimedReason::ReportedWrongSourceLabel,
         ),
     ] {
         let record = manager_daily_brief::OutcomeRecord::builder()
@@ -846,10 +900,10 @@ fn email_contact_permission() -> crm_retention::ContactPermission {
 
 fn resolved_staff_handoff() -> checkout_completion::StaffHandoff {
     checkout_completion::StaffHandoff::builder()
-        .completed_by(entities::ActorRef::Staff {
+        .reported_completed_by(entities::ActorRef::Staff {
             staff_id: entities::StaffId::try_new("front-desk-erin").unwrap(),
         })
-        .completed_at(DateTime::<Utc>::UNIX_EPOCH)
+        .reported_completed_at(DateTime::<Utc>::UNIX_EPOCH)
         .belongings_status(checkout_completion::BelongingsStatus::ReturnedToCustomer)
         .care_summary(checkout_completion::CareSummary::try_new("Clean checkout.").unwrap())
         .departure_notes_review(checkout_completion::DepartureNotesReview::StaffReviewed)
@@ -858,10 +912,10 @@ fn resolved_staff_handoff() -> checkout_completion::StaffHandoff {
 
 fn open_staff_handoff() -> checkout_completion::StaffHandoff {
     checkout_completion::StaffHandoff::builder()
-        .completed_by(entities::ActorRef::Staff {
+        .reported_completed_by(entities::ActorRef::Staff {
             staff_id: entities::StaffId::try_new("front-desk-erin").unwrap(),
         })
-        .completed_at(DateTime::<Utc>::UNIX_EPOCH)
+        .reported_completed_at(DateTime::<Utc>::UNIX_EPOCH)
         .belongings_status(checkout_completion::BelongingsStatus::NeedsStaffFollowUp)
         .care_summary(
             checkout_completion::CareSummary::try_new("Medication bag needs review.").unwrap(),
@@ -916,4 +970,24 @@ fn reservation_id() -> entities::reservation::Id {
 
 fn operating_day() -> operations::operating_day::Date {
     operations::operating_day::Date::try_new(NaiveDate::from_ymd_opt(2026, 6, 17).unwrap()).unwrap()
+}
+
+#[test]
+fn caller_feedback_labels_remain_reported_dispositions_without_manager_or_source_authority() {
+    use manager_daily_brief::{FeedbackOutcome, ReportedDisposition};
+
+    assert_eq!(
+        [
+            FeedbackOutcome::Completed.reported_disposition(),
+            FeedbackOutcome::Deferred.reported_disposition(),
+            FeedbackOutcome::SuppressedByManager.reported_disposition(),
+            FeedbackOutcome::SourceFactWasWrong.reported_disposition(),
+        ],
+        [
+            ReportedDisposition::CompletedLabel,
+            ReportedDisposition::DeferredLabel,
+            ReportedDisposition::SuppressedLabel,
+            ReportedDisposition::WrongSourceLabel,
+        ]
+    );
 }

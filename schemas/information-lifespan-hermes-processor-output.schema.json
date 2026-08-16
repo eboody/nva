@@ -65,7 +65,7 @@
         "workflow_packets": { "const": 1 },
         "review_gates": { "const": 5 },
         "reported_estimated_labor_minutes_difference": { "const": 42 },
-        "expression": { "const": "60 minute manual morning scan - 18 minute reviewed packet" }
+        "expression": { "const": "60 minute caller-reported manual baseline - 18 minute caller-reported workflow estimate" }
       }
     },
     "review_gates": {

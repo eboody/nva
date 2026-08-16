@@ -4,6 +4,8 @@
 -- customer_messages_allowed=false, live_delivery_allowed=false.
 -- raw provider payloads are redacted or referenced, not exposed through these read models.
 
+BEGIN;
+
 CREATE TABLE IF NOT EXISTS source_import_runs (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     source_system text NOT NULL CHECK (length(trim(source_system)) > 0),
@@ -116,6 +118,10 @@ LEFT JOIN LATERAL (
     LIMIT 1
 ) latest_outcome ON TRUE;
 
+-- The deployed view exposed realized-savings columns that are not authority-bearing evidence.
+-- Replacing that shape requires a transactional drop because PostgreSQL cannot remove or rename
+-- existing view columns through CREATE OR REPLACE VIEW.
+DROP VIEW IF EXISTS data_quality_hygiene_labor_outcomes;
 CREATE OR REPLACE VIEW data_quality_hygiene_labor_outcomes AS
 SELECT
     dqh.id,
@@ -128,7 +134,9 @@ SELECT
     dqh.resolution_status_after_review,
     dqh.before_minutes,
     dqh.actual_minutes,
-    dqh.reported_estimated_minutes_difference AS reported_estimated_minutes_difference,
+    -- 0002 must remain replayable against the deployed pre-0003 outcome shape. The
+    -- semantically corrected column is introduced by 0003, which then replaces this view.
+    NULL::integer AS reported_estimated_minutes_difference,
     dqh.issue_refs,
     dqh.source_refs,
     dqh.workflow_event_id,
@@ -239,3 +247,5 @@ LEFT JOIN audit_events ae
     ON ae.workflow_event_id = we.id
 WHERE we.workflow_name = 'information_lifespan_manager_daily_report'
 GROUP BY we.id, sir.id, rp.id, ar.id, mdbo.id;
+
+COMMIT;

@@ -109,10 +109,10 @@ pub struct ProcessingContract {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-/// Auditable worker proof for one reviewed Data-Quality Hygiene storage projection.
+/// Auditable worker proof for one caller-reported Data-Quality Hygiene storage projection; it proves no review or completion.
 ///
 /// This proof is deliberately local/fake. It lets the demo narrate a worker seeing
-/// a reviewed outcome and internal outbox candidate, while the worker posture still
+/// caller-reported outcome evidence and an unavailable internal outbox candidate, while the worker posture still
 /// blocks customer messages, provider/PMS writes, and payment movement.
 pub struct DataQualityHygieneWorkerProof {
     workflow_event_ref: String,
@@ -124,7 +124,7 @@ pub struct DataQualityHygieneWorkerProof {
     outbox_status: OutboxProcessingStatus,
     outbox_candidate_id: Option<String>,
     outbox_topic: Option<storage::operations::InternalHandoffTopic>,
-    has_reviewed_outcome: bool,
+    has_executable_handoff_authority: bool,
     audit_event_count: usize,
 }
 
@@ -228,12 +228,14 @@ impl DataQualityHygieneWorkerProof {
                 .outbox_candidate
                 .as_ref()
                 .map(|candidate| candidate.topic()),
-            has_reviewed_outcome: Self::has_reviewed_internal_handoff(records),
+            has_executable_handoff_authority: Self::has_executable_internal_handoff_authority(
+                records,
+            ),
             audit_event_count: records.audit_events.len(),
         }
     }
 
-    fn has_reviewed_internal_handoff(
+    fn has_executable_internal_handoff_authority(
         records: &storage::operations::DataQualityHygieneLocalPersistenceRecords,
     ) -> bool {
         use storage::operations::{
@@ -275,7 +277,7 @@ impl DataQualityHygieneWorkerProof {
         &self.workflow_name
     }
 
-    /// Returns the business correlation id carried from reviewed outcome storage.
+    /// Returns the business correlation id carried from caller-reported outcome storage.
     pub fn correlation_id(&self) -> &str {
         &self.correlation_id
     }
@@ -295,24 +297,24 @@ impl DataQualityHygieneWorkerProof {
         self.side_effect_mode
     }
 
-    /// Returns the worker-visible outbox status for the reviewed handoff candidate.
+    /// Returns the worker-visible outbox status for the caller-reported handoff evidence.
     pub fn outbox_status(&self) -> OutboxProcessingStatus {
         self.outbox_status
     }
 
-    /// Returns the local outbox candidate id, if the reviewed outcome produced one.
+    /// Returns the local outbox candidate id, if separately authorized executable handoff evidence produced one.
     pub fn outbox_candidate_id(&self) -> Option<&str> {
         self.outbox_candidate_id.as_deref()
     }
 
-    /// Returns the local internal handoff topic, if the reviewed outcome produced one.
+    /// Returns the local internal handoff topic, if separately authorized executable handoff evidence produced one.
     pub fn outbox_topic(&self) -> Option<storage::operations::InternalHandoffTopic> {
         self.outbox_topic
     }
 
-    /// True when storage evidence says the local outcome reached reviewed/approved posture.
-    pub fn has_reviewed_outcome(&self) -> bool {
-        self.has_reviewed_outcome
+    /// True when separate opaque authority admits the exact local handoff; current caller-reported projections always return false.
+    pub fn has_executable_handoff_authority(&self) -> bool {
+        self.has_executable_handoff_authority
     }
 
     /// Returns the count of audit events available to narrate the fake worker handoff.
@@ -461,9 +463,9 @@ impl Config {
         ProcessingContract::review_gated_stub(*self, claim)
     }
 
-    /// Processes a reviewed Data-Quality Hygiene storage projection into fake local worker proof.
+    /// Processes caller-reported Data-Quality Hygiene storage evidence into fake local worker proof without promoting it to review or completion authority.
     ///
-    /// The worker only reflects the reviewed outcome and approved internal handoff candidate;
+    /// The worker only reflects caller-reported outcome evidence while exposing no approved or executable internal handoff authority;
     /// it does not publish the outbox row or cross customer, provider, payment, or schedule
     /// boundaries. Retry/dead-letter leasing is not implemented in this local proof yet.
     pub fn process_data_quality_hygiene_projection(

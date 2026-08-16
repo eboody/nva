@@ -1,6 +1,8 @@
 # Grooming operational implication 06: Customer reminders
 
-Purpose: model the customer-reminder surface for PetSuites grooming without letting reminder timing, customer-contact permissions, appointment state, AI drafts, or provider message delivery collapse into generic follow-up helpers. This is a documentation/spec artifact for later Rust/domain cards; no live messages, bookings, payments, or provider changes are implied here.
+Purpose: model a possible future customer-reminder surface for PetSuites grooming without letting reminder timing, customer-contact permissions, appointment state, AI drafts, or provider message delivery collapse into generic follow-up helpers.
+
+**Status: future-only and unavailable.** Every plan, task, draft, approval, delivery, and interaction contract below is hypothetical. Current serialized grooming/retention evidence is universally ineligible and can only be preserved or summarized as suppressed evidence. It cannot create a candidate, ranking, queue, internal task, reminder plan, slot proposal, customer draft, contact, conversion, completion, or value authority. Human review cannot mint the missing authority. Any future implementation requires a new opaque, non-serializable eligibility authority plus separately authenticated messaging/scheduling authority.
 
 Source context:
 
@@ -192,9 +194,9 @@ Use semantic paths under `operations::grooming::reminder` when the concept is sp
 
 ### Agent specs/tools
 
-- Existing `agents::baseline_agent_specs()` includes `grooming-rebooking`, allowed tools `grooming-history-read`, `availability-read`, `draft-message`, and forbidden actions `book grooming slot`, `apply discount`, `send message without approval`.
+- Existing `agents::baseline_agent_specs()` retains the `grooming-rebooking` compatibility name as an evidence-only spec. It exposes only `grooming-history-read`, uses `ManagerApproval` for inspection of suppressed evidence, and explicitly forbids candidates, ranking/queueing, internal rebooking tasks, customer drafts, slot proposals, booking, discounts, and customer sends.
 - Add a future `grooming-reminder-drafter` spec only if reminder drafting needs a separate agent contract from rebooking. Its output schema should be `operations::grooming::reminder::DraftRecommendation`, not raw text.
-- Tools may read appointment/history/availability and create draft messages or internal tasks. Tools may not send customer messages unless the input command carries typed consent, approval, and idempotency evidence.
+- Future tools could read appointment/history/availability only after the new opaque eligibility authority exists. Current tools cannot create reminder drafts or internal rebooking tasks; typed consent, human review, or idempotency evidence cannot substitute for the missing authority.
 
 ## 4. Interaction contract
 

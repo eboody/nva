@@ -50,6 +50,9 @@ fn service_demand_fact_carries_operating_day_key_without_labor_or_capacity_schem
     )
     .expect("source-backed demand facts can be projected for operating-day joins");
 
+    assert_eq!(format!("{fact:?}"), "service_demand::Fact([REDACTED])");
+    assert!(!format!("{fact:?}").contains("demand-location-west-loop-boarding"));
+
     assert_eq!(fact.operating_day(), &key);
     assert_eq!(fact.demand_units().get(), 1);
     assert_eq!(fact.source_record_refs(), &[reservation_ref]);

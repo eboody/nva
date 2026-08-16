@@ -37,6 +37,5 @@ fn approval_decision_debug_redacts_actor_identity_and_free_form_reason() {
 
     assert!(!debug.contains(actor_id));
     assert!(!debug.contains(reason));
-    assert!(debug.contains("Approved"));
-    assert!(debug.contains("<redacted>"));
+    assert_eq!(debug, "ApprovalReviewDisposition([REDACTED])");
 }

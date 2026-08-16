@@ -2,7 +2,7 @@
 //!
 //! Crosswalk navigation: this module is the workflow-use surface for data-quality
 //! issues, source refs, hygiene candidates/actions, draft validation, and
-//! reviewed outcome capture. The bidirectional docs path is
+//! caller-reported outcome capture. The bidirectional docs path is
 //! `docs/entity-atlas/contract-crosswalk/workflow-packets.md` for workflow use,
 //! `source-provider-flows.md` for source entry and normalization,
 //! `storage-persistence.md` for `DataQualityHygieneOutcomeRecord`,
@@ -25,7 +25,6 @@ pub const SCHEMA_VERSION: &str = "data-quality-hygiene-context-v1";
     sanitize(trim),
     validate(not_empty, len_char_max = 120),
     derive(
-        Debug,
         Clone,
         PartialEq,
         Eq,
@@ -51,7 +50,6 @@ impl IssueRef {
     sanitize(trim),
     validate(not_empty, len_char_max = 130),
     derive(
-        Debug,
         Clone,
         PartialEq,
         Eq,
@@ -77,7 +75,6 @@ impl ActionId {
     sanitize(trim),
     validate(not_empty, len_char_max = 120),
     derive(
-        Debug,
         Clone,
         PartialEq,
         Eq,
@@ -103,7 +100,6 @@ impl ContextPacketId {
     sanitize(trim),
     validate(not_empty, len_char_max = 120),
     derive(
-        Debug,
         Clone,
         PartialEq,
         Eq,
@@ -128,17 +124,7 @@ impl CorrelationId {
 #[nutype(
     sanitize(trim),
     validate(not_empty, len_char_max = 500),
-    derive(
-        Debug,
-        Clone,
-        PartialEq,
-        Eq,
-        PartialOrd,
-        Ord,
-        Hash,
-        Serialize,
-        Deserialize
-    )
+    derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)
 )]
 /// Action rationale used by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct ActionRationale(String);
@@ -167,7 +153,7 @@ impl LaborMinutes {
 pub struct AggregateLaborMinutes(u16);
 
 impl AggregateLaborMinutes {
-    /// Stores the reviewed value for the data-quality hygiene workflow without triggering provider, customer, payment, or schedule side effects.
+    /// Stores a caller-reported value for the data-quality hygiene workflow without proving review or triggering provider, customer, payment, or schedule side effects.
     pub const fn new(value: u16) -> Self {
         Self(value)
     }
@@ -179,7 +165,7 @@ impl AggregateLaborMinutes {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Decision choices for hygiene persona in the data-quality hygiene workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
+/// Decision choices for hygiene persona in the data-quality hygiene workflow; each value classifies evidence without proving review or independently authorizing a queue, draft, or staff gate.
 pub enum HygienePersona {
     /// Selects general manager for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     GeneralManager,
@@ -196,7 +182,7 @@ pub enum HygienePersona {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Decision choices for candidate kind in the data-quality hygiene workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
+/// Decision choices for candidate kind in the data-quality hygiene workflow; each value classifies evidence without proving review or independently authorizing a queue, draft, or staff gate.
 pub enum CandidateKind {
     /// Selects source issue for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     SourceIssue,
@@ -211,7 +197,7 @@ pub enum CandidateKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Decision choices for source freshness in the data-quality hygiene workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
+/// Decision choices for source freshness in the data-quality hygiene workflow; each value classifies evidence without proving review or independently authorizing a queue, draft, or staff gate.
 pub enum SourceFreshness {
     /// Selects current for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     Current,
@@ -224,7 +210,7 @@ pub enum SourceFreshness {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Decision choices for sensitivity in the data-quality hygiene workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
+/// Decision choices for sensitivity in the data-quality hygiene workflow; each value classifies evidence without proving review or independently authorizing a queue, draft, or staff gate.
 pub enum Sensitivity {
     /// Selects standard operational evidence for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     StandardOperationalEvidence,
@@ -342,7 +328,7 @@ pub enum CleanupAction {
     PreparePaymentConflictReview,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
 /// Candidate used by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct Candidate {
     id: IssueRef,
@@ -411,7 +397,7 @@ impl Candidate {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Decision choices for action kind in the data-quality hygiene workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
+/// Decision choices for action kind in the data-quality hygiene workflow; each value classifies evidence without proving review or independently authorizing a queue, draft, or staff gate.
 pub enum ActionKind {
     /// Selects investigate missing source evidence for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     InvestigateMissingSourceEvidence,
@@ -432,7 +418,7 @@ pub enum ActionKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Decision choices for action priority in the data-quality hygiene workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
+/// Decision choices for action priority in the data-quality hygiene workflow; each value classifies evidence without proving review or independently authorizing a queue, draft, or staff gate.
 pub enum ActionPriority {
     /// Selects high for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     High,
@@ -443,7 +429,7 @@ pub enum ActionPriority {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Decision choices for removed manual work in the data-quality hygiene workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
+/// Decision choices for removed manual work in the data-quality hygiene workflow; each value classifies evidence without proving review or independently authorizing a queue, draft, or staff gate.
 pub enum RemovedManualWork {
     /// Selects missing evidence investigation for the data-quality hygiene decision model so the app can choose a review, evidence, or draft path without taking live action.
     MissingEvidenceInvestigation,
@@ -501,7 +487,7 @@ pub struct LaborImpactEstimate {
 }
 
 impl LaborImpactEstimate {
-    /// Stores the reviewed value for the data-quality hygiene workflow without triggering provider, customer, payment, or schedule side effects.
+    /// Stores a caller-reported value for the data-quality hygiene workflow without proving review or triggering provider, customer, payment, or schedule side effects.
     pub const fn new(before_minutes: LaborMinutes, after_minutes: LaborMinutes) -> Self {
         Self {
             before_minutes,
@@ -525,7 +511,7 @@ impl LaborImpactEstimate {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
 /// Action used by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct Action {
     id: ActionId,
@@ -616,7 +602,7 @@ impl Action {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
 /// Input rules for building the workflow packet from source-grounded records.
 pub struct Request {
     location_id: entities::LocationId,
@@ -648,8 +634,11 @@ impl Request {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Reviewable packet handed to staff or agents with deterministic gates already applied.
+#[derive(Clone, PartialEq, Eq, Serialize)]
+/// Server-issued review packet with deterministic gates already applied.
+///
+/// It is serializable for presentation but intentionally not caller-deserializable; callers must
+/// submit evidence through [`Request`] so the workflow can revalidate candidates and actions.
 pub struct Packet {
     workflow: &'static str,
     schema_version: &'static str,
@@ -761,7 +750,7 @@ impl Packet {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Draft action used by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct DraftAction {
     action_id: ActionId,
@@ -774,7 +763,7 @@ pub struct DraftAction {
 }
 
 impl DraftAction {
-    /// Builds the from action result for the data-quality hygiene workflow from reviewed source facts while preserving human review gates and draft-only side effects.
+    /// Builds the from action result for the data-quality hygiene workflow from source-correlated evidence while preserving human review gates and draft-only side effects; source correlation does not prove review.
     pub fn from_action(action: Action) -> Self {
         Self {
             action_id: action.id,
@@ -800,7 +789,7 @@ impl DraftAction {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
 /// Draft submission used by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct DraftSubmission {
     context_packet_id: ContextPacketId,
@@ -828,7 +817,7 @@ impl DraftValidation {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Decision choices for draft rejection reason in the data-quality hygiene workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
+/// Decision choices for draft rejection reason in the data-quality hygiene workflow; each value classifies evidence without proving review or independently authorizing a queue, draft, or staff gate.
 pub enum DraftRejectionReason {
     /// Uses stale or unknown context packet as source-grounded evidence for the deterministic decision.
     StaleOrUnknownContextPacket,
@@ -853,64 +842,64 @@ pub enum DraftRejectionReason {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Decision choices for feedback outcome in the data-quality hygiene workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
+/// Caller-reported feedback labels retained as nonclaimable evidence.
 pub enum FeedbackOutcome {
-    /// Records a completed result so follow-up impact is auditable.
+    /// Retains a caller-reported completion label without proving completion.
     Completed,
-    /// Records a deferred result so follow-up impact is auditable.
+    /// Retains a caller-reported deferral label without proving review.
     Deferred,
-    /// Records a suppressed by manager result so follow-up impact is auditable.
+    /// Retains a caller-reported suppression label without proving manager action.
     SuppressedByManager,
-    /// Records a source fact was wrong result so follow-up impact is auditable.
+    /// Retains a caller-reported wrong-source label for later reconciliation.
     SourceFactWasWrong,
-    /// Records a not actionable result so follow-up impact is auditable.
+    /// Retains a caller-reported not-actionable label without proving review.
     NotActionable,
 }
 
 impl FeedbackOutcome {
-    /// Serializable reviewed dispositions do not support a labor-savings claim.
+    /// Serializable caller-reported dispositions do not support a labor-savings claim.
     pub const fn can_claim_labor_savings(self) -> bool {
         false
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Source-record proof for reviewed data-quality hygiene outcomes; construction rejects empty evidence so outcome feedback remains traceable to source facts.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Non-empty source-record references correlated to caller-reported outcome evidence.
 pub struct OutcomeSourceRecordRefs(NonEmpty<source::RecordRef>);
 
 impl OutcomeSourceRecordRefs {
-    /// Builds source-record proof for reviewed outcome feedback while preserving the source-grounding invariant.
+    /// Builds non-empty source references without treating them as review or completion proof.
     pub fn try_new(source_record_refs: Vec<source::RecordRef>) -> Result<Self> {
         NonEmpty::from_vec(source_record_refs)
             .map(Self)
             .ok_or(Error::OutcomeSourceRecordRefRequired)
     }
 
-    /// Returns the source refs that justify reviewed outcome feedback without mutating provider, customer, payment, or schedule systems.
+    /// Returns source refs correlated to the report without proving review or live mutation.
     pub fn iter(&self) -> impl ExactSizeIterator<Item = &source::RecordRef> {
         self.0.iter()
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Data-quality issue proof for reviewed data-quality hygiene outcomes; construction rejects empty evidence so feedback cannot drift away from a reviewed issue.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Non-empty data-quality issue references correlated to caller-reported outcome evidence.
 pub struct OutcomeIssueRefs(NonEmpty<IssueRef>);
 
 impl OutcomeIssueRefs {
-    /// Builds data-quality issue proof for reviewed outcome feedback while preserving the source-grounding invariant.
+    /// Builds non-empty issue references without treating them as review or completion proof.
     pub fn try_new(issue_refs: Vec<IssueRef>) -> Result<Self> {
         NonEmpty::from_vec(issue_refs)
             .map(Self)
             .ok_or(Error::OutcomeIssueRefRequired)
     }
 
-    /// Returns the issue refs that justify reviewed outcome feedback without mutating provider, customer, payment, or schedule systems.
+    /// Returns issue refs correlated to the report without proving review or live mutation.
     pub fn iter(&self) -> impl ExactSizeIterator<Item = &IssueRef> {
         self.0.iter()
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Outcome record used by the data-quality hygiene workflow; it finds duplicate, stale, or inconsistent records while blocking automatic provider-system mutation.
 pub struct OutcomeRecord {
     action_id: ActionId,
@@ -920,11 +909,17 @@ pub struct OutcomeRecord {
     actual_minutes: LaborMinutes,
     source_record_refs: OutcomeSourceRecordRefs,
     issue_refs: OutcomeIssueRefs,
-    reviewed_resolution_status: Option<data_quality::ResolutionStatus>,
+    reported_resolution_status: Option<data_quality::ResolutionStatus>,
+}
+
+impl std::fmt::Debug for OutcomeRecord {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("OutcomeRecord([REDACTED])")
+    }
 }
 
 impl OutcomeRecord {
-    /// Starts a reviewed outcome builder that validates source-record and issue proof before producing an outcome record.
+    /// Starts a reported-outcome builder that requires non-empty source and issue references.
     pub fn builder() -> OutcomeRecordBuilder {
         OutcomeRecordBuilder::default()
     }
@@ -949,7 +944,7 @@ impl OutcomeRecord {
         self.before_minutes
     }
 
-    /// Returns the actual minutes evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
+    /// Returns caller-reported minutes without claiming measured labor, review, or completion.
     pub const fn actual_minutes(&self) -> LaborMinutes {
         self.actual_minutes
     }
@@ -969,9 +964,9 @@ impl OutcomeRecord {
         self.issue_refs.iter().collect()
     }
 
-    /// Returns the reviewed resolution status evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
-    pub const fn reviewed_resolution_status(&self) -> Option<data_quality::ResolutionStatus> {
-        self.reviewed_resolution_status
+    /// Returns the caller-reported resolution-status label retained for later review.
+    pub const fn reported_resolution_status(&self) -> Option<data_quality::ResolutionStatus> {
+        self.reported_resolution_status
     }
 
     /// Returns the records feedback without external mutation evidence available to data-quality hygiene review while leaving provider, customer, payment, and schedule systems unchanged.
@@ -985,8 +980,8 @@ impl OutcomeRecord {
     }
 }
 
-#[derive(Debug, Default, Clone)]
-/// Builder for reviewed outcome records; build returns a domain error when required source or issue proof is absent.
+#[derive(Default, Clone)]
+/// Builder for caller-reported outcome records; build requires non-empty source and issue refs.
 pub struct OutcomeRecordBuilder {
     action_id: Option<ActionId>,
     recorded_by: Option<entities::ActorRef>,
@@ -995,23 +990,29 @@ pub struct OutcomeRecordBuilder {
     actual_minutes: Option<LaborMinutes>,
     source_record_refs: Vec<source::RecordRef>,
     issue_refs: Vec<IssueRef>,
-    reviewed_resolution_status: Option<data_quality::ResolutionStatus>,
+    reported_resolution_status: Option<data_quality::ResolutionStatus>,
+}
+
+impl std::fmt::Debug for OutcomeRecordBuilder {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("OutcomeRecordBuilder([REDACTED])")
+    }
 }
 
 impl OutcomeRecordBuilder {
-    /// Sets the action id for reviewed outcome feedback.
+    /// Sets the action-id correlation label for reported outcome evidence.
     pub fn action_id(mut self, action_id: ActionId) -> Self {
         self.action_id = Some(action_id);
         self
     }
 
-    /// Sets the reviewed actor for outcome feedback.
+    /// Sets the caller-provided actor label; this does not authenticate review.
     pub fn recorded_by(mut self, recorded_by: entities::ActorRef) -> Self {
         self.recorded_by = Some(recorded_by);
         self
     }
 
-    /// Sets the reviewed outcome.
+    /// Sets the caller-reported outcome label.
     pub fn outcome(mut self, outcome: FeedbackOutcome) -> Self {
         self.outcome = Some(outcome);
         self
@@ -1023,34 +1024,34 @@ impl OutcomeRecordBuilder {
         self
     }
 
-    /// Sets the actual reviewed labor minutes after cleanup.
+    /// Sets caller-reported minutes without proving cleanup or measured labor.
     pub fn actual_minutes(mut self, actual_minutes: LaborMinutes) -> Self {
         self.actual_minutes = Some(actual_minutes);
         self
     }
 
-    /// Sets non-empty source-record proof for reviewed outcome feedback.
+    /// Sets non-empty source refs correlated to reported outcome evidence.
     pub fn source_record_refs(mut self, source_record_refs: Vec<source::RecordRef>) -> Self {
         self.source_record_refs = source_record_refs;
         self
     }
 
-    /// Sets non-empty data-quality issue proof for reviewed outcome feedback.
+    /// Sets non-empty issue refs correlated to reported outcome evidence.
     pub fn issue_refs(mut self, issue_refs: Vec<IssueRef>) -> Self {
         self.issue_refs = issue_refs;
         self
     }
 
-    /// Sets the reviewed resolution status for outcome feedback.
-    pub fn reviewed_resolution_status(
+    /// Sets the caller-reported resolution-status label.
+    pub fn reported_resolution_status(
         mut self,
-        reviewed_resolution_status: data_quality::ResolutionStatus,
+        reported_resolution_status: data_quality::ResolutionStatus,
     ) -> Self {
-        self.reviewed_resolution_status = Some(reviewed_resolution_status);
+        self.reported_resolution_status = Some(reported_resolution_status);
         self
     }
 
-    /// Builds the reviewed outcome record, rejecting absent source-record or issue proof with semantic errors.
+    /// Builds the reported outcome record, rejecting absent source-record or issue refs.
     pub fn build(self) -> Result<OutcomeRecord> {
         Ok(OutcomeRecord {
             action_id: self
@@ -1068,13 +1069,13 @@ impl OutcomeRecordBuilder {
                 .ok_or(Error::OutcomeFieldRequired("actual_minutes"))?,
             source_record_refs: OutcomeSourceRecordRefs::try_new(self.source_record_refs)?,
             issue_refs: OutcomeIssueRefs::try_new(self.issue_refs)?,
-            reviewed_resolution_status: self.reviewed_resolution_status,
+            reported_resolution_status: self.reported_resolution_status,
         })
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-/// Actor resolved by an app-owned directory before reviewed data-quality hygiene outcome capture is authorized.
+#[derive(Clone, PartialEq, Eq)]
+/// Actor resolved by an app-owned directory before caller-reported data-quality hygiene evidence capture is authorized.
 pub struct ActorAssignment {
     actor_id: ActorId,
     actor: entities::ActorRef,
@@ -1103,7 +1104,7 @@ impl ActorAssignment {
         &self.actor_id
     }
 
-    /// Returns the domain actor reference recorded on reviewed outcomes and audit facts.
+    /// Returns the actor label admitted after directory lookup; it does not prove underlying review.
     pub const fn actor(&self) -> &entities::ActorRef {
         &self.actor
     }
@@ -1159,9 +1160,9 @@ pub trait ReviewQueueStore {
     fn review_item_for_action(&self, action_id: &ActionId) -> Option<ReviewQueueItem>;
 }
 
-/// App-owned port for recording reviewed outcome facts.
+/// App-owned port for recording caller-reported outcome facts.
 pub trait OutcomeRecorder {
-    /// Records a reviewed outcome and returns an app receipt.
+    /// Records admitted reported evidence and returns an app receipt.
     fn record_outcome(&mut self, outcome: OutcomeRecord) -> OutcomeReceipt;
 }
 
@@ -1173,11 +1174,11 @@ pub trait AuditLog {
 
 /// App-owned blocked-action port for failed authorization attempts and other fail-closed decisions.
 pub trait BlockedActionLog {
-    /// Records a blocked outcome-capture attempt without persisting a reviewed outcome.
+    /// Records a blocked outcome-capture attempt without persisting reported evidence.
     fn record_blocked_action(&mut self, record: BlockedActionRecord);
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 /// Review queue item metadata required to authorize a data-quality hygiene outcome without coupling app code to storage rows.
 pub struct ReviewQueueItem {
     action_id: ActionId,
@@ -1215,28 +1216,30 @@ impl ReviewQueueItem {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-/// Request to capture a reviewed data-quality hygiene outcome through app-owned ports.
+#[derive(Clone, PartialEq, Eq)]
+/// Request to retain caller-reported data-quality hygiene outcome evidence through app-owned ports.
 pub struct OutcomeCaptureRequest {
     actor_id: ActorId,
     outcome: OutcomeRecord,
 }
 
 impl OutcomeCaptureRequest {
-    /// Combines the submitted app actor id with a validated reviewed outcome record.
+    /// Combines the submitted app actor id with a structurally validated reported-outcome record.
     pub const fn new(actor_id: ActorId, outcome: OutcomeRecord) -> Self {
         Self { actor_id, outcome }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-/// Receipt returned after a reviewed data-quality hygiene outcome is accepted by app authorization and persistence ports.
+#[derive(Clone, PartialEq, Eq)]
+/// Receipt returned after app authorization admits caller-reported evidence for persistence.
+///
+/// Admission proves permission to retain the report, not review, cleanup, completion, or value.
 pub struct OutcomeReceipt {
     action_id: ActionId,
 }
 
 impl OutcomeReceipt {
-    /// Creates a receipt for the persisted reviewed outcome.
+    /// Creates a receipt for persisted caller-reported evidence.
     pub fn new(action_id: ActionId) -> Self {
         Self { action_id }
     }
@@ -1247,8 +1250,8 @@ impl OutcomeReceipt {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-/// Audit record emitted after app-owned authorization accepts reviewed outcome capture.
+#[derive(Clone, PartialEq, Eq)]
+/// Audit record emitted after app-owned authorization accepts reported-evidence capture.
 pub struct AuditRecord {
     action_id: ActionId,
     actor: entities::ActorRef,
@@ -1256,7 +1259,7 @@ pub struct AuditRecord {
 }
 
 impl AuditRecord {
-    /// Creates an audit fact for accepted reviewed outcome capture.
+    /// Creates an audit fact for accepted reported-evidence capture.
     pub fn new(
         action_id: ActionId,
         actor: entities::ActorRef,
@@ -1286,7 +1289,7 @@ impl AuditRecord {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Reason a reviewed outcome capture attempt was blocked before persistence.
+/// Reason a reported-outcome capture attempt was blocked before persistence.
 pub enum BlockedActionReason {
     /// Actor id did not resolve to a known app actor.
     ActorNotFound,
@@ -1296,7 +1299,7 @@ pub enum BlockedActionReason {
     ActorLacksReviewGate,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 /// Fail-closed record for data-quality hygiene capture attempts that must not persist an outcome.
 pub struct BlockedActionRecord {
     action_id: ActionId,
@@ -1329,6 +1332,40 @@ impl BlockedActionRecord {
         self.reason
     }
 }
+
+macro_rules! impl_sensitive_debug {
+    ($($type:ident),+ $(,)?) => {
+        $(
+            impl std::fmt::Debug for $type {
+                fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    formatter.write_str(concat!(stringify!($type), "([REDACTED])"))
+                }
+            }
+        )+
+    };
+}
+
+impl_sensitive_debug!(
+    IssueRef,
+    ActionId,
+    ContextPacketId,
+    CorrelationId,
+    ActionRationale,
+    Candidate,
+    Action,
+    Request,
+    Packet,
+    DraftAction,
+    DraftSubmission,
+    OutcomeSourceRecordRefs,
+    OutcomeIssueRefs,
+    ActorAssignment,
+    ReviewQueueItem,
+    OutcomeCaptureRequest,
+    OutcomeReceipt,
+    AuditRecord,
+    BlockedActionRecord,
+);
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 /// Default app policy for data-quality hygiene outcomes: managers satisfy manager review gates, staff do not.
@@ -1367,7 +1404,7 @@ impl AuthorizationPolicy for RoleLocationAuthorization {
     }
 }
 
-/// Trait-backed app service for reviewed data-quality hygiene outcome capture.
+/// Trait-backed app service for caller-reported data-quality hygiene evidence capture.
 pub struct OutcomeCaptureService<D, P, Q, O, A, B> {
     actor_directory: D,
     authorization_policy: P,
@@ -1378,7 +1415,7 @@ pub struct OutcomeCaptureService<D, P, Q, O, A, B> {
 }
 
 impl<D, P, Q, O, A, B> OutcomeCaptureService<D, P, Q, O, A, B> {
-    /// Wires the app-owned ports used to record reviewed data-quality hygiene outcomes.
+    /// Wires the app-owned ports used to record caller-reported data-quality hygiene evidences.
     pub fn new(
         actor_directory: D,
         authorization_policy: P,
@@ -1432,8 +1469,9 @@ where
     A: AuditLog,
     B: BlockedActionLog,
 {
-    /// Records a reviewed outcome only after actor lookup, review queue lookup, and role/location authorization pass.
-    pub fn record_reviewed_outcome(
+    /// Records caller-reported evidence only after actor, queue, role, and location admission checks pass.
+    /// Those checks authorize record admission; they do not prove the reported review or completion occurred.
+    pub fn record_reported_outcome(
         &mut self,
         request: OutcomeCaptureRequest,
     ) -> Result<OutcomeReceipt> {
@@ -1490,28 +1528,28 @@ where
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-/// Decision choices for error in the data-quality hygiene workflow; each value routes reviewed source facts to the right queue, draft, or staff gate.
+/// Decision choices for error in the data-quality hygiene workflow; each value classifies evidence without proving review or independently authorizing a queue, draft, or staff gate.
 pub enum Error {
     #[error("labor minutes must be greater than zero")]
     /// Identifies zero labor minutes as the reason the workflow must stop, retry, or request review.
     ZeroLaborMinutes,
     #[error("outcome record requires at least one source record ref")]
-    /// Identifies missing source-record proof as the reason reviewed outcome capture must stop or request review.
+    /// Identifies missing source refs as the reason reported-outcome capture must stop.
     OutcomeSourceRecordRefRequired,
     #[error("outcome record requires at least one data-quality issue ref")]
-    /// Identifies missing issue proof as the reason reviewed outcome capture must stop or request review.
+    /// Identifies missing issue refs as the reason reported-outcome capture must stop.
     OutcomeIssueRefRequired,
     #[error("outcome record requires field {0}")]
-    /// Identifies a missing required outcome field as the reason reviewed outcome capture must stop or request review.
+    /// Identifies a missing required field as the reason reported-outcome capture must stop.
     OutcomeFieldRequired(&'static str),
     #[error("actor id did not resolve to a known data-quality hygiene reviewer")]
-    /// Identifies missing actor-directory lookup as the reason reviewed outcome capture must stop.
+    /// Identifies missing actor-directory lookup as the reason reported-outcome admission must stop.
     ActorNotFound,
     #[error("review queue item was not found for the outcome action")]
-    /// Identifies absent review queue metadata as the reason reviewed outcome capture must stop.
+    /// Identifies absent review-queue metadata as the reason reported-outcome admission must stop.
     ReviewQueueItemNotFound,
-    #[error("actor is not authorized to record this reviewed data-quality hygiene outcome")]
-    /// Identifies a role or location policy failure as the reason reviewed outcome capture must stop.
+    #[error("actor is not authorized to record this data-quality hygiene outcome evidence")]
+    /// Identifies a role or location policy failure as the reason reported-outcome admission must stop.
     ActorNotAuthorized,
 }
 
@@ -1523,7 +1561,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub struct Workflow;
 
 impl Workflow {
-    /// Builds the evaluate result for the data-quality hygiene workflow from reviewed source facts while preserving human review gates and draft-only side effects.
+    /// Builds the evaluate result for the data-quality hygiene workflow from source-correlated evidence while preserving human review gates and draft-only side effects; source correlation does not prove review.
     pub fn evaluate(request: Request) -> Packet {
         let actions = request
             .candidates

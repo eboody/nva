@@ -17,7 +17,7 @@ These glossary entries are not new product capability claims. If later source ad
 ## Draft
 
 Term:
-  `draft`, including app-layer types such as `booking_triage::ConfirmationDraft`, `daily_update::CustomerMessageDraft`, `daily_update::SendStub`, `checkout_completion::AuditEventDraft`, `crm_retention::OutcomeRecord`, `manager_daily_brief::OutcomeRecord`, `tools::draft_update`, and `tools::messaging::draft`.
+  `draft`, including app-layer types such as `booking_triage::ConfirmationDraft`, `daily_update::CustomerMessageDraft`, `daily_update::SendStub`, `checkout_completion::AuditEventDraft`, `tools::draft_update`, and `tools::messaging::draft`. Evidence-only `crm_retention::OutcomeRecord` and `manager_daily_brief::OutcomeRecord` values are outcome history, not drafts.
 
 Plain-language label:
   Staff-review artifact prepared before any live action.
@@ -26,10 +26,10 @@ Audience:
   Operators, resort leaders, product stakeholders, compliance reviewers, and agent-doc writers.
 
 Where it appears:
-  `app/README.md` describes app-owned draft artifacts and says executable examples should show draft validation without implying live provider/customer side effects. `app/src/agents.rs` describes `AgentPromptPacket<T>` as a draft/evidence boundary. Workflow modules such as `app/src/booking_triage.rs`, `app/src/daily_update.rs`, `app/src/checkout_completion.rs`, `app/src/crm_retention.rs`, and `app/src/manager_daily_brief.rs` define concrete draft, packet, send-stub, audit-draft, and outcome-record shapes.
+  `app/README.md` describes app-owned draft artifacts and says executable examples should show draft validation without implying live provider/customer side effects. `app/src/agents.rs` describes `AgentPromptPacket<T>` as a draft/evidence boundary. Workflow modules such as `app/src/booking_triage.rs`, `app/src/daily_update.rs`, and `app/src/checkout_completion.rs` define concrete draft and send-stub shapes. CRM-retention and Manager Daily Brief outcome records belong to the separate outcome-capture contract below.
 
 Code-derived contract:
-  A draft is an app-layer artifact prepared from source-grounded workflow context. It can carry proposed message text, a confirmation/update proposal, an audit event proposal, internal task wording, feedback/outcome data, or an evidence bundle for staff review. The app layer may validate the draft and reject requested blocked side effects before downstream code uses it.
+  A draft is an app-layer artifact prepared from source-grounded workflow context. It can carry proposed message text, a confirmation/update proposal, an audit event proposal, internal task wording, or an evidence bundle for staff review. The app layer may validate the draft and reject requested blocked side effects before downstream code uses it. Outcome records instead preserve reported historical evidence after a disposition and cannot authorize or prove action, completion, conversion, or value.
 
 Pet-resort operational meaning:
   For a resort team, a draft is the system doing preparation work: assembling facts, writing safe candidate language, ranking work, or formatting the next staff action so a human does not start from a blank screen. It is the pre-action paperwork for a booking, pet-parent message, checkout handoff, follow-up, daily care update, or manager brief.
@@ -143,13 +143,13 @@ Where it appears:
   `README.md` names outcome capture as a labor-cost surface. `app/README.md` lists outcome records in the app draft/outcome family. `app/src/manager_daily_brief.rs` defines `OutcomeRecord` with action id, actor, outcome, before/actual minutes, blocked actions, source refs, correlation id, and related manager-brief dimensions. `storage/src/operations.rs` defines durable manager-daily-brief outcome projection fields. `docs/safety/source-evidence-map.md` says reported labor-minute evidence should be cited only with outcome records.
 
 Code-derived contract:
-  Outcome capture records feedback about a reviewed workflow action: who recorded it, what outcome was selected, which source/action it ties to, and the reported before/actual labor-minute evidence. It preserves blocked-action boundaries and source refs as nonclaimable reporting or audit evidence; it does not calculate realized savings.
+  Outcome capture retains caller-reported feedback about a workflow action: an actor/persona label, selected outcome label, source/action references, and reported before/actual labor-minute fields. It preserves blocked-action boundaries and source refs as nonclaimable history; it does not authenticate who acted, prove review or completion, measure labor effect, or calculate realized savings.
 
 Pet-resort operational meaning:
   Outcome capture closes the loop after a draft, recommendation, or manager action: did staff report completing it, skip it, escalate it, or find it inapplicable, and how much time was reported spent? It turns a recommendation into reviewable, nonclaimable operational evidence.
 
 Why an operator should care:
-  Outcome capture separates estimated value from observed value. It helps leaders learn which automations reduce dashboard reconciliation and front-desk/manager handoffs, while preserving who reviewed the work and what source facts supported it.
+  Outcome capture separates estimates from caller-reported history. It helps leaders identify hypotheses to validate while preserving supplied labels and source references; by itself it does not authenticate who reviewed work, prove completion, or measure labor reduction.
 
 What not to infer:
   Do not infer that outcome capture performs the underlying action, proves ROI, or retroactively authorizes a side effect. Reported estimates and time spent remain nonclaimable evidence even after review.
@@ -161,7 +161,7 @@ Evidence and review hooks:
   Cite `app/src/manager_daily_brief.rs`, `storage/src/operations.rs`, `docs/design/manager-daily-brief-measurable-labor-loop.md`, `docs/design/labor-cost-reduction-crosswalk.md`, and `docs/safety/source-evidence-map.md`. For API behavior, cite `apps/api/tests/manager_daily_brief_outcome_capture_contract.rs` when discussing tested routes.
 
 Suggested public wording:
-  Outcome capture records what was reported after a reviewed workflow recommendation—who handled it, which action it ties to, and the reported time spent. It does not establish labor saved, perform the work, or authorize live changes.
+  Outcome capture records what a caller reported about a workflow recommendation—an actor/persona label, the linked action, and reported time fields. It does not establish who handled the work, review, completion, labor saved, or authority for live changes.
 
 Related terms:
   `draft`, `workflow packet`, `blocked action`, `manager_daily_brief::OutcomeRecord`, `storage::operations::ManagerDailyBriefOutcomeRecord`, `domain::source::RecordRef`.
@@ -246,6 +246,6 @@ Related terms:
 
 - Does each entry keep the repo/Rust term visible instead of replacing it with a looser business phrase?
 - Does each entry separate preparation (`draft`, `workflow packet`, `agent spec`) from authority (`review gate`, `blocked action`, source-of-record staff/system action)?
-- Does outcome wording distinguish recorded/reviewed labor evidence from guaranteed savings or live execution?
+- Does outcome wording identify caller-reported, nonclaimable time evidence without implying authenticated review, savings, or live execution?
 - Does the public wording avoid implying customer sends, provider/PMS mutation, payment/refund movement, schedule changes, diagnosis, medical approval, or policy override?
 - Are source citations specific enough that a maintainer can verify the claim without relying on this glossary as the authority?

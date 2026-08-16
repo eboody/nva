@@ -504,46 +504,46 @@ pub mod outcome {
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     /// Caller-reported before/after evidence whose variants own the metric-compatible unit.
     pub enum MeasuredChange {
-        /// Booking conversion count change.
+        /// Caller-reported booking-conversion count observation.
         ReportedBookingConversionObservation {
-            /// Conversion count before the reviewed action.
+            /// Caller-reported baseline conversion count.
             before: i64,
-            /// Conversion count after the reviewed action.
+            /// Caller-reported comparison conversion count.
             after: i64,
         },
         /// Reported labor-minute estimate difference.
         ReportedLaborMinutesDifference {
-            /// Labor minutes before the reviewed action.
+            /// Caller-reported baseline labor-minute estimate.
             before: labor::Minutes,
-            /// Labor minutes after the reviewed action.
+            /// Caller-reported comparison labor-minute estimate.
             after: labor::Minutes,
         },
-        /// Utilization basis-points change.
+        /// Caller-reported utilization basis-points observation.
         ReportedUtilizationBasisPointsObservation {
-            /// Utilization basis points before the reviewed action.
+            /// Caller-reported baseline utilization value.
             before: money::BasisPoints,
-            /// Utilization basis points after the reviewed action.
+            /// Caller-reported comparison utilization value.
             after: money::BasisPoints,
         },
         /// Reported revenue observation using canonical currency-aware money.
         ReportedRevenueObservation {
-            /// Reported revenue before the reviewed action.
+            /// Caller-reported baseline revenue observation.
             before: money::Money,
-            /// Reported revenue after the reviewed action.
+            /// Caller-reported comparison revenue observation.
             after: money::Money,
         },
-        /// Customer retention count change.
+        /// Caller-reported customer-retention count observation.
         ReportedCustomerRetentionObservation {
-            /// Retained-customer count before the reviewed action.
+            /// Caller-reported baseline retained-customer count.
             before: i64,
-            /// Retained-customer count after the reviewed action.
+            /// Caller-reported comparison retained-customer count.
             after: i64,
         },
-        /// Handle-time reduction change.
+        /// Caller-reported handle-time estimate difference.
         ReportedHandleTimeEstimateDifference {
-            /// Handle minutes before the reviewed action.
+            /// Caller-reported baseline handle-time estimate.
             before: labor::Minutes,
-            /// Handle minutes after the reviewed action.
+            /// Caller-reported comparison handle-time estimate.
             after: labor::Minutes,
         },
     }
@@ -559,7 +559,7 @@ pub mod outcome {
             Self::ReportedRevenueObservation { before, after }
         }
 
-        /// Metric carried by this measured change.
+        /// Metric label carried by this caller-reported observation.
         pub const fn metric(&self) -> Metric {
             match self {
                 Self::ReportedBookingConversionObservation { .. } => {
@@ -640,7 +640,7 @@ pub mod outcome {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
     /// Legacy attribution strength for compatibility constructors.
     pub enum Attribution {
-        /// Serializable evidence reports that a human reviewed an action; it does not authorize a value claim.
+        /// Serializable evidence carries a reviewed-action label; no human review is proven.
         ReportedReviewedAction,
         /// Correlated with recommendation but not enough for strong claims.
         CorrelatedOnly,
@@ -651,11 +651,11 @@ pub mod outcome {
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     /// Evidence bundle that explains attribution sufficiency.
     pub enum AttributionEvidence {
-        /// Serializable evidence reports a reviewed action but cannot authorize value attribution.
+        /// Serializable evidence carries a reviewed-action label but proves no review or value.
         ReportedReviewedAction {
-            /// Reviewed recommendation or action identifier.
+            /// Caller-reported recommendation or action identifier.
             recommendation_ref: RecommendationRef,
-            /// Source/review evidence identifier.
+            /// Caller-reported source/evidence identifier.
             evidence_ref: EvidenceRef,
         },
         /// Correlated evidence is visible but not sufficient for strong claims.
@@ -671,7 +671,7 @@ pub mod outcome {
     }
 
     impl AttributionEvidence {
-        /// Builds historical reviewed-action evidence without issuing value-claim authority.
+        /// Builds historical reported-reviewed compatibility evidence without proving review.
         pub const fn reported_reviewed_action(
             recommendation_ref: RecommendationRef,
             evidence_ref: EvidenceRef,
@@ -710,7 +710,7 @@ pub mod outcome {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
-    /// Source-backed outcome record for business-value claims.
+    /// Caller-reported outcome observation retained without review or business-value authority.
     pub struct Record {
         id: Id,
         workstream: Workstream,
@@ -754,12 +754,12 @@ pub mod outcome {
             self.workstream
         }
 
-        /// Metric measured by this outcome's before/after change.
+        /// Metric label associated with this caller-reported before/after observation.
         pub const fn metric(&self) -> Metric {
             self.change.metric()
         }
 
-        /// Returns whether this outcome can support a value claim.
+        /// Returns false because caller-reported observations cannot support a value claim.
         pub fn can_support_value_claim(&self) -> bool {
             self.attribution.can_support_value_claim()
                 && self.change.relationship_context_is_consistent()
@@ -849,7 +849,7 @@ pub mod stay {
         BlockingIssues,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+    #[derive(Clone, PartialEq, Eq, Serialize)]
     /// Projected stay fact used by analytics, manager briefs, and labor planning.
     pub struct Fact {
         id: Id,
@@ -862,6 +862,12 @@ pub mod stay {
         projection_version: analytics::ProjectionVersion,
         data_quality_status: DataQualityStatus,
         data_quality_issues: Vec<data_quality::Issue>,
+    }
+
+    impl std::fmt::Debug for Fact {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.write_str("stay::Fact([REDACTED])")
+        }
     }
 
     impl Fact {
@@ -1036,7 +1042,7 @@ pub mod service_demand {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+    #[derive(Clone, PartialEq, Eq, Serialize)]
     /// Source-backed service-demand fact for labor planning and exception reporting.
     pub struct Fact {
         id: Id,
@@ -1046,6 +1052,12 @@ pub mod service_demand {
         projection_version: analytics::ProjectionVersion,
         data_quality_status: DataQualityStatus,
         data_quality_issues: Vec<data_quality::Issue>,
+    }
+
+    impl std::fmt::Debug for Fact {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.write_str("service_demand::Fact([REDACTED])")
+        }
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

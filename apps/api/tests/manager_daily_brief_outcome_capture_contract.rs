@@ -4,6 +4,32 @@ use pet_resort_api::http;
 use serde_json::json;
 use tower::ServiceExt;
 
+#[test]
+fn outcome_persistence_uses_server_recording_time_not_client_claimed_time() {
+    let source = include_str!("../src/http.rs");
+    let manager = source
+        .split("async fn capture_manager_daily_brief_action_outcome")
+        .nth(1)
+        .and_then(|tail| {
+            tail.split("async fn capture_data_quality_hygiene_action_outcome")
+                .next()
+        })
+        .expect("manager outcome handler remains inspectable");
+    let hygiene = source
+        .split("async fn capture_data_quality_hygiene_action_outcome")
+        .nth(1)
+        .and_then(|tail| {
+            tail.split("async fn data_quality_hygiene_outcome_summary")
+                .next()
+        })
+        .expect("data-quality outcome handler remains inspectable");
+
+    for handler in [manager, hygiene] {
+        assert!(handler.contains("Utc::now()"));
+        assert!(!handler.contains(".recorded_at(\n            request"));
+    }
+}
+
 async fn post_outcome(
     action_id: &str,
     body: serde_json::Value,
@@ -183,6 +209,14 @@ async fn manager_daily_brief_outcome_replay_reuses_the_atomic_record() {
     assert_eq!(replay.0, axum_http::StatusCode::OK);
     assert_eq!(replay.1["idempotent_replay"], true);
     assert_eq!(
+        replay.1["outcome_record"], first.1["outcome_record"],
+        "an idempotent replay must describe the exact durably retained record"
+    );
+    assert_eq!(
+        replay.1["reported_labor_evidence"], first.1["reported_labor_evidence"],
+        "reported evidence on replay must preserve the retained record's grouping and timestamp lineage"
+    );
+    assert_eq!(
         replay.1["reported_labor_evidence"]["persisted_outcome_count"],
         1
     );
@@ -217,7 +251,12 @@ async fn manager_daily_brief_outcome_capture_persists_staff_feedback_as_reported
 
     assert_eq!(status, axum_http::StatusCode::CREATED);
     assert_eq!(payload["outcome_record"]["action_id"], action_id);
-    assert_eq!(payload["outcome_record"]["outcome"], "completed");
+    assert_eq!(payload["outcome_record"]["outcome"], "reported_completed");
+    assert_eq!(
+        payload["outcome_record"]["authority_disposition"],
+        "needs_review"
+    );
+    assert_eq!(payload["outcome_record"]["claimable"], false);
     assert_eq!(payload["outcome_record"]["before_minutes"], 20);
     assert_eq!(payload["outcome_record"]["actual_minutes"], 12);
     assert_eq!(

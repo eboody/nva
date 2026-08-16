@@ -6,6 +6,23 @@ use storage::operations::{
     DataQualitySyncGapStatusCode, DataQualityWorkflowBlockingCode, ImportFreshnessRow,
     ReviewGateCode, SourceQualityBacklogRow, StoredSourceRecordRef,
 };
+
+#[test]
+fn workflow_event_record_debug_redacts_subject_idempotency_and_payload() {
+    let record = storage::operations::WorkflowEventRecord {
+        id: "private-event-id".to_owned(),
+        workflow_name: "private-workflow".to_owned(),
+        event_kind: "private-kind".to_owned(),
+        subject_kind: "customer".to_owned(),
+        subject_id: "private-customer-id".to_owned(),
+        idempotency_key: "private-idempotency-key".to_owned(),
+        payload: serde_json::json!({"source_ref": "private-provider-record"}),
+        occurred_at: "2026-08-15T00:00:00Z".to_owned(),
+        recorded_at: "2026-08-15T00:00:01Z".to_owned(),
+    };
+
+    assert_eq!(format!("{record:?}"), "WorkflowEventRecord([REDACTED])");
+}
 use strum::VariantArray;
 
 const DATA_QUALITY_READ_MODEL_MIGRATION: &str =
@@ -66,6 +83,7 @@ fn data_quality_issue_record_codecs_preserve_bi_backlog_dimensions_and_lineage()
 
     let decoded = DataQualityIssueRecord::decode_json(&issue.encode_json().unwrap()).unwrap();
     assert_eq!(decoded, issue);
+    assert_eq!(format!("{decoded:?}"), "DataQualityIssueRecord([REDACTED])");
 }
 
 #[test]
@@ -107,6 +125,10 @@ fn source_quality_backlog_row_exposes_bi_safe_dimensions_without_raw_provider_pa
             .caveats
             .contains(&"live_side_effects_disabled".to_owned())
     );
+    assert_eq!(
+        format!("{backlog_row:?}"),
+        "SourceQualityBacklogRow([REDACTED])"
+    );
 }
 
 #[test]
@@ -142,6 +164,15 @@ fn import_freshness_row_caveats_failed_or_rejected_source_imports() {
         .updated_at("2026-06-17T00:06:00Z".to_owned())
         .build();
 
+    assert_eq!(
+        format!("{import_run:?}"),
+        "DataQualitySourceImportRunRecord([REDACTED])"
+    );
+    assert_eq!(
+        format!("{sync_gap:?}"),
+        "DataQualitySyncGapRecord([REDACTED])"
+    );
+
     let freshness = ImportFreshnessRow::from_import_runs_and_sync_gaps(
         "gingr",
         "location-1",
@@ -167,6 +198,7 @@ fn import_freshness_row_caveats_failed_or_rejected_source_imports() {
             .contains(&"source_import_had_rejections".to_owned())
     );
     assert!(freshness.caveats.contains(&"open_sync_gaps".to_owned()));
+    assert_eq!(format!("{freshness:?}"), "ImportFreshnessRow([REDACTED])");
 }
 
 #[test]

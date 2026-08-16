@@ -9,7 +9,7 @@ use domain::{data_quality, entities, policy, source};
 
 use crate::{
     read_model::{
-        BlockedActionNoticeRow, HygieneOutcomeCardRow, ManagerQueueItemRow, StaffQueueItemRow,
+        BlockedActionNoticeRow, HygieneOutcomeCardV1Row, ManagerQueueItemRow, StaffQueueItemRow,
     },
     storage::review_queue::{
         BlockedActionAttemptRow, BlockedActionReasonColumn, HygieneOutcomeRow,
@@ -129,7 +129,7 @@ pub fn hygiene_outcome_row(outcome: &hygiene::OutcomeRecord, now: u64) -> Hygien
         source_record_refs: encode_source_refs(outcome.source_record_refs()),
         issue_refs: encode_issue_refs(outcome.issue_refs()),
         reviewed_resolution_status: outcome
-            .reviewed_resolution_status()
+            .reported_resolution_status()
             .map(resolution_status_column),
         created_at: now,
         updated_at: now,
@@ -138,8 +138,8 @@ pub fn hygiene_outcome_row(outcome: &hygiene::OutcomeRecord, now: u64) -> Hygien
 }
 
 /// Projects an outcome storage row into the staff dashboard read model.
-pub fn staff_outcome_card(row: HygieneOutcomeRow) -> HygieneOutcomeCardRow {
-    HygieneOutcomeCardRow::new(
+pub fn staff_outcome_card(row: HygieneOutcomeRow) -> HygieneOutcomeCardV1Row {
+    HygieneOutcomeCardV1Row::new(
         row.action_id,
         row.recorded_by,
         row.outcome,

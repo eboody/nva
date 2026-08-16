@@ -1,8 +1,10 @@
-//! Consent purpose and evidence contracts for reviewed communication use.
+//! Consent purpose and evidence contracts for fail-closed communication review.
 //!
 //! Consent evidence is an observation, not authority. It may be incomplete while source discovery is
-//! underway. Permission derivation succeeds only when the evidence binds the exact subject, source
-//! record and schema version, effective interval, and unsuperseded revocation state.
+//! underway. Every public [`crate::consent::ConsentEvidence`] permission predicate fails closed. Only
+//! opaque, non-serializable [`crate::consent::AcceptedConsent`] can apply exact subject,
+//! source/version, interval, and unsuperseded-revocation matching; no production issuer is
+//! currently exposed.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -26,7 +28,7 @@ pub enum Purpose {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Consent state for a channel/purpose pair.
 pub enum ConsentStatus {
-    /// Source evidence grants the use.
+    /// Source evidence reports a granted label; only [`AcceptedConsent`] can grant use.
     Granted,
     /// Consent evidence is missing.
     Missing,
@@ -34,7 +36,7 @@ pub enum ConsentStatus {
     OptedOut,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Exact subject to which source consent evidence applies.
 pub enum Subject {
     /// Consent applies to one owned customer identity.
@@ -43,7 +45,13 @@ pub enum Subject {
     SourceRecord(source::RecordRef),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+impl std::fmt::Debug for Subject {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("Subject([REDACTED])")
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
 /// Source-backed consent evidence for one subject, channel, purpose, and effective interval.
 ///
 /// Optional binding fields preserve honest incomplete observations during source discovery. Such
@@ -60,6 +68,12 @@ pub struct ConsentEvidence {
     effective_until: Option<DateTime<Utc>>,
     revoked_at: Option<DateTime<Utc>>,
     superseded_by: Option<source::RecordRef>,
+}
+
+impl std::fmt::Debug for ConsentEvidence {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("ConsentEvidence([REDACTED])")
+    }
 }
 
 /// Opaque accepted consent promoted by a trusted source adapter.
@@ -81,7 +95,7 @@ impl AcceptedConsent {
         as_of: DateTime<Utc>,
     ) -> bool {
         self.evidence
-            .permits_customer(customer_id, channel, purpose, as_of)
+            .matches_customer(customer_id, channel, purpose, as_of)
     }
 
     /// Returns the serializable historical evidence retained by this accepted fact.
@@ -115,8 +129,12 @@ impl ConsentEvidence {
         matches!(self.status, ConsentStatus::Granted)
     }
 
-    /// Returns whether the evidence reports the channel/purpose pair without claiming authority.
-    pub fn permits(&self, channel: Channel, purpose: Purpose) -> bool {
+    /// Returns false because serializable evidence cannot grant a channel/purpose use.
+    pub const fn permits(&self, _channel: Channel, _purpose: Purpose) -> bool {
+        false
+    }
+
+    fn reports_grant_for(&self, channel: Channel, purpose: Purpose) -> bool {
         self.channel == channel && self.purpose == purpose && self.is_granted()
     }
 
@@ -134,8 +152,20 @@ impl ConsentEvidence {
             && self.source_schema_version.is_some()
     }
 
-    /// Proves current consent for one exact owned customer and intended use.
+    /// Returns false because serializable evidence cannot mint customer-contact permission.
+    ///
+    /// Exact matching is promoted only behind [`AcceptedConsent`].
     pub fn permits_customer(
+        &self,
+        _customer_id: entities::CustomerId,
+        _channel: Channel,
+        _purpose: Purpose,
+        _as_of: DateTime<Utc>,
+    ) -> bool {
+        false
+    }
+
+    fn matches_customer(
         &self,
         customer_id: entities::CustomerId,
         channel: Channel,
@@ -143,23 +173,22 @@ impl ConsentEvidence {
         as_of: DateTime<Utc>,
     ) -> bool {
         self.subject == Some(Subject::Customer(customer_id))
-            && self.permits(channel, purpose)
+            && self.reports_grant_for(channel, purpose)
             && self.has_complete_source_binding()
             && self.is_current_at(as_of)
     }
 
-    /// Proves current consent for one exact source record before owned identity promotion.
+    /// Returns false because serializable evidence cannot mint source-record contact permission.
+    ///
+    /// Production promotion requires an unavailable source-authenticated accepted-consent issuer.
     pub fn permits_source_record(
         &self,
-        subject: &source::RecordRef,
-        channel: Channel,
-        purpose: Purpose,
-        as_of: DateTime<Utc>,
+        _subject: &source::RecordRef,
+        _channel: Channel,
+        _purpose: Purpose,
+        _as_of: DateTime<Utc>,
     ) -> bool {
-        self.subject.as_ref() == Some(&Subject::SourceRecord(subject.clone()))
-            && self.permits(channel, purpose)
-            && self.has_complete_source_binding()
-            && self.is_current_at(as_of)
+        false
     }
 
     /// Channel covered by this evidence.
@@ -174,6 +203,27 @@ mod tests {
     use uuid::Uuid;
 
     use super::*;
+
+    #[test]
+    fn consent_subject_and_evidence_debug_redact_customer_identity() {
+        let private_customer = entities::CustomerId::new(
+            Uuid::parse_str("86753090-1234-4567-89ab-cdef01234567").unwrap(),
+        );
+        let subject = Subject::Customer(private_customer);
+        let evidence = ConsentEvidence::builder()
+            .channel(Channel::Email)
+            .purpose(Purpose::MarketingRetention)
+            .status(ConsentStatus::Granted)
+            .source(source::System::Crm)
+            .subject(subject.clone())
+            .build();
+
+        assert_eq!(format!("{subject:?}"), "Subject([REDACTED])");
+        assert_eq!(format!("{evidence:?}"), "ConsentEvidence([REDACTED])");
+        assert!(
+            !format!("{subject:?}{evidence:?}").contains("86753090-1234-4567-89ab-cdef01234567")
+        );
+    }
 
     #[test]
     fn accepted_consent_remains_exact_subject_and_effective_time_bound() {

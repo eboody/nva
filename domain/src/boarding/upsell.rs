@@ -1,6 +1,6 @@
 //! Boarding upsell recommendations for exit baths, play, grooming, suite, and training offers.
 //!
-//! Recommendations carry care-safety gates so labor-saving offer drafting never bypasses staff
+//! Recommendations carry care-safety gates so offer-drafting assistance never bypasses staff
 //! review for allergies, medications, medical conditions, behavior context, or customer messaging.
 
 use super::*;

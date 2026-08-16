@@ -22,10 +22,10 @@ use crate::{
 /// `strategic_ai_ops::lead_response`. These values remain source-backed and do not authorize live
 /// customer sends, provider writes, booking promises, or schedule mutations.
 ///
-/// The promotion chain is deliberately narrow: a source event plus SLA evidence, exact
-/// channel/purpose consent, and an ordered reviewed attempt can become a packet. Review rows and
-/// conversion observations remain serializable evidence; no production queue or value-attribution
-/// capability is issued until an authenticated acceptance boundary exists.
+/// The current public chain is deliberately fail-closed: source events, caller-reported SLA labels,
+/// consent evidence, and attempt labels remain serializable history but cannot construct a response
+/// packet. No contact, review, SLA, queue, conversion, or value-attribution authority exists until a
+/// future authenticated acceptance boundary issues opaque, exact authority.
 ///
 /// ```
 /// use chrono::{TimeZone, Utc};
@@ -85,8 +85,11 @@ use crate::{
 ///         .source(lead::response::AttributionSource::MissedCall)
 ///         .estimated_value(money::Money::usd(45_000)?)
 ///         .build(),
-/// )?;
-/// assert!(packet.requires_customer_message_approval());
+/// );
+/// assert!(matches!(
+///     packet,
+///     Err(lead::response::Error::ConsentDoesNotCoverAttempt)
+/// ));
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 pub mod response {
@@ -250,20 +253,20 @@ pub mod response {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Current SLA state.
+    /// Caller-reported SLA compatibility label; no variant proves response, contact, review, or SLA attainment.
     pub enum SlaStatus {
-        /// SLA is open.
+        /// Caller reports the SLA as open.
         Open,
-        /// Response satisfied the SLA.
+        /// Caller reports an SLA-met label; this does not prove a response or SLA attainment.
         Met,
-        /// SLA was breached.
+        /// Caller reports an SLA-breached label; this does not prove chronology or adjudication.
         Breached,
-        /// After-hours policy paused the response clock.
+        /// Caller reports an after-hours-paused label; this does not prove policy application.
         PausedAfterHours,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-    /// Lead-response SLA evidence.
+    /// Caller-reported lead-response SLA compatibility evidence; it cannot establish response or SLA attainment.
     pub struct ResponseSla {
         target: SlaTarget,
         received_at: DateTime<Utc>,
@@ -272,7 +275,7 @@ pub mod response {
     }
 
     impl ResponseSla {
-        /// Creates SLA evidence only when the due timestamp agrees with the receipt timestamp and target.
+        /// Retains caller-reported SLA evidence only when its due timestamp is arithmetically coherent with its receipt timestamp and target; coherence proves no response or SLA attainment.
         pub fn try_new(
             target: SlaTarget,
             received_at: DateTime<Utc>,
@@ -303,13 +306,6 @@ pub mod response {
         /// Receipt timestamp used to validate attempts against the event.
         pub const fn received_at(&self) -> DateTime<Utc> {
             self.received_at
-        }
-
-        /// Returns whether an attempted first response occurred before the due time.
-        pub fn is_met_at(&self, at: DateTime<Utc>) -> bool {
-            matches!(self.status, SlaStatus::Open | SlaStatus::Met)
-                && at >= self.received_at
-                && at <= self.due_at
         }
     }
 
@@ -522,7 +518,10 @@ pub mod response {
     }
 
     impl ResponsePacket {
-        /// Creates a packet only after event, SLA, consent, attempt, and attribution relationships agree.
+        /// Attempts to create a packet after structural validation.
+        ///
+        /// Caller-constructible consent evidence cannot authorize contact, so production issuance
+        /// remains unavailable until a source-authenticated accepted-consent adapter exists.
         pub fn try_new(
             event: Event,
             sla: ResponseSla,
@@ -544,6 +543,9 @@ pub mod response {
                 if previous_attempt_at.is_some_and(|previous| attempt.attempted_at() < previous) {
                     return Err(Error::ContactAttemptsOutOfOrder);
                 }
+                previous_attempt_at = Some(attempt.attempted_at());
+            }
+            for attempt in &attempts {
                 if !consent.permits_source_record(
                     &event.source_record(),
                     attempt.channel(),
@@ -552,7 +554,6 @@ pub mod response {
                 ) {
                     return Err(Error::ConsentDoesNotCoverAttempt);
                 }
-                previous_attempt_at = Some(attempt.attempted_at());
             }
             Ok(Self {
                 event,
@@ -577,11 +578,6 @@ pub mod response {
             &self.attempts
         }
 
-        /// Returns whether first response satisfies the SLA at the supplied attempt time.
-        pub fn first_response_sla_is_met_at(&self, at: DateTime<Utc>) -> bool {
-            self.sla.is_met_at(at)
-        }
-
         /// Returns whether any attempt remains behind a customer-message approval gate.
         pub fn requires_customer_message_approval(&self) -> bool {
             self.attempts
@@ -589,7 +585,7 @@ pub mod response {
                 .any(|attempt| attempt.review_gate() == policy::ReviewGate::CustomerMessageApproval)
         }
 
-        /// Returns whether packet consent grants the exact outbound response channel and purpose.
+        /// Returns false because retained caller evidence cannot grant an outbound response.
         pub fn consent_allows_response(
             &self,
             channel: communication::Channel,
@@ -640,7 +636,7 @@ pub mod response {
             self.sla = Some(sla);
             self
         }
-        /// Sets the consent evidence used to validate attempts.
+        /// Sets caller-reported consent evidence retained for fail-closed validation.
         pub fn consent(mut self, consent: communication::ConsentEvidence) -> Self {
             self.consent = Some(consent);
             self
@@ -700,8 +696,8 @@ pub mod response {
         QueueOnly,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
-    /// Serializable historical review evidence; it cannot promote a packet into queue authority.
+    #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+    /// Serializable caller-reported review labels; they authenticate no actor, review, contact, message, or queue authority.
     pub struct ReviewApprovalEvidence {
         gate: policy::ReviewGate,
         location_id: entities::LocationId,
@@ -710,6 +706,12 @@ pub mod response {
         channel: communication::Channel,
         purpose: communication::Purpose,
         message_ref: message::BodyRef,
+    }
+
+    impl fmt::Debug for ReviewApprovalEvidence {
+        fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            formatter.write_str("ReviewApprovalEvidence([REDACTED])")
+        }
     }
 
     /// Opaque proof token for an outbound draft that may only enter an internal queue.

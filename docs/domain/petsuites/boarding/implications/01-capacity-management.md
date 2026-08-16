@@ -33,7 +33,7 @@ Common triggers:
 ### Actors
 
 - Customer/member: requests or changes a stay, but does not own capacity decisions.
-- Front desk / call-center staff: captures request, explains reviewed outcomes, and can apply approved staff-level decisions.
+- Front desk / call-center staff: captures requests, explains separately authenticated decisions, and can apply only decisions covered by current staff authority.
 - Kennel technician / lead staff: reports room readiness, blocked rooms, turnover status, and pet-specific accommodation constraints.
 - Manager: owns capacity exceptions, hold release, over-capacity review, holiday/peak policy exceptions, and denial/waitlist decisions when customer impact or safety risk is material.
 - Domain policy: deterministically evaluates the request against inventory, reservations, holds, season policy, and species/accommodation constraints.

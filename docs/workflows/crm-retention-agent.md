@@ -2,13 +2,15 @@
 
 > Successor route: this is a detailed specification/supporting-proof artifact, not the current reader spine. Start with the [docs successor and archive map](../design/successor-archive-map.md#older-workflow-and-specification-docs), [workflow-to-entity map](../design/workflow-to-entity-navigation-map.md), and [operator workflow index](operator/README.md) before using this page for current claims.
 
-Status: detailed supporting-proof artifact for the CRM/retention workstream. This document synthesizes the completed part artifacts in `docs/workflows/crm-retention-parts/` plus related customer-messaging policy into one integration contract for product, data-model, task-model, and implementation planning; use the successor routes above for current reader navigation.
+Status: future design/supporting-proof artifact for the CRM/retention workstream. It is not the current executable contract.
+
+**Current executable status: evidence-only and universally ineligible.** Serialized checkout, history, stage, consent, contact, suppression, opportunity, and outcome labels create no candidate, ranking, queue, internal task, review packet, customer draft, contact, conversion, completion, or value authority. Current runtime output is limited to a suppressed evidence packet, evidence summary, canonical blockers/gates, and nonclaimable reported history. Every broader “may,” “allowed,” candidate, task, packet, draft, outreach, send, offer, or execution path below is hypothetical future design. It requires a new opaque, non-serializable eligibility authority; reviewing current evidence cannot mint it.
 
 This document is a workflow/specification artifact only. It does not authorize live customer-facing marketing automation, review requests, rebooking sends, complaint responses, public-review replies, discounts, refunds, credits, waivers, retention offers, booking/provider mutations, consent/DNC changes, or production campaign execution.
 
 Anything marked candidate, draft, proposed, configurable, or review-gated requires explicit location/product/manager policy approval before it becomes production behavior. Customer-facing sends and offers remain gated unless a later deterministic policy fixes the category, template, channel, facts, suppression set, consent basis, quiet-hours/cadence, idempotency, audit, and execution adapter.
 
-Glossary help for non-coders: CRM/retention work should be read as a source-backed [workflow packet](../glossary-workflow-state-terms.md#workflow-packet) that may prepare outreach [drafts](../glossary-workflow-state-terms.md#draft), preserves [source refs](../glossary-architecture-terms.md#source-ref-domainsourcerecordref) and [provenance](../glossary-architecture-terms.md#provenance-domainsourceprovenance), requires [review gates](../glossary-workflow-state-terms.md#review-gate), leaves customer sends/offers/payment/provider mutation as [blocked actions](../glossary-workflow-state-terms.md#blocked-action), and records staff disposition through [outcome capture](../glossary-workflow-state-terms.md#outcome-capture).
+Glossary help for non-coders: current CRM/retention work is a source-backed [workflow packet](../glossary-workflow-state-terms.md#workflow-packet) that preserves suppressed evidence, [source refs](../glossary-architecture-terms.md#source-ref-domainsourcerecordref), and [provenance](../glossary-architecture-terms.md#provenance-domainsourceprovenance). It cannot prepare an outreach [draft](../glossary-workflow-state-terms.md#draft), task, queue, or candidate. Review gates name why the evidence remains blocked; they are not authority.
 
 ## Purpose and non-goals
 
@@ -19,15 +21,14 @@ The CRM and retention agent answers four operational questions:
 3. Is a rebooking, reminder, winback, package, VIP, or retention opportunity appropriate, suppressed, or review-required?
 4. What risk-forward staff history summary or complaint-recovery handoff is needed before any outreach?
 
-Allowed outcomes:
+Current allowed outcomes:
 
-- classify lifecycle stage from source-backed evidence;
 - produce suppression/no-action reasons with source refs and policy version;
-- create internal staff, manager, reputation, payment, or data-quality tasks;
-- prepare review packets for marketing/reputation/rebooking/retention decisions;
-- draft customer-facing copy only as review-gated output when facts and template path support it;
-- produce staff-facing customer/pet history summaries with risk flags and citations;
-- route complaint recovery cases to manager-owned review and maintain suppression while unresolved.
+- preserve caller-reported lifecycle, customer/pet history, opportunity, consent, contact, complaint, and outcome labels as evidence;
+- produce a staff-facing evidence summary with risk flags and citations;
+- maintain universal ineligibility and suppression without creating downstream work.
+
+Future-only outcomes described later, including lifecycle classification authority, internal tasks, review packets, customer drafts, complaint routing, or outreach, require the opaque authority described above and are unavailable today.
 
 Non-goals and blocked actions:
 
@@ -660,11 +661,11 @@ Required policy facts for any CRM/customer-message candidate:
 
 Conservative defaults until policy exists:
 
-- DNC, opt-out, unsubscribe, legal/privacy suppression, or missing consent blocks marketing, review, rebooking, winback, package, VIP, and promotional retention messages. Internal tasks may still be created.
-- Quiet-hours policy must be location-timezone aware. Unknown quiet-hours policy blocks autonomous sends and routes to draft/review or scheduling only after approval.
+- DNC, opt-out, unsubscribe, legal/privacy suppression, or missing consent blocks marketing, review, rebooking, winback, package, VIP, and promotional retention messages. Current retention processing preserves suppressed evidence only and creates no internal task.
+- Quiet-hours policy must be location-timezone aware. Unknown quiet-hours policy remains suppressed evidence; current retention processing cannot route it to a draft, review queue, task, or schedule proposal.
 - Unknown over-contact limits suppress automation rather than risking spam.
 - Transactional/operational versus marketing treatment is not hard-coded here; preserve purpose-specific consent policy rather than inferring legal permission.
-- Failed delivery creates staff/manual retry work or a reviewed replacement send. Do not silently switch channels without policy and audit.
+- A failed-delivery label remains caller-reported, suppressed evidence in the current runtime and creates no retry task or replacement draft. A future authorized delivery workflow must not silently switch channels without policy and audit.
 - Suppression is a final outcome with reason, policy version, source refs, and audit context.
 - Idempotency keys must include customer, pet, location, service line, purpose, source event/history anchor, policy window/version, and channel where relevant.
 
@@ -683,7 +684,7 @@ Approval must specify:
 - idempotency scope, immutable payload/audit/outbox fields, retry/dead-letter behavior, and provider-response handling;
 - owner role for policy/template changes.
 
-Without this gate, the CRM agent may only draft, suppress, or route to review.
+This gate is not implemented as current retention authority. Current runtime may only preserve and summarize suppressed evidence; it cannot draft or route work. Future drafting additionally requires opaque, non-serializable eligibility authority.
 
 ### Complaint response gate
 
@@ -718,7 +719,7 @@ Every approval/override must record actor, role/authority, timestamp, policy ver
 ### Integration notes
 
 - CRM outputs should be structured `WorkflowResult`-style artifacts with `structured_output`, `recommended_actions`, `risk_flags`, `verification`, `human_review_reason`, and audit/source refs where the domain model supports it.
-- Current message generation should use draft/review schemas from customer messaging. A CRM review or rebooking draft should project to the Customer Messaging Agent schema, not bypass it.
+- Future message generation, if opaque eligibility authority is implemented, should use draft/review schemas from customer messaging. Current CRM retention cannot create a review or rebooking draft.
 - Phone is a staff call-task channel by default. Email, SMS, and portal are canonical written draft channels. WhatsApp remains out of scope until typed consent/provider/template/audit semantics exist.
 - Staff-facing history summaries should be invoked by CRM/rebooking/review/complaint workflows before customer-facing outreach whenever risk, mixed history, or source gaps exist.
 - Complaint suppression must be a first-class shared state visible to review-request, rebooking, VIP, winback, package, and promotional flows.
@@ -739,4 +740,4 @@ Every approval/override must record actor, role/authority, timestamp, policy ver
 
 ## Conservative implementation rule
 
-If any lifecycle stage, consent, DNC, quiet-hours, over-contact, source evidence, suppression, sentiment, complaint, incident, payment, template, timing, idempotency, or approval fact is missing, stale, conflicting, risky, or outside policy, the CRM/retention agent may create an internal task, staff-facing summary, suppression reason, manager review packet, or draft-only candidate. It must not send, promise, offer, mutate provider/customer/payment state, clear suppression, or return the customer to promotional automation autonomously.
+Regardless of whether lifecycle, consent, DNC, quiet-hours, over-contact, source, suppression, complaint, payment, template, timing, idempotency, or approval claims appear complete, current serialized evidence remains ineligible. The agent may only preserve and summarize suppressed evidence and nonclaimable history. It cannot create a candidate, queue, task, review packet, customer draft, contact, conversion, completion, value authority, or live side effect. Future behavior requires the separate opaque authority described at the top of this document.

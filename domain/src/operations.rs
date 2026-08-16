@@ -385,7 +385,7 @@ pub mod capacity {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
     /// Review-gated capacity/labor optimization recommendation.
     pub struct OptimizationRecommendation {
         objective: OptimizationObjective,
@@ -397,6 +397,12 @@ pub mod capacity {
         action: RecommendedAction,
         expected_labor_delta_minutes: labor::SignedMinutes,
         review_gate: policy::ReviewGate,
+    }
+
+    impl std::fmt::Debug for OptimizationRecommendation {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.write_str("OptimizationRecommendation([REDACTED])")
+        }
     }
 
     impl OptimizationRecommendation {
@@ -1203,7 +1209,10 @@ pub mod pet_resort {
         TrainingCertificationCompletion,
         /// Resort profitability context for regional reporting; automation may summarize variance, not change budgets.
         ResortLevelEbitdaProfitability,
-        /// Grooming rebooking cadence context for staff-reviewed outreach and schedule-fill opportunities.
+        /// Reported grooming cadence context retained as suppressed evidence.
+        ///
+        /// This label cannot establish eligibility or create outreach,
+        /// schedule-fill candidates, queues, tasks, drafts, or slot proposals.
         GroomingCadence,
         /// Daycare eligibility context where temperament, vaccine, and ratio rules remain safety gates.
         DaycareEligibilityRules,
@@ -1438,7 +1447,11 @@ pub enum AiUseCase {
     CustomerInboxAndCallDeflection,
     /// Lead conversion ranks follow-up opportunities; booking, pricing, and messages remain approval-gated.
     LeadConversion,
-    /// Grooming rebooking identifies cadence gaps and drafts follow-up for staff review.
+    /// Compatibility use-case label for suppressed grooming cadence evidence.
+    ///
+    /// Current serialized evidence cannot create a rebooking candidate, ranking,
+    /// queue, task, slot proposal, or customer draft. Future execution requires
+    /// new opaque, non-serializable eligibility authority.
     GroomingRebooking,
     /// Post-stay Pawgress assistant drafts care summaries from evidence that staff approve before sending.
     PostStayPawgressReportAssistant,

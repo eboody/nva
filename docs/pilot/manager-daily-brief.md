@@ -4,7 +4,7 @@ Purpose: summarize high-friction operating exceptions into reviewed manager work
 
 What the code does today:
 
-- Builds a local manager brief packet from service-demand facts, checkout exceptions, and retention opportunities.
+- Builds a local manager brief packet from service-demand facts, checkout exceptions, capacity recommendations, and data-quality issues. Reported retention packets remain evidence only and cannot contribute an action, queue item, task, or draft.
 - Filters facts to the requested location and operating day.
 - Ranks internal manager actions.
 - Carries source evidence and data-quality warnings.

@@ -61,7 +61,7 @@ impl ApiContractMetadata {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RequestMetadata {
     pub request_id: String,
     pub correlation_id: Option<String>,
@@ -90,7 +90,7 @@ pub struct ActorRef {
     pub actor_role: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SourceRef {
     pub source_system: String,
     pub external_record_ref: String,
@@ -114,21 +114,21 @@ pub struct SourceRecordRef {
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ManagerDailyBriefOutcomeCaptureRequest {
-    /// Reviewed outcome classification.
+    /// Caller-reported disposition label retained as nonclaimable evidence.
     pub outcome: storage::operations::ManagerDailyBriefOutcomeCode,
-    /// Actual staff minutes spent completing the action.
+    /// Caller-reported minutes spent handling the action; not proof of completion or measured labor effect.
     pub actual_minutes: NonZeroU16,
-    /// Authenticated actor identity and persona claim.
+    /// Caller-provided actor/persona labels; transport authentication does not prove review.
     pub actor: ActorRef,
-    /// Staff-authored evidence describing what happened.
+    /// Caller-reported feedback describing what was claimed to have happened.
     pub feedback: String,
-    /// Exact source records bound to the recommended action.
+    /// Source records correlated to the report; they do not prove review or completion.
     pub source_refs: Vec<SourceRecordRef>,
-    /// Timestamp at which the reviewed outcome was recorded.
+    /// Caller-reported observation timestamp used in replay identity; durable recording time is server-issued.
     pub timestamp: DateTime<Utc>,
     /// Correlation evidence for this workflow operation.
     pub audit: ManagerDailyBriefOutcomeAudit,
-    /// Reporting dimensions used for the labor-value claim.
+    /// Grouping dimensions for nonclaimable reported labor evidence.
     pub reporting: ManagerDailyBriefOutcomeReporting,
     /// Requested effects; runtime policy currently requires this list to be empty.
     pub requested_side_effects: Vec<String>,
@@ -144,14 +144,14 @@ pub struct ManagerDailyBriefOutcomeAudit {
     pub correlation_id: IdempotencyKey,
 }
 
-/// Labor-reporting dimensions nested in a Manager Daily Brief outcome request.
+/// Grouping dimensions nested in a Manager Daily Brief reported-outcome request.
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ManagerDailyBriefOutcomeReporting {
-    /// Location whose operation produced the outcome.
+    /// Caller-reported location used to group retained evidence.
     #[serde(deserialize_with = "deserialize_non_nil_uuid")]
     pub location_id: Uuid,
-    /// Operating day whose brief contained the action.
+    /// Caller-reported operating day used to group retained evidence.
     pub operating_day: NaiveDate,
 }
 
@@ -181,21 +181,11 @@ impl fmt::Debug for ManagerDailyBriefOutcomeReporting {
 
 impl fmt::Debug for ManagerDailyBriefOutcomeCaptureRequest {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("ManagerDailyBriefOutcomeCaptureRequest")
-            .field("outcome", &self.outcome)
-            .field("actual_minutes", &self.actual_minutes)
-            .field("source_ref_count", &self.source_refs.len())
-            .field(
-                "requested_side_effect_count",
-                &self.requested_side_effects.len(),
-            )
-            .field("sensitive_fields", &"[REDACTED]")
-            .finish()
+        formatter.write_str("ManagerDailyBriefOutcomeCaptureRequest([REDACTED])")
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ReviewGateRef {
     pub gate: String,
     pub required: bool,
@@ -203,14 +193,14 @@ pub struct ReviewGateRef {
     pub reason: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct BlockedAction {
     pub action: String,
     pub blocked_reason: String,
     pub review_gate: Option<ReviewGateRef>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AuditRef {
     pub audit_event_id: String,
     pub event_name: String,
@@ -220,7 +210,7 @@ pub struct AuditRef {
     pub outbox_record_id: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ErrorEnvelope {
     pub error: ApiError,
     pub request_id: String,
@@ -228,7 +218,7 @@ pub struct ErrorEnvelope {
     pub live_side_effects: LiveSideEffectsMode,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ApiError {
     pub code: String,
     pub message: String,
@@ -236,7 +226,7 @@ pub struct ApiError {
     pub details: Vec<ErrorDetail>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ErrorDetail {
     pub field: String,
     pub reason: String,
@@ -261,14 +251,14 @@ pub struct ReportedLaborEstimateEvidence {
     pub reported_estimated_minutes_difference: u16,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct WorkflowAudit {
     pub context_packet_id: String,
     pub correlation_id: String,
     pub runtime: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct WorkflowObservability {
     pub correlation_id: String,
     pub request_id: String,
@@ -279,7 +269,7 @@ pub struct WorkflowObservability {
     pub sensitive_payload_logging: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DataQualityIssue {
     pub kind: String,
     pub severity: String,
@@ -290,7 +280,7 @@ pub struct DataQualityIssue {
     pub source_refs: Vec<SourceRecordRef>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DataQualityCandidate {
     pub id: String,
     pub kind: String,
@@ -300,7 +290,7 @@ pub struct DataQualityCandidate {
     pub sensitivity: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DataQualityAction {
     pub id: String,
     pub kind: String,
@@ -315,7 +305,7 @@ pub struct DataQualityAction {
     pub live_side_effects_allowed: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DataQualityHygieneContextResponse {
     pub api_contract: ApiContractMetadata,
     pub workflow: WorkflowDescriptor,
@@ -332,7 +322,7 @@ pub struct DataQualityHygieneContextResponse {
     pub observability: WorkflowObservability,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct DataQualityHygieneSubmittedAction {
     pub action_id: String,
@@ -349,7 +339,7 @@ pub struct DataQualityHygieneSubmittedAction {
     pub attempted_ambiguity_resolution: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct DataQualityHygieneDraftSubmissionRequest {
     pub context_packet_id: String,
@@ -357,6 +347,39 @@ pub struct DataQualityHygieneDraftSubmissionRequest {
     pub actions: Vec<DataQualityHygieneSubmittedAction>,
     pub idempotency_key: Option<String>,
 }
+
+macro_rules! impl_sensitive_debug {
+    ($($type:ident),+ $(,)?) => {
+        $(
+            impl fmt::Debug for $type {
+                fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                    formatter.write_str(concat!(stringify!($type), "([REDACTED])"))
+                }
+            }
+        )+
+    };
+}
+
+impl_sensitive_debug!(
+    RequestMetadata,
+    SourceRef,
+    ReviewGateRef,
+    BlockedAction,
+    AuditRef,
+    ErrorEnvelope,
+    ApiError,
+    ErrorDetail,
+    WorkflowAudit,
+    WorkflowObservability,
+    DataQualityIssue,
+    DataQualityCandidate,
+    DataQualityAction,
+    DataQualityHygieneContextResponse,
+    DataQualityHygieneSubmittedAction,
+    DataQualityHygieneDraftSubmissionRequest,
+    DataQualityHygieneOutcomeActor,
+    OutcomeAudit,
+);
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -512,7 +535,7 @@ pub struct DataQualityHygieneOutcomeCaptureRequest {
     feedback: String,
     source_refs: Vec<SourceRecordRef>,
     issue_refs: Vec<String>,
-    resolution_status_after_review: DataQualityResolutionStatus,
+    reported_resolution_status: DataQualityResolutionStatus,
     timestamp: DateTime<Utc>,
     audit: OutcomeAudit,
     requested_side_effects: Vec<String>,
@@ -544,8 +567,8 @@ impl DataQualityHygieneOutcomeCaptureRequest {
         &self.issue_refs
     }
 
-    pub const fn resolution_status_after_review(&self) -> DataQualityResolutionStatus {
-        self.resolution_status_after_review
+    pub const fn reported_resolution_status(&self) -> DataQualityResolutionStatus {
+        self.reported_resolution_status
     }
 
     pub const fn timestamp(&self) -> DateTime<Utc> {
@@ -567,22 +590,7 @@ impl DataQualityHygieneOutcomeCaptureRequest {
 
 impl fmt::Debug for DataQualityHygieneOutcomeCaptureRequest {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("DataQualityHygieneOutcomeCaptureRequest")
-            .field("outcome", &self.outcome)
-            .field("actual_minutes", &self.actual_minutes)
-            .field(
-                "resolution_status_after_review",
-                &self.resolution_status_after_review,
-            )
-            .field("source_ref_count", &self.source_refs.len())
-            .field("issue_ref_count", &self.issue_refs.len())
-            .field(
-                "requested_side_effect_count",
-                &self.requested_side_effects.len(),
-            )
-            .field("sensitive_fields", &"[REDACTED]")
-            .finish()
+        formatter.write_str("DataQualityHygieneOutcomeCaptureRequest([REDACTED])")
     }
 }
 
@@ -735,7 +743,7 @@ pub fn runtime_schema_contracts() -> &'static [RuntimeSchemaContract] {
                 "feedback",
                 "source_refs",
                 "issue_refs",
-                "resolution_status_after_review",
+                "reported_resolution_status",
                 "timestamp",
                 "audit",
                 "requested_side_effects",
@@ -765,7 +773,7 @@ pub fn runtime_schema_contracts() -> &'static [RuntimeSchemaContract] {
                 ),
                 field("issue_refs", false, None, &[]),
                 field(
-                    "resolution_status_after_review",
+                    "reported_resolution_status",
                     false,
                     None,
                     &["open", "acknowledged", "ignored", "repaired"],

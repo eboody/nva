@@ -679,7 +679,7 @@ fn nva_context_expands_lead_and_reputation_triage_contracts() {
 
 #[test]
 fn staff_operations_tasks_encode_due_evidence_and_manager_attention() {
-    let task = staff::Task::builder()
+    let builder = staff::Task::builder()
         .location_id(entities::LocationId::new(uuid::Uuid::from_u128(1)))
         .kind(staff::task::Kind::MedicationAdministration {
             pet_id: entities::PetId::new(uuid::Uuid::from_u128(1)),
@@ -691,9 +691,36 @@ fn staff_operations_tasks_encode_due_evidence_and_manager_attention() {
         .assignment(staff::task::Assignment::Role(staff::Role::KennelTechnician))
         .source(staff::task::Source::Reservation(
             entities::reservation::Id::new(uuid::Uuid::from_u128(1)),
-        ))
-        .build()
-        .unwrap();
+        ));
+    assert_eq!(format!("{builder:?}"), "TaskBuilder([REDACTED])");
+    assert_eq!(
+        format!(
+            "{:?}",
+            staff::task::Kind::MedicationAdministration {
+                pet_id: entities::PetId::new(uuid::Uuid::from_u128(0xfeed_face))
+            }
+        ),
+        "Kind([REDACTED])"
+    );
+    assert_eq!(
+        format!(
+            "{:?}",
+            staff::task::Assignment::Staff(
+                entities::StaffId::try_new("staff-sensitive-dead-beef").unwrap(),
+            )
+        ),
+        "Assignment([REDACTED])"
+    );
+    assert_eq!(
+        format!(
+            "{:?}",
+            staff::task::Source::Customer(entities::CustomerId::new(uuid::Uuid::from_u128(
+                0xcafe_babe
+            )))
+        ),
+        "Source([REDACTED])"
+    );
+    let task = builder.build().unwrap();
 
     assert!(task.requires_manager_attention());
     assert_eq!(task.title().clone().into_inner(), "Give evening medication");
@@ -704,7 +731,7 @@ fn staff_operations_tasks_encode_due_evidence_and_manager_attention() {
             pet_id: entities::PetId::new(uuid::Uuid::from_u128(1)),
         })
         .title(workflow::task::Title::try_new("Give evening medication").unwrap())
-        .status(staff::task::Status::Completed)
+        .status(staff::task::Status::ReportedCompleted)
         .priority(staff::task::Priority::High)
         .due_at(chrono::DateTime::<chrono::Utc>::UNIX_EPOCH)
         .assignment(staff::task::Assignment::Role(staff::Role::KennelTechnician))
@@ -712,24 +739,27 @@ fn staff_operations_tasks_encode_due_evidence_and_manager_attention() {
             entities::reservation::Id::new(uuid::Uuid::from_u128(1)),
         ))
         .build()
-        .expect_err("ordinary staff task construction must require completed evidence");
+        .expect_err("reported completion requires evidence");
     assert!(
         completed_without_builder_evidence
             .to_string()
-            .contains("completed staff task requires completion evidence")
+            .contains("reported staff-task completion requires evidence")
     );
 
-    let completed = task.complete_with(
-        staff::completion_evidence::Evidence::try_new(
-            "  administered by tech and double-checked by lead  ",
-        )
-        .unwrap(),
-    );
+    let completion_evidence = staff::completion_evidence::Evidence::try_new(
+        "  administered by tech and double-checked by lead  ",
+    )
+    .unwrap();
+    assert_eq!(format!("{completion_evidence:?}"), "Evidence(<redacted>)");
+    let completed = task.record_reported_completion(completion_evidence);
 
-    assert_eq!(completed.status(), staff::task::Status::Completed);
+    assert_eq!(format!("{completed:?}"), "Task([REDACTED])");
+
+    assert_eq!(completed.status(), staff::task::Status::ReportedCompleted);
+    assert!(!completed.counts_as_realized_completion());
     assert_eq!(
         completed
-            .completion_evidence()
+            .reported_completion_evidence()
             .unwrap()
             .clone()
             .into_inner(),
@@ -737,23 +767,38 @@ fn staff_operations_tasks_encode_due_evidence_and_manager_attention() {
     );
     assert!(staff::completion_evidence::Evidence::try_new("   ").is_err());
 
+    let mut legacy_report = serde_json::to_value(&completed).unwrap();
+    let legacy_object = legacy_report.as_object_mut().unwrap();
+    legacy_object.insert("status".to_owned(), serde_json::json!("Completed"));
+    let evidence = legacy_object
+        .remove("reported_completion_evidence")
+        .unwrap();
+    legacy_object.insert("completion_evidence".to_owned(), evidence);
+    let rehydrated_legacy = serde_json::from_value::<staff::Task>(legacy_report)
+        .expect("legacy completion history remains readable as reported evidence");
+    assert_eq!(
+        rehydrated_legacy.status(),
+        staff::task::Status::ReportedCompleted
+    );
+    assert!(!rehydrated_legacy.counts_as_realized_completion());
+
     let completed_without_evidence = serde_json::json!({
         "location_id": entities::LocationId::new(uuid::Uuid::from_u128(1)),
         "kind": { "MedicationAdministration": { "pet_id": entities::PetId::new(uuid::Uuid::from_u128(1)) } },
         "title": "Give evening medication",
-        "status": "Completed",
+        "status": "ReportedCompleted",
         "priority": "High",
         "due_at": chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
         "assignment": { "Role": "KennelTechnician" },
         "source": { "Reservation": entities::reservation::Id::new(uuid::Uuid::from_u128(1)) },
-        "completion_evidence": null
+        "reported_completion_evidence": null
     });
     let error = serde_json::from_value::<staff::Task>(completed_without_evidence)
-        .expect_err("persisted completed staff tasks must keep completion evidence");
+        .expect_err("reported completion history must keep its evidence");
     assert!(
         error
             .to_string()
-            .contains("completed staff task requires completion evidence")
+            .contains("reported staff-task completion requires evidence")
     );
 }
 

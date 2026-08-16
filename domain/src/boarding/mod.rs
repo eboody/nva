@@ -25,7 +25,7 @@
 //! for room fit, `deposit` for payment gates, `care` for feeding or medication handoff,
 //! `housekeeping` for stay execution, or `upsell` for review-gated add-on recommendations.
 //!
-//! The rest of the module documents the externally visible boarding rules that labor-saving agents
+//! The rest of the module documents the externally visible boarding rules that workflow assistants
 //! may use when drafting staff packets, manager briefs, and customer-response recommendations.
 
 use bon::Builder;

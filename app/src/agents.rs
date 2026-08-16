@@ -243,18 +243,19 @@ pub fn baseline_agent_specs() -> Vec<AgentSpec> {
         ),
         spec(
             "grooming-rebooking",
-            "Find grooming cadence opportunities, low-utilization slots, and safe customer follow-up drafts without changing calendars automatically.",
+            "Preserve and summarize suppressed grooming cadence history as ineligible evidence without creating downstream work.",
+            ["grooming-history-read"],
             [
-                "grooming-history-read",
-                "availability-read",
-                "draft-message",
-            ],
-            [
+                "create rebooking candidate",
+                "rank or enqueue rebooking work",
+                "create internal rebooking task",
+                "draft customer follow-up",
+                "propose grooming slot",
                 "book grooming slot",
                 "apply discount",
-                "send message without approval",
+                "send customer message",
             ],
-            [policy::ReviewGate::CustomerMessageApproval],
+            [policy::ReviewGate::ManagerApproval],
         ),
         spec(
             "reputation-triage",

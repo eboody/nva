@@ -1,6 +1,6 @@
 # Operator workflow pages
 
-These pages explain NVA pet-resort labor-saving workflows in operator language before code language. Each page starts with the resort job it saves, the source data it needs, what an agent may draft or rank, what a human must approve, what outcome is measured, and where the source/Rustdoc evidence lives.
+These pages explain NVA pet-resort manual-work-reduction hypotheses in operator language before code language. Each page starts with the resort job it targets, the source data it needs, what an agent may draft or rank, what a human must approve, what reported evidence is retained, and where the source/Rustdoc evidence lives. They do not establish realized savings.
 
 Current draft pages:
 

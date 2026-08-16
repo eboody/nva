@@ -18,7 +18,7 @@ use super::status_column::{
 
 /// Review queue metadata needed before an outcome may be captured.
 #[spacetimedb::table(accessor = review_queue_item)]
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct ReviewQueueItemRow {
     /// Action id from the app workflow packet.
     #[primary_key]
@@ -87,7 +87,7 @@ impl ReviewQueueStatusColumn {
 
 /// Source-quality issue storage fact that feeds the workflow queue.
 #[spacetimedb::table(accessor = data_quality_issue)]
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct DataQualityIssueRow {
     /// Stable source-quality issue reference.
     #[primary_key]
@@ -108,7 +108,7 @@ pub struct DataQualityIssueRow {
 
 /// Append-only workflow transition event.
 #[spacetimedb::table(accessor = workflow_event)]
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct WorkflowEventRow {
     /// Synthetic append-only event id.
     #[primary_key]
@@ -132,7 +132,7 @@ pub struct WorkflowEventRow {
 
 /// Workflow outcome summary row for manager/staff disposition history.
 #[spacetimedb::table(accessor = workflow_outcome)]
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct WorkflowOutcomeRow {
     /// Action id whose workflow outcome was recorded.
     #[primary_key]
@@ -148,9 +148,9 @@ pub struct WorkflowOutcomeRow {
     pub schema_version: u32,
 }
 
-/// Reviewed outcome fact after app-owned authorization accepts capture.
+/// Caller-reported outcome evidence after app-owned authorization accepts capture.
 #[spacetimedb::table(accessor = hygiene_outcome)]
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct HygieneOutcomeRow {
     /// Action id accepted through the app service.
     #[primary_key]
@@ -158,17 +158,17 @@ pub struct HygieneOutcomeRow {
     /// Domain actor display payload preserved from the accepted outcome.
     #[index(btree)]
     pub recorded_by: ActorRefColumn,
-    /// Reviewed outcome selected by staff/manager.
+    /// Caller-reported outcome label; this does not prove review or completion.
     pub outcome: FeedbackOutcomeColumn,
     /// Estimated pre-cleanup minutes.
     pub before_minutes: u32,
-    /// Actual reviewed minutes.
+    /// Caller-reported minute evidence; this does not prove measured labor.
     pub actual_minutes: u32,
     /// Source record refs encoded for read-model projection.
     pub source_record_refs: Vec<SourceRecordRefColumn>,
     /// Data-quality issue refs encoded for read-model projection.
     pub issue_refs: Vec<IssueRefColumn>,
-    /// Optional reviewed resolution status.
+    /// Optional caller-reported resolution label; this does not prove review or resolution.
     pub reviewed_resolution_status: Option<ResolutionStatusColumn>,
     /// Unix timestamp when the outcome was persisted by the adapter.
     pub created_at: u64,
@@ -180,7 +180,7 @@ pub struct HygieneOutcomeRow {
 
 /// Append-only audit event for accepted capture.
 #[spacetimedb::table(accessor = hygiene_audit_event)]
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct HygieneAuditEventRow {
     /// Synthetic audit id.
     #[primary_key]
@@ -204,7 +204,7 @@ pub struct HygieneAuditEventRow {
 
 /// Fail-closed audit row for rejected capture attempts or forbidden side effects.
 #[spacetimedb::table(accessor = blocked_action_attempt)]
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct BlockedActionAttemptRow {
     /// Synthetic blocked-attempt id.
     #[primary_key]
@@ -228,3 +228,25 @@ pub struct BlockedActionAttemptRow {
     /// Schema version for additive row evolution.
     pub schema_version: u32,
 }
+
+macro_rules! redacted_debug {
+    ($($row:ty => $name:literal),+ $(,)?) => {
+        $(
+            impl std::fmt::Debug for $row {
+                fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    formatter.write_str(concat!($name, "([REDACTED])"))
+                }
+            }
+        )+
+    };
+}
+
+redacted_debug!(
+    ReviewQueueItemRow => "ReviewQueueItemRow",
+    DataQualityIssueRow => "DataQualityIssueRow",
+    WorkflowEventRow => "WorkflowEventRow",
+    WorkflowOutcomeRow => "WorkflowOutcomeRow",
+    HygieneOutcomeRow => "HygieneOutcomeRow",
+    HygieneAuditEventRow => "HygieneAuditEventRow",
+    BlockedActionAttemptRow => "BlockedActionAttemptRow",
+);

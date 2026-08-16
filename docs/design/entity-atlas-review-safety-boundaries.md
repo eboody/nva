@@ -33,7 +33,7 @@ glossary_links:
   - "../glossary-workflow-state-terms.md#blocked-action"
   - "../glossary-workflow-state-terms.md#draft"
   - "../glossary-workflow-state-terms.md#outcome-capture"
-allowed_action_summary: "read source-backed evidence, prepare drafts, rank/recommend internal work, request named review gates, validate output, and record reviewed outcome evidence"
+allowed_action_summary: "read source-backed evidence, prepare drafts, rank/recommend internal work, request named review gates, validate output, and retain caller-reported outcome evidence"
 blocked_action_summary: "no autonomous customer sends, provider/PMS writes, schedule/capacity changes, payment/refund/discount movement, source hiding, medical/safety/policy approvals, or live side effects without an approved deterministic path"
 outcome_fields: ["context packet id", "correlation id", "source refs", "issue refs", "review gates", "approval status", "reviewer/actor", "requested side effects", "blocked action reasons", "outcome disposition", "actual minutes", "live_side_effects_allowed"]
 ---
@@ -57,7 +57,7 @@ This page helps front desk leads, managers, compliance reviewers, and docs write
 - underusing automation by forcing staff to reassemble every fact manually; and
 - overtrusting automation by treating a source-backed draft as if it already changed Gingr/PMS, contacted a pet parent, moved money, or approved a pet-safety decision.
 
-The safe outcome is a reviewable queue: evidence is collected, the draft or recommendation is prepared, the blocked action is named, and the human/system approval record or outcome evidence proves what actually happened.
+The safe result is a reviewable queue: evidence is collected, the draft or recommendation is prepared, and the blocked action is named. A separately issued approval record can prove its own decision; a caller-created outcome record only preserves what was reported and does not prove reviewer identity, completion, labor effect, or live action.
 
 ## 3. Workflows where these entities appear
 
@@ -67,8 +67,8 @@ The safe outcome is a reviewable queue: evidence is collected, the draft or reco
 | Booking Triage | Deterministic readiness packets can request approval and draft explanations while blocking provider mutation, confirmation, sends, and payment movement. | Staff-ready booking packet, confirmation draft, or review request; not an automatic booking change. |
 | Data Quality Hygiene | Context and draft endpoints expose internal cleanup actions and reject side effects or ambiguity hiding. | Source-grounded cleanup task and outcome record; no autonomous provider repair. |
 | Daily Updates / Pawgress | Customer-message drafts need review, omissions, internal flags, and send approval. | Customer-safe draft or send stub for review; not a sent message. |
-| Retention / Grooming Rebooking | Follow-up opportunities can draft outreach and request `CustomerMessageApproval`. | Reviewable follow-up draft or suppression/outcome evidence; no auto-discount, payment, booking, or send. |
-| Checkout Completion | Completion packets can suggest/audit checkout status and retention follow-up while blocking provider mutation. | Staff handoff/audit draft and review queue; not a live checkout write. |
+| Retention / Grooming Rebooking | Serialized opportunities remain suppressed or manager-review evidence and cannot unlock outreach drafts, queue work, or `CustomerMessageApproval`. | Nonclaimable suppression/outcome evidence; future opaque contact authority would be required before any draft-review path. |
+| Checkout Completion | Serialized packets retain reported checkout/handoff evidence and audit drafts while blocking checkout suggestions, retention eligibility/drafts, and provider mutation. | Manager-review or source-reconciliation evidence; not checkout completion or downstream retention authority. |
 
 ## 4. Relationships and adjacency
 
@@ -90,7 +90,7 @@ Key relationships:
 - Allowed actions say what the workflow may safely prepare or record.
 - Blocked actions say what must not be executed directly by the agent/app workflow.
 - Message drafts are downstream artifacts; they must preserve recipient/channel/status/approval context before any send path.
-- Outcome records and audit events prove what staff accepted, rejected, saved, or blocked.
+- Outcome records and audit events retain what staff reported accepting, rejecting, or blocking and the time they reported spending; they do not prove realized savings.
 
 ## 5. Contracts and source/Rustdoc links
 
@@ -119,7 +119,7 @@ If rendered Rustdoc is not present, cite source paths plus module/type paths rat
 | Blocked actions | Workflow-local `BlockedAction` enums and API validation | Staff/system-of-record executes separately if appropriate; the agent does not. |
 | Message state | `domain::message::{Direction, Channel, Status, BodyRef}` plus app messaging tools | Approved sender or deterministic approved send service. |
 | Approval decision | Approval record, workflow/audit event, or domain-specific approval state | Manager, medical/document reviewer, behavior reviewer, front desk lead, or approved sender. |
-| Outcome/labor evidence | App/API outcome record and storage projection | Reviewer/actor who performed the work and recorded actual minutes/disposition. |
+| Outcome/labor evidence | App/API outcome record and storage projection | Caller-reported actor/persona, disposition, and minute fields retained as nonclaimable history; these records are not reviewer-identity or work-completion authority. |
 
 ## 7. Allowed actions
 
@@ -133,9 +133,9 @@ Automation and app workflows may safely do the following when the linked contrac
 - flag risk, missing facts, stale data, duplicates, and policy stops;
 - request a named review gate;
 - validate agent output against allowed actions and blocked actions;
-- record staff disposition, actual minutes, source refs, issue refs, and audit/correlation IDs after review.
+- record caller-reported disposition, actor/persona labels, minute fields, source refs, issue refs, and audit/correlation IDs as nonclaimable history.
 
-Use “prepare,” “draft,” “suggest,” “route,” “rank,” “flag,” and “record reviewed outcome.” Avoid “send,” “approve,” “apply,” “write,” “change,” “confirm,” or “resolve” unless the source contract and approval evidence actually show that live action occurred.
+Use “prepare,” “draft,” “suggest,” “route,” “rank,” “flag,” and “record reported outcome.” Avoid “send,” “approve,” “apply,” “write,” “change,” “confirm,” “resolve,” or “reviewed outcome” unless separately authenticated source/approval evidence actually shows that event occurred.
 
 ## 8. Blocked actions and review gates
 
@@ -172,8 +172,8 @@ A safe recommendation should carry enough evidence for a reviewer to prove both 
 | `blocked_actions` and validation reasons | Shows what was not allowed and why a request was rejected. |
 | `requested_side_effects` | Lets validators reject attempted sends/writes/payments/schedule changes. |
 | `live_side_effects_allowed: false` | Explicit proof that the response is not a live action path. |
-| approval status, reviewer/actor/persona, timestamp | Shows who accepted/rejected/recorded the action. |
-| outcome disposition, feedback, actual minutes, reporting group | Converts a recommendation into measurable reviewed work. |
+| approval status, authenticated approver identity, timestamp | When issued by the approval authority, proves that approval record's accepted/rejected decision; it remains separate from caller-created outcomes. |
+| outcome disposition, feedback, actor/persona labels, minute fields, reporting group | Preserves what a caller reported as nonclaimable history; it does not establish who acted, completion, measured work, or value. |
 
 API tests currently prove important negative boundaries: manager-brief outcome capture rejects blocked side effects such as `send_customer_message`, `mutate_provider_or_pms_record`, `change_staff_schedule`, `move_refund_discount_or_payment`, and `hide_source_data_quality_issue`; it also fails closed on unknown side effects. Data-quality hygiene draft validation rejects blocked side effects and attempted ambiguity hiding, and its outcome capture records labor evidence while keeping `live_side_effects_allowed` false.
 
@@ -247,7 +247,7 @@ An agent spec is the job description and rule sheet for a bounded automation hel
 Outcome capture records staff-reported disposition and time evidence for a recommendation. It does not establish realized labor savings. Audit evidence records why the recommendation existed and what was blocked, accepted, or rejected.
 
 - Source/Rustdoc: `domain::workflow::Result`; workflow outcome records; storage operation projections; API outcome capture tests.
-- Allowed: record disposition, actual minutes, actor/persona, source refs, issue refs, feedback, and correlation ID.
+- Allowed: retain caller-reported disposition, minute fields, actor/persona labels, source refs, issue refs, feedback, and correlation ID as nonclaimable history.
 - Blocked: serialized outcome records never authorize realized labor-savings claims; do not persist outcomes for unknown action IDs or blocked side-effect requests.
 - Evidence: outcome record ID/action ID, reported actual minutes spent, reported estimate differences, actor, timestamp, correlation ID, and blocked side-effect list.
 
@@ -261,7 +261,7 @@ Outcome capture records staff-reported disposition and time evidence for a recom
 | Non-example | “The agent approved the refund because it was confident.” | Confidence is not approval evidence and refunds are review-gated. |
 | Non-example | “The prompt packet updated Gingr.” | Prompt packets are draft/evidence bundles, not provider writes. |
 | Non-example | “Source refs prove the customer should be contacted.” | Source refs prove traceability, not message approval or contact consent. |
-| Non-example | “Outcome record exists, so the blocked action happened.” | Outcome records can prove reviewed labor and also prove live side effects were not allowed. |
+| Non-example | “Outcome record exists, so the blocked action happened.” | A caller-created outcome record proves only that reported fields were retained. It cannot prove reviewer identity, reviewed labor, completion, or a live side effect; separate blocked-action evidence can prove that a requested side effect stayed disabled. |
 
 ## 12. Glossary cross-links
 
@@ -271,7 +271,7 @@ Use these public glossary terms when copying this page into workflow docs:
 - [review gate](../glossary-workflow-state-terms.md#review-gate): named human approval stop.
 - [blocked action](../glossary-workflow-state-terms.md#blocked-action): action automation must not perform directly.
 - [workflow packet](../glossary-workflow-state-terms.md#workflow-packet): reviewable bundle of source-grounded facts, actions, drafts, and evidence.
-- [outcome capture](../glossary-workflow-state-terms.md#outcome-capture): recorded reviewed result, not proof from intent alone.
+- [outcome capture](../glossary-workflow-state-terms.md#outcome-capture): retained caller-reported history, not proof of reviewer identity, completion, measured labor, or live action.
 - [source-of-record](../glossary-source-data-terms.md#source-of-record), [provider record](../glossary-source-data-terms.md#provider-record), [provenance](../glossary-source-data-terms.md#domainsourceprovenance-and-domainsourcerecordref-as-data-evidence), and [data-quality issue](../glossary-source-data-terms.md#domaindata_qualityissue-data-quality-issue): evidence and source-trust terms that must stay separate from approval.
 
 ## Writer checklist

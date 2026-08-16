@@ -20,7 +20,7 @@ The selected slice is Data-Quality Hygiene because it is easy to explain:
 2. the owned app builds a reviewable internal cleanup packet;
 3. the agent/draft path is allowed to summarize and rank safe internal work only;
 4. unsafe side effects are rejected;
-5. reviewed outcomes record estimated and actual labor reported time difference;
+5. caller-reported outcomes retain estimated and reported time evidence without authenticating review;
 6. metrics/read-models can then report operational progress without hiding the source caveat.
 
 ### Architecture in one sentence
@@ -192,7 +192,7 @@ Point to these markers:
 - `context_ok`: the app built a source-grounded Data-Quality Hygiene packet.
 - `draft_validation_ok`: a safe internal cleanup recommendation passed validation.
 - `blocked_draft_validation_ok blocked_side_effect=send_customer_message`: an unsafe customer-send request was rejected.
-- `outcome_ok`: reviewed outcome evidence recorded positive labor savings.
+- `outcome_ok`: outcome capture retained caller-reported minute evidence while `claimable=false`; it did not establish review, completion, or realized savings.
 
 Suggested line:
 
@@ -257,7 +257,7 @@ The agent is constrained by app/domain contracts. It can summarize evidence and 
 
 ### “What does the labor metric mean?”
 
-The fixture shows a source-quality cleanup loop with estimated manual reconciliation minutes and reviewed actual minutes. In a real pilot, the same shape would compare pre-agent reconciliation time against reviewed outcomes across locations and source issue categories.
+The fixture shows a source-quality cleanup loop with estimated manual reconciliation minutes and caller-reported time spent. A real pilot would need separately authenticated observations before comparing labor effects across locations or source issue categories.
 
 ### “What would production need next?”
 

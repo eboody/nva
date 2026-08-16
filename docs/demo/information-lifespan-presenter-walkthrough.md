@@ -48,7 +48,7 @@ PET_RESORT_MINIO_CONSOLE_HOST_PORT=39021 \
 
 Suggested line:
 
-> The point of this demo is the lifespan of one piece of resort information. It begins as mocked, read-only Gingr/source evidence. Then it becomes NVA-owned typed facts, database/projection proof, a Dockerized Hermes processing step, browser-visible API calls, and finally a Manager Daily Report with lineage, calculations, review locks, and labor-value proof.
+> The point of this demo is the lifespan of one piece of resort information. It begins as mocked, read-only Gingr/source evidence. Then it becomes NVA-owned typed facts, database/projection proof, a Dockerized Hermes processing step, browser-visible API calls, and finally a Manager Daily Report with lineage, calculations, review locks, and explicitly nonclaimable reported labor evidence.
 
 Point at the page header and the interactive `Run information lifespan` stage machine. Do not start with an architecture diagram. Start with the product question: can a manager trust where the report came from?
 
@@ -149,7 +149,7 @@ Point to the final report card:
 
 Suggested line:
 
-> The output is not 'AI says something.' It is a manager packet with visible source lineage, calculations, review gates, and labor-value proof. The agent/Hermes step can rank and summarize; it cannot send, write back, change schedules, move money, or decide medical/safety status.
+> The output is not 'AI says something.' It is a manager packet with visible source lineage, calculations, review gates, and reported labor evidence that does not prove realized value. The agent/Hermes step can rank and summarize; it cannot send, write back, change schedules, move money, or decide medical/safety status.
 
 Close with the safe next ask:
 

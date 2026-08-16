@@ -184,4 +184,11 @@ fn agent_trace_contract_has_explicit_schema_version_and_redacted_debug() {
     assert!(debug.contains("source_payloads_count: 3"));
     assert!(!debug.contains("Ate breakfast"));
     assert!(!debug.contains("fixture://mock-gingr/care-notes/9001001-feeding.json"));
+
+    for source_payload in envelope.source_payloads() {
+        let payload_debug = format!("{source_payload:?}");
+        assert_eq!(payload_debug, "SourcePayload([REDACTED])");
+        assert!(!payload_debug.contains("Ate breakfast"));
+        assert!(!payload_debug.contains("fixture://mock-gingr/"));
+    }
 }

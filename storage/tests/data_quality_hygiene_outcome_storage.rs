@@ -40,7 +40,23 @@ fn data_quality_hygiene_outcome_record_codecs_preserve_labor_and_provenance() {
     assert!(!debug.contains("front-desk-lead-1"));
     assert!(!debug.contains("Found the source document"));
     assert!(!debug.contains("pet-vaccine-42"));
-    assert!(debug.contains("[REDACTED]"));
+    assert_eq!(debug, "DataQualityHygieneOutcomeRecord([REDACTED])");
+}
+
+#[test]
+fn stored_source_record_ref_debug_redacts_provider_lineage() {
+    let debug = format!("{:?}", source_ref());
+
+    for private_value in [
+        "gingr",
+        "pet_vaccination",
+        "pet-vaccine-42",
+        "2026-06-17T00:00:00Z",
+        "gingr-v0-readonly",
+    ] {
+        assert!(!debug.contains(private_value));
+    }
+    assert_eq!(debug, "StoredSourceRecordRef([REDACTED])");
 }
 
 #[test]
@@ -90,7 +106,7 @@ fn data_quality_hygiene_storage_codes_roundtrip_through_strum_variant_metadata()
 }
 
 #[test]
-fn data_quality_hygiene_outcome_summary_aggregates_reviewed_labor_loop_proof() {
+fn data_quality_hygiene_outcome_summary_aggregates_reported_time_evidence() {
     let completed = outcome_record(
         "dq-action-dq-missing-vaccine-42",
         DataQualityHygieneOutcomeCode::Completed,
@@ -121,7 +137,7 @@ fn data_quality_hygiene_outcome_summary_aggregates_reviewed_labor_loop_proof() {
         summary.correlation_id.as_deref(),
         Some("data-quality-hygiene:location-1:2026-06-17")
     );
-    assert_eq!(summary.reviewed_outcome_count, 2);
+    assert_eq!(summary.reported_outcome_count, 2);
     assert_eq!(summary.reported_completed_outcome_count, 1);
     assert_eq!(summary.deferred_count, 0);
     assert_eq!(summary.wrong_source_count, 1);
@@ -133,11 +149,14 @@ fn data_quality_hygiene_outcome_summary_aggregates_reviewed_labor_loop_proof() {
         summary.issue_refs,
         ["dq-duplicate-customer-17", "dq-missing-vaccine-42"]
     );
+    let debug = format!("{summary:?}");
+    assert_eq!(debug, "DataQualityHygieneOutcomeSummary([REDACTED])");
+    assert!(!debug.contains("dq-duplicate-customer-17"));
 }
 
 #[test]
 fn staff_completed_data_quality_outcome_does_not_manufacture_manager_approval_authority() {
-    let records = DataQualityHygieneLocalPersistenceRecords::from_reviewed_outcome(
+    let records = DataQualityHygieneLocalPersistenceRecords::from_reported_outcome(
         DataQualityHygieneLineageIds::builder()
             .workflow_event_id("00000000-0000-0000-0000-000000000101".to_owned())
             .review_packet_id("00000000-0000-0000-0000-000000000102".to_owned())
@@ -166,7 +185,7 @@ fn staff_completed_data_quality_outcome_does_not_manufacture_manager_approval_au
     );
     assert_eq!(
         records.workflow_result.status,
-        WorkflowResultStatusCode::Succeeded
+        WorkflowResultStatusCode::NeedsReview
     );
     assert_eq!(records.review_packet.gate, ReviewGateCode::ManagerApproval);
     assert_eq!(
@@ -185,11 +204,39 @@ fn staff_completed_data_quality_outcome_does_not_manufacture_manager_approval_au
     assert_eq!(records.audit_events.len(), 2);
 
     assert!(records.outbox_candidate.is_none());
+    let debug = format!(
+        "{records:?}{:?}{:?}{:?}{:?}{:?}",
+        records.workflow_result,
+        records.review_packet,
+        records.approval_record,
+        records.outcome,
+        records.audit_events,
+    );
+    for private in [
+        "dq-action-dq-missing-vaccine-42",
+        "dq-missing-vaccine-42",
+        "pet-vaccine-42",
+        "location-1",
+        "dqh:location-1:2026-06-17:context",
+        "front-desk-lead-1",
+    ] {
+        assert!(!debug.contains(private));
+    }
+    for marker in [
+        "DataQualityHygieneLocalPersistenceRecords([REDACTED])",
+        "WorkflowResultRecord([REDACTED])",
+        "ReviewPacketRecord([REDACTED])",
+        "ApprovalRecordRow([REDACTED])",
+        "DataQualityHygieneOutcomeRow([REDACTED])",
+        "AuditEventRecord([REDACTED])",
+    ] {
+        assert!(debug.contains(marker), "missing redaction marker {marker}");
+    }
 }
 
 #[test]
 fn data_quality_hygiene_lineage_does_not_create_outbox_for_deferred_outcomes() {
-    let records = DataQualityHygieneLocalPersistenceRecords::from_reviewed_outcome(
+    let records = DataQualityHygieneLocalPersistenceRecords::from_reported_outcome(
         DataQualityHygieneLineageIds::builder()
             .workflow_event_id("00000000-0000-0000-0000-000000000201".to_owned())
             .review_packet_id("00000000-0000-0000-0000-000000000202".to_owned())
@@ -218,7 +265,7 @@ fn data_quality_hygiene_lineage_does_not_create_outbox_for_deferred_outcomes() {
 
 #[test]
 fn data_quality_hygiene_lineage_records_rejection_evidence_without_outbox_for_wrong_source() {
-    let records = DataQualityHygieneLocalPersistenceRecords::from_reviewed_outcome(
+    let records = DataQualityHygieneLocalPersistenceRecords::from_reported_outcome(
         DataQualityHygieneLineageIds::builder()
             .workflow_event_id("00000000-0000-0000-0000-000000000301".to_owned())
             .review_packet_id("00000000-0000-0000-0000-000000000302".to_owned())
@@ -278,7 +325,7 @@ fn outcome_record(
         .actual_minutes(StoredDataQualityHygieneLaborMinutes::try_new(actual_minutes).unwrap())
         .actor_id("front-desk-lead-1".to_owned())
         .actor_persona(DataQualityHygienePersonaCode::FrontDeskLead)
-        .feedback("Reviewed source-grounded hygiene issue without provider writes.".to_owned())
+        .feedback("Caller reported a source-correlated hygiene issue without provider writes; this authenticates no review.".to_owned())
         .source_refs(vec![
             StoredSourceRecordRef::builder()
                 .system("gingr".to_owned())

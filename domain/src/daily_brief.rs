@@ -351,7 +351,10 @@ pub struct RevenueOpportunity {
 pub enum RevenueOpportunityKind {
     /// Boarding stay may be eligible for an exit bath offer after staff confirm service fit and timing.
     ExitBathAfterBoarding,
-    /// Grooming customer may be due for rebooking, subject to schedule and customer preference review.
+    /// Compatibility label for reported grooming cadence evidence.
+    ///
+    /// The current Manager Daily Brief and CRM retention workflows cannot emit
+    /// a rebooking action from this label or promote it through human review.
     GroomingRebookingDue,
     /// Daycare usage suggests package discussion, but staff must verify attendance and payment context.
     DaycarePackageCandidate,

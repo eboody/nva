@@ -17,7 +17,7 @@ Required content:
 
 Use this shape:
 
-> This overlay helps `<role>` reduce `<manual work or error cost>` for `<entity/action family>` by showing what source facts automation may read, what it may draft or recommend, what a human must approve, and which outcome/audit record proves safe use.
+> This overlay helps `<role>` reduce `<manual work or error cost>` for `<entity/action family>` by showing what source facts automation may read, what it may draft or recommend, what a human must approve, which outcome/audit evidence is retained, and what separate authority would be needed to prove safe use.
 
 Avoid generic openings such as “This module provides boundaries.”
 
@@ -51,7 +51,7 @@ Recommended table:
 | Source fact | Provider/read model/provenance path | Why the recommendation exists | Human approval or live permission |
 | Business invariant | `domain::*` path | The semantic rule or policy vocabulary | Provider write-back permission |
 | Workflow packet | `app::*` path | What may be drafted, ranked, validated, or recorded | Live resort execution |
-| Outcome/audit record | `storage::*`, app outcome, or API test path | What staff reviewed/did and how value was measured | That the agent took the live action |
+| Outcome/audit record | `storage::*`, app outcome, or API test path | Caller-reported evidence retained for reconciliation | Staff review, action, completion, measured labor, realized value, or live authority |
 | Human approval | Reviewer role and approval record | Permission for the approved downstream step | Permission for unrelated actions |
 
 ## 4. Agent may read
@@ -59,7 +59,7 @@ Recommended table:
 Required content:
 
 - List only source-backed facts the agent/app workflow may inspect.
-- Include provenance/source refs, policy snapshots, read-model facts, existing reviewed outcomes, and scoped context where relevant.
+- Include provenance/source refs, policy snapshots, read-model facts, existing caller-reported outcomes, and scoped context where relevant; do not treat reported outcomes as authenticated review or completion.
 - Name the path that proves read access or context shape.
 - Include any scope limits: location, operating day, customer, pet, reservation, source snapshot, document, payment ref, or workflow packet.
 
@@ -83,7 +83,7 @@ Allowed verb examples:
 - flag risk or missing evidence;
 - summarize care/source facts;
 - validate output against blocked actions;
-- record a reviewed disposition, actual minutes, feedback, source refs, issue refs, and correlation id.
+- retain caller-reported disposition, minute, feedback, source-reference, issue-reference, and correlation labels as nonclaimable evidence; call them reviewed or actual only when separate opaque review and measurement authority proves those facts.
 
 ## 6. Agent must not do directly
 
@@ -139,7 +139,7 @@ Recommended table:
 
 Required content:
 
-- Name the record that proves safe use for this entity/action family.
+- Name the retained record and explain why caller-reported fields alone do not prove safe use.
 - Separate source evidence, draft creation, human approval, downstream live action elsewhere, and durable outcome record.
 - Include labor-value fields without unsupported ROI claims.
 
@@ -150,7 +150,7 @@ Fields to look for or require:
 - review gates and blocked action reasons;
 - requested side effects and validation result;
 - approval status, reviewer/actor/persona, timestamp, and decision reason;
-- disposition, feedback, actual minutes, before/after minutes, reported time spent or estimate differences, wrong-source findings, reporting group;
+- caller-reported disposition, feedback, minute, baseline/after-label, time-spent, estimate-difference, wrong-source, and reporting-group labels; none proves review, measurement, action, completion, adjudication, or value;
 - `live_side_effects_allowed: false`, `outcome_persisted: false`, or equivalent proof when a blocked action was rejected.
 
 Recommended table:
@@ -160,7 +160,7 @@ Recommended table:
 | Source evidence | `RecordRef`, `Provenance`, source refs | The recommendation was grounded | Approval or completion |
 | Draft/recommendation | draft id, packet id, safe action list | Work product was prepared | Customer/provider/payment/schedule action happened |
 | Human approval | approval record, reviewer role, gate, status | The sensitive step was reviewed | Authority for unrelated steps |
-| Outcome/value | disposition, actual minutes, reported time difference, feedback, correlation id | Reviewed work and measured value | Guaranteed future ROI |
+| Reported outcome/value evidence | disposition, minute labels, reported time difference, feedback, correlation id | A caller report was retained | Review, completed work, measured value, or future ROI |
 
 ## 10. Source/Rustdoc/test evidence links
 

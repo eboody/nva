@@ -70,7 +70,7 @@ pub enum PaymentState {
     NeedsBillingReview,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
 /// Source evidence used to classify daycare package or membership opportunities.
 pub struct Evidence {
     /// Customer account that would receive the package recommendation.
@@ -88,6 +88,12 @@ pub struct Evidence {
     #[builder(default)]
     /// Source records behind attendance, package, eligibility, and billing evidence.
     pub source_record_refs: Vec<crate::source::RecordRef>,
+}
+
+impl std::fmt::Debug for Evidence {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("daycare::package_opportunity::Evidence([REDACTED])")
+    }
 }
 
 impl Evidence {
@@ -245,7 +251,7 @@ impl EstimatedLaborMinutes {
         Ok(Self(value))
     }
 
-    /// Returns the minute count used for labor-savings outcome records.
+    /// Returns caller-reported minute evidence retained without a realized-savings claim.
     pub const fn get(self) -> u16 {
         self.0
     }
@@ -261,11 +267,13 @@ impl<'de> Deserialize<'de> for EstimatedLaborMinutes {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-/// Actual staff minutes spent after daycare package opportunity review.
+/// Caller-reported minute label retained after daycare package opportunity review.
+///
+/// This serializable value does not prove staff time, completed review, labor effect, or value.
 pub struct ActualLaborMinutes(u16);
 
 impl ActualLaborMinutes {
-    /// Accepts a positive actual-minute count for package review outcome measurement.
+    /// Accepts a positive caller-reported minute count for nonclaimable outcome history.
     pub const fn try_new(value: u16) -> std::result::Result<Self, LaborMinutesError> {
         if value == 0 {
             return Err(LaborMinutesError::Zero);
@@ -273,7 +281,7 @@ impl ActualLaborMinutes {
         Ok(Self(value))
     }
 
-    /// Returns the minute count used for labor-savings outcome records.
+    /// Returns caller-reported minute evidence retained without a realized-savings claim.
     pub const fn get(self) -> u16 {
         self.0
     }
@@ -308,7 +316,10 @@ pub enum Disposition {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Outcome record proving whether daycare package opportunity review reduced lookup/recommendation labor.
+/// Caller-reported daycare package opportunity outcome retained as nonclaimable history.
+///
+/// Its disposition, source references, and minute labels do not prove review, completion,
+/// measured labor reduction, or value.
 pub struct OutcomeRecord {
     disposition: Disposition,
     before_minutes: EstimatedLaborMinutes,
@@ -317,7 +328,7 @@ pub struct OutcomeRecord {
 }
 
 impl OutcomeRecord {
-    /// Creates a labor outcome without authorizing package enrollment, billing, provider writes, or customer sends.
+    /// Creates caller-reported labor evidence without authorizing package enrollment, billing, provider writes, customer sends, or value claims.
     pub fn new(
         disposition: Disposition,
         before_minutes: EstimatedLaborMinutes,

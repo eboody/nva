@@ -1,8 +1,8 @@
 # Rebooking workflow rules
 
-Purpose: define actionable, conservative rebooking workflow rules using reservation and service history. This artifact turns CRM/retention inputs into deterministic candidate decisions, review packets, staff tasks, and draft-only customer prompts. It does not authorize autonomous booking, provider writes, discounts, incentives, payment actions, capacity promises, eligibility decisions, or customer-facing sends.
+Purpose: preserve a future design for conservative rebooking rules. It does not describe current executable candidate, queue, task, review-packet, or draft behavior.
 
-Status: draft workflow policy for downstream CRM/retention implementation. It builds on `docs/workflows/crm-retention-parts/inputs.md`, customer messaging policy, booking triage inputs, staff operations inputs, and the PetSuites boarding/daycare/grooming domain implication docs. Exact local thresholds, templates, consent rules, quiet hours, package terms, peak calendars, and manager authority remain configurable policy inputs.
+Status: future-only workflow policy. **Current serialized retention evidence is universally ineligible and may only be preserved or summarized as suppressed evidence.** Every candidate, queue, task, review packet, customer prompt, schedule proposal, approval, or execution path below is unavailable and requires new opaque, non-serializable eligibility authority that review of current evidence cannot mint.
 
 ## Source anchors
 
@@ -18,9 +18,9 @@ Use this workflow with the constraints in:
 
 ## Core stance
 
-The rebooking workflow is recommendation-first and review-gated. It may identify that a customer or pet is likely due for boarding, daycare, or grooming follow-up; it may not promise availability, modify reservations, enroll packages, apply discounts, or send outreach unless a separate approved messaging and execution path exists.
+The current retention workflow is suppression-first and evidence-only. It cannot identify an eligible customer/pet candidate, rank or enqueue work, create a task or review packet, prepare a customer prompt, promise availability, modify reservations, enroll packages, apply discounts, or send outreach. The broader design below is future-only.
 
-Default output order:
+Future-only output order after opaque eligibility authority exists:
 
 1. Suppression/no-action reason when contact or safety policy blocks outreach.
 2. Internal staff task when history is useful but customer-facing outreach is not safe.
@@ -99,7 +99,7 @@ Candidate windows:
 - Post-checkout follow-up: 3-10 days after clean checkout may create a staff-reviewed draft mentioning future planning only if no incident, complaint, payment dispute, or unresolved follow-up exists.
 - Annual/seasonal repeat: 45-90 days before the next observed holiday/peak or recurring travel window, adjusted by the customer's historical booking lead time when known.
 - Peak/holiday reminder: 60-120 days before location-defined peak periods when the customer has prior peak stays or high likelihood, but output should be a planning prompt, not an availability promise.
-- Lapsed boarding: after the customer's ordinary boarding season/window has passed by a configurable grace interval, create a staff-reviewed winback/rebooking candidate only if recovery and consent gates pass.
+- Lapsed boarding: current runtime preserves the lapse claim as suppressed evidence only; a future authorized workflow could consider a candidate after recovery and consent checks.
 
 Boarding-specific constraints:
 
