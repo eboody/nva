@@ -12,12 +12,3 @@ pub enum Partner {
     /// Purina EN boarding diet line used for in-house diet continuity and low-stock planning.
     PurinaEnBoardingDiet,
 }
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Relationship between a partner product line and whether an external vendor manages the catalog facts.
-pub struct CatalogRelationship {
-    /// Partner product line linked to this catalog relationship.
-    pub partner: Partner,
-    /// Whether a vendor, rather than the resort catalog team, manages the source catalog facts.
-    pub external_catalog_managed: bool,
-}

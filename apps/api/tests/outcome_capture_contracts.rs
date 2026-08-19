@@ -23,7 +23,7 @@ async fn manager_daily_brief_outcome_capture_requires_source_refs_before_storage
         .oneshot(
             axum::http::Request::builder()
                 .uri(format!(
-                    "/agent/context/manager-daily-brief?location_id={location_id}&operating_day={operating_day}"
+                    "/v1/agent/context/manager-daily-brief?location_id={location_id}&operating_day={operating_day}"
                 ))
                 .header("x-test-auth-actor-id", "general-manager-contract")
                 .header("x-test-auth-role", "general_manager")
@@ -43,7 +43,7 @@ async fn manager_daily_brief_outcome_capture_requires_source_refs_before_storage
             axum::http::Request::builder()
                 .method("POST")
                 .uri(format!(
-                    "/manager-daily-brief/actions/{action_id}/outcome"
+                    "/v1/manager-daily-brief/actions/{action_id}/outcome"
                 ))
                 .header("content-type", "application/json")
                 .header("x-test-auth-actor-id", "general-manager-contract")
@@ -86,7 +86,7 @@ async fn data_quality_hygiene_outcome_capture_requires_issue_refs_before_storage
         .clone()
         .oneshot(
             axum::http::Request::builder()
-                .uri("/agent/context/data-quality-hygiene?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17")
+                .uri("/v1/agent/context/data-quality-hygiene?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17")
                 .header("x-test-auth-actor-id", "general-manager-contract")
                 .header("x-test-auth-role", "general_manager")
                 .header(
@@ -108,7 +108,7 @@ async fn data_quality_hygiene_outcome_capture_requires_issue_refs_before_storage
         .oneshot(
             axum::http::Request::builder()
                 .method("POST")
-                .uri(format!("/data-quality-hygiene/actions/{action_id}/outcome"))
+                .uri(format!("/v1/data-quality-hygiene/actions/{action_id}/outcome"))
                 .header("content-type", "application/json")
                 .header("x-test-auth-actor-id", "front-desk-lead-17")
                 .header("x-test-auth-role", "front_desk_lead")
@@ -157,7 +157,7 @@ async fn data_quality_hygiene_outcome_capture_requires_source_refs_before_storag
         .clone()
         .oneshot(
             axum::http::Request::builder()
-                .uri("/agent/context/data-quality-hygiene?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17")
+                .uri("/v1/agent/context/data-quality-hygiene?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17")
                 .header("x-test-auth-actor-id", "general-manager-contract")
                 .header("x-test-auth-role", "general_manager")
                 .header(
@@ -178,7 +178,7 @@ async fn data_quality_hygiene_outcome_capture_requires_source_refs_before_storag
         .oneshot(
             axum::http::Request::builder()
                 .method("POST")
-                .uri(format!("/data-quality-hygiene/actions/{action_id}/outcome"))
+                .uri(format!("/v1/data-quality-hygiene/actions/{action_id}/outcome"))
                 .header("content-type", "application/json")
                 .header("x-test-auth-actor-id", "front-desk-lead-17")
                 .header("x-test-auth-role", "front_desk_lead")
@@ -226,7 +226,7 @@ async fn data_quality_hygiene_outcome_capture_rejects_unbound_or_malformed_prove
         .oneshot(
             axum::http::Request::builder()
                 .uri(format!(
-                    "/agent/context/data-quality-hygiene?location_id={location_id}&operating_day=2026-06-17"
+                    "/v1/agent/context/data-quality-hygiene?location_id={location_id}&operating_day=2026-06-17"
                 ))
                 .header("x-test-auth-actor-id", "general-manager-contract")
                 .header("x-test-auth-role", "general_manager")
@@ -264,7 +264,9 @@ async fn data_quality_hygiene_outcome_capture_rejects_unbound_or_malformed_prove
         .oneshot(
             axum::http::Request::builder()
                 .method("POST")
-                .uri(format!("/data-quality-hygiene/actions/{action_id}/outcome"))
+                .uri(format!(
+                    "/v1/data-quality-hygiene/actions/{action_id}/outcome"
+                ))
                 .header("content-type", "application/json")
                 .header("x-test-auth-actor-id", "front-desk-lead-17")
                 .header("x-test-auth-role", "front_desk_lead")
@@ -294,7 +296,9 @@ async fn data_quality_hygiene_outcome_capture_rejects_unbound_or_malformed_prove
         .oneshot(
             axum::http::Request::builder()
                 .method("POST")
-                .uri(format!("/data-quality-hygiene/actions/{action_id}/outcome"))
+                .uri(format!(
+                    "/v1/data-quality-hygiene/actions/{action_id}/outcome"
+                ))
                 .header("content-type", "application/json")
                 .header("x-test-auth-actor-id", "front-desk-lead-17")
                 .header("x-test-auth-role", "front_desk_lead")

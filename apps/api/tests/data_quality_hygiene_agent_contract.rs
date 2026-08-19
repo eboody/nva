@@ -144,7 +144,7 @@ async fn post_json(
 
 async fn data_quality_context() -> serde_json::Value {
     let (status, payload) = get_json(
-        "/agent/context/data-quality-hygiene?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",
+        "/v1/agent/context/data-quality-hygiene?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",
     )
     .await;
     assert_eq!(status, axum_http::StatusCode::OK);
@@ -219,43 +219,49 @@ async fn data_quality_hygiene_context_returns_source_grounded_internal_cleanup_p
 }
 
 #[tokio::test]
-async fn data_quality_hygiene_drafts_reject_blocked_side_effects_and_ambiguity_hiding() {
+async fn data_quality_hygiene_drafts_reject_every_recognized_live_effect_intent_once() {
     let context = data_quality_context().await;
     let action = &context["hygiene_actions"][0];
-    let body = json!({
-        "context_packet_id": context["audit"]["context_packet_id"],
-        "correlation_id": context["audit"]["correlation_id"],
-        "actions": [
-            {
+    for intent in http::DeniedLiveEffectIntent::for_workflow(
+        http::DeniedLiveEffectWorkflow::DataQualityHygiene,
+    ) {
+        let state = http::VaccineDocumentState::default();
+        let denied_intents = state.denied_live_effect_intent_count();
+        let persisted_records = state.persisted_record_count().await;
+        let body = json!({
+            "context_packet_id": context["audit"]["context_packet_id"],
+            "correlation_id": context["audit"]["correlation_id"],
+            "actions": [{
                 "action_id": action["id"],
                 "kind": action["kind"],
                 "source_refs": action["source_refs"],
                 "issue_refs": action["issue_refs"],
                 "review_gates": action["review_gates"],
-                "requested_side_effects": ["send_customer_message"],
-                "attempted_ambiguity_resolution": true
-            }
-        ]
-    });
+                "requested_side_effects": [intent.code()],
+                "attempted_ambiguity_resolution": false
+            }]
+        });
 
-    let (status, payload) = post_json("/agent/drafts/data-quality-hygiene", body).await;
+        let (status, payload) =
+            post_json_with_state(state.clone(), "/v1/agent/drafts/data-quality-hygiene", body)
+                .await;
 
-    assert_eq!(status, axum_http::StatusCode::UNPROCESSABLE_ENTITY);
-    assert_eq!(payload["validation"]["status"], "rejected");
-    assert_eq!(payload["accepted_actions"].as_array().unwrap().len(), 0);
-    assert_eq!(payload["live_side_effects_allowed"], false);
-    assert!(
-        payload["rejected_actions"][0]["reasons"]
-            .as_array()
-            .unwrap()
-            .contains(&json!("blocked_side_effect_requested"))
-    );
-    assert!(
-        payload["rejected_actions"][0]["reasons"]
-            .as_array()
-            .unwrap()
-            .contains(&json!("attempted_ambiguity_hiding"))
-    );
+        assert_eq!(status, axum_http::StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(payload["validation"]["status"], "rejected");
+        assert_eq!(payload["accepted_actions"].as_array().unwrap().len(), 0);
+        assert_eq!(payload["live_side_effects_allowed"], false);
+        assert_eq!(
+            payload["rejected_actions"][0]["reasons"],
+            json!(["blocked_side_effect_requested"])
+        );
+        assert_eq!(
+            payload["rejected_actions"][0]["live_side_effects_allowed"],
+            false
+        );
+        assert!(payload.get("outbox_candidate").is_none());
+        assert_eq!(state.denied_live_effect_intent_count(), denied_intents + 1);
+        assert_eq!(state.persisted_record_count().await, persisted_records);
+    }
 }
 
 #[tokio::test]
@@ -282,7 +288,7 @@ async fn data_quality_hygiene_drafts_reject_provenance_not_bound_to_the_action()
         }]
     });
 
-    let (status, payload) = post_json("/agent/drafts/data-quality-hygiene", body).await;
+    let (status, payload) = post_json("/v1/agent/drafts/data-quality-hygiene", body).await;
 
     assert_eq!(status, axum_http::StatusCode::UNPROCESSABLE_ENTITY);
     assert_eq!(payload["accepted_actions"].as_array().unwrap().len(), 0);
@@ -321,7 +327,7 @@ async fn data_quality_hygiene_outcome_capture_records_labor_evidence_without_pro
     });
 
     let (status, payload) = post_json(
-        &format!("/data-quality-hygiene/actions/{action_id}/outcome"),
+        &format!("/v1/data-quality-hygiene/actions/{action_id}/outcome"),
         body,
     )
     .await;
@@ -335,6 +341,10 @@ async fn data_quality_hygiene_outcome_capture_records_labor_evidence_without_pro
     );
     assert_eq!(payload["outcome_record"]["claimable"], false);
     assert_eq!(payload["outcome_record"]["actual_minutes"], 9);
+    assert_ne!(
+        payload["outcome_record"]["timestamp"], "2026-06-17T13:15:00Z",
+        "durable recording time must be server-issued, not copied from the caller"
+    );
     assert_eq!(
         payload["outcome_record"]["actor"]["persona"],
         "front_desk_lead"
@@ -459,6 +469,54 @@ async fn data_quality_hygiene_outcome_capture_records_labor_evidence_without_pro
 }
 
 #[tokio::test]
+async fn data_quality_hygiene_outcomes_reject_every_recognized_live_effect_intent_once() {
+    let context = data_quality_context().await;
+    let action = &context["hygiene_actions"][0];
+    let action_id = action["id"].as_str().unwrap();
+
+    for intent in http::DeniedLiveEffectIntent::for_workflow(
+        http::DeniedLiveEffectWorkflow::DataQualityHygiene,
+    ) {
+        let state = http::VaccineDocumentState::default();
+        let denied_intents = state.denied_live_effect_intent_count();
+        let persisted_records = state.persisted_record_count().await;
+        let body = json!({
+            "outcome": "completed",
+            "actual_minutes": 9,
+            "actor": {
+                "id": "front-desk-lead-17",
+                "persona": "front_desk_lead",
+                "actor_role": "front_desk_lead"
+            },
+            "feedback": "Requested live effect must remain denied.",
+            "source_refs": action["source_refs"],
+            "issue_refs": action["issue_refs"],
+            "reported_resolution_status": "acknowledged",
+            "timestamp": "2026-06-17T13:15:00Z",
+            "audit": {"correlation_id": context["audit"]["correlation_id"]},
+            "requested_side_effects": [intent.code()],
+            "idempotency_key": format!("denied-intent-{}", intent.code())
+        });
+
+        let (status, payload) = post_json_with_state(
+            state.clone(),
+            &format!("/v1/data-quality-hygiene/actions/{action_id}/outcome"),
+            body,
+        )
+        .await;
+
+        assert_eq!(status, axum_http::StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(payload["accepted"], false);
+        assert_eq!(payload["outcome_persisted"], false);
+        assert_eq!(payload["reasons"], json!(["blocked_side_effect_requested"]));
+        assert_eq!(payload["live_side_effects_allowed"], false);
+        assert!(payload.get("outbox_candidate").is_none());
+        assert_eq!(state.denied_live_effect_intent_count(), denied_intents + 1);
+        assert_eq!(state.persisted_record_count().await, persisted_records);
+    }
+}
+
+#[tokio::test]
 async fn data_quality_hygiene_outcome_capture_rejects_missing_source_or_issue_refs() {
     let context = data_quality_context().await;
     let action = &context["hygiene_actions"][0];
@@ -486,7 +544,7 @@ async fn data_quality_hygiene_outcome_capture_rejects_missing_source_or_issue_re
     let mut without_source_refs = base_body.clone();
     without_source_refs["source_refs"] = json!([]);
     let (status, payload) = post_json(
-        &format!("/data-quality-hygiene/actions/{action_id}/outcome"),
+        &format!("/v1/data-quality-hygiene/actions/{action_id}/outcome"),
         without_source_refs,
     )
     .await;
@@ -499,7 +557,7 @@ async fn data_quality_hygiene_outcome_capture_rejects_missing_source_or_issue_re
     let mut without_issue_refs = base_body;
     without_issue_refs["issue_refs"] = json!([]);
     let (status, payload) = post_json(
-        &format!("/data-quality-hygiene/actions/{action_id}/outcome"),
+        &format!("/v1/data-quality-hygiene/actions/{action_id}/outcome"),
         without_issue_refs,
     )
     .await;
@@ -541,7 +599,7 @@ async fn data_quality_hygiene_outcome_summary_reports_caller_minutes_and_provena
 
     let (status, capture_payload) = post_json_with_state(
         state.clone(),
-        &format!("/data-quality-hygiene/actions/{action_id}/outcome"),
+        &format!("/v1/data-quality-hygiene/actions/{action_id}/outcome"),
         body,
     )
     .await;
@@ -551,7 +609,7 @@ async fn data_quality_hygiene_outcome_summary_reports_caller_minutes_and_provena
         .as_str()
         .unwrap();
     let summary_uri = format!(
-        "/data-quality-hygiene/outcomes/summary?location_id={}&operating_day={}&correlation_id={}",
+        "/v1/data-quality-hygiene/outcomes/summary?location_id={}&operating_day={}&correlation_id={}",
         grouping["location_id"].as_str().unwrap(),
         grouping["operating_day"].as_str().unwrap(),
         correlation_id
@@ -599,7 +657,7 @@ async fn data_quality_hygiene_outcome_summary_reports_caller_minutes_and_provena
             .contains(&json!("change_staff_schedule"))
     );
 
-    let (status, metrics_payload) = get_json_with_state(state, "/ops/metrics/summary").await;
+    let (status, metrics_payload) = get_json_with_state(state, "/v1/ops/metrics/summary").await;
     assert_eq!(status, axum_http::StatusCode::OK);
     assert_eq!(
         metrics_payload["local_runtime_counters"]["data_quality_hygiene_outbox_candidate_count"],

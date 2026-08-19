@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { fetchLocalDemoApi, safeLocalDemoApiPath } from "./local-demo-proxy.mjs";
 
 const localDemoApiBaseUrlEnvName = "PET_RESORT_API_BASE_URL";
-const allowedPathRoot = "v0";
 
 function configuredApiBaseUrl(): string | undefined {
   const value = process.env[localDemoApiBaseUrlEnvName]?.trim();
@@ -21,20 +21,6 @@ function unavailable(message: string) {
   );
 }
 
-function safeLocalDemoApiPath(segments: string[]): string | undefined {
-  if (segments[0] !== allowedPathRoot) {
-    return undefined;
-  }
-
-  for (const segment of segments) {
-    if (!segment || segment === "." || segment === ".." || segment.includes("/")) {
-      return undefined;
-    }
-  }
-
-  return segments.map((segment) => encodeURIComponent(segment)).join("/");
-}
-
 async function proxyLocalDemoApi(
   request: NextRequest,
   context: { params: Promise<{ path?: string[] }> },
@@ -48,7 +34,7 @@ async function proxyLocalDemoApi(
       {
         error: {
           code: "unsupported_local_demo_api_path",
-          message: "Only /v0 local demo API paths are proxied."
+          message: "Only /v1 local demo API paths are proxied."
         },
         live_side_effects_allowed: false
       },
@@ -62,18 +48,17 @@ async function proxyLocalDemoApi(
   }
 
   try {
-    const upstreamUrl = new URL(`${apiBaseUrl}/`);
-    upstreamUrl.pathname = `${upstreamUrl.pathname.replace(/\/$/, "")}/${path}`;
-    upstreamUrl.search = request.nextUrl.search;
     const upstreamHeaders = new Headers({ accept: "application/json" });
     const requestId = request.headers.get("x-request-id");
     const correlationId = request.headers.get("x-correlation-id");
     if (requestId) upstreamHeaders.set("x-request-id", requestId);
     if (correlationId) upstreamHeaders.set("x-correlation-id", correlationId);
-    const upstream = await fetch(upstreamUrl, {
+    const upstream = await fetchLocalDemoApi({
+      apiBaseUrl,
+      segments: params.path ?? [],
+      search: request.nextUrl.search,
       method,
-      headers: upstreamHeaders,
-      cache: "no-store"
+      headers: upstreamHeaders
     });
     const contentType = upstream.headers.get("content-type") ?? "application/json";
     const body = await upstream.text();

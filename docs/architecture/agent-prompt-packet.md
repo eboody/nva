@@ -2,7 +2,7 @@
 
 Purpose: define the reusable packet supplied to every AI/Hermes runtime call. The packet is the application-owned boundary between deterministic pet-resort workflow code and an AI worker. It is not a free-form prompt string and it is not permission to mutate provider systems. The app constructs the packet from trusted event, database, policy, and audit inputs; the AI worker returns only the declared structured output for deterministic validation and review.
 
-Status: canonical draft for architecture and workflow docs. It should be kept aligned with `domain/src/agents.rs`, `domain/src/workflow.rs`, and the workflow-specific output contracts as they mature.
+Status: canonical draft for architecture and workflow docs. It should be kept aligned with `app/src/agents.rs`, `domain/src/workflow.rs`, and the workflow-specific output contracts as they mature.
 
 ## Boundary model
 

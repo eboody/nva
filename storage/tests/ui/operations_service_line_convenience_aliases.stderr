@@ -1,0 +1,17 @@
+error[E0425]: cannot find type `StoredTrainingProgramDurationWeeks` in module `storage::operations`
+ --> tests/ui/operations_service_line_convenience_aliases.rs:2:40
+  |
+2 |     let _: Option<storage::operations::StoredTrainingProgramDurationWeeks> = None;
+  |                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in `storage::operations`
+
+error[E0425]: cannot find type `StoredTrainingProgramDurationWeeksError` in module `storage::operations`
+ --> tests/ui/operations_service_line_convenience_aliases.rs:3:40
+  |
+3 |     let _: Option<storage::operations::StoredTrainingProgramDurationWeeksError> = None;
+  |                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in `storage::operations`
+
+error[E0425]: cannot find type `StoredCadenceWeeksError` in module `storage::operations`
+ --> tests/ui/operations_service_line_convenience_aliases.rs:4:40
+  |
+4 |     let _: Option<storage::operations::StoredCadenceWeeksError> = None;
+  |                                        ^^^^^^^^^^^^^^^^^^^^^^^ not found in `storage::operations`

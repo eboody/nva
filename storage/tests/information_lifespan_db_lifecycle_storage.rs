@@ -1,6 +1,5 @@
 const FOUNDATION_MIGRATION: &str = include_str!("../../migrations/0001_mvp_foundation.sql");
-const DATA_QUALITY_MIGRATION: &str =
-    include_str!("../../migrations/0002_data_quality_read_models.sql");
+const DATA_QUALITY_MIGRATION: &str = FOUNDATION_MIGRATION;
 const LOCAL_DEMO_SEED: &str = include_str!("../../fixtures/seed/local-demo.sql");
 
 #[test]

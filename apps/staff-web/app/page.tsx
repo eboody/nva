@@ -132,13 +132,13 @@ export default function Home() {
     setInformationRun({ status: "running" });
     try {
       const runStartedAt = performance.now();
-      const response = await fetch("/api/local-demo/v0/demo/information-lifespan/run", { method: "POST" });
+      const response = await fetch("/api/local-demo/v1/demo/information-lifespan/run", { method: "POST" });
       const payload = await response.json();
       recordNetworkExchange({
         id: "run-report-post",
         method: "POST",
-        path: "/api/local-demo/v0/demo/information-lifespan/run",
-        upstreamPath: "/v0/demo/information-lifespan/run",
+        path: "/api/local-demo/v1/demo/information-lifespan/run",
+        upstreamPath: "/v1/demo/information-lifespan/run",
         status: response.status,
         durationMs: Math.max(1, Math.round(performance.now() - runStartedAt)),
         proofPurpose: informationLifespanNetworkRequests[0].proofPurpose,
@@ -154,7 +154,7 @@ export default function Home() {
       setActiveCorrelationId(payload.correlation_id);
 
       const encodedCorrelationId = encodeURIComponent(payload.correlation_id);
-      const reportPath = `/api/local-demo/v0/demo/information-lifespan/${encodedCorrelationId}/report`;
+      const reportPath = `/api/local-demo/v1/demo/information-lifespan/${encodedCorrelationId}/report`;
       const reportStartedAt = performance.now();
       const reportResponse = await fetch(reportPath, { method: "GET" });
       const reportPayload = await reportResponse.json();
@@ -162,7 +162,7 @@ export default function Home() {
         id: "report-replay-get",
         method: "GET",
         path: reportPath,
-        upstreamPath: `/v0/demo/information-lifespan/${encodedCorrelationId}/report`,
+        upstreamPath: `/v1/demo/information-lifespan/${encodedCorrelationId}/report`,
         status: reportResponse.status,
         durationMs: Math.max(1, Math.round(performance.now() - reportStartedAt)),
         proofPurpose: informationLifespanNetworkRequests[1].proofPurpose,
@@ -455,7 +455,7 @@ export default function Home() {
               <div className="network-run-head">
                 <div>
                   <b>network-visible run API / response proof</b>
-                  <span>Browser route proxy shows real local requests; upstream API stays synthetic/read-only: POST /v0/demo/information-lifespan/run → GET /v0/demo/information-lifespan/:correlation_id/report.</span>
+                  <span>Browser route proxy shows real local requests; upstream API stays synthetic/read-only: POST /v1/demo/information-lifespan/run → GET /v1/demo/information-lifespan/:correlation_id/report.</span>
                 </div>
                 <strong>{informationRun.status === "done" ? "200 OK replay" : informationRun.status === "error" ? "safe failure visible" : "ready"}</strong>
               </div>

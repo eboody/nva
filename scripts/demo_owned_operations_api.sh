@@ -12,7 +12,7 @@ python - <<'PY'
 import json
 from pathlib import Path
 
-path = Path("apps/api/openapi/owned-operations-v0.openapi.json")
+path = Path("apps/api/openapi/owned-operations-v1.openapi.json")
 data = json.loads(path.read_text(encoding="utf-8"))
 paths = sorted(data.get("paths", {}))
 print(f"openapi_title={data['info']['title']}")

@@ -25,7 +25,7 @@ The selected slice is Data-Quality Hygiene because it is easy to explain:
 
 ### Architecture in one sentence
 
-Provider/source evidence -> product-owned app/domain workflow packet -> versioned `/v0` API DTOs -> review gate -> storage-shaped review/audit/outcome/outbox projections -> aggregate metrics/read-models, with live side effects disabled.
+Provider/source evidence -> product-owned app/domain workflow packet -> versioned `/v1` API DTOs -> review gate -> storage-shaped review/audit/outcome/outbox projections -> aggregate metrics/read-models, with live side effects disabled.
 
 ### Labor-cost loop
 
@@ -36,8 +36,8 @@ The loop is not “AI sends messages.” It is “AI turns ambiguous source fact
 - Business/problem framing: [README presentation path](../../README.md#presentation-path-safe-local-owned-api-proof).
 - Workflow contract: [Data-Quality Hygiene local smoke](../ops/data-quality-hygiene-local-smoke.md).
 - App/domain contract: [`app/src/data_quality_hygiene.rs`](../../app/src/data_quality_hygiene.rs), [`domain/src/data_quality.rs`](../../domain/src/data_quality.rs), and [`domain/src/source.rs`](../../domain/src/source.rs).
-- API contract: [`apps/api/README.md`](../../apps/api/README.md) and checked OpenAPI artifact [`apps/api/openapi/owned-operations-v0.openapi.json`](../../apps/api/openapi/owned-operations-v0.openapi.json).
-- Storage/schema proof path: [`migrations/0001_mvp_foundation.sql`](../../migrations/0001_mvp_foundation.sql), [`migrations/0002_data_quality_read_models.sql`](../../migrations/0002_data_quality_read_models.sql), [`storage/src/operations.rs`](../../storage/src/operations.rs), and storage tests under [`storage/tests/`](../../storage/tests/).
+- API contract: [`apps/api/README.md`](../../apps/api/README.md) and checked OpenAPI artifact [`apps/api/openapi/owned-operations-v1.openapi.json`](../../apps/api/openapi/owned-operations-v1.openapi.json).
+- Storage/schema proof path: [`migrations/0001_mvp_foundation.sql`](../../migrations/0001_mvp_foundation.sql), [`storage/src/operations.rs`](../../storage/src/operations.rs), and storage tests under [`storage/tests/`](../../storage/tests/). The clean-slate foundation migration owns the current data-quality tables and proof view; no follow-on compatibility migration is required.
 - Presentation fallback: [NVA static demo fallback packet](../presentation/nva-static-demo-fallback.md).
 
 ### Safe boundaries to say out loud
@@ -100,16 +100,16 @@ If the shell is unavailable during a conversation, use the static packet rather 
 
 ## Endpoint list for the technical proof path
 
-The checked OpenAPI v0 surface currently lists these eight paths:
+The checked, versioned OpenAPI surface currently lists these eight paths:
 
-- `GET /v0/healthz`
-- `GET /v0/readyz`
-- `GET /v0/ops/metrics/summary`
-- `GET /v0/agent/context/data-quality-hygiene`
-- `POST /v0/agent/drafts/data-quality-hygiene`
-- `POST /v0/data-quality-hygiene/actions/{action_id}/outcome`
-- `GET /v0/data-quality-hygiene/outcomes/summary`
-- `GET /v0/read-models/source-quality-backlog`
+- `GET /v1/healthz`
+- `GET /v1/readyz`
+- `GET /v1/ops/metrics/summary`
+- `GET /v1/agent/context/data-quality-hygiene`
+- `POST /v1/agent/drafts/data-quality-hygiene`
+- `POST /v1/data-quality-hygiene/actions/{action_id}/outcome`
+- `GET /v1/data-quality-hygiene/outcomes/summary`
+- `GET /v1/read-models/source-quality-backlog`
 
 Final smoke / inspection commands:
 
@@ -120,7 +120,7 @@ Final smoke / inspection commands:
 python - <<'PY'
 import json
 from pathlib import Path
-p = Path('apps/api/openapi/owned-operations-v0.openapi.json')
+p = Path('apps/api/openapi/owned-operations-v1.openapi.json')
 data = json.loads(p.read_text())
 print(data['info']['title'])
 for path in sorted(data['paths']):
@@ -133,8 +133,8 @@ Optional live-server curl walkthrough after starting the local Docker demo:
 ```sh
 docker compose up --build -d --wait
 ./scripts/smoke_local_demo.sh
-curl -sS http://127.0.0.1:3001/v0/readyz | python -m json.tool
-curl -sS http://127.0.0.1:3001/v0/read-models/source-quality-backlog | python -m json.tool
+curl -sS http://127.0.0.1:3001/v1/readyz | python -m json.tool
+curl -sS http://127.0.0.1:3001/v1/read-models/source-quality-backlog | python -m json.tool
 curl -sS http://127.0.0.1:3000/ >/tmp/pet-resort-staff-web.html
 ```
 
@@ -206,23 +206,22 @@ Open the checked OpenAPI artifact and route list:
 python - <<'PY'
 import json
 from pathlib import Path
-p = Path('apps/api/openapi/owned-operations-v0.openapi.json')
+p = Path('apps/api/openapi/owned-operations-v1.openapi.json')
 data = json.loads(p.read_text())
 print(data['info']['title'], data['info']['version'])
 print('\n'.join(sorted(data['paths'])))
 PY
 ```
 
-Explain that the public `/v0` DTOs are product-owned. Provider DTOs are not the API boundary; source refs and review gates are.
+Explain that the public `/v1` DTOs are product-owned. Provider DTOs are not the API boundary; source refs and review gates are.
 
 ### 3:00-4:00 — show storage/schema path for a technical interviewer
 
 Open these files if asked how the proof becomes durable:
 
 - [`migrations/0001_mvp_foundation.sql`](../../migrations/0001_mvp_foundation.sql) for workflow/review/approval/outbox/audit foundation tables.
-- [`migrations/0002_data_quality_read_models.sql`](../../migrations/0002_data_quality_read_models.sql) for source-quality read-model posture.
 - [`storage/src/operations.rs`](../../storage/src/operations.rs) for outcome/source-ref/labor projection types.
-- [`storage/tests/data_quality_hygiene_outcome_storage.rs`](../../storage/tests/data_quality_hygiene_outcome_storage.rs) and [`storage/tests/mvp_migration_contract.rs`](../../storage/tests/mvp_migration_contract.rs) for executable storage/schema expectations.
+- [`storage/tests/mvp_migration_contract.rs`](../../storage/tests/mvp_migration_contract.rs) for executable storage/schema expectations.
 
 Suggested line:
 
@@ -237,7 +236,7 @@ Suggested line:
 Use these fallback references if no fresh screenshots are produced:
 
 1. Terminal output from `./scripts/demo_owned_operations_api.sh` highlighting `contract_lane_ok`, `context_ok`, `blocked_draft_validation_ok`, `outcome_ok`, and `demo_owned_operations_api_ok`.
-2. OpenAPI path list from [`apps/api/openapi/owned-operations-v0.openapi.json`](../../apps/api/openapi/owned-operations-v0.openapi.json).
+2. OpenAPI path list from [`apps/api/openapi/owned-operations-v1.openapi.json`](../../apps/api/openapi/owned-operations-v1.openapi.json).
 3. Static visual [`docs/presentation/assets/owned-operations-api-replacement.html`](../presentation/assets/owned-operations-api-replacement.html) showing provider evidence -> owned operations API -> review/metrics/read models.
 4. [`docs/ops/data-quality-hygiene-local-smoke.md`](../ops/data-quality-hygiene-local-smoke.md) expected-output block with labor-minute markers.
 
@@ -269,7 +268,7 @@ No. In this demo, outbox/review rows are handoff candidates only. Customer sends
 
 ### “Where do I inspect the API/schema proof?”
 
-Start with [`apps/api/README.md`](../../apps/api/README.md), the checked OpenAPI artifact [`apps/api/openapi/owned-operations-v0.openapi.json`](../../apps/api/openapi/owned-operations-v0.openapi.json), migrations [`0001`](../../migrations/0001_mvp_foundation.sql) and [`0002`](../../migrations/0002_data_quality_read_models.sql), and [`storage/tests/`](../../storage/tests/).
+Start with [`apps/api/README.md`](../../apps/api/README.md), the checked OpenAPI artifact [`apps/api/openapi/owned-operations-v1.openapi.json`](../../apps/api/openapi/owned-operations-v1.openapi.json), the current foundation migration [`0001`](../../migrations/0001_mvp_foundation.sql), and [`storage/tests/`](../../storage/tests/).
 
 ## Caveats that build confidence
 

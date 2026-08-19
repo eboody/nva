@@ -1,0 +1,5 @@
+error[E0425]: cannot find type `AgentSpec` in module `app::agents`
+ --> tests/ui/agent_spec_convenience_alias.rs:2:32
+  |
+2 |     let _: Option<app::agents::AgentSpec> = None;
+  |                                ^^^^^^^^^ not found in `app::agents`

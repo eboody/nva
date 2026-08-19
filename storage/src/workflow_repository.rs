@@ -1,6 +1,6 @@
 //! Storage implementations of application-owned workflow repository ports.
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, fmt::Display, future::Future};
 
 use app::workflow_repository::source_quality_backlog;
 use async_trait::async_trait;
@@ -289,6 +289,143 @@ mod tests {
         );
         assert_eq!(outcomes.outcomes(), &["record"]);
     }
+
+    fn backlog_row() -> SourceQualityBacklogRow {
+        SourceQualityBacklogRow {
+            issue_ref: "issue-7".to_owned(),
+            location_id: Some("00000000-0000-0000-0000-000000000007".to_owned()),
+            tenant_id: Some("tenant-7".to_owned()),
+            affected_entity_kind: "reservation".to_owned(),
+            affected_entity_id: "reservation-7".to_owned(),
+            field_path: "vaccine_status".to_owned(),
+            issue_kind: "conflict".to_owned(),
+            severity: "high".to_owned(),
+            freshness: "current".to_owned(),
+            sensitivity: "internal".to_owned(),
+            workflow_blocking: "true".to_owned(),
+            owner_persona: "front_desk_lead".to_owned(),
+            review_gate: "manager_review".to_owned(),
+            resolution_status: "open".to_owned(),
+            source_refs: serde_json::json!([{
+                "system": "manual_import",
+                "record_type": "reservation",
+                "record_id": "reservation-7",
+                "observed_at": "2026-08-18T05:00:00Z",
+                "adapter_version": "manual-v1"
+            }]),
+            workflow_event_id: Some("00000000-0000-0000-0000-000000000008".to_owned()),
+            latest_outcome_id: Some("00000000-0000-0000-0000-000000000009".to_owned()),
+            projection_version: "source-quality-backlog-v1".to_owned(),
+            caveats: vec!["reported source evidence only".to_owned()],
+        }
+    }
+
+    #[test]
+    fn source_quality_backlog_rows_promote_only_with_typed_ids_versions_and_source_refs() {
+        let item = source_quality_backlog::Item::try_from(backlog_row()).unwrap();
+        assert_eq!(item.issue_ref, "issue-7");
+        assert_eq!(
+            item.location_id.as_deref(),
+            Some("00000000-0000-0000-0000-000000000007")
+        );
+        assert_eq!(
+            item.workflow_event_id.as_deref(),
+            Some("00000000-0000-0000-0000-000000000008")
+        );
+        assert_eq!(
+            item.latest_outcome_id.as_deref(),
+            Some("00000000-0000-0000-0000-000000000009")
+        );
+        assert_eq!(item.source_refs.as_array().map(Vec::len), Some(1));
+
+        let mut malformed = backlog_row();
+        malformed.location_id = Some(String::new());
+        assert!(source_quality_backlog::Item::try_from(malformed).is_err());
+        let mut malformed = backlog_row();
+        malformed.workflow_event_id = Some(String::new());
+        assert!(source_quality_backlog::Item::try_from(malformed).is_err());
+        let mut malformed = backlog_row();
+        malformed.latest_outcome_id = Some(String::new());
+        assert!(source_quality_backlog::Item::try_from(malformed).is_err());
+        let mut malformed = backlog_row();
+        malformed.projection_version = String::new();
+        assert!(source_quality_backlog::Item::try_from(malformed).is_err());
+        let mut malformed = backlog_row();
+        malformed.source_refs = serde_json::json!({});
+        assert!(source_quality_backlog::Item::try_from(malformed).is_err());
+        for field in [
+            "system",
+            "record_type",
+            "record_id",
+            "observed_at",
+            "adapter_version",
+        ] {
+            let mut malformed = backlog_row();
+            malformed.source_refs[0]
+                .as_object_mut()
+                .unwrap()
+                .remove(field);
+            assert!(source_quality_backlog::Item::try_from(malformed).is_err());
+        }
+    }
+
+    #[test]
+    fn idempotency_diagnostics_and_empty_values_remain_fail_closed() {
+        assert_eq!(
+            IdempotencyKey::try_new(""),
+            Err(IdempotencyValueError::Empty)
+        );
+        assert_eq!(
+            OperationFingerprint::try_new(""),
+            Err(IdempotencyValueError::Empty)
+        );
+        assert_eq!(
+            format!("{:?}", IdempotentRecord::<()>::Conflict),
+            "IdempotentRecord([REDACTED])"
+        );
+    }
+
+    #[test]
+    fn optional_backlog_relationship_ids_may_be_absent() {
+        let mut row = backlog_row();
+        row.location_id = None;
+        row.workflow_event_id = None;
+        row.latest_outcome_id = None;
+
+        let item = source_quality_backlog::Item::try_from(row).unwrap();
+        assert!(item.location_id.is_none());
+        assert!(item.workflow_event_id.is_none());
+        assert!(item.latest_outcome_id.is_none());
+    }
+
+    #[tokio::test]
+    async fn postgres_backlog_rejects_seeded_rows_with_unrecognized_source_systems() {
+        use app::workflow_repository::source_quality_backlog::Repository;
+
+        let Ok(database_url) = std::env::var("TEST_DATABASE_URL") else {
+            return;
+        };
+        let repository = PostgresSourceQualityBacklog::new(database_url);
+        assert!(!format!("{repository:?}").contains("postgres://"));
+        let location = domain::entities::LocationId::new(
+            uuid::Uuid::parse_str("00000000-0000-4000-8000-000000000101").unwrap(),
+        );
+
+        assert!(matches!(
+            repository.prioritized_items_for_location(location).await,
+            Err(source_quality_backlog::Error::Unavailable)
+        ));
+    }
+
+    #[tokio::test]
+    async fn connection_driver_handles_completed_and_terminated_connections() {
+        spawn_connection_driver(async { Ok::<(), &str>(()) })
+            .await
+            .unwrap();
+        spawn_connection_driver(async { Err::<(), _>("expected test termination") })
+            .await
+            .unwrap();
+    }
 }
 
 /// Postgres adapter for the application-owned source-quality backlog read model.
@@ -315,6 +452,18 @@ impl PostgresSourceQualityBacklog {
     }
 }
 
+fn spawn_connection_driver<F, E>(connection: F) -> tokio::task::JoinHandle<()>
+where
+    F: Future<Output = std::result::Result<(), E>> + Send + 'static,
+    E: Display + Send + 'static,
+{
+    tokio::spawn(async move {
+        if let Err(error) = connection.await {
+            tracing::warn!(safe_error_class = "database_connection", %error, "postgres read-model connection ended");
+        }
+    })
+}
+
 #[async_trait]
 impl source_quality_backlog::Repository for PostgresSourceQualityBacklog {
     async fn prioritized_items_for_location(
@@ -324,11 +473,7 @@ impl source_quality_backlog::Repository for PostgresSourceQualityBacklog {
         let (client, connection) = tokio_postgres::connect(&self.database_url, NoTls)
             .await
             .map_err(|_| source_quality_backlog::Error::Unavailable)?;
-        tokio::spawn(async move {
-            if let Err(error) = connection.await {
-                tracing::warn!(safe_error_class = "database_connection", %error, "postgres read-model connection ended");
-            }
-        });
+        drop(spawn_connection_driver(connection));
 
         let rows = client
             .query(

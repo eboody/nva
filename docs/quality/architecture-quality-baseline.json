@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "source": "Repowise NVA import graph at commit 285df2585e2a plus deterministic source scan",
+  "production_rust": {
+    "completion_maximum_physical_lines": 1500,
+    "debt_ceiling_by_path": {}
+  },
+  "compatibility_leakage": {
+    "completion_maximum": 0,
+    "debt_ceiling_by_path": {}
+  },
+  "broad_reexports": {
+    "completion_maximum": 0,
+    "debt_ceiling_by_path": {},
+    "allowlist": [
+      {
+        "path": "apps/spacetimedb/src/lib.rs",
+        "declaration": "pub use reducers::*;",
+        "rationale": "SpacetimeDB reducer macro exports are retained at the crate root as runtime ABI registration surface."
+      }
+    ]
+  },
+  "public_reexport_aliases": {
+    "allowlist": [
+      {
+        "path": "app/src/checkout_completion.rs",
+        "declaration": "pub use domain::boarding::handoff::DepartureTaskDraft as StaffTaskDraft;",
+        "rationale": "Checkout completion owns the caller-facing staff-task role while the canonical type remains domain-owned."
+      },
+      {
+        "path": "app/src/checkout_completion.rs",
+        "declaration": "pub use domain::payment::CheckoutException as PaymentException;",
+        "rationale": "Checkout completion owns the payment-exception role used by its workflow packet."
+      },
+
+      {
+        "path": "app/src/checkout_completion.rs",
+        "declaration": "pub use domain::reservation::CheckoutSourceException as SourceException;",
+        "rationale": "Checkout completion owns the source-exception role used by its workflow packet."
+      },
+
+      {
+        "path": "domain/src/daily_brief.rs",
+        "declaration": "pub use snapshot::Id as Snapshot;",
+        "rationale": "daily_brief::Snapshot is the canonical aggregate snapshot identity at the concept owner boundary."
+      },
+      {
+        "path": "domain/src/daycare/assignment.rs",
+        "declaration": "pub use playgroup_id::Id as PlaygroupId;",
+        "rationale": "daycare::assignment::PlaygroupId is the canonical assignment vocabulary used by public builders."
+      }
+    ]
+  },
+  "authority_capabilities": {
+    "policy_only_types": [
+      {
+        "path": "app/src/data_quality_hygiene/outcome_capture.rs",
+        "name": "RoleLocationAuthorization",
+        "trait": "AuthorizationPolicy",
+        "rationale": "Fieldless stateless decision policy; it carries no evidence or capability and has no manufacture path."
+      }
+    ],
+    "types": [
+      {
+        "path": "domain/src/customer.rs",
+        "name": "NoteAcceptanceAuthority",
+        "rationale": "Consumes exact reviewer, customer, note, use, and time proof; no production issuer exists."
+      },
+      {
+        "path": "domain/src/entities/incident.rs",
+        "name": "IncidentClosureAuthority",
+        "rationale": "One-use exact incident closure capability with only a test-only issuer."
+      },
+
+      {
+        "path": "domain/src/lead.rs",
+        "name": "QueueContactAuthority",
+        "rationale": "Private unit proof token nested in QueueableContact; no production issuer exists."
+      },
+      {
+        "path": "storage/src/operations/approval_outbox.rs",
+        "name": "ApprovedInternalHandoffAuthority",
+        "rationale": "One-shot exact pending-outbox admission capability issued after current and persisted binding checks."
+      },
+      {
+        "path": "storage/src/operations/approval_outbox.rs",
+        "name": "CurrentApprovalReviewerCapability",
+        "rationale": "Current authenticated reviewer root; only a test-only issuer exists until an authentication adapter owns production issuance."
+      }
+    ],
+    "issuers": [
+      {
+        "path": "domain/src/entities/incident.rs",
+        "function": "issue_incident_closure_authority",
+        "authority": "IncidentClosureAuthority",
+        "rationale": "Test-only protocol issuer; no production authenticated reviewer root exists."
+      },
+
+      {
+        "path": "storage/src/operations/approval_outbox.rs",
+        "function": "authorize_internal_handoff",
+        "authority": "ApprovedInternalHandoffAuthority",
+        "rationale": "Issues one-shot internal handoff admission only after exact current and persisted checks."
+      },
+      {
+        "path": "storage/src/operations/approval_outbox.rs",
+        "function": "try_new",
+        "authority": "CurrentApprovalReviewerCapability",
+        "rationale": "Test-only protocol issuer; production cannot manufacture current reviewer identity from caller or persisted labels."
+      }
+    ]
+  },
+  "dependency_cycles": {
+    "completion_maximum": 0,
+    "debt_ceiling": 0,
+    "cycles": []
+  }
+}

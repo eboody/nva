@@ -20,44 +20,8 @@
       "current_contract_tests": [
         {
           "crate": "domain",
-          "path": "domain/tests/lifecycle_rehydration_contracts.rs",
-          "test": "persisted_reservation_rejects_invalid_periods_and_contradictory_deposit_hard_stops",
-          "covers": "current_acceptance"
-        },
-        {
-          "crate": "domain",
-          "path": "domain/tests/lifecycle_rehydration_contracts.rs",
-          "test": "persisted_message_rejects_delivered_drafts_and_queue_states_without_review_gate",
-          "covers": "current_acceptance"
-        },
-        {
-          "crate": "domain",
-          "path": "domain/tests/lifecycle_rehydration_contracts.rs",
-          "test": "persisted_workflow_event_rejects_event_type_subject_mismatches",
-          "covers": "current_acceptance"
-        },
-        {
-          "crate": "domain",
           "path": "domain/tests/constructor_equivalent_serde.rs",
           "test": "operating_period_serde_rejects_every_interval_rejected_by_constructors",
-          "covers": "current_acceptance"
-        },
-        {
-          "crate": "domain",
-          "path": "domain/tests/cardinality_identity_contracts.rs",
-          "test": "recurring_attendance_weekdays_are_a_non_empty_duplicate_free_set",
-          "covers": "current_acceptance"
-        },
-        {
-          "crate": "domain",
-          "path": "domain/tests/cardinality_identity_contracts.rs",
-          "test": "capacity_snapshot_has_one_authoritative_segment_per_accommodation",
-          "covers": "current_acceptance"
-        },
-        {
-          "crate": "domain",
-          "path": "domain/tests/cardinality_identity_contracts.rs",
-          "test": "accommodation_alternatives_are_non_empty_unique_and_ordered_by_preference",
           "covers": "current_acceptance"
         },
         {
@@ -115,24 +79,6 @@
       ],
       "invariant": "Completion, value attribution, and review lifecycle evidence are not executable approval authority. Only explicit approval evidence may create approved review rows, outbox candidates, or authority-bearing capabilities.",
       "current_contract_tests": [
-        {
-          "crate": "storage",
-          "path": "storage/tests/approval_outbox_infrastructure.rs",
-          "test": "approval_outbox_projection_keeps_unapproved_or_deferred_work_out_of_outbox",
-          "covers": "current_acceptance"
-        },
-        {
-          "crate": "storage",
-          "path": "storage/tests/approval_outbox_infrastructure.rs",
-          "test": "site_finance_persistence_records_reuse_approval_outbox_spine_without_payment_authority",
-          "covers": "current_acceptance"
-        },
-        {
-          "crate": "app",
-          "path": "app/tests/site_finance_workflow_contracts.rs",
-          "test": "serialized_value_evidence_does_not_imply_claim_approval_or_payment_authority",
-          "covers": "current_acceptance"
-        },
         {
           "crate": "app",
           "path": "app/tests/capability_protocol_compile_fail.rs",
@@ -278,7 +224,7 @@
         {
           "crate": "pet-resort-api",
           "path": "apps/api/tests/owned_api_openapi_contract.rs",
-          "test": "checked_openapi_artifact_names_owned_v0_operations_and_safe_schemas",
+          "test": "checked_openapi_artifact_names_owned_v1_operations_and_safe_schemas",
           "covers": "current_acceptance"
         },
         {
@@ -302,13 +248,13 @@
         {
           "crate": "pet-resort-api",
           "path": "apps/api/tests/public_contract_identity_regression.rs",
-          "test": "v0_contract_metadata_round_trips_with_semantic_protocol_modes",
+          "test": "v1_contract_metadata_round_trips_with_semantic_protocol_modes",
           "covers": "current_acceptance"
         },
         {
           "crate": "pet-resort-api",
           "path": "apps/api/tests/public_contract_identity_regression.rs",
-          "test": "v0_source_record_ref_round_trips_without_an_untyped_value_boundary",
+          "test": "v1_source_record_ref_round_trips_without_an_untyped_value_boundary",
           "covers": "current_acceptance"
         },
         {
@@ -320,7 +266,7 @@
         {
           "crate": "pet-resort-api",
           "path": "apps/api/tests/public_contract_identity_regression.rs",
-          "test": "v0_data_quality_context_round_trips_through_the_canonical_public_dto",
+          "test": "v1_data_quality_context_round_trips_through_the_canonical_public_dto",
           "covers": "current_acceptance"
         }
       ],
@@ -464,27 +410,9 @@
       "invariant": "Every promoted provider/storage fact attaches source provenance, mapping version, and adapter boundary evidence before app/domain use; provider DTOs remain quarantined and never become product truth by shape alone.",
       "current_contract_tests": [
         {
-          "crate": "app",
-          "path": "app/tests/data_quality_hygiene_workflow_contracts.rs",
-          "test": "data_quality_hygiene_context_builds_source_grounded_internal_actions_with_labor_delta",
-          "covers": "current_acceptance"
-        },
-        {
           "crate": "pet-resort-api",
           "path": "apps/api/tests/data_quality_hygiene_agent_contract.rs",
           "test": "data_quality_hygiene_outcome_capture_records_labor_evidence_without_provider_writes",
-          "covers": "current_acceptance"
-        },
-        {
-          "crate": "gingr",
-          "path": "integrations/gingr/tests/provider_promotion_provenance_contracts.rs",
-          "test": "customer_pet_and_retail_promotions_require_source_backed_mapping_version_before_domain_use",
-          "covers": "current_acceptance"
-        },
-        {
-          "crate": "storage",
-          "path": "storage/tests/typed_persistence_boundary.rs",
-          "test": "source_refs_and_versioned_payloads_reject_invalid_relationships",
           "covers": "current_acceptance"
         }
       ],

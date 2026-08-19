@@ -67,12 +67,7 @@ pub enum GroupPlayObservation {
     NeedsIntroAssessment,
 }
 
-impl GroupPlayObservation {
-    /// Returns whether group-play status requires staff evaluation before assignment.
-    pub fn needs_staff_evaluation(self) -> bool {
-        matches!(self, Self::NeedsIntroAssessment)
-    }
-}
+impl GroupPlayObservation {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 /// Staff-observed people orientation used to plan handling, staffing, and customer follow-up.

@@ -109,7 +109,7 @@ fn assert_product_owned_runtime_dto_contract(payload: &serde_json::Value, workfl
     assert_eq!(payload["api_contract"]["boundary"], "api_runtime_dto");
     assert_eq!(
         payload["api_contract"]["schema_version"],
-        "pet_resort_api.runtime.v0"
+        "pet_resort_api.runtime.v1"
     );
     assert_eq!(payload["api_contract"]["workflow"], workflow);
     assert_eq!(
@@ -121,12 +121,12 @@ fn assert_product_owned_runtime_dto_contract(payload: &serde_json::Value, workfl
 
 #[tokio::test]
 async fn health_and_readiness_payloads_label_themselves_as_product_owned_runtime_dtos() {
-    let (health_status, health) = request_json(axum_http::Method::GET, "/healthz", None).await;
+    let (health_status, health) = request_json(axum_http::Method::GET, "/v1/healthz", None).await;
     assert_eq!(health_status, axum_http::StatusCode::OK);
     assert_product_owned_runtime_dto_contract(&health, "runtime_health");
     assert_eq!(health["live_side_effects"], "disabled");
 
-    let (ready_status, ready) = request_json(axum_http::Method::GET, "/readyz", None).await;
+    let (ready_status, ready) = request_json(axum_http::Method::GET, "/v1/readyz", None).await;
     assert_eq!(ready_status, axum_http::StatusCode::OK);
     assert_product_owned_runtime_dto_contract(&ready, "runtime_readiness");
     assert_eq!(ready["live_customer_messaging"], "disabled");
@@ -152,7 +152,7 @@ async fn health_and_readiness_payloads_label_themselves_as_product_owned_runtime
 async fn api_requests_echo_safe_request_ids_for_route_status_tracing() {
     let (status, headers, payload) = request_json_with_headers(
         axum_http::Method::GET,
-        "/healthz",
+        "/v1/healthz",
         None,
         Some("req-test-safe-123"),
     )
@@ -172,7 +172,7 @@ async fn api_requests_echo_safe_request_ids_for_route_status_tracing() {
 async fn agent_workflow_packets_carry_correlation_without_payload_secrets() {
     let (status, headers, context) = request_json_with_headers(
         axum_http::Method::GET,
-        "/agent/context/manager-daily-brief?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",
+        "/v1/agent/context/manager-daily-brief?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",
         None,
         Some("req-workflow-safe-456"),
     )
@@ -201,7 +201,7 @@ async fn agent_workflow_packets_carry_correlation_without_payload_secrets() {
 async fn vaccine_document_workflow_payload_contract_preserves_review_gate_and_audit_safety() {
     let (status, payload) = request_json(
         axum_http::Method::POST,
-        "/vaccine-documents/uploads",
+        "/v1/vaccine-documents/uploads",
         Some(json!({
             "pet_id": "00000000-0000-0000-0000-000000000101",
             "customer_id": "00000000-0000-0000-0000-000000000201",
@@ -235,7 +235,7 @@ async fn manager_daily_brief_payload_contract_preserves_review_gates_labor_and_d
  {
     let (status, context) = request_json(
         axum_http::Method::GET,
-        "/agent/context/manager-daily-brief?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",
+        "/v1/agent/context/manager-daily-brief?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",
         None,
     )
     .await;
@@ -265,7 +265,7 @@ async fn manager_daily_brief_payload_contract_preserves_review_gates_labor_and_d
     let action = &context["manager_brief_actions"][0];
     let (draft_status, draft) = request_json(
         axum_http::Method::POST,
-        "/agent/drafts/manager-daily-brief",
+        "/v1/agent/drafts/manager-daily-brief",
         Some(json!({
             "context_packet_id": context["audit"]["context_packet_id"],
             "correlation_id": context["audit"]["correlation_id"],
@@ -301,7 +301,7 @@ async fn ops_metrics_summary_counts_safe_local_state_without_prometheus_overbuil
     let (initial_status, _, initial) = request_json_on(
         app.clone(),
         axum_http::Method::GET,
-        "/ops/metrics/summary",
+        "/v1/ops/metrics/summary",
         None,
         None,
     )
@@ -317,7 +317,7 @@ async fn ops_metrics_summary_counts_safe_local_state_without_prometheus_overbuil
     let (inquiry_status, _, _) = request_json_on(
         app.clone(),
         axum_http::Method::POST,
-        "/inquiries",
+        "/v1/inquiries",
         Some(json!({
             "source_event_key": "web-inquiry-metrics-smoke-1",
             "location_id": "00c0ffee-0000-0000-0000-000000000001",
@@ -325,7 +325,8 @@ async fn ops_metrics_summary_counts_safe_local_state_without_prometheus_overbuil
             "pet": {"name": "Maple", "species": "dog"},
             "service": "boarding",
             "requested_dates": {"start": "2026-07-01", "end": "2026-07-04"},
-            "message": "Need boarding details."
+            "message": "Need boarding details.",
+            "contact_attempts": []
         })),
         None,
     )
@@ -335,7 +336,7 @@ async fn ops_metrics_summary_counts_safe_local_state_without_prometheus_overbuil
     let (upload_status, _, _) = request_json_on(
         app.clone(),
         axum_http::Method::POST,
-        "/vaccine-documents/uploads",
+        "/v1/vaccine-documents/uploads",
         Some(json!({
             "pet_id": "00000000-0000-0000-0000-000000000301",
             "customer_id": "00000000-0000-0000-0000-000000000401",
@@ -352,7 +353,7 @@ async fn ops_metrics_summary_counts_safe_local_state_without_prometheus_overbuil
     let (context_status, _, context) = request_json_on(
         app.clone(),
         axum_http::Method::GET,
-        "/agent/context/data-quality-hygiene?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",
+        "/v1/agent/context/data-quality-hygiene?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",
         None,
         None,
     )
@@ -363,7 +364,7 @@ async fn ops_metrics_summary_counts_safe_local_state_without_prometheus_overbuil
         app.clone(),
         axum_http::Method::POST,
         &format!(
-            "/data-quality-hygiene/actions/{}/outcome",
+            "/v1/data-quality-hygiene/actions/{}/outcome",
             action["id"].as_str().unwrap()
         ),
         Some(json!({
@@ -387,7 +388,7 @@ async fn ops_metrics_summary_counts_safe_local_state_without_prometheus_overbuil
     let (metrics_status, _, metrics) = request_json_on(
         app,
         axum_http::Method::GET,
-        "/ops/metrics/summary",
+        "/v1/ops/metrics/summary",
         None,
         None,
     )
@@ -426,13 +427,14 @@ async fn inquiry_intake_idempotency_replay_reuses_exact_source_event_and_rejects
         "pet": {"name": "Miso", "species": "dog"},
         "service": "boarding",
         "requested_dates": {"start": "2026-07-01", "end": "2026-07-04"},
-        "message": "Need boarding details."
+        "message": "Need boarding details.",
+        "contact_attempts": []
     });
 
     let (created_status, _, created) = request_json_on(
         app.clone(),
         axum_http::Method::POST,
-        "/inquiries",
+        "/v1/inquiries",
         Some(first_payload.clone()),
         None,
     )
@@ -443,7 +445,7 @@ async fn inquiry_intake_idempotency_replay_reuses_exact_source_event_and_rejects
     let (replay_status, _, replay) = request_json_on(
         app.clone(),
         axum_http::Method::POST,
-        "/inquiries",
+        "/v1/inquiries",
         Some(first_payload),
         None,
     )
@@ -457,7 +459,7 @@ async fn inquiry_intake_idempotency_replay_reuses_exact_source_event_and_rejects
     let (drift_status, _, drift) = request_json_on(
         app,
         axum_http::Method::POST,
-        "/inquiries",
+        "/v1/inquiries",
         Some(json!({
             "source_event_key": "web-inquiry-idempotency-boundary-1",
             "location_id": "00c0ffee-0000-0000-0000-000000000001",
@@ -465,7 +467,8 @@ async fn inquiry_intake_idempotency_replay_reuses_exact_source_event_and_rejects
             "pet": {"name": "Miso", "species": "dog"},
             "service": "grooming",
             "requested_dates": {"start": "2026-07-01", "end": "2026-07-04"},
-            "message": "Changed payload under the same source key."
+            "message": "Changed payload under the same source key.",
+            "contact_attempts": []
         })),
         None,
     )
@@ -483,7 +486,7 @@ async fn data_quality_hygiene_payload_contract_preserves_review_packet_status_an
  {
     let (status, context) = request_json(
         axum_http::Method::GET,
-        "/agent/context/data-quality-hygiene?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",
+        "/v1/agent/context/data-quality-hygiene?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",
         None,
     )
     .await;
@@ -508,7 +511,7 @@ async fn data_quality_hygiene_payload_contract_preserves_review_packet_status_an
     let (outcome_status, outcome) = request_json(
         axum_http::Method::POST,
         &format!(
-            "/data-quality-hygiene/actions/{}/outcome",
+            "/v1/data-quality-hygiene/actions/{}/outcome",
             action["id"].as_str().unwrap()
         ),
         Some(json!({

@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "scope": "Public high-risk contract families whose concrete consumers may live outside this workspace",
+  "externally_consumed_contracts": [],
+  "externally_consumed_variants": [],
+  "external_contract_symbols": []
+}

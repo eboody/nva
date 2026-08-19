@@ -1,4 +1,7 @@
-# NVA Semantic Domain Hardening Implementation Plan
+<!-- archived-historical-record -->
+# Archived NVA Semantic Domain Hardening Implementation Plan
+
+This completed plan records a superseded compatibility-era tree and is not current architecture authority.
 
 > **For Hermes:** Execute this plan through the `nva-semantic-domain-hardening` Kanban board using strict RED-GREEN-REFACTOR, one mutating worker at a time in `/home/eran/code/nva`, with independent review gates between phases.
 

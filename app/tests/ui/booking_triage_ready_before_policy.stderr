@@ -1,7 +1,0 @@
-error[E0599]: no method named `mark_ready_for_policy_decision` found for struct `app::booking_triage::Request<app::booking_triage::PetProfileAttached>` in the current scope
-  --> tests/ui/booking_triage_ready_before_policy.rs:14:28
-   |
-14 |     let _illegal = request.mark_ready_for_policy_decision();
-   |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ method not found in `app::booking_triage::Request<app::booking_triage::PetProfileAttached>`
-   |
-   = note: the method was found for `app::booking_triage::Request<app::booking_triage::PolicyAttached>`

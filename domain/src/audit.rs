@@ -20,12 +20,6 @@ use crate::{entities, workflow};
 pub struct EventId(Uuid);
 
 impl EventId {
-    /// Constructs an audit identity, panicking when handed the forbidden nil sentinel.
-    #[track_caller]
-    pub fn new(value: Uuid) -> Self {
-        Self::try_new(value).expect("audit identity UUID must be non-nil")
-    }
-
     /// Validates an audit identity at an untrusted boundary.
     pub const fn try_new(value: Uuid) -> Result<Self, entities::NilIdentityError> {
         if value.is_nil() {
@@ -33,11 +27,6 @@ impl EventId {
         } else {
             Ok(Self(value))
         }
-    }
-
-    /// Returns the validated UUID.
-    pub const fn get(self) -> Uuid {
-        self.0
     }
 }
 

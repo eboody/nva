@@ -114,7 +114,7 @@ async fn hygiene_action(app: axum::Router) -> Value {
         app,
         "GET",
         &format!(
-            "/agent/context/data-quality-hygiene?location_id={LOCATION_ID}&operating_day=2026-06-17"
+            "/v1/agent/context/data-quality-hygiene?location_id={LOCATION_ID}&operating_day=2026-06-17"
         ),
         Value::Null,
     )
@@ -235,7 +235,7 @@ async fn outcome_capture_consumes_actor_role_and_is_really_idempotent() {
     let app = http::router_with_test_auth_state(Default::default());
     let action = hygiene_action(app.clone()).await;
     let uri = format!(
-        "/data-quality-hygiene/actions/{}/outcome",
+        "/v1/data-quality-hygiene/actions/{}/outcome",
         action["id"].as_str().unwrap()
     );
     let payload = outcome(&action);
@@ -306,7 +306,8 @@ fn inquiry(key: &str) -> Value {
 async fn inquiry_provenance_is_all_or_nothing_and_never_manufactured() {
     let app = http::router_with_test_auth_state(Default::default());
     let no_provenance = inquiry("inquiry-no-provenance");
-    let (created_status, created) = request(app.clone(), "POST", "/inquiries", no_provenance).await;
+    let (created_status, created) =
+        request(app.clone(), "POST", "/v1/inquiries", no_provenance).await;
     assert_eq!(created_status, axum_http::StatusCode::CREATED);
     assert!(
         created.get("provenance").is_none(),
@@ -315,7 +316,7 @@ async fn inquiry_provenance_is_all_or_nothing_and_never_manufactured() {
 
     let mut partial = inquiry("inquiry-partial-provenance");
     partial["source_system"] = json!("mock_gingr");
-    let (partial_status, partial_response) = request(app, "POST", "/inquiries", partial).await;
+    let (partial_status, partial_response) = request(app, "POST", "/v1/inquiries", partial).await;
     assert_eq!(partial_status, axum_http::StatusCode::UNPROCESSABLE_ENTITY);
     assert_eq!(
         partial_response["classification"],
@@ -332,7 +333,7 @@ async fn inquiry_replay_matching_covers_complete_provenance_attempts_and_convers
     complete["raw_payload_ref"] = json!("fixture://lead-1.json");
     complete["received_at"] = json!("2026-07-03T14:00:00Z");
 
-    let (created_status, _) = request(app.clone(), "POST", "/inquiries", complete.clone()).await;
+    let (created_status, _) = request(app.clone(), "POST", "/v1/inquiries", complete.clone()).await;
     assert_eq!(created_status, axum_http::StatusCode::CREATED);
 
     for mutate in ["provenance", "attempt", "conversion"] {
@@ -345,7 +346,7 @@ async fn inquiry_replay_matching_covers_complete_provenance_attempts_and_convers
             }
             _ => unreachable!(),
         }
-        let (status, response) = request(app.clone(), "POST", "/inquiries", drift).await;
+        let (status, response) = request(app.clone(), "POST", "/v1/inquiries", drift).await;
         assert_eq!(
             status,
             axum_http::StatusCode::CONFLICT,
@@ -406,7 +407,7 @@ async fn inquiry_unknown_fields_fail_closed_at_every_public_record_boundary() {
             "conversion" => payload["simulated_conversion"]["surprise"] = json!(true),
             nested => payload[nested]["surprise"] = json!(true),
         }
-        let (status, _) = request(app.clone(), "POST", "/inquiries", payload).await;
+        let (status, _) = request(app.clone(), "POST", "/v1/inquiries", payload).await;
         assert_eq!(
             status,
             axum_http::StatusCode::UNPROCESSABLE_ENTITY,

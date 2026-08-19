@@ -1,0 +1,29 @@
+error[E0599]: no method named `marketable_opportunities` found for reference `&StaffReviewPacket` in the current scope
+ --> tests/ui/crm_retention_stale_getters.rs:4:20
+  |
+4 |     let _ = review.marketable_opportunities();
+  |                    ^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+help: there is a method `opportunities` with a similar name
+  |
+4 -     let _ = review.marketable_opportunities();
+4 +     let _ = review.opportunities();
+  |
+
+error[E0599]: no method named `records_staff_evidence_only` found for reference `&app::crm_retention::OutcomeRecord` in the current scope
+ --> tests/ui/crm_retention_stale_getters.rs:5:21
+  |
+5 |     let _ = outcome.records_staff_evidence_only();
+  |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^ method not found in `&app::crm_retention::OutcomeRecord`
+
+error[E0599]: no method named `blocked_actions` found for reference `&app::crm_retention::OutcomeRecord` in the current scope
+ --> tests/ui/crm_retention_stale_getters.rs:6:21
+  |
+6 |     let _ = outcome.blocked_actions();
+  |                     ^^^^^^^^^^^^^^^ method not found in `&app::crm_retention::OutcomeRecord`
+
+error[E0599]: no method named `matches_reported_packet_evidence` found for reference `&app::crm_retention::OutcomeRecord` in the current scope
+ --> tests/ui/crm_retention_stale_getters.rs:7:21
+  |
+7 |     let _ = outcome.matches_reported_packet_evidence(packet);
+  |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ method not found in `&app::crm_retention::OutcomeRecord`

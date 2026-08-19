@@ -11,10 +11,7 @@ use nutype::nutype;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-use crate::entities::{CustomerId, ServiceKind};
-use crate::{
-    consent as communication, entities, identity, message, money, operations, policy, source,
-};
+use crate::{consent as communication, entities, identity, message, money, policy, source};
 
 /// Review-gated realtime lead-response packets and SLA evidence.
 ///
@@ -253,7 +250,7 @@ pub mod response {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Caller-reported SLA compatibility label; no variant proves response, contact, review, or SLA attainment.
+    /// Caller-reported SLA observation; no variant proves response, contact, review, or SLA attainment.
     pub enum SlaStatus {
         /// Caller reports the SLA as open.
         Open,
@@ -266,7 +263,7 @@ pub mod response {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-    /// Caller-reported lead-response SLA compatibility evidence; it cannot establish response or SLA attainment.
+    /// Caller-reported lead-response SLA evidence; it cannot establish response or SLA attainment.
     pub struct ResponseSla {
         target: SlaTarget,
         received_at: DateTime<Utc>,
@@ -529,6 +526,45 @@ pub mod response {
             attempts: Vec<ContactAttempt>,
             attribution: ConversionObservation,
         ) -> Result<Self, Error> {
+            Self::try_new_checked(event, sla, consent, attempts, attribution, |_, _, _, _| {
+                false
+            })
+        }
+
+        #[cfg(test)]
+        fn try_new_with_accepted_consent(
+            event: Event,
+            sla: ResponseSla,
+            accepted: communication::AcceptedConsent,
+            attempts: Vec<ContactAttempt>,
+            attribution: ConversionObservation,
+        ) -> Result<Self, Error> {
+            let consent = accepted.evidence().clone();
+            Self::try_new_checked(
+                event,
+                sla,
+                consent,
+                attempts,
+                attribution,
+                |subject, channel, purpose, as_of| {
+                    accepted.permits_source_record(subject, channel, purpose, as_of)
+                },
+            )
+        }
+
+        fn try_new_checked(
+            event: Event,
+            sla: ResponseSla,
+            consent: communication::ConsentEvidence,
+            attempts: Vec<ContactAttempt>,
+            attribution: ConversionObservation,
+            permits: impl Fn(
+                &source::RecordRef,
+                communication::Channel,
+                communication::Purpose,
+                DateTime<Utc>,
+            ) -> bool,
+        ) -> Result<Self, Error> {
             if sla.received_at() != event.received_at() {
                 return Err(Error::SlaReceiptDoesNotMatchEvent);
             }
@@ -546,7 +582,7 @@ pub mod response {
                 previous_attempt_at = Some(attempt.attempted_at());
             }
             for attempt in &attempts {
-                if !consent.permits_source_record(
+                if !permits(
                     &event.source_record(),
                     attempt.channel(),
                     attempt.purpose(),
@@ -770,140 +806,318 @@ pub mod response {
         /// A packet without an attempt cannot prove response/review behavior.
         MissingContactAttempt,
     }
-}
 
-#[nutype(
-    sanitize(trim),
-    validate(not_empty, len_char_max = 160),
-    derive(
-        Debug,
-        Clone,
-        PartialEq,
-        Eq,
-        PartialOrd,
-        Ord,
-        Hash,
-        Serialize,
-        Deserialize
-    )
-)]
-/// Validated local-referral/source name for lead provenance.
-pub struct SourceName(String);
+    #[cfg(test)]
+    mod coverage_convergence_tests {
+        use chrono::TimeZone as _;
+        use uuid::Uuid;
 
-#[nutype(
-    sanitize(trim),
-    validate(not_empty, len_char_max = 160),
-    derive(
-        Debug,
-        Clone,
-        PartialEq,
-        Eq,
-        PartialOrd,
-        Ord,
-        Hash,
-        Serialize,
-        Deserialize
-    )
-)]
-/// Validated campaign name used to connect lead work to marketing sources.
-pub struct CampaignName(String);
+        use super::*;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Lead triage record that turns source contact evidence into safe sales follow-up work.
-pub struct Triage {
-    /// Existing customer record when staff can link the lead to a known account.
-    pub customer_id: Option<CustomerId>,
-    /// Channel or campaign that explains where the lead came from.
-    pub source: Source,
-    /// Service or change the customer appears to be asking about.
-    pub intent: Intent,
-    /// Sales stage used to rank follow-up labor and booking readiness.
-    pub stage: ConversionStage,
-    /// Requested resort service when the source evidence is specific enough.
-    pub requested_service: Option<ServiceKind>,
-    /// Staff-safe next step; automation may draft, route, or summarize but not book or promise capacity.
-    pub next_action: NextAction,
-}
+        fn event(received_at: DateTime<Utc>) -> Event {
+            Event::builder()
+                .id(EventId::try_new("lead-7").unwrap())
+                .idempotency_key(IdempotencyKey::try_new("dedupe-7").unwrap())
+                .location_id(entities::LocationId::new(Uuid::from_u128(7)))
+                .kind(EventKind::MissedCall)
+                .received_at(received_at)
+                .source_system(source::System::Telephony)
+                .customer_match(identity::Match::Candidate {
+                    customer_id: entities::CustomerId::new(Uuid::from_u128(8)),
+                    confidence: identity::Confidence::High,
+                })
+                .service_intent(entities::ServiceKind::Boarding)
+                .build()
+        }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Lead source retained so marketing and intake teams can audit where demand originated.
-pub enum Source {
-    /// Lead originated from a website form and may be routed to intake follow-up.
-    WebsiteForm,
-    /// Lead originated from a phone call or voicemail that staff may need to summarize or return.
-    Phone,
-    /// Lead originated from SMS and should respect texting consent and response boundaries.
-    Sms,
-    /// Lead originated from email and can support draft replies after staff-safe triage.
-    Email,
-    /// Lead originated from social media and may need attribution or identity verification.
-    SocialMedia,
-    /// Local referral name staff can verify before attributing the lead source.
-    LocalReferral {
-        /// Referral source name preserved for staff attribution and deduplication.
-        source_name: SourceName,
-    },
-    /// Contact or display name used by staff.
-    Campaign {
-        /// Campaign name preserved for marketing attribution and follow-up reporting.
-        name: CampaignName,
-    },
-}
+        fn consent(received_at: DateTime<Utc>, event: &Event) -> communication::ConsentEvidence {
+            communication::ConsentEvidence::builder()
+                .channel(communication::Channel::Sms)
+                .purpose(communication::Purpose::TransactionalLeadResponse)
+                .status(communication::ConsentStatus::Granted)
+                .source(source::System::Crm)
+                .subject(communication::Subject::SourceRecord(event.source_record()))
+                .source_record(source::RecordRef::new(
+                    source::System::Crm,
+                    source::record::Id::try_new("consent-7").unwrap(),
+                ))
+                .source_schema_version(source::SchemaVersion::try_new("v1").unwrap())
+                .effective_from(received_at - chrono::Duration::hours(1))
+                .effective_until(received_at + chrono::Duration::hours(1))
+                .build()
+        }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Prospect intent signal used to route boarding, daycare, grooming, or training follow-up.
-pub enum Intent {
-    /// New prospect asking about onboarding, requirements, availability, or first booking.
-    NewCustomerIntake,
-    /// Prospect wants boarding pricing or availability that staff must confirm before promising.
-    BoardingQuote,
-    /// Prospect is asking about daycare trial or evaluation; staff must confirm eligibility steps.
-    DaycareTrial,
-    /// Prospect wants grooming scheduling, which depends on service, pet, and capacity review.
-    GroomingAppointment,
-    /// Prospect wants training consultation routed to the appropriate trainer or intake path.
-    TrainingConsult,
-    /// Existing customer appears to need a booking or profile change rather than new intake.
-    ExistingCustomerChange,
-    /// Lead intent is unclear; automation may summarize but staff must classify before booking promises.
-    Unknown,
-}
+        fn attempt(at: DateTime<Utc>) -> ContactAttempt {
+            ContactAttempt::try_new(
+                at,
+                communication::Channel::Sms,
+                communication::Purpose::TransactionalLeadResponse,
+                AttemptOutcome::DraftedForReview,
+                policy::ReviewGate::CustomerMessageApproval,
+            )
+            .unwrap()
+            .with_message_ref(message::BodyRef::try_new("message-7").unwrap())
+        }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Conversion stage that separates new inquiries from booked, lost, or inactive demand.
-pub enum ConversionStage {
-    /// New lead awaiting first staff or automated draft response.
-    New,
-    /// Staff or automation attempted contact and the next step depends on response evidence.
-    ContactAttempted,
-    /// Lead is paused until the customer supplies missing answers or documents.
-    WaitingOnCustomer,
-    /// Lead cannot be booked until vaccine, pet profile, policy, or other requirements are confirmed.
-    MissingRequirements,
-    /// Intake evidence looks booking-ready, but staff must still confirm capacity and policies before committing.
-    ReadyToBook,
-    /// Lead has converted into booked or active customer work and should avoid duplicate sales follow-up.
-    Converted,
-    /// Lead is inactive or declined, retained for attribution and future analysis.
-    Lost,
-}
+        fn observation() -> ConversionObservation {
+            ConversionObservation::try_reported_booking_observation(
+                AttributionSource::MissedCall,
+                None,
+                Some(entities::reservation::Id::new(Uuid::from_u128(9))),
+                Some(money::Money::usd(25_000).unwrap()),
+            )
+            .unwrap()
+        }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Human-safe next step for converting a lead without overpromising capacity or policy.
-pub enum NextAction {
-    /// Automation may draft a reply, but sending still follows channel and approval gates.
-    DraftReply,
-    /// Ask for pet profile details needed before eligibility or booking review.
-    RequestMissingPetProfile,
-    /// Ask for vaccine proof before trial, daycare, boarding, or grooming readiness decisions.
-    RequestVaccineProof,
-    /// Staff-confirmed availability can be offered; automation must not invent or hold times.
-    OfferReservationTimes,
-    /// Route to staff when source facts, policy, or customer context are too ambiguous for automation.
-    RouteToHuman {
-        /// Business reason staff should review before proceeding.
-        reason: operations::operational::Observation,
-    },
-    /// No current follow-up is appropriate, usually because the lead is converted, lost, or waiting.
-    NoAction,
+        #[test]
+        fn response_components_expose_exact_source_and_timing_evidence() {
+            let received_at = Utc.with_ymd_and_hms(2026, 8, 18, 5, 0, 0).unwrap();
+            let event = event(received_at);
+            assert_eq!(
+                format!("{:?}", event.idempotency_key()),
+                "IdempotencyKey([REDACTED])"
+            );
+            assert_eq!(
+                event.location_id(),
+                entities::LocationId::new(Uuid::from_u128(7))
+            );
+            assert_eq!(event.received_at(), received_at);
+            assert!(matches!(
+                event.customer_match(),
+                identity::Match::Candidate { .. }
+            ));
+            assert_eq!(event.service_intent(), entities::ServiceKind::Boarding);
+            assert_eq!(event.source_system(), source::System::Telephony);
+
+            assert_eq!(Minutes::try_new(0), Err(Error::ZeroMinutes));
+            assert!(serde_json::from_value::<Minutes>(serde_json::json!(0)).is_err());
+            let sla = ResponseSla::builder()
+                .target(SlaTarget::FirstResponseWithinMinutes(
+                    Minutes::try_new(5).unwrap(),
+                ))
+                .received_at(received_at)
+                .due_at(received_at + chrono::Duration::minutes(5))
+                .status(SlaStatus::Open)
+                .build()
+                .unwrap();
+            assert_eq!(sla.received_at(), received_at);
+            let decoded: ResponseSla =
+                serde_json::from_value(serde_json::to_value(&sla).unwrap()).unwrap();
+            assert_eq!(decoded.received_at(), received_at);
+            let _default_sla_builder = ResponseSlaBuilder::default();
+            assert_eq!(ResponseSla::builder().build(), Err(Error::MissingSlaField));
+            assert_eq!(
+                ResponseSla::try_new(
+                    SlaTarget::FirstResponseWithinMinutes(Minutes::try_new(5).unwrap()),
+                    received_at,
+                    received_at + chrono::Duration::minutes(4),
+                    SlaStatus::Open,
+                ),
+                Err(Error::SlaDueAtDoesNotMatchTarget)
+            );
+
+            let attempt = attempt(received_at);
+            assert_eq!(attempt.attempted_at(), received_at);
+            assert_eq!(attempt.channel(), communication::Channel::Sms);
+            assert_eq!(
+                attempt.purpose(),
+                communication::Purpose::TransactionalLeadResponse
+            );
+            assert_eq!(
+                attempt.message_ref(),
+                Some(&message::BodyRef::try_new("message-7").unwrap())
+            );
+            assert_eq!(
+                attempt.review_gate(),
+                policy::ReviewGate::CustomerMessageApproval
+            );
+            assert_eq!(
+                ConversionObservation::try_reported_booking_observation(
+                    AttributionSource::Sms,
+                    None,
+                    None,
+                    None,
+                ),
+                Err(Error::ConvertedLeadRequiresReservation)
+            );
+            assert!(!observation().can_support_value_claim());
+        }
+
+        #[test]
+        fn response_packet_validation_rejects_missing_misaligned_and_untrusted_evidence() {
+            let received_at = Utc.with_ymd_and_hms(2026, 8, 18, 5, 0, 0).unwrap();
+            let sla = ResponseSla::try_new(
+                SlaTarget::FirstResponseWithinMinutes(Minutes::try_new(5).unwrap()),
+                received_at,
+                received_at + chrono::Duration::minutes(5),
+                SlaStatus::Open,
+            )
+            .unwrap();
+            assert_eq!(
+                ResponsePacket::builder().build(),
+                Err(Error::MissingPacketField)
+            );
+            let base_event = event(received_at);
+            let _default_packet_builder = ResponsePacketBuilder::default();
+            assert_eq!(
+                ResponsePacket::builder().event(base_event.clone()).build(),
+                Err(Error::MissingPacketField)
+            );
+            assert_eq!(
+                ResponsePacket::builder()
+                    .event(base_event.clone())
+                    .sla(sla.clone())
+                    .build(),
+                Err(Error::MissingPacketField)
+            );
+            assert_eq!(
+                ResponsePacket::builder()
+                    .event(base_event.clone())
+                    .sla(sla.clone())
+                    .consent(consent(received_at, &base_event))
+                    .build(),
+                Err(Error::MissingPacketField)
+            );
+            assert_eq!(
+                ResponsePacket::builder()
+                    .event(base_event.clone())
+                    .sla(sla.clone())
+                    .consent(consent(received_at, &base_event))
+                    .attribution(observation())
+                    .build(),
+                Err(Error::MissingContactAttempt)
+            );
+            assert_eq!(
+                ResponsePacket::builder()
+                    .event(base_event.clone())
+                    .sla(sla.clone())
+                    .consent(consent(received_at, &base_event))
+                    .attempts(vec![attempt(received_at)])
+                    .build(),
+                Err(Error::MissingPacketField)
+            );
+            assert_eq!(
+                ResponsePacket::try_new(
+                    event(received_at),
+                    ResponseSla::try_new(
+                        SlaTarget::FirstResponseWithinMinutes(Minutes::try_new(5).unwrap()),
+                        received_at + chrono::Duration::minutes(1),
+                        received_at + chrono::Duration::minutes(6),
+                        SlaStatus::Open,
+                    )
+                    .unwrap(),
+                    consent(received_at, &event(received_at)),
+                    vec![attempt(received_at)],
+                    observation(),
+                ),
+                Err(Error::SlaReceiptDoesNotMatchEvent)
+            );
+            assert_eq!(
+                ResponsePacket::try_new(
+                    event(received_at),
+                    sla.clone(),
+                    consent(received_at, &event(received_at)),
+                    Vec::new(),
+                    observation(),
+                ),
+                Err(Error::MissingContactAttempt)
+            );
+            assert_eq!(
+                ResponsePacket::try_new(
+                    event(received_at),
+                    sla.clone(),
+                    consent(received_at, &event(received_at)),
+                    vec![attempt(received_at - chrono::Duration::seconds(1))],
+                    observation(),
+                ),
+                Err(Error::ContactAttemptBeforeReceipt)
+            );
+            assert_eq!(
+                ResponsePacket::try_new(
+                    event(received_at),
+                    sla.clone(),
+                    consent(received_at, &event(received_at)),
+                    vec![
+                        attempt(received_at + chrono::Duration::minutes(2)),
+                        attempt(received_at + chrono::Duration::minutes(1)),
+                    ],
+                    observation(),
+                ),
+                Err(Error::ContactAttemptsOutOfOrder)
+            );
+            assert_eq!(
+                ResponsePacket::try_new(
+                    event(received_at),
+                    sla,
+                    consent(received_at, &event(received_at)),
+                    vec![attempt(received_at)],
+                    observation(),
+                ),
+                Err(Error::ConsentDoesNotCoverAttempt)
+            );
+        }
+
+        #[test]
+        fn opaque_accepted_consent_exercises_shared_packet_validation_without_enabling_send() {
+            let received_at = Utc.with_ymd_and_hms(2026, 8, 18, 5, 0, 0).unwrap();
+            let event = event(received_at);
+            let accepted =
+                communication::issue_accepted_consent(consent(received_at, &event)).unwrap();
+            let packet = ResponsePacket::try_new_with_accepted_consent(
+                event.clone(),
+                ResponseSla::try_new(
+                    SlaTarget::FirstResponseWithinMinutes(Minutes::try_new(5).unwrap()),
+                    received_at,
+                    received_at + chrono::Duration::minutes(5),
+                    SlaStatus::Open,
+                )
+                .unwrap(),
+                accepted,
+                vec![attempt(received_at)],
+                observation(),
+            )
+            .unwrap();
+
+            assert_eq!(packet.event().source_record(), event.source_record());
+            assert!(packet.requires_customer_message_approval());
+            assert!(!packet.consent_allows_response(
+                communication::Channel::Sms,
+                communication::Purpose::TransactionalLeadResponse,
+            ));
+        }
+
+        #[test]
+        fn internally_constructed_packet_and_queue_capability_keep_live_send_disabled() {
+            let received_at = Utc.with_ymd_and_hms(2026, 8, 18, 5, 0, 0).unwrap();
+            let event = event(received_at);
+            let packet = ResponsePacket {
+                event: event.clone(),
+                sla: ResponseSla::try_new(
+                    SlaTarget::FirstResponseWithinMinutes(Minutes::try_new(5).unwrap()),
+                    received_at,
+                    received_at + chrono::Duration::minutes(5),
+                    SlaStatus::Open,
+                )
+                .unwrap(),
+                consent: consent(received_at, &event),
+                attempts: vec![attempt(received_at)],
+                attribution: observation(),
+            };
+            let serialized = serde_json::to_value(&packet).unwrap();
+            assert!(serde_json::from_value::<ResponsePacket>(serialized).is_err());
+            assert_eq!(packet.event().location_id(), event.location_id());
+            assert_eq!(packet.attempts().len(), 1);
+            assert!(packet.requires_customer_message_approval());
+            assert!(!packet.consent_allows_response(
+                communication::Channel::Sms,
+                communication::Purpose::TransactionalLeadResponse,
+            ));
+            let queueable = QueueableContact {
+                action: LegalContactAction::QueueOnly,
+                _authority: QueueContactAuthority,
+            };
+            assert_eq!(queueable.action(), LegalContactAction::QueueOnly);
+            assert!(queueable.live_send_is_unavailable());
+        }
+    }
 }

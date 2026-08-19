@@ -45,11 +45,6 @@ impl Reference {
         }
         Ok(Self(value))
     }
-
-    /// Returns the owned inner string for storage or outbound mapping.
-    pub fn into_inner(self) -> String {
-        self.0
-    }
 }
 
 impl<'de> Deserialize<'de> for Reference {
@@ -119,44 +114,6 @@ impl<'de> Deserialize<'de> for Deposit {
 }
 
 impl Deposit {
-    /// Starts a deposit record that still needs front-desk collection.
-    pub const fn required(amount: Money) -> Self {
-        Self {
-            amount,
-            refundable_until: None,
-            status: DepositStatus::Required,
-            payment_reference: None,
-        }
-    }
-
-    /// Creates a deposit already reconciled to a payment reference.
-    pub fn paid(amount: Money, payment_reference: Reference) -> Self {
-        Self::required(amount).mark_paid(payment_reference)
-    }
-
-    /// Starts a deposit record waived by manager exception.
-    pub const fn waived(amount: Money) -> Self {
-        Self {
-            amount,
-            refundable_until: None,
-            status: DepositStatus::WaivedByManager,
-            payment_reference: None,
-        }
-    }
-
-    /// Sets the deadline through which the deposit remains refundable.
-    pub fn with_refundable_until(mut self, refundable_until: DateTime<Utc>) -> Self {
-        self.refundable_until = Some(refundable_until);
-        self
-    }
-
-    /// Marks the deposit as collected and stores the payment reference.
-    pub fn mark_paid(mut self, payment_reference: Reference) -> Self {
-        self.status = DepositStatus::Paid;
-        self.payment_reference = Some(payment_reference);
-        self
-    }
-
     /// Returns the deposit amount recorded for payment review and reconciliation.
     pub const fn amount(&self) -> &Money {
         &self.amount
@@ -184,19 +141,20 @@ impl Deposit {
         status: DepositStatus,
         payment_reference: Option<Reference>,
     ) -> Result<Self> {
-        match status {
-            DepositStatus::Paid | DepositStatus::Refunded if payment_reference.is_none() => {
-                return Err(Error::PaidDepositMissingReference);
-            }
+        if matches!(status, DepositStatus::Paid | DepositStatus::Refunded)
+            && payment_reference.is_none()
+        {
+            return Err(Error::PaidDepositMissingReference);
+        }
+        if matches!(
+            status,
             DepositStatus::Required
-            | DepositStatus::Failed
-            | DepositStatus::NotRequired
-            | DepositStatus::WaivedByManager
-                if payment_reference.is_some() =>
-            {
-                return Err(Error::UnpaidDepositHasReference);
-            }
-            _ => {}
+                | DepositStatus::Failed
+                | DepositStatus::NotRequired
+                | DepositStatus::WaivedByManager
+        ) && payment_reference.is_some()
+        {
+            return Err(Error::UnpaidDepositHasReference);
         }
 
         Ok(Self {

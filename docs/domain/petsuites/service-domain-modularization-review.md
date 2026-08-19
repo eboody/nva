@@ -1,4 +1,7 @@
-# PetSuites service-domain modularization review
+<!-- archived-historical-record -->
+# Archived PetSuites service-domain modularization review
+
+This review records a superseded module layout and is not current architecture authority.
 
 Review date: 2026-06-12
 Task: `t_6c5ff004`
@@ -114,7 +117,7 @@ This is the right contract: canonical tests protect the semantic path, while tem
 These are not blockers for the modularization closeout, but they should remain visible before calling the broader platform production-ready:
 
 1. Remove or narrow `domain::operations` compatibility shims after all downstream callers have migrated. Today the shims are commented as temporary and are only retained for compatibility.
-2. Continue decomposing large service modules. `domain::service::grooming` and `domain::service::training` are first-class homes but remain monolithic internally; several boarding facet files are still placeholders around types in `boarding/mod.rs`.
+2. Continue decomposing large service modules. `domain::service::grooming` and `domain::service::training` are first-class homes but remain monolithic internally; several boarding facet files remain thin module shells around types in `boarding/mod.rs`.
 3. Move `CoreServiceContracts` out of `domain::operations` if it becomes a durable service aggregate rather than a compatibility-era cross-service contract.
 4. Expand provider DTO/mapping coverage only where real Gingr payloads justify it. Retail has concrete promotion logic; grooming/training are documented skeletons rather than complete integrations.
 5. Add live/provider-backed integration tests before production use. The current gates prove compile-time architecture, serialization, and semantic contracts, not end-to-end Gingr behavior against a live/sandbox account.

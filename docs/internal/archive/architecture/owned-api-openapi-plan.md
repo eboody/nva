@@ -11,7 +11,7 @@ Use a manually checked OpenAPI/JSON-schema artifact first, then adopt a Rust sch
 Immediate recommendation for the first code card:
 
 1. Add product-owned public API DTOs in `apps/api/src/public_contract.rs` or `apps/api/src/http/public_contract.rs` and re-export them from `apps/api/src/lib.rs`.
-2. Add a checked static OpenAPI document at `apps/api/openapi/owned-operations-v0.openapi.json` or `docs/api/owned-operations-v0.openapi.json` that covers only safe v0 routes.
+2. Add a checked static OpenAPI document at `apps/api/openapi/owned-operations-v1.openapi.json` or `docs/api/owned-operations-v1.openapi.json` that covers only safe v1 routes.
 3. Add a tiny validation test that parses the OpenAPI JSON, checks route/schema names, verifies the version and side-effect-disallowed posture, and prevents drift in the Data-Quality Hygiene slice.
 4. Defer `utoipa`, `aide`, or `paperclip` until the API has public DTO structs with stable derives and enough routes to justify generation maintenance.
 
@@ -55,7 +55,7 @@ apps/api/src/
   http.rs
   public_contract.rs        # product-owned public DTOs and error envelope
 apps/api/openapi/
-  owned-operations-v0.openapi.json
+  owned-operations-v1.openapi.json
 apps/api/tests/
   owned_api_openapi_contract.rs
 ```
@@ -63,7 +63,7 @@ apps/api/tests/
 Alternative if the repo wants API docs under docs:
 
 ```text
-docs/api/owned-operations-v0.openapi.json
+docs/api/owned-operations-v1.openapi.json
 apps/api/tests/owned_api_openapi_contract.rs
 ```
 
@@ -71,7 +71,7 @@ Use explicit conversion functions from current app/storage/domain values into pu
 
 ## Cross-cutting schemas
 
-These schemas should be shared by every v0 route family.
+These schemas should be shared by every v1 route family.
 
 | Schema | Required fields | Notes |
 | --- | --- | --- |
@@ -143,7 +143,7 @@ Do not block the schema contract on full auth/session implementation. Do include
 - `ActorRef`, `location_id`, and future `tenant_id` are part of request/response metadata now; current local routes may set them from payload/query or leave future-auth fields nullable.
 - Auth never authorizes live provider writes, customer sends, payment moves, schedule/capacity changes, medical/safety decisions, or production deployment by itself. Those still require workflow-specific review/outbox gates.
 
-## v0 route plan
+## v1 route plan
 
 The first published schema should include Data-Quality Hygiene as the runnable vertical slice and name adjacent future surfaces without requiring them all to be implemented at once.
 
@@ -151,11 +151,11 @@ The first published schema should include Data-Quality Hygiene as the runnable v
 
 | Method/path | Public operation id | Request schema | Response schema | Implement now? | Notes |
 | --- | --- | --- | --- | --- | --- |
-| `GET /v0/agent/context/data-quality-hygiene` | `getDataQualityHygieneContext` | Query: `location_id`, `operating_day` | `DataQualityHygieneContextResponse` | Yes | Current unversioned route exists. Response should contain ranked candidates, source refs, issue refs, actions, labor estimate, allowed actions, blocked actions, and audit/request metadata. |
-| `POST /v0/agent/drafts/data-quality-hygiene` | `submitDataQualityHygieneDraft` | `DataQualityHygieneDraftSubmissionRequest` | `DataQualityHygieneDraftSubmissionResponse` or `ErrorEnvelope` | Yes | Validate context packet, correlation id, action ids, source refs, issue refs, review gates, requested side effects, and ambiguity-hiding flag. |
-| `POST /v0/data-quality-hygiene/actions/{action_id}/outcome` | `captureDataQualityHygieneOutcome` | `DataQualityHygieneOutcomeCaptureRequest` | `DataQualityHygieneOutcomeCaptureResponse` or `ErrorEnvelope` | Yes | Records reviewed outcome/labor evidence only. Does not prove provider repair. |
-| `GET /v0/data-quality-hygiene/outcomes/summary` | `getDataQualityHygieneOutcomeSummary` | Query: `location_id`, `operating_day`, optional `correlation_id` | `DataQualityHygieneOutcomeSummaryResponse` | Yes | Current unversioned route exists. Add filter/projection metadata and caveats. |
-| `GET /v0/read-models/source-quality-backlog` | `listSourceQualityBacklog` | Query: `location_id`, optional `operating_day`, `severity`, `workflow_blocking`, `owner_role`, `limit`, `cursor` | `SourceQualityBacklogListResponse` | Name now, implement after durable source-quality table/read model | BI-facing target for replacing raw Gingr/source scraping. Current local proof may document it as reserved until durable wiring exists. |
+| `GET /v1/agent/context/data-quality-hygiene` | `getDataQualityHygieneContext` | Query: `location_id`, `operating_day` | `DataQualityHygieneContextResponse` | Yes | Current unversioned route exists. Response should contain ranked candidates, source refs, issue refs, actions, labor estimate, allowed actions, blocked actions, and audit/request metadata. |
+| `POST /v1/agent/drafts/data-quality-hygiene` | `submitDataQualityHygieneDraft` | `DataQualityHygieneDraftSubmissionRequest` | `DataQualityHygieneDraftSubmissionResponse` or `ErrorEnvelope` | Yes | Validate context packet, correlation id, action ids, source refs, issue refs, review gates, requested side effects, and ambiguity-hiding flag. |
+| `POST /v1/data-quality-hygiene/actions/{action_id}/outcome` | `captureDataQualityHygieneOutcome` | `DataQualityHygieneOutcomeCaptureRequest` | `DataQualityHygieneOutcomeCaptureResponse` or `ErrorEnvelope` | Yes | Records reviewed outcome/labor evidence only. Does not prove provider repair. |
+| `GET /v1/data-quality-hygiene/outcomes/summary` | `getDataQualityHygieneOutcomeSummary` | Query: `location_id`, `operating_day`, optional `correlation_id` | `DataQualityHygieneOutcomeSummaryResponse` | Yes | Current unversioned route exists. Add filter/projection metadata and caveats. |
+| `GET /v1/read-models/source-quality-backlog` | `listSourceQualityBacklog` | Query: `location_id`, optional `operating_day`, `severity`, `workflow_blocking`, `owner_role`, `limit`, `cursor` | `SourceQualityBacklogListResponse` | Name now, implement after durable source-quality table/read model | BI-facing target for replacing raw Gingr/source scraping. Current local proof may document it as reserved until durable wiring exists. |
 
 Minimum Data-Quality Hygiene schemas:
 
@@ -184,9 +184,9 @@ Data-Quality Hygiene invariants for tests:
 
 | Method/path | Public operation id | Response schema | Implement now? | Notes |
 | --- | --- | --- | --- | --- |
-| `GET /v0/healthz` | `getHealth` | `HealthResponse` | Yes | Current route exists unversioned. Schema must state side effects disabled. |
-| `GET /v0/readyz` | `getReadiness` | `ReadinessResponse` | Yes | Include `workflow_repository`, `observability`, disabled customer/provider posture, and production gaps. |
-| `GET /v0/ops/metrics/summary` | `getOpsMetricsSummary` | `OpsMetricsSummaryResponse` | Yes | Aggregate-only local runtime/business metrics; not a raw row export or production observability claim. |
+| `GET /v1/healthz` | `getHealth` | `HealthResponse` | Yes | Current route exists unversioned. Schema must state side effects disabled. |
+| `GET /v1/readyz` | `getReadiness` | `ReadinessResponse` | Yes | Include `workflow_repository`, `observability`, disabled customer/provider posture, and production gaps. |
+| `GET /v1/ops/metrics/summary` | `getOpsMetricsSummary` | `OpsMetricsSummaryResponse` | Yes | Aggregate-only local runtime/business metrics; not a raw row export or production observability claim. |
 
 Schemas to publish: `HealthResponse`, `ReadinessResponse`, `WorkflowRepositoryReadiness`, `ObservabilityReadiness`, `OpsMetricsSummaryResponse`, `ProductLaborMetrics`, `LocalRuntimeCounters`, `MetricsSafety`.
 
@@ -196,14 +196,14 @@ Name these routes in the plan/OpenAPI roadmap, but do not force the first implem
 
 | Method/path | Public operation id | Schema names | First implementation posture |
 | --- | --- | --- | --- |
-| `GET /v0/agent/context/manager-daily-brief` | `getManagerDailyBriefContext` | `ManagerDailyBriefContextResponse` | Current unversioned local route exists; add after Data-Quality Hygiene schemas if time permits. |
-| `POST /v0/agent/drafts/manager-daily-brief` | `submitManagerDailyBriefDraft` | `ManagerDailyBriefDraftSubmissionRequest`, `ManagerDailyBriefDraftSubmissionResponse` | Future same validation envelope and blocked side-effect policy. |
-| `POST /v0/manager-daily-brief/actions/{action_id}/outcome` | `captureManagerDailyBriefOutcome` | `ManagerDailyBriefOutcomeCaptureRequest`, `ManagerDailyBriefOutcomeCaptureResponse` | Future outcome/labor route. |
-| `GET /v0/review-queues` | `listReviewQueues` | `ReviewQueueListResponse` | Future durable queue/read model. |
-| `GET /v0/review-packets/{review_packet_id}` | `getReviewPacket` | `ReviewPacketResponse` | Future shared review packet detail. |
-| `POST /v0/review-packets/{review_packet_id}/decision` | `recordReviewPacketDecision` | `ReviewDecisionRequest`, `ReviewDecisionResponse` | Future approval/rejection path, no live effects by itself. |
-| `GET /v0/read-models/review-queue-aging` | `listReviewQueueAging` | `ReviewQueueAgingListResponse` | Future BI/operator read model. |
-| `GET /v0/read-models/labor-outcomes` | `listLaborOutcomes` | `LaborOutcomeListResponse` | Future BI/operator read model across workflows. |
+| `GET /v1/agent/context/manager-daily-brief` | `getManagerDailyBriefContext` | `ManagerDailyBriefContextResponse` | Current unversioned local route exists; add after Data-Quality Hygiene schemas if time permits. |
+| `POST /v1/agent/drafts/manager-daily-brief` | `submitManagerDailyBriefDraft` | `ManagerDailyBriefDraftSubmissionRequest`, `ManagerDailyBriefDraftSubmissionResponse` | Future same validation envelope and blocked side-effect policy. |
+| `POST /v1/manager-daily-brief/actions/{action_id}/outcome` | `captureManagerDailyBriefOutcome` | `ManagerDailyBriefOutcomeCaptureRequest`, `ManagerDailyBriefOutcomeCaptureResponse` | Future outcome/labor route. |
+| `GET /v1/review-queues` | `listReviewQueues` | `ReviewQueueListResponse` | Future durable queue/read model. |
+| `GET /v1/review-packets/{review_packet_id}` | `getReviewPacket` | `ReviewPacketResponse` | Future shared review packet detail. |
+| `POST /v1/review-packets/{review_packet_id}/decision` | `recordReviewPacketDecision` | `ReviewDecisionRequest`, `ReviewDecisionResponse` | Future approval/rejection path, no live effects by itself. |
+| `GET /v1/read-models/review-queue-aging` | `listReviewQueueAging` | `ReviewQueueAgingListResponse` | Future BI/operator read model. |
+| `GET /v1/read-models/labor-outcomes` | `listLaborOutcomes` | `LaborOutcomeListResponse` | Future BI/operator read model across workflows. |
 
 ### Slice D: future source/import, audit, outbox, and BI read models
 
@@ -211,13 +211,13 @@ Route names to reserve without overbuilding v0:
 
 | Method/path | Public operation id | Schema names | Notes |
 | --- | --- | --- | --- |
-| `POST /v0/operations/source-imports` | `createSourceImport` | `SourceImportRequest`, `SourceImportResponse` | Future approved import/snapshot path; not live provider writes. |
-| `GET /v0/audit-events` | `listAuditEvents` | `AuditEventListResponse` | Safe metadata and redacted summaries only. |
-| `GET /v0/correlations/{correlation_id}` | `getCorrelationLineage` | `CorrelationLineageResponse` | Request -> workflow -> review -> approval -> outcome/outbox -> audit. |
-| `GET /v0/outbox-records` | `listOutboxRecords` | `OutboxRecordListResponse` | Shows approved/stubbed posture; does not execute live adapters. |
-| `GET /v0/read-models/outbox-posture` | `listOutboxPosture` | `OutboxPostureListResponse` | BI/operator queue/outbox posture. |
-| `GET /v0/read-models/audit-lineage` | `listAuditLineage` | `AuditLineageListResponse` | BI audit lookup with safe refs. |
-| `GET /v0/read-models/occupancy-service-demand` | `listOccupancyServiceDemand` | `OccupancyServiceDemandListResponse` | Future normalized demand read model with source caveats. |
+| `POST /v1/operations/source-imports` | `createSourceImport` | `SourceImportRequest`, `SourceImportResponse` | Future approved import/snapshot path; not live provider writes. |
+| `GET /v1/audit-events` | `listAuditEvents` | `AuditEventListResponse` | Safe metadata and redacted summaries only. |
+| `GET /v1/correlations/{correlation_id}` | `getCorrelationLineage` | `CorrelationLineageResponse` | Request -> workflow -> review -> approval -> outcome/outbox -> audit. |
+| `GET /v1/outbox-records` | `listOutboxRecords` | `OutboxRecordListResponse` | Shows approved/stubbed posture; does not execute live adapters. |
+| `GET /v1/read-models/outbox-posture` | `listOutboxPosture` | `OutboxPostureListResponse` | BI/operator queue/outbox posture. |
+| `GET /v1/read-models/audit-lineage` | `listAuditLineage` | `AuditLineageListResponse` | BI audit lookup with safe refs. |
+| `GET /v1/read-models/occupancy-service-demand` | `listOccupancyServiceDemand` | `OccupancyServiceDemandListResponse` | Future normalized demand read model with source caveats. |
 
 ## Observability alignment
 
@@ -227,7 +227,7 @@ The OpenAPI contract should encode the observability contract rather than leavin
 - Every command response names generated or touched `workflow_event_id`, `review_packet_id`, `approval_record_id`, `outbox_record_id`, and `audit_event_id` when applicable.
 - Every error uses `safe_error_class` and the same class appears in route logs/audit failure metadata.
 - `payload_logging` is always `disabled` or `redacted_summary_only`; no route describes raw customer/provider/payment/document payload logging.
-- Business read models are separate from infrastructure metrics: `GET /v0/ops/metrics/summary` is aggregate operational proof, while `/v0/read-models/...` routes carry BI projection metadata and caveats.
+- Business read models are separate from infrastructure metrics: `GET /v1/ops/metrics/summary` is aggregate operational proof, while `/v1/read-models/...` routes carry BI projection metadata and caveats.
 
 ## Downstream code-card acceptance checklist
 
@@ -239,7 +239,7 @@ Files to create/change:
 - Create `apps/api/src/public_contract.rs` with the shared DTOs and Data-Quality Hygiene v0 DTOs listed above.
 - Change `apps/api/src/lib.rs` to expose the public contract module.
 - Change `apps/api/src/http.rs` only enough to convert existing handler responses into public DTOs or mount `/v0` aliases for the safe routes; do not rewrite persistence in the schema card.
-- Create either `apps/api/openapi/owned-operations-v0.openapi.json` or `docs/api/owned-operations-v0.openapi.json`.
+- Create either `apps/api/openapi/owned-operations-v1.openapi.json` or `docs/api/owned-operations-v1.openapi.json`.
 - Create `apps/api/tests/owned_api_openapi_contract.rs` validating the static OpenAPI artifact and the Data-Quality Hygiene contract shape.
 - Optionally add docs navigation/link references after the schema artifact exists.
 

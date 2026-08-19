@@ -27,18 +27,7 @@ pub enum SideEffectMode {
 /// These gates mirror the MVP migration review vocabulary. Worker code may carry
 /// the gate through a processing plan, but it cannot convert a gate into execution
 /// authority.
-pub enum ReviewGate {
-    /// Manager/operator must review before the proposed action can execute.
-    ManagerApproval,
-    /// Staff/manager review is required for medical-document/vaccine facts.
-    MedicalDocumentReview,
-    /// Behavior/play-safety review is required before acting on the recommendation.
-    BehaviorReview,
-    /// Customer-facing outbound copy must be approved before delivery.
-    CustomerMessageApproval,
-    /// Deposit, payment, refund, waiver, or credit exceptions require approval.
-    RefundOrDepositException,
-}
+pub enum ReviewGate {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Worker-visible status for a claimed outbox/workflow record.
@@ -64,19 +53,6 @@ pub struct ClaimedWorkflowRecord {
 }
 
 impl ClaimedWorkflowRecord {
-    /// Builds a local representation of a durable workflow/outbox claim.
-    pub fn new(
-        workflow_event_ref: impl Into<String>,
-        workflow_name: impl Into<String>,
-        required_review_gate: ReviewGate,
-    ) -> Self {
-        Self {
-            workflow_event_ref: workflow_event_ref.into(),
-            workflow_name: workflow_name.into(),
-            required_review_gate,
-        }
-    }
-
     /// Returns the durable workflow event reference carried by the claim.
     pub fn workflow_event_ref(&self) -> &str {
         &self.workflow_event_ref
@@ -145,17 +121,6 @@ pub struct WorkerTelemetryFields {
 }
 
 impl ProcessingContract {
-    fn review_gated_stub(config: Config, claim: &ClaimedWorkflowRecord) -> Self {
-        Self {
-            workflow_event_ref: claim.workflow_event_ref().to_owned(),
-            workflow_name: claim.workflow_name().to_owned(),
-            required_review_gate: claim.required_review_gate(),
-            agent_runtime_mode: config.agent_runtime_mode,
-            side_effect_mode: config.side_effect_mode,
-            outbox_status: OutboxProcessingStatus::ReviewGatedStub,
-        }
-    }
-
     /// Returns the durable workflow event reference the worker is processing.
     pub fn workflow_event_ref(&self) -> &str {
         &self.workflow_event_ref
@@ -208,65 +173,6 @@ impl ProcessingContract {
 }
 
 impl DataQualityHygieneWorkerProof {
-    fn from_projection(
-        config: Config,
-        records: &storage::operations::DataQualityHygieneLocalPersistenceRecords,
-    ) -> Self {
-        Self {
-            workflow_event_ref: records.workflow_event.id.clone(),
-            workflow_name: records.workflow_event.workflow_name.clone(),
-            correlation_id: records.outcome.record.correlation_id.clone(),
-            required_review_gate: ReviewGate::ManagerApproval,
-            agent_runtime_mode: config.agent_runtime_mode,
-            side_effect_mode: config.side_effect_mode,
-            outbox_status: OutboxProcessingStatus::ReviewGatedStub,
-            outbox_candidate_id: records
-                .outbox_candidate
-                .as_ref()
-                .map(|candidate| candidate.id().to_owned()),
-            outbox_topic: records
-                .outbox_candidate
-                .as_ref()
-                .map(|candidate| candidate.topic()),
-            has_executable_handoff_authority: Self::has_executable_internal_handoff_authority(
-                records,
-            ),
-            audit_event_count: records.audit_events.len(),
-        }
-    }
-
-    fn has_executable_internal_handoff_authority(
-        records: &storage::operations::DataQualityHygieneLocalPersistenceRecords,
-    ) -> bool {
-        use storage::operations::{
-            InternalHandoffTopic, OutboxStatusCode, ReviewGateCode, ReviewPacketStatusCode,
-            WorkflowResultStatusCode,
-        };
-
-        let Some(candidate) = records.outbox_candidate.as_ref() else {
-            return false;
-        };
-
-        records.workflow_result.status == WorkflowResultStatusCode::Succeeded
-            && records.review_packet.status == ReviewPacketStatusCode::Approved
-            && records.review_packet.gate == ReviewGateCode::ManagerApproval
-            && records.approval_record.status == "approved"
-            && records.approval_record.gate == ReviewGateCode::ManagerApproval
-            && candidate.review_gate() == ReviewGateCode::ManagerApproval
-            && candidate.status() == OutboxStatusCode::Pending
-            && candidate.topic() == InternalHandoffTopic::DataQualityHygieneReviewedHandoff
-            && candidate
-                .payload()
-                .get("internal_handoff_only")
-                .and_then(serde_json::Value::as_bool)
-                == Some(true)
-            && candidate
-                .payload()
-                .get("live_delivery_allowed")
-                .and_then(serde_json::Value::as_bool)
-                == Some(false)
-    }
-
     /// Returns the durable workflow event reference processed by the fake worker proof.
     pub fn workflow_event_ref(&self) -> &str {
         &self.workflow_event_ref
@@ -437,14 +343,6 @@ impl Config {
         }
     }
 
-    /// Builds a disabled-agent config for tests while preserving stubbed side effects.
-    pub fn disabled_for_tests() -> Self {
-        Self {
-            agent_runtime_mode: AgentRuntimeMode::Disabled,
-            side_effect_mode: SideEffectMode::Stubbed,
-        }
-    }
-
     /// Returns the agent runtime mode kept on this worker runtime value.
     pub fn agent_runtime_mode(&self) -> AgentRuntimeMode {
         self.agent_runtime_mode
@@ -453,25 +351,5 @@ impl Config {
     /// Returns the side effect mode kept on this worker runtime value.
     pub fn side_effect_mode(&self) -> SideEffectMode {
         self.side_effect_mode
-    }
-
-    /// Produces a local processing plan for a claimed durable workflow/outbox record.
-    ///
-    /// This is the worker contract proof for the current MVP: claiming durable work
-    /// makes the record observable and review-routable, not externally executable.
-    pub fn processing_contract_for(&self, claim: &ClaimedWorkflowRecord) -> ProcessingContract {
-        ProcessingContract::review_gated_stub(*self, claim)
-    }
-
-    /// Processes caller-reported Data-Quality Hygiene storage evidence into fake local worker proof without promoting it to review or completion authority.
-    ///
-    /// The worker only reflects caller-reported outcome evidence while exposing no approved or executable internal handoff authority;
-    /// it does not publish the outbox row or cross customer, provider, payment, or schedule
-    /// boundaries. Retry/dead-letter leasing is not implemented in this local proof yet.
-    pub fn process_data_quality_hygiene_projection(
-        &self,
-        records: &storage::operations::DataQualityHygieneLocalPersistenceRecords,
-    ) -> DataQualityHygieneWorkerProof {
-        DataQualityHygieneWorkerProof::from_projection(*self, records)
     }
 }

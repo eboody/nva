@@ -30,7 +30,6 @@ use std::fmt;
 
 pub use domain::boarding::handoff::DepartureTaskDraft as StaffTaskDraft;
 pub use domain::payment::CheckoutException as PaymentException;
-pub use domain::reservation::CheckoutCompletionDisposition as ReportedDisposition;
 pub use domain::reservation::CheckoutSourceException as SourceException;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -45,20 +44,19 @@ impl LaborMinutes {
         }
         Ok(Self(value))
     }
-
-    /// Returns the numeric labor-minute value for review and tests.
-    pub const fn get(self) -> u16 {
-        self.0
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Named unresolved checkout work that staff can clear before final closeout.
-pub enum UnresolvedException {
-    /// Belongings have not been verified as returned to the customer.
-    Belongings,
-    /// Care summary or departure notes still need staff/manager review.
-    Care,
+/// Evidence-backed reasons that a departure remains under staff or manager review.
+pub enum ReviewReason {
+    /// Caller-reported departure evidence always requires authenticated staff review.
+    DepartureEvidenceRequiresReview,
+    /// The caller reports that belongings still need staff follow-up.
+    BelongingsFollowUpReported,
+    /// The caller reports that care or departure notes still need manager review.
+    CareReviewReported,
+    /// The observed source record does not report a checked-out reservation.
+    SourceNotCheckedOut,
     /// Payment, refund, discount, waiver, or balance issue retained for ledger/PMS review.
     Payment(PaymentException),
     /// Source/PMS checkout state or provider record conflict retained for reconciliation.
@@ -93,17 +91,6 @@ impl LaborImpact {
     pub const fn packet_review_minutes(&self) -> LaborMinutes {
         self.packet_review_minutes
     }
-
-    /// Returns a reported estimate difference when packet review is lower than manual audit effort; this is not realized savings.
-    pub const fn reported_estimated_minutes_difference(&self) -> Option<u16> {
-        let manual = self.manual_audit_minutes.get();
-        let review = self.packet_review_minutes.get();
-        if manual > review {
-            Some(manual - review)
-        } else {
-            None
-        }
-    }
 }
 
 #[nutype(
@@ -120,46 +107,12 @@ impl fmt::Debug for CareSummary {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Caller-reported belongings-status labels retained as compatibility evidence; they route no queue, draft, gate, or checkout authority.
-pub enum BelongingsStatus {
-    /// Caller reports a returned-to-customer label; it creates no staff queue, review, draft, gate, action, or checkout authority.
-    ReturnedToCustomer,
-    /// Caller reports a needs-follow-up label; it creates no staff queue, review, draft, gate, action, or checkout authority.
-    NeedsStaffFollowUp,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Caller-reported departure-note review labels retained as compatibility evidence; they route no queue, draft, gate, or checkout authority.
-pub enum DepartureNotesReview {
-    /// Retains a caller-reported staff-reviewed label without authenticating staff, review, provider state, or checkout completion.
-    StaffReviewed,
-    /// Retains a caller-reported manager-review-required label without authenticating a manager, review request, gate, or queue authority.
-    ManagerReviewRequired,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Caller-reported checkout status labels retained as compatibility evidence; they route no queue, draft, gate, or completion authority.
-pub enum CompletionStatus {
-    /// Reports that serialized evidence labels checkout as staff-complete; this is never completion authority.
-    ReportedStaffCheckout,
-    /// Routes the item to needs staff handoff review for staff queueing, review, and downstream agent context.
-    NeedsStaffHandoffReview,
-    /// Routes the item to source not checked out for staff queueing, review, and downstream agent context.
-    SourceNotCheckedOut,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Current review-safe checkout tasks plus legacy compatibility labels.
-///
-/// Only variants returned by workflow evaluation are executable capabilities; the retention-draft
-/// variant is retained for compatibility and is never emitted by the current workflow.
+/// Current review-safe checkout tasks.
 pub enum SafeAgentAction {
     /// Allows agents to summarize checkout evidence for staff review without mutating records or contacting customers.
     SummarizeCheckoutEvidence,
     /// Allows agents to create internal handoff task for staff review without mutating records or contacting customers.
     CreateInternalHandoffTask,
-    /// Legacy compatibility label for retention drafting that the current checkout workflow cannot emit.
-    DraftRetentionFollowUpForReview,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -182,45 +135,41 @@ pub enum AuditEventDraft {
     SourceCheckoutObserved,
     /// Records the staff-submitted handoff payload as received, even when the source status prevents
     /// treating it as checkout-completion evidence.
-    StaffHandoffRecorded,
+    DepartureObservationRecorded,
     /// Selects staff handoff review requested for the checkout completion decision model so the app can choose a review, evidence, or draft path without taking live action.
-    StaffHandoffReviewRequested,
-    /// Selects checkout completion suggested for the checkout completion decision model so the app can choose a review, evidence, or draft path without taking live action.
-    CheckoutCompletionSuggested,
-    /// Selects customer message approval requested for the checkout completion decision model so the app can choose a review, evidence, or draft path without taking live action.
-    CustomerMessageApprovalRequested,
+    DepartureReviewRequested,
 }
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
-/// Caller-reported handoff compatibility data retained for review; its actor, time, status, summary, and disposition labels prove no staff identity, handoff, review, action, queue admission, or checkout completion.
-pub struct StaffHandoff {
-    reported_completed_by: entities::ActorRef,
-    reported_completed_at: DateTime<Utc>,
-    belongings_status: BelongingsStatus,
+/// Caller-reported departure evidence; its actor, time, and boolean reports prove no authenticated identity, review, action, queue admission, or checkout completion.
+pub struct DepartureObservation {
+    reported_by: entities::ActorRef,
+    reported_at: DateTime<Utc>,
+    reported_belongings_returned: bool,
     care_summary: CareSummary,
-    departure_notes_review: DepartureNotesReview,
+    reported_care_summary_reviewed: bool,
 }
 
-impl fmt::Debug for StaffHandoff {
+impl fmt::Debug for DepartureObservation {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("StaffHandoff([REDACTED])")
+        formatter.write_str("DepartureObservation([REDACTED])")
     }
 }
 
-impl StaffHandoff {
-    /// Returns the caller-reported completion-actor label; it authenticates no actor, completion, or review.
-    pub const fn reported_completed_by(&self) -> &entities::ActorRef {
-        &self.reported_completed_by
+impl DepartureObservation {
+    /// Returns the caller-reported actor label; it authenticates no actor, completion, or review.
+    pub const fn reported_by(&self) -> &entities::ActorRef {
+        &self.reported_by
     }
 
-    /// Returns the caller-reported completion-time label; it proves no completion, review, or action.
-    pub const fn reported_completed_at(&self) -> DateTime<Utc> {
-        self.reported_completed_at
+    /// Returns the caller-reported observation time; it proves no completion, review, or action.
+    pub const fn reported_at(&self) -> DateTime<Utc> {
+        self.reported_at
     }
 
-    /// Returns the belongings status evidence available to checkout completion review while leaving provider, customer, payment, and schedule systems unchanged.
-    pub const fn belongings_status(&self) -> BelongingsStatus {
-        self.belongings_status
+    /// Reports whether the caller says belongings were returned; this is evidence, not verified completion.
+    pub const fn reported_belongings_returned(&self) -> bool {
+        self.reported_belongings_returned
     }
 
     /// Returns the care summary evidence available to checkout completion review while leaving provider, customer, payment, and schedule systems unchanged.
@@ -228,17 +177,9 @@ impl StaffHandoff {
         &self.care_summary
     }
 
-    /// Returns the departure notes review evidence available to checkout completion review while leaving provider, customer, payment, and schedule systems unchanged.
-    pub const fn departure_notes_review(&self) -> DepartureNotesReview {
-        self.departure_notes_review
-    }
-
-    const fn is_resolved_for_checkout_completion(&self) -> bool {
-        matches!(self.belongings_status, BelongingsStatus::ReturnedToCustomer)
-            && matches!(
-                self.departure_notes_review,
-                DepartureNotesReview::StaffReviewed
-            )
+    /// Reports whether the caller says the care summary was reviewed; this authenticates no review.
+    pub const fn reported_care_summary_reviewed(&self) -> bool {
+        self.reported_care_summary_reviewed
     }
 }
 
@@ -248,7 +189,7 @@ pub struct Request {
     reservation_id: entities::reservation::Id,
     source_provenance: source::Provenance,
     observed_source_status: source::reservation::Status,
-    staff_handoff: StaffHandoff,
+    departure_observation: DepartureObservation,
     payment_exception: Option<PaymentException>,
     source_exception: Option<SourceException>,
     #[builder(default = LaborMinutes::try_new(15).expect("default checkout audit minutes are non-zero"))]
@@ -279,9 +220,9 @@ impl Request {
         self.observed_source_status.clone()
     }
 
-    /// Returns the staff handoff evidence available to checkout completion review while leaving provider, customer, payment, and schedule systems unchanged.
-    pub const fn staff_handoff(&self) -> &StaffHandoff {
-        &self.staff_handoff
+    /// Returns caller-reported departure evidence while leaving provider, customer, payment, and schedule systems unchanged.
+    pub const fn departure_observation(&self) -> &DepartureObservation {
+        &self.departure_observation
     }
 
     /// Returns retained payment exception evidence; agents may route it, not move money.
@@ -296,89 +237,27 @@ impl Request {
 }
 
 #[derive(Clone, PartialEq, Eq, Serialize)]
-/// Reviewable packet handed to staff or agents with deterministic gates already applied.
-///
-/// Deserialization preserves identifiers and reported evidence but discards caller-supplied
-/// completion, status-suggestion, action, audit, disposition, gate, and blocker authority.
-pub struct Packet {
+/// Workflow-issued review packet. It is intentionally not deserializable because serialized evidence cannot recreate workflow review output.
+pub struct ReviewPacket {
     reservation_id: entities::reservation::Id,
     provenance: source::Provenance,
-    staff_handoff: StaffHandoff,
-    completion_status: CompletionStatus,
-    suggested_reservation_status: Option<entities::reservation::Status>,
+    departure_observation: DepartureObservation,
+    review_reasons: Vec<ReviewReason>,
     required_review_gates: Vec<policy::ReviewGate>,
     safe_agent_actions: Vec<SafeAgentAction>,
     blocked_actions: Vec<BlockedAction>,
     audit_event_drafts: Vec<AuditEventDraft>,
-    unresolved_exceptions: Vec<UnresolvedException>,
     staff_task_drafts: Vec<StaffTaskDraft>,
-    reported_disposition: ReportedDisposition,
     labor_impact: LaborImpact,
 }
 
-impl<'de> Deserialize<'de> for Packet {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        struct SerializedPacketEvidence {
-            reservation_id: entities::reservation::Id,
-            provenance: source::Provenance,
-            staff_handoff: StaffHandoff,
-            #[serde(rename = "completion_status")]
-            _completion_status: CompletionStatus,
-            #[serde(rename = "suggested_reservation_status")]
-            _suggested_reservation_status: Option<entities::reservation::Status>,
-            #[serde(rename = "required_review_gates")]
-            _required_review_gates: Vec<policy::ReviewGate>,
-            #[serde(rename = "safe_agent_actions")]
-            _safe_agent_actions: Vec<SafeAgentAction>,
-            #[serde(rename = "blocked_actions")]
-            _blocked_actions: Vec<BlockedAction>,
-            #[serde(rename = "audit_event_drafts")]
-            _audit_event_drafts: Vec<AuditEventDraft>,
-            unresolved_exceptions: Vec<UnresolvedException>,
-            #[serde(rename = "staff_task_drafts")]
-            _staff_task_drafts: Vec<StaffTaskDraft>,
-            #[serde(rename = "reported_disposition")]
-            _reported_disposition: ReportedDisposition,
-            labor_impact: LaborImpact,
-        }
-
-        let serialized = SerializedPacketEvidence::deserialize(deserializer)?;
-        let completion_status = CompletionStatus::NeedsStaffHandoffReview;
-        let unresolved_exceptions = serialized.unresolved_exceptions;
-        let staff_task_drafts = staff_task_drafts_for(&unresolved_exceptions);
-
-        Ok(Self {
-            reservation_id: serialized.reservation_id,
-            provenance: serialized.provenance,
-            staff_handoff: serialized.staff_handoff,
-            completion_status,
-            suggested_reservation_status: None,
-            required_review_gates: required_review_gates_for(completion_status),
-            safe_agent_actions: safe_agent_actions_for(completion_status),
-            blocked_actions: blocked_actions_for(completion_status),
-            audit_event_drafts: vec![
-                AuditEventDraft::StaffHandoffRecorded,
-                AuditEventDraft::StaffHandoffReviewRequested,
-            ],
-            unresolved_exceptions,
-            staff_task_drafts,
-            reported_disposition: ReportedDisposition::ManagerReviewRequired,
-            labor_impact: serialized.labor_impact,
-        })
-    }
-}
-
-impl fmt::Debug for Packet {
+impl fmt::Debug for ReviewPacket {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("Packet([REDACTED])")
+        formatter.write_str("ReviewPacket([REDACTED])")
     }
 }
 
-impl Packet {
+impl ReviewPacket {
     /// Returns the reservation id evidence available to checkout completion review while leaving provider, customer, payment, and schedule systems unchanged.
     pub const fn reservation_id(&self) -> entities::reservation::Id {
         self.reservation_id
@@ -389,19 +268,14 @@ impl Packet {
         &self.provenance
     }
 
-    /// Returns the staff handoff evidence available to checkout completion review while leaving provider, customer, payment, and schedule systems unchanged.
-    pub const fn staff_handoff(&self) -> &StaffHandoff {
-        &self.staff_handoff
+    /// Returns caller-reported departure evidence while leaving provider, customer, payment, and schedule systems unchanged.
+    pub const fn departure_observation(&self) -> &DepartureObservation {
+        &self.departure_observation
     }
 
-    /// Returns the completion status evidence available to checkout completion review while leaving provider, customer, payment, and schedule systems unchanged.
-    pub const fn completion_status(&self) -> CompletionStatus {
-        self.completion_status
-    }
-
-    /// Returns the suggested reservation status evidence available to checkout completion review while leaving provider, customer, payment, and schedule systems unchanged.
-    pub fn suggested_reservation_status(&self) -> Option<entities::reservation::Status> {
-        self.suggested_reservation_status.clone()
+    /// Returns the evidence-backed reasons this departure remains under review.
+    pub fn review_reasons(&self) -> &[ReviewReason] {
+        &self.review_reasons
     }
 
     /// Returns the required review gates evidence available to checkout completion review while leaving provider, customer, payment, and schedule systems unchanged.
@@ -424,19 +298,9 @@ impl Packet {
         &self.audit_event_drafts
     }
 
-    /// Returns unresolved checkout exceptions that need staff, manager, billing, or source-system review before final closeout.
-    pub fn unresolved_exceptions(&self) -> &[UnresolvedException] {
-        &self.unresolved_exceptions
-    }
-
     /// Returns draft-only staff task recommendations; agents may prepare these but not complete live checkout work.
     pub fn staff_task_drafts(&self) -> &[StaffTaskDraft] {
         &self.staff_task_drafts
-    }
-
-    /// Returns the review disposition used to keep outcome/labor reporting tied to human or system-of-record review.
-    pub const fn reported_disposition(&self) -> ReportedDisposition {
-        self.reported_disposition
     }
 
     /// Returns estimated labor impact for open-stay audit packet review; this is not a realized savings claim.
@@ -451,67 +315,33 @@ pub struct Workflow;
 
 impl Workflow {
     /// Builds the evaluate result for the checkout completion workflow from reviewed source facts while preserving human review gates and draft-only side effects.
-    pub fn evaluate(request: Request) -> Packet {
-        let completion_status = completion_status_for(&request);
-        let suggested_reservation_status = None;
-        let required_review_gates = required_review_gates_for(completion_status);
-        let safe_agent_actions = safe_agent_actions_for(completion_status);
-        let blocked_actions = blocked_actions_for(completion_status);
-        let audit_event_drafts = audit_event_drafts_for(completion_status);
-        let unresolved_exceptions = unresolved_exceptions_for(&request, completion_status);
-        let staff_task_drafts = staff_task_drafts_for(&unresolved_exceptions);
-        let reported_disposition = reported_disposition_for(completion_status);
+    pub fn evaluate(request: Request) -> ReviewPacket {
+        let review_reasons = review_reasons_for(&request);
+        let staff_task_drafts = staff_task_drafts_for(&review_reasons);
         let labor_impact = LaborImpact::new(
             request.estimated_manual_audit_minutes,
             request.estimated_packet_review_minutes,
         );
 
-        Packet {
+        ReviewPacket {
             reservation_id: request.reservation_id,
             provenance: request.source_provenance,
-            staff_handoff: request.staff_handoff,
-            completion_status,
-            suggested_reservation_status,
-            required_review_gates,
-            safe_agent_actions,
-            blocked_actions,
-            audit_event_drafts,
-            unresolved_exceptions,
+            departure_observation: request.departure_observation,
+            review_reasons,
+            required_review_gates: vec![policy::ReviewGate::ManagerApproval],
+            safe_agent_actions: vec![
+                SafeAgentAction::SummarizeCheckoutEvidence,
+                SafeAgentAction::CreateInternalHandoffTask,
+            ],
+            blocked_actions: blocked_actions_for_review(),
+            audit_event_drafts: audit_event_drafts_for(&request.observed_source_status),
             staff_task_drafts,
-            reported_disposition,
             labor_impact,
         }
     }
 }
 
-fn completion_status_for(request: &Request) -> CompletionStatus {
-    if !matches!(
-        request.observed_source_status,
-        source::reservation::Status::CheckedOut
-    ) {
-        return CompletionStatus::SourceNotCheckedOut;
-    }
-
-    let _serialized_handoff_reports_resolution =
-        request.staff_handoff.is_resolved_for_checkout_completion();
-    CompletionStatus::NeedsStaffHandoffReview
-}
-
-fn required_review_gates_for(completion_status: CompletionStatus) -> Vec<policy::ReviewGate> {
-    let _ = completion_status;
-    vec![policy::ReviewGate::ManagerApproval]
-}
-
-fn safe_agent_actions_for(completion_status: CompletionStatus) -> Vec<SafeAgentAction> {
-    let actions = vec![
-        SafeAgentAction::SummarizeCheckoutEvidence,
-        SafeAgentAction::CreateInternalHandoffTask,
-    ];
-    let _ = completion_status;
-    actions
-}
-
-fn blocked_actions_for(_completion_status: CompletionStatus) -> Vec<BlockedAction> {
+fn blocked_actions_for_review() -> Vec<BlockedAction> {
     let mut blocked_actions = vec![
         BlockedAction::SendCustomerMessage,
         BlockedAction::MutateProviderOrPmsRecord,
@@ -523,82 +353,73 @@ fn blocked_actions_for(_completion_status: CompletionStatus) -> Vec<BlockedActio
     blocked_actions
 }
 
-fn audit_event_drafts_for(completion_status: CompletionStatus) -> Vec<AuditEventDraft> {
-    let mut drafts = vec![AuditEventDraft::StaffHandoffRecorded];
-    match completion_status {
-        CompletionStatus::ReportedStaffCheckout => {
-            drafts.push(AuditEventDraft::SourceCheckoutObserved);
-            drafts.push(AuditEventDraft::CheckoutCompletionSuggested);
-            drafts.push(AuditEventDraft::CustomerMessageApprovalRequested);
-        }
-        CompletionStatus::NeedsStaffHandoffReview => {
-            drafts.push(AuditEventDraft::SourceCheckoutObserved);
-            drafts.push(AuditEventDraft::StaffHandoffReviewRequested);
-        }
-        CompletionStatus::SourceNotCheckedOut => {
-            drafts.push(AuditEventDraft::StaffHandoffReviewRequested);
-        }
+fn audit_event_drafts_for(
+    observed_source_status: &source::reservation::Status,
+) -> Vec<AuditEventDraft> {
+    let mut drafts = vec![
+        AuditEventDraft::DepartureObservationRecorded,
+        AuditEventDraft::DepartureReviewRequested,
+    ];
+    if matches!(
+        observed_source_status,
+        source::reservation::Status::CheckedOut
+    ) {
+        drafts.push(AuditEventDraft::SourceCheckoutObserved);
     }
     drafts.sort_unstable();
     drafts.dedup();
     drafts
 }
 
-fn unresolved_exceptions_for(
-    request: &Request,
-    completion_status: CompletionStatus,
-) -> Vec<UnresolvedException> {
-    let mut exceptions = Vec::new();
+fn review_reasons_for(request: &Request) -> Vec<ReviewReason> {
+    let mut reasons = vec![ReviewReason::DepartureEvidenceRequiresReview];
 
-    if matches!(
-        request.staff_handoff.belongings_status(),
-        BelongingsStatus::NeedsStaffFollowUp
-    ) {
-        exceptions.push(UnresolvedException::Belongings);
+    if !request.departure_observation.reported_belongings_returned() {
+        reasons.push(ReviewReason::BelongingsFollowUpReported);
     }
 
-    if matches!(
-        request.staff_handoff.departure_notes_review(),
-        DepartureNotesReview::ManagerReviewRequired
-    ) {
-        exceptions.push(UnresolvedException::Care);
+    if !request
+        .departure_observation
+        .reported_care_summary_reviewed()
+    {
+        reasons.push(ReviewReason::CareReviewReported);
     }
 
     if let Some(payment_exception) = request.payment_exception() {
-        exceptions.push(UnresolvedException::Payment(payment_exception));
+        reasons.push(ReviewReason::Payment(payment_exception));
     }
 
     if let Some(source_exception) = request.source_exception() {
-        exceptions.push(UnresolvedException::Source(source_exception));
+        reasons.push(ReviewReason::Source(source_exception));
     }
 
-    if matches!(completion_status, CompletionStatus::SourceNotCheckedOut)
-        && !exceptions
-            .iter()
-            .any(|exception| matches!(exception, UnresolvedException::Source(_)))
-    {
-        exceptions.push(UnresolvedException::Source(
-            SourceException::ProviderRecordConflict,
-        ));
+    if !matches!(
+        request.observed_source_status,
+        source::reservation::Status::CheckedOut
+    ) {
+        reasons.push(ReviewReason::SourceNotCheckedOut);
     }
 
-    exceptions
+    reasons.sort_unstable();
+    reasons.dedup();
+    reasons
 }
 
-fn staff_task_drafts_for(exceptions: &[UnresolvedException]) -> Vec<StaffTaskDraft> {
+fn staff_task_drafts_for(reasons: &[ReviewReason]) -> Vec<StaffTaskDraft> {
     let mut drafts = Vec::new();
-    for exception in exceptions {
-        match exception {
-            UnresolvedException::Belongings => {
+    for reason in reasons {
+        match reason {
+            ReviewReason::DepartureEvidenceRequiresReview => {}
+            ReviewReason::BelongingsFollowUpReported => {
                 drafts.push(StaffTaskDraft::VerifyBelongingsReturn);
             }
-            UnresolvedException::Care => {
+            ReviewReason::CareReviewReported => {
                 drafts.push(StaffTaskDraft::ReviewCareAndDepartureNotes);
             }
-            UnresolvedException::Payment(_) => {
+            ReviewReason::Payment(_) => {
                 drafts.push(StaffTaskDraft::ResolvePaymentException);
             }
-            UnresolvedException::Source(_) => {
+            ReviewReason::SourceNotCheckedOut | ReviewReason::Source(_) => {
                 drafts.push(StaffTaskDraft::ReconcileSourceStatus);
             }
         }
@@ -608,10 +429,25 @@ fn staff_task_drafts_for(exceptions: &[UnresolvedException]) -> Vec<StaffTaskDra
     drafts
 }
 
-const fn reported_disposition_for(completion_status: CompletionStatus) -> ReportedDisposition {
-    match completion_status {
-        CompletionStatus::ReportedStaffCheckout => ReportedDisposition::ManagerReviewRequired,
-        CompletionStatus::NeedsStaffHandoffReview => ReportedDisposition::ManagerReviewRequired,
-        CompletionStatus::SourceNotCheckedOut => ReportedDisposition::SourceReconciliationRequired,
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::DateTime;
+
+    #[test]
+    fn departure_observation_accessors_preserve_reported_actor_and_time() {
+        let actor = entities::ActorRef::Staff {
+            staff_id: entities::StaffId::try_new("coverage-front-desk").unwrap(),
+        };
+        let observation = DepartureObservation::builder()
+            .reported_by(actor.clone())
+            .reported_at(DateTime::<Utc>::UNIX_EPOCH)
+            .reported_belongings_returned(true)
+            .care_summary(CareSummary::try_new("All belongings returned.").unwrap())
+            .reported_care_summary_reviewed(true)
+            .build();
+
+        assert_eq!(observation.reported_by(), &actor);
+        assert_eq!(observation.reported_at(), DateTime::<Utc>::UNIX_EPOCH);
     }
 }

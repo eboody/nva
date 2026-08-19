@@ -1,7 +1,7 @@
 //! Analytics read models for resort operations after source validation.
 //!
 //! Analytics facts in this module sit after source ingestion and data-quality validation:
-//! raw Gingr/provider records are preserved as provenance, blocking hygiene findings stop
+//! raw provider records are preserved as provenance, blocking hygiene findings stop
 //! projection, and nonblocking findings stay attached so manager briefs and labor-cost
 //! dashboards can explain their evidence instead of inventing operational truth.
 
@@ -185,21 +185,6 @@ pub mod finance {
                 review_gate,
             })
         }
-
-        /// Starts an insight builder that validates the manager-review gate at build time.
-        pub const fn builder() -> InsightBuilder {
-            InsightBuilder::new()
-        }
-
-        /// Net revenue on the underlying fact.
-        pub fn net_revenue(&self) -> money::Result<money::Money> {
-            self.fact.net_revenue()
-        }
-
-        /// Financial insight cannot directly mutate price, discount, payment, or accounting state.
-        pub const fn blocks_financial_mutation(&self) -> bool {
-            true
-        }
     }
 
     impl<'de> Deserialize<'de> for Insight {
@@ -225,70 +210,6 @@ pub mod finance {
                 raw.review_gate,
             )
             .map_err(serde::de::Error::custom)
-        }
-    }
-
-    #[derive(Debug, Clone, Default)]
-    /// Builder for a review-gated site financial insight.
-    pub struct InsightBuilder {
-        fact: Option<ReportedRevenueObservationFact>,
-        kind: Option<InsightKind>,
-        expected_impact: Option<money::Money>,
-        recommendation: Option<Recommendation>,
-        review_gate: Option<policy::ReviewGate>,
-    }
-
-    impl InsightBuilder {
-        /// Creates an empty builder.
-        pub const fn new() -> Self {
-            Self {
-                fact: None,
-                kind: None,
-                expected_impact: None,
-                recommendation: None,
-                review_gate: None,
-            }
-        }
-
-        /// Sets the financial fact.
-        pub fn fact(mut self, value: ReportedRevenueObservationFact) -> Self {
-            self.fact = Some(value);
-            self
-        }
-
-        /// Sets the insight kind.
-        pub const fn kind(mut self, value: InsightKind) -> Self {
-            self.kind = Some(value);
-            self
-        }
-
-        /// Sets the expected impact.
-        pub fn expected_impact(mut self, value: money::Money) -> Self {
-            self.expected_impact = Some(value);
-            self
-        }
-
-        /// Sets the recommendation.
-        pub const fn recommendation(mut self, value: Recommendation) -> Self {
-            self.recommendation = Some(value);
-            self
-        }
-
-        /// Sets the review gate.
-        pub const fn review_gate(mut self, value: policy::ReviewGate) -> Self {
-            self.review_gate = Some(value);
-            self
-        }
-
-        /// Builds the insight if every required field is present and manager-reviewed.
-        pub fn build(self) -> std::result::Result<Insight, Error> {
-            Insight::try_new(
-                self.fact.ok_or(Error::MissingFact)?,
-                self.kind.ok_or(Error::MissingKind)?,
-                self.expected_impact.ok_or(Error::MissingExpectedImpact)?,
-                self.recommendation.ok_or(Error::MissingRecommendation)?,
-                self.review_gate.ok_or(Error::MissingReviewGate)?,
-            )
         }
     }
 
@@ -406,101 +327,6 @@ pub mod outcome {
         CrmIntelligence,
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Caller-reported metric-evidence category; never value-claim authority.
-    pub enum Metric {
-        /// Reported booking-conversion observation.
-        ReportedBookingConversionObservation,
-        /// Reported labor-minute estimate difference; not realized savings.
-        ReportedLaborMinutesDifference,
-        /// Reported utilization basis-points observation.
-        ReportedUtilizationBasisPointsObservation,
-        /// Reported revenue observation using canonical currency-aware money.
-        ReportedRevenueObservation,
-        /// Legacy reported revenue-cents observation.
-        ReportedRevenueCentsObservation,
-        /// Reported customer-retention observation.
-        ReportedCustomerRetentionObservation,
-        /// Reported handle-time estimate difference.
-        ReportedHandleTimeEstimateDifference,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Metric value representation retained for legacy bridge compatibility.
-    pub enum MetricValue {
-        /// Count value.
-        Count(i64),
-        /// Positive labor-minute value.
-        LaborMinutes(labor::Minutes),
-        /// Reported money evidence with explicit currency.
-        ReportedRevenueObservation(money::Money),
-        /// Basis-points value.
-        ReportedUtilizationBasisPointsObservation(money::BasisPoints),
-        /// Legacy minutes value retained for bridge compatibility.
-        Minutes(i64),
-        /// Legacy cents value retained for bridge compatibility.
-        Cents(i64),
-        /// Legacy basis-points value retained for bridge compatibility.
-        BasisPoints(i64),
-    }
-
-    impl MetricValue {
-        /// Builds a reported labor-minute estimate-difference value.
-        pub const fn reported_labor_minutes_difference(value: labor::Minutes) -> Self {
-            Self::LaborMinutes(value)
-        }
-
-        /// Builds a currency-aware revenue metric value.
-        pub fn revenue(value: money::Money) -> Self {
-            Self::ReportedRevenueObservation(value)
-        }
-
-        /// Builds a utilization metric value in validated basis points.
-        pub const fn utilization_basis_points(value: money::BasisPoints) -> Self {
-            Self::ReportedUtilizationBasisPointsObservation(value)
-        }
-
-        /// Returns whether this value carries the unit required by the metric.
-        pub const fn matches_metric(&self, metric: Metric) -> bool {
-            matches!(
-                (metric, self),
-                (
-                    Metric::ReportedBookingConversionObservation
-                        | Metric::ReportedCustomerRetentionObservation,
-                    Self::Count(_)
-                ) | (
-                    Metric::ReportedLaborMinutesDifference,
-                    Self::LaborMinutes(_)
-                ) | (Metric::ReportedLaborMinutesDifference, Self::Minutes(_))
-                    | (
-                        Metric::ReportedHandleTimeEstimateDifference,
-                        Self::LaborMinutes(_)
-                    )
-                    | (
-                        Metric::ReportedHandleTimeEstimateDifference,
-                        Self::Minutes(_)
-                    )
-                    | (
-                        Metric::ReportedRevenueObservation,
-                        Self::ReportedRevenueObservation(_)
-                    )
-                    | (
-                        Metric::ReportedRevenueCentsObservation,
-                        Self::ReportedRevenueObservation(_)
-                    )
-                    | (Metric::ReportedRevenueCentsObservation, Self::Cents(_))
-                    | (
-                        Metric::ReportedUtilizationBasisPointsObservation,
-                        Self::ReportedUtilizationBasisPointsObservation(_)
-                    )
-                    | (
-                        Metric::ReportedUtilizationBasisPointsObservation,
-                        Self::BasisPoints(_)
-                    )
-            )
-        }
-    }
-
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     /// Caller-reported before/after evidence whose variants own the metric-compatible unit.
     pub enum MeasuredChange {
@@ -549,36 +375,9 @@ pub mod outcome {
     }
 
     impl MeasuredChange {
-        /// Builds a booking-conversion count change.
-        pub const fn booking_converted(before: i64, after: i64) -> Self {
-            Self::ReportedBookingConversionObservation { before, after }
-        }
-
         /// Builds a currency-aware revenue change.
         pub fn revenue(before: money::Money, after: money::Money) -> Self {
             Self::ReportedRevenueObservation { before, after }
-        }
-
-        /// Metric label carried by this caller-reported observation.
-        pub const fn metric(&self) -> Metric {
-            match self {
-                Self::ReportedBookingConversionObservation { .. } => {
-                    Metric::ReportedBookingConversionObservation
-                }
-                Self::ReportedLaborMinutesDifference { .. } => {
-                    Metric::ReportedLaborMinutesDifference
-                }
-                Self::ReportedUtilizationBasisPointsObservation { .. } => {
-                    Metric::ReportedUtilizationBasisPointsObservation
-                }
-                Self::ReportedRevenueObservation { .. } => Metric::ReportedRevenueObservation,
-                Self::ReportedCustomerRetentionObservation { .. } => {
-                    Metric::ReportedCustomerRetentionObservation
-                }
-                Self::ReportedHandleTimeEstimateDifference { .. } => {
-                    Metric::ReportedHandleTimeEstimateDifference
-                }
-            }
         }
 
         /// Returns whether before/after values share required relationship-level context.
@@ -590,62 +389,6 @@ pub mod outcome {
                 _ => true,
             }
         }
-
-        fn try_from_metric_values(
-            metric: Metric,
-            before_value: MetricValue,
-            after_value: MetricValue,
-        ) -> Result<Self> {
-            match (metric, before_value, after_value) {
-                (
-                    Metric::ReportedBookingConversionObservation,
-                    MetricValue::Count(before),
-                    MetricValue::Count(after),
-                ) => Ok(Self::ReportedBookingConversionObservation { before, after }),
-                (
-                    Metric::ReportedCustomerRetentionObservation,
-                    MetricValue::Count(before),
-                    MetricValue::Count(after),
-                ) => Ok(Self::ReportedCustomerRetentionObservation { before, after }),
-                (
-                    Metric::ReportedLaborMinutesDifference,
-                    MetricValue::LaborMinutes(before),
-                    MetricValue::LaborMinutes(after),
-                ) => Ok(Self::ReportedLaborMinutesDifference { before, after }),
-                (
-                    Metric::ReportedHandleTimeEstimateDifference,
-                    MetricValue::LaborMinutes(before),
-                    MetricValue::LaborMinutes(after),
-                ) => Ok(Self::ReportedHandleTimeEstimateDifference { before, after }),
-                (
-                    Metric::ReportedUtilizationBasisPointsObservation,
-                    MetricValue::ReportedUtilizationBasisPointsObservation(before),
-                    MetricValue::ReportedUtilizationBasisPointsObservation(after),
-                ) => Ok(Self::ReportedUtilizationBasisPointsObservation { before, after }),
-                (
-                    Metric::ReportedRevenueObservation,
-                    MetricValue::ReportedRevenueObservation(before),
-                    MetricValue::ReportedRevenueObservation(after),
-                )
-                | (
-                    Metric::ReportedRevenueCentsObservation,
-                    MetricValue::ReportedRevenueObservation(before),
-                    MetricValue::ReportedRevenueObservation(after),
-                ) => Ok(Self::ReportedRevenueObservation { before, after }),
-                _ => Err(Error::MetricValueUnitMismatch),
-            }
-        }
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Legacy attribution strength for compatibility constructors.
-    pub enum Attribution {
-        /// Serializable evidence carries a reviewed-action label; no human review is proven.
-        ReportedReviewedAction,
-        /// Correlated with recommendation but not enough for strong claims.
-        CorrelatedOnly,
-        /// Source was wrong, so no value claim is allowed.
-        WrongSource,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -671,7 +414,7 @@ pub mod outcome {
     }
 
     impl AttributionEvidence {
-        /// Builds historical reported-reviewed compatibility evidence without proving review.
+        /// Builds reported-reviewed evidence without proving review.
         pub const fn reported_reviewed_action(
             recommendation_ref: RecommendationRef,
             evidence_ref: EvidenceRef,
@@ -693,20 +436,6 @@ pub mod outcome {
         pub const fn can_support_value_claim(&self) -> bool {
             false
         }
-
-        fn from_legacy(attribution: Attribution) -> Self {
-            let evidence_ref = EvidenceRef::try_new("legacy-outcome-attribution")
-                .expect("static legacy outcome evidence ref is valid");
-            match attribution {
-                Attribution::ReportedReviewedAction => Self::ReportedReviewedAction {
-                    recommendation_ref: RecommendationRef::try_new("legacy-reviewed-action")
-                        .expect("static legacy recommendation ref is valid"),
-                    evidence_ref,
-                },
-                Attribution::CorrelatedOnly => Self::CorrelatedOnly { evidence_ref },
-                Attribution::WrongSource => Self::WrongSource { evidence_ref },
-            }
-        }
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
@@ -722,60 +451,17 @@ pub mod outcome {
     }
 
     impl Record {
-        /// Creates an outcome record only when both metric values match the declared metric unit.
-        #[allow(clippy::too_many_arguments)]
-        pub fn try_new(
-            id: Id,
-            workstream: Workstream,
-            location_id: entities::LocationId,
-            metric: Metric,
-            before_value: MetricValue,
-            after_value: MetricValue,
-            attribution: Attribution,
-            source: source::System,
-            recorded_at: DateTime<Utc>,
-        ) -> Result<Self> {
-            if !before_value.matches_metric(metric) || !after_value.matches_metric(metric) {
-                return Err(Error::MetricValueUnitMismatch);
-            }
-            Ok(Self {
-                id,
-                workstream,
-                location_id,
-                change: MeasuredChange::try_from_metric_values(metric, before_value, after_value)?,
-                attribution: AttributionEvidence::from_legacy(attribution),
-                source,
-                recorded_at,
-            })
-        }
-
         /// Workstream this outcome belongs to.
         pub const fn workstream(&self) -> Workstream {
             self.workstream
         }
 
-        /// Metric label associated with this caller-reported before/after observation.
-        pub const fn metric(&self) -> Metric {
-            self.change.metric()
-        }
-
         /// Returns false because caller-reported observations cannot support a value claim.
         pub fn can_support_value_claim(&self) -> bool {
-            self.attribution.can_support_value_claim()
-                && self.change.relationship_context_is_consistent()
+            self.change.relationship_context_is_consistent()
+                && self.attribution.can_support_value_claim()
         }
     }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-    /// Outcome validation failures.
-    pub enum Error {
-        #[error("outcome metric value units must match the declared metric")]
-        /// Before/after values carried units incompatible with the metric.
-        MetricValueUnitMismatch,
-    }
-
-    /// Result type returned by outcome constructors.
-    pub type Result<T> = std::result::Result<T, Error>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
@@ -871,65 +557,9 @@ pub mod stay {
     }
 
     impl Fact {
-        /// Projects a validated stay fact from a source reservation snapshot.
-        ///
-        /// Blocking data-quality issues return the full issue set instead of producing a
-        /// fact; nonblocking issues stay attached as evidence for reviewable read models.
-        pub fn project_from_source_reservation(
-            id: Id,
-            source_reservation: &source::reservation::Snapshot,
-            projection_version: analytics::ProjectionVersion,
-        ) -> std::result::Result<Self, Vec<data_quality::Issue>> {
-            let issues = source_reservation
-                .data_quality_issues(source_reservation.provenance().pulled_at().clone());
-            if issues.iter().any(data_quality::Issue::workflow_blocking) {
-                return Err(issues);
-            }
-            let data_quality_status = if issues.is_empty() {
-                DataQualityStatus::Complete
-            } else {
-                DataQualityStatus::ManagerReviewRequired
-            };
-
-            let customer_record_id = source_reservation
-                .customer_record_id()
-                .expect("data_quality_issues guards customer presence")
-                .clone();
-            let pet_record_id = source_reservation
-                .pet_record_id()
-                .expect("data_quality_issues guards pet presence")
-                .clone();
-            let location_record_id = source_reservation
-                .location_record_id()
-                .expect("data_quality_issues guards location presence")
-                .clone();
-            let service_type_record_id = source_reservation
-                .service_type_record_id()
-                .expect("data_quality_issues guards service type presence")
-                .clone();
-
-            Ok(Self {
-                id,
-                provenance: source_reservation.provenance().clone(),
-                reservation_record_id: source_reservation.provenance().record_id().clone(),
-                customer_record_id,
-                pet_record_id,
-                location_record_id,
-                service_type_record_id,
-                projection_version,
-                data_quality_status,
-                data_quality_issues: issues,
-            })
-        }
-
         /// Returns the analytics fact id used to join reports without reusing provider record ids.
         pub const fn id(&self) -> &Id {
             &self.id
-        }
-
-        /// Returns the provider system that supplied the stay evidence.
-        pub const fn source_system(&self) -> source::System {
-            self.provenance.source_system()
         }
 
         /// Returns the source provenance managers can inspect before trusting a brief or labor report.

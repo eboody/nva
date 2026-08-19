@@ -35,8 +35,9 @@
 pub mod operations;
 /// Fallible promotion from private raw SQL rows into validated persistence values.
 pub mod persistence;
+mod projection;
 pub mod service_line;
 /// Concrete persistence adapters for application-owned repository ports.
 pub mod workflow_repository;
 
-pub use operations::{CodecError, RecordKind, Result};
+pub use operations::{CodecError, Result};

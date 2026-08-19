@@ -15,7 +15,7 @@ fn main() {
         deposit: Some(payment::Deposit::required(
             money::Money::usd(5_000).unwrap(),
         )),
-        source: entities::reservation::Source::Portal(entities::PortalProvider::Gingr),
+        source: entities::reservation::Source::Portal(entities::PortalProvider::ProviderHosted),
         requested_add_ons: Vec::new(),
         hard_stops: Vec::new(),
     };

@@ -31,7 +31,7 @@ Optional if you want to rehearse the separate lanes:
 7. `docs/presentation/job-presentation-walkthrough.md` — use for the five-minute path and demo anchors.
 8. `docs/presentation/owned-operations-api-replacement-talk-track.md` — use when asked why this is not just Gingr or BI.
 9. `docs/presentation/nva-demo-skeptical-review.md` — keep nearby for objections and caveats.
-10. `apps/api/openapi/owned-operations-v0.openapi.json` — open only if the audience asks for contract evidence.
+10. `apps/api/openapi/owned-operations-v1.openapi.json` — open only if the audience asks for contract evidence.
 
 ## 3. 30-second pitch
 
@@ -82,7 +82,7 @@ Do not troubleshoot live for more than a minute. Switch to this fallback:
 1. Say: "Pre-flight was run before the conversation; if this shell is slow or unavailable, I won’t pretend stale output is fresh proof — I’ll show the static diagram, the checked OpenAPI artifact, and the expected local-demo anchors instead."
 2. Open `docs/presentation/nva-static-demo-fallback.md`.
 3. Open `docs/presentation/job-presentation-walkthrough.md#local-demo-slice-data-quality-hygiene-in-five-minutes`.
-4. Point to the checked contract at `apps/api/openapi/owned-operations-v0.openapi.json`.
+4. Point to the checked contract at `apps/api/openapi/owned-operations-v1.openapi.json`.
 5. Point to the smoke scripts: `scripts/demo_owned_operations_api.sh`, `scripts/smoke_data_quality_hygiene_local_loop.sh`, and `scripts/smoke_data_quality_hygiene_disabled_worker_outbox.sh`.
 6. Continue the story: local proof, disabled side effects, read-only validation next.
 
@@ -124,7 +124,7 @@ Use this closeout list when asked "what proves it?"
 - Visual guide/diagram: `docs/presentation/owned-operations-api-visual-guide.md` and `docs/presentation/assets/owned-operations-api-replacement.html`.
 - Walkthrough and talk track: `docs/presentation/job-presentation-walkthrough.md`, `docs/presentation/owned-operations-api-replacement-talk-track.md`.
 - Skeptical review: `docs/presentation/nva-demo-skeptical-review.md`.
-- Checked OpenAPI artifact: `apps/api/openapi/owned-operations-v0.openapi.json`.
+- Checked OpenAPI artifact: `apps/api/openapi/owned-operations-v1.openapi.json`.
 - Demo command: `./scripts/demo_owned_operations_api.sh`.
 - Verification gates: `./scripts/check_docs.sh` and `python scripts/check_markdown_links.py --repo-root .`.
 - Current commit/status: run `git status --short` and cite the final commit after the presentation-polish work is committed.

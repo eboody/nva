@@ -2,7 +2,7 @@
 
 The production telemetry path is API spans over OTLP to the collector, a persistent collector queue, Tempo trace blocks, Prometheus scrapes, and the provisioned Grafana dashboard. The stack is operator-only and binds host ports to loopback. During observability incidents, live side effects remain disabled: no customer messages, provider writes, payments, or equivalent authority is enabled.
 
-`/v0/readyz` reports whether production telemetry has been configured. It does not
+`/v1/readyz` reports whether production telemetry has been configured. It does not
 probe Collector, Tempo, Prometheus, or Grafana and says so explicitly; the operator
 probes below are the operational evidence. A successful API readiness response must
 not be interpreted as external observability health.

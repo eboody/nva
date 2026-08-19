@@ -16,9 +16,10 @@ use domain::source;
 use spacetimedb::{ReducerContext, Table};
 
 use crate::{
+    fixture_seed,
     read_model::{
         manager_queue_item::manager_queue_item,
-        staff_queue_item::{blocked_action_notice, hygiene_outcome_card_v1, staff_queue_item},
+        staff_queue_item::{blocked_action_notice, hygiene_outcome_card, staff_queue_item},
     },
     runtime::HygieneCaptureRuntime,
     storage::review_queue::{
@@ -29,22 +30,33 @@ use crate::{
         transition,
     },
     tables::{
-        ActorKindColumn, HygieneAuditEventRow, LocationScopeRow, LocationScopeV1Row,
-        ReviewerRoleColumn, RoleAssignmentRow, StaffActorRow, blocked_action_attempt,
-        data_quality_issue, hygiene_audit_event, hygiene_outcome, location_scope,
-        location_scope_v1, review_queue_item, role_assignment, staff_actor, workflow_event,
-        workflow_outcome,
+        ActorKindColumn, HygieneAuditEventRow, LocationScopeRow, ReviewerRoleColumn,
+        RoleAssignmentRow, StaffActorRow, blocked_action_attempt, data_quality_issue,
+        hygiene_audit_event, hygiene_outcome, location_scope, review_queue_item, role_assignment,
+        staff_actor, workflow_event, workflow_outcome,
     },
 };
 
-pub(crate) const fn fixture_seed_authorized(is_internal: bool) -> bool {
-    is_internal
+struct SpacetimeActorSeedStore<'a> {
+    ctx: &'a ReducerContext,
 }
 
-fn require_internal_fixture_seed(ctx: &ReducerContext) -> Result<(), String> {
-    fixture_seed_authorized(ctx.sender_auth().is_internal())
-        .then_some(())
-        .ok_or_else(|| "demo fixture seeding is restricted to internal database calls".to_owned())
+impl fixture_seed::ActorStore for SpacetimeActorSeedStore<'_> {
+    fn upsert_actor(&mut self, row: StaffActorRow) {
+        upsert_staff_actor(self.ctx, row);
+    }
+
+    fn insert_role(&mut self, row: RoleAssignmentRow) {
+        self.ctx.db.role_assignment().insert(row);
+    }
+
+    fn insert_scope(&mut self, row: LocationScopeRow) {
+        self.ctx.db.location_scope().insert(row);
+    }
+}
+
+pub(crate) const fn fixture_seed_authorized(is_internal: bool) -> bool {
+    is_internal
 }
 
 /// Seeds a demo staff/manager actor plus role and location scope rows.
@@ -58,28 +70,19 @@ pub fn seed_demo_actor(
     review_role: ReviewerRoleColumn,
     location_id: String,
 ) -> Result<(), String> {
-    require_internal_fixture_seed(ctx)?;
-    let actor = StaffActorRow {
-        actor_id: actor_id.clone(),
-        identity,
-        actor_kind,
-        actor_ref,
-        schema_version: codec::REVIEW_QUEUE_SCHEMA_VERSION,
-    };
-    upsert_staff_actor(ctx, actor);
-    ctx.db.role_assignment().insert(RoleAssignmentRow {
-        id: 0,
-        actor_id: actor_id.clone(),
-        review_role,
-        schema_version: codec::REVIEW_QUEUE_SCHEMA_VERSION,
-    });
-    ctx.db.location_scope_v1().insert(LocationScopeV1Row {
-        id: 0,
-        actor_id,
-        location_id,
-        schema_version: codec::REVIEW_QUEUE_SCHEMA_VERSION,
-    });
-    Ok(())
+    fixture_seed::execute_actor_seed(
+        &mut SpacetimeActorSeedStore { ctx },
+        ctx.sender_auth().is_internal().into(),
+        fixture_seed::ActorSeed {
+            actor_id,
+            identity,
+            actor_kind,
+            actor_ref,
+            review_role,
+            location_id,
+        },
+    )
+    .map_err(|error| error.to_string())
 }
 
 /// Seeds a source-quality issue and the corresponding location review queue item.
@@ -93,7 +96,9 @@ pub fn seed_demo_issue(
     summary: String,
     required_review_gates: Vec<ReviewGateColumn>,
 ) -> Result<(), String> {
-    require_internal_fixture_seed(ctx)?;
+    if !fixture_seed_authorized(ctx.sender_auth().is_internal()) {
+        return Err("demo fixture seeding is restricted to internal database calls".to_owned());
+    }
     ctx.db.data_quality_issue().insert(DataQualityIssueRow {
         issue_ref: issue_ref.clone(),
         location_id: location_id.clone(),
@@ -325,7 +330,6 @@ pub fn record_reported_hygiene_outcome(
     }
     let outcome_record = outcome_builder.build().map_err(|err| err.to_string())?;
 
-    ensure_authenticated_actor_scope_v1(ctx, &actor_id)?;
     let request = hygiene::OutcomeCaptureRequest::new(actor_id, outcome_record);
     let runtime = HygieneCaptureRuntime::load(ctx);
     if runtime.record_reported_outcome(ctx, request).is_err() {
@@ -390,7 +394,6 @@ fn actor_authorized_for_row_action(
     use crate::adapter::ActorDirectoryAdapter;
     use app::data_quality_hygiene::{ActorDirectory, AuthorizationPolicy};
 
-    ensure_authenticated_actor_scope_v1(ctx, actor_id)?;
     let directory = ActorDirectoryAdapter::new(
         ctx.db.staff_actor().iter().collect::<Vec<StaffActorRow>>(),
         ctx.db
@@ -398,9 +401,9 @@ fn actor_authorized_for_row_action(
             .iter()
             .collect::<Vec<RoleAssignmentRow>>(),
         ctx.db
-            .location_scope_v1()
+            .location_scope()
             .iter()
-            .collect::<Vec<LocationScopeV1Row>>(),
+            .collect::<Vec<LocationScopeRow>>(),
     );
     let actor = directory
         .resolve_actor(actor_id)
@@ -431,46 +434,6 @@ fn actor_authorized_for_row_action(
         return Ok(None);
     }
     Ok(Some(actor))
-}
-
-/// Lazily promotes only the authenticated actor's validated legacy scopes into the additive v1
-/// table. Historical rows cannot authorize a sibling actor, malformed or ambiguous actor/role
-/// state fails closed, and every legacy location is validated before the first insert.
-pub(crate) fn ensure_authenticated_actor_scope_v1(
-    ctx: &ReducerContext,
-    expected_actor_id: &hygiene::ActorId,
-) -> Result<(), String> {
-    use crate::authz;
-
-    let actor_rows = ctx.db.staff_actor().iter().collect::<Vec<StaffActorRow>>();
-    let role_rows = ctx
-        .db
-        .role_assignment()
-        .iter()
-        .collect::<Vec<RoleAssignmentRow>>();
-    let legacy_rows = ctx
-        .db
-        .location_scope()
-        .iter()
-        .collect::<Vec<LocationScopeRow>>();
-    let existing_v1 = ctx
-        .db
-        .location_scope_v1()
-        .iter()
-        .collect::<Vec<LocationScopeV1Row>>();
-    let pending = authz::authenticated_legacy_scope_migration(
-        &ctx.sender().to_string(),
-        expected_actor_id,
-        &actor_rows,
-        &role_rows,
-        &legacy_rows,
-        &existing_v1,
-    )
-    .map_err(|error| format!("legacy scope migration rejected: {error:?}"))?;
-    for row in pending {
-        ctx.db.location_scope_v1().insert(row);
-    }
-    Ok(())
 }
 
 fn review_queue_row(ctx: &ReducerContext, action_id: &str) -> Result<ReviewQueueItemRow, String> {
@@ -588,14 +551,14 @@ fn project_latest_outcome_cards(ctx: &ReducerContext) {
         let card = codec::staff_outcome_card(row);
         if ctx
             .db
-            .hygiene_outcome_card_v1()
+            .hygiene_outcome_card()
             .action_id()
             .find(card.action_id.clone())
             .is_some()
         {
-            ctx.db.hygiene_outcome_card_v1().action_id().update(card);
+            ctx.db.hygiene_outcome_card().action_id().update(card);
         } else {
-            ctx.db.hygiene_outcome_card_v1().insert(card);
+            ctx.db.hygiene_outcome_card().insert(card);
         }
     }
 }

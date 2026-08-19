@@ -28,18 +28,6 @@ pub struct SourceBackedFinancialFact {
 }
 
 impl SourceBackedFinancialFact {
-    /// Returns a copy with a changed gross revenue value for contract tests and fixture variants.
-    pub fn with_gross_revenue(mut self, value: money::Money) -> Self {
-        self.gross_revenue = value;
-        self
-    }
-
-    /// Returns a copy with a changed discount value for contract tests and fixture variants.
-    pub fn with_discount(mut self, value: money::Money) -> Self {
-        self.discount = value;
-        self
-    }
-
     /// Reporting period for site/period relationship checks.
     pub const fn period(&self) -> &analytics::finance::SitePeriod {
         &self.period
@@ -315,7 +303,8 @@ pub fn fixture_site_period_projection() -> Result<FixtureSlice> {
         projection.clone(),
         analytics::finance::Recommendation::ReviewLaborPlan,
         policy::ReviewGate::ManagerApproval,
-    )?;
+    )
+    .expect("the static fixture uses the required manager review gate");
     let review_packet_id =
         analytics::outcome::RecommendationRef::try_new("site-finance-review:00c0ffee:2026-06")
             .expect("static review id is valid");
@@ -326,7 +315,8 @@ pub fn fixture_site_period_projection() -> Result<FixtureSlice> {
         recommendation.clone(),
         review_packet_id.clone(),
         audit_event_id.clone(),
-    )?;
+    )
+    .expect("the static fixture carries exact reviewed recommendation evidence");
     let reviewed_action_evidence_outcome = analytics::outcome::Record::builder()
         .id(analytics::outcome::Id::try_new("site-finance-outcome-strong").unwrap())
         .workstream(analytics::outcome::Workstream::FinancialInsights)
@@ -419,7 +409,6 @@ fn source_ref(suffix: &str) -> source::RecordRef {
 
 fn map_money_error(error: money::Error) -> Error {
     match error {
-        money::Error::CurrencyMismatch { .. } => Error::CurrencyMismatch,
         money::Error::SubtractionWouldBeNegative => Error::ArithmeticWouldUnderflow,
         money::Error::AdditionOverflow | money::Error::AmountOverflow => Error::ArithmeticOverflow,
         money::Error::NegativeAmount | money::Error::BasisPointsOutOfRange => Error::InvalidMoney,
@@ -438,9 +427,7 @@ pub enum Error {
     #[error("site finance projection requires source evidence")]
     /// Current or benchmark evidence lacks source record references.
     MissingSourceEvidence,
-    #[error("site finance comparison requires matching currencies")]
-    /// Finance facts cannot be compared because their money values use different currencies.
-    CurrencyMismatch,
+
     #[error("site finance arithmetic would underflow")]
     /// Checked revenue/labor arithmetic would produce a negative value where the type forbids it.
     ArithmeticWouldUnderflow,
@@ -457,3 +444,112 @@ pub enum Error {
 
 /// Result type for site-finance workflow validation and proof promotion.
 pub type Result<T> = std::result::Result<T, Error>;
+
+#[cfg(test)]
+mod changed_line_tests {
+    use super::*;
+
+    #[test]
+    fn projections_reject_service_and_missing_source_relationships() {
+        let mut request = fixture_request();
+        request.benchmark.service = entities::ServiceKind::Grooming;
+        assert_eq!(Workflow::evaluate(request), Err(Error::ServiceMismatch));
+
+        let mut request = fixture_request();
+        request.current.source_refs.clear();
+        assert_eq!(
+            Workflow::evaluate(request),
+            Err(Error::MissingSourceEvidence)
+        );
+    }
+
+    #[test]
+    fn attached_quality_issues_require_manager_review() {
+        let mut fact = fixture_request().current;
+        fact.data_quality_issues.push(data_quality::Issue::new(
+            data_quality::Kind::CheckoutEvidenceMissing,
+            data_quality::Severity::Warning,
+            source::Provenance::builder()
+                .system(source::System::FinanceAccounting)
+                .endpoint(source::Endpoint::try_new("finance coverage fixture").unwrap())
+                .record_id(source::record::Id::try_new("finance-quality-coverage").unwrap())
+                .extraction_batch(source::ExtractionBatchId::try_new("coverage-batch").unwrap())
+                .pulled_at(source::Timestamp::try_new("2026-08-18T00:00:00Z").unwrap())
+                .request_scope(source::RequestScope::try_new("coverage-only").unwrap())
+                .schema_version(source::SchemaVersion::try_new("v1").unwrap())
+                .payload_hash(source::PayloadHash::try_new("sha256:coverage").unwrap())
+                .raw_payload_ref(source::RawPayloadRef::try_new("fixture/coverage.json").unwrap())
+                .build(),
+            source::Timestamp::try_new("2026-08-18T00:00:00Z").unwrap(),
+            false,
+        ));
+        assert_eq!(
+            fact.data_quality_status(),
+            DataQualityStatus::ManagerReviewRequired
+        );
+    }
+
+    #[test]
+    fn recommendation_and_action_reject_non_manager_review_gates() {
+        let projection = Workflow::evaluate(fixture_request()).unwrap();
+        assert_eq!(
+            ReviewedRecommendation::try_new(
+                projection.clone(),
+                analytics::finance::Recommendation::ReviewLaborPlan,
+                policy::ReviewGate::CustomerMessageApproval,
+            ),
+            Err(Error::ManagerReviewRequired)
+        );
+
+        let invalid = ReviewedRecommendation {
+            projection,
+            review_gate: policy::ReviewGate::CustomerMessageApproval,
+            recommendation: analytics::finance::Recommendation::ReviewLaborPlan,
+        };
+        assert_eq!(
+            ReviewedFinanceAction::try_from_review(
+                invalid,
+                analytics::outcome::RecommendationRef::try_new("review-id").unwrap(),
+                analytics::outcome::EvidenceRef::try_new("audit-id").unwrap(),
+            ),
+            Err(Error::ManagerReviewRequired)
+        );
+    }
+
+    #[test]
+    fn fixture_builds_reviewed_recommendation_and_record_only_action() {
+        let slice = fixture_site_period_projection().unwrap();
+        assert_eq!(
+            slice.recommendation().recommendation(),
+            analytics::finance::Recommendation::ReviewLaborPlan
+        );
+        assert_eq!(
+            slice.action().legal_action(),
+            LegalFinanceAction::RecordReviewedRecommendationOnly
+        );
+    }
+
+    #[test]
+    fn money_failures_map_to_stable_workflow_errors() {
+        assert_eq!(
+            map_money_error(money::Error::SubtractionWouldBeNegative),
+            Error::ArithmeticWouldUnderflow
+        );
+        assert_eq!(
+            map_money_error(money::Error::AdditionOverflow),
+            Error::ArithmeticOverflow
+        );
+        assert_eq!(
+            map_money_error(money::Error::AmountOverflow),
+            Error::ArithmeticOverflow
+        );
+        assert_eq!(
+            map_money_error(money::Error::NegativeAmount),
+            Error::InvalidMoney
+        );
+        assert_eq!(
+            map_money_error(money::Error::BasisPointsOutOfRange),
+            Error::InvalidMoney
+        );
+    }
+}

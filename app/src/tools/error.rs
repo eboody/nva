@@ -6,34 +6,11 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, thiserror::Error, Clone, PartialEq, Eq)]
 /// Decision choices for error in the agent tool error surface; each value guides source-grounded routing and review.
 pub enum Error {
-    #[error("not found: {resource} {id}")]
-    /// Resource copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
-    NotFound {
-        /// Resource value stored on this variant.
-        resource: Resource,
-        /// Id value stored on this variant.
-        id: ResourceId,
-    },
     #[error("policy denied: {reason}")]
-    /// Reason copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
-    PolicyDenied {
-        /// Reason value stored on this variant.
-        reason: policy::denial::Reason,
-    },
-    #[error("external system error: {failure}")]
-    /// Failure copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
-    External {
-        /// Failure value stored on this variant.
-        failure: ExternalFailure,
-    },
+    /// Reason copied from reviewed source input for audit, reviewer explanation,
 }
 
-impl Error {
-    /// Builds policy denied for the agent tool error gate rules from validated source facts while preserving review gates and draft-only side effects.
-    pub fn policy_denied(reason: policy::denial::Reason) -> Self {
-        Self::PolicyDenied { reason }
-    }
-}
+impl Error {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Decision choices for resource in the agent tool error surface; each value guides source-grounded routing and review.
@@ -118,5 +95,28 @@ impl std::fmt::Display for ExternalFailure {
             Self::Other(message) => return formatter.write_str(message),
         };
         formatter.write_str(label)
+    }
+}
+
+#[cfg(test)]
+mod changed_line_tests {
+    use super::*;
+    use uuid::Uuid;
+
+    #[test]
+    fn entity_resource_ids_render_their_semantic_identifiers() {
+        let customer = entities::CustomerId::new(Uuid::from_u128(1));
+        let pet = entities::PetId::new(Uuid::from_u128(2));
+        let reservation = entities::reservation::Id::new(Uuid::from_u128(3));
+
+        assert_eq!(
+            ResourceId::Customer(customer).to_string(),
+            customer.get().to_string()
+        );
+        assert_eq!(ResourceId::Pet(pet).to_string(), pet.get().to_string());
+        assert_eq!(
+            ResourceId::Reservation(reservation).to_string(),
+            reservation.get().to_string()
+        );
     }
 }

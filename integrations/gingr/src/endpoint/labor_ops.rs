@@ -1,4 +1,4 @@
-use super::{Date, Error, LocationId, Method, Request, Result};
+use super::{Date, LocationId, Method, Request};
 
 fn push_optional<T: core::fmt::Display>(
     params: &mut Vec<(String, String)>,
@@ -14,12 +14,7 @@ fn push_optional<T: core::fmt::Display>(
 /// Gingr user identifier accepted by labor-operation endpoints.
 pub struct UserId(u64);
 
-impl UserId {
-    /// Wraps the Gingr staff/user id used to filter timeclock evidence for labor review.
-    pub fn new(value: u64) -> Self {
-        Self(value)
-    }
-}
+impl UserId {}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 /// Typed request for Gingr timeclock reports used as labor workflow evidence.
@@ -32,74 +27,7 @@ pub struct TimeclockReport {
     user_ids: Vec<UserId>,
 }
 
-impl TimeclockReport {
-    /// Starts a builder that makes each provider parameter explicit before request capture.
-    pub fn builder() -> TimeclockReportBuilder {
-        TimeclockReportBuilder::default()
-    }
-}
-
-#[derive(Clone, Debug, Default)]
-/// Builder for Gingr timeclock report filters.
-pub struct TimeclockReportBuilder {
-    start_date: Option<Date>,
-    end_date: Option<Date>,
-    location_id: Option<LocationId>,
-    include_deleted: Option<bool>,
-    include_clocked_in: Option<bool>,
-    user_ids: Vec<UserId>,
-}
-
-impl TimeclockReportBuilder {
-    /// Scopes the labor report to a provider date range.
-    pub fn date_range(mut self, start_date: Date, end_date: Date) -> Self {
-        self.start_date = Some(start_date);
-        self.end_date = Some(end_date);
-        self
-    }
-
-    /// Scopes the Gingr endpoint request to a location.
-    pub fn location_id(mut self, location_id: LocationId) -> Self {
-        self.location_id = Some(location_id);
-        self
-    }
-
-    /// Includes deleted provider records when Gingr supports that filter.
-    pub fn include_deleted(mut self, include_deleted: bool) -> Self {
-        self.include_deleted = Some(include_deleted);
-        self
-    }
-
-    /// Includes currently clocked-in users in the labor report.
-    pub fn include_clocked_in(mut self, include_clocked_in: bool) -> Self {
-        self.include_clocked_in = Some(include_clocked_in);
-        self
-    }
-
-    /// Filters the labor report to one Gingr user.
-    pub fn user_id(mut self, user_id: UserId) -> Self {
-        self.user_ids.push(user_id);
-        self
-    }
-
-    /// Finalizes the provider request descriptor after required fields are present and wrappers have validated local invariants.
-    pub fn build(self) -> Result<TimeclockReport> {
-        Ok(TimeclockReport {
-            start_date: self.start_date.ok_or(Error::MissingRequiredParameter {
-                parameter: "start_date",
-            })?,
-            end_date: self.end_date.ok_or(Error::MissingRequiredParameter {
-                parameter: "end_date",
-            })?,
-            location_id: self.location_id.ok_or(Error::MissingRequiredParameter {
-                parameter: "location_id",
-            })?,
-            include_deleted: self.include_deleted,
-            include_clocked_in: self.include_clocked_in,
-            user_ids: self.user_ids,
-        })
-    }
-}
+impl TimeclockReport {}
 
 impl Request for TimeclockReport {
     fn method(&self) -> Method {

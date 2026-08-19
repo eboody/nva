@@ -32,7 +32,6 @@
 
 use super::*;
 use crate::policy;
-use bon::Builder;
 use nonempty::NonEmpty;
 use std::collections::BTreeSet;
 
@@ -41,11 +40,6 @@ use std::collections::BTreeSet;
 pub struct RoomCount(u16);
 
 impl RoomCount {
-    /// Promotes a source-system room count into the boarding capacity domain.
-    pub const fn try_new(value: u16) -> std::result::Result<Self, RoomCountError> {
-        Ok(Self(value))
-    }
-
     /// Returns the raw room count for source adapters, reports, and serialization.
     pub const fn get(self) -> u16 {
         self.0
@@ -79,21 +73,6 @@ impl OverOccupancy {
             occupied,
             excess: RoomCount(occupied.get() - total.get()),
         })
-    }
-
-    /// Returns the recorded total capacity involved in the contradiction.
-    pub const fn total(self) -> RoomCount {
-        self.total
-    }
-
-    /// Returns the recorded occupied count involved in the contradiction.
-    pub const fn occupied(self) -> RoomCount {
-        self.occupied
-    }
-
-    /// Returns how many occupied rooms exceed the recorded total capacity.
-    pub const fn excess(self) -> RoomCount {
-        self.excess
     }
 }
 
@@ -158,15 +137,6 @@ pub enum OccupancyState {
     OverOccupied(OverOccupancy),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Builder-facing source counts for one accommodation segment on a boarding night.
-pub struct SegmentCounts {
-    /// Accommodation segment these counts describe.
-    pub accommodation: accommodation::Kind,
-    total: RoomCount,
-    occupied: RoomCount,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Immutable nightly capacity snapshot for one accommodation segment.
 pub struct NightlySegmentSnapshot {
@@ -177,15 +147,6 @@ pub struct NightlySegmentSnapshot {
 }
 
 impl NightlySegmentSnapshot {
-    /// Freezes builder-provided segment counts into a nightly snapshot used by capacity policy.
-    pub const fn from_counts(counts: SegmentCounts) -> Self {
-        Self {
-            accommodation: counts.accommodation,
-            total: counts.total,
-            occupied: counts.occupied,
-        }
-    }
-
     /// Returns total rooms known for this accommodation segment.
     pub const fn total(&self) -> RoomCount {
         self.total
@@ -281,20 +242,7 @@ pub struct Request {
     pub accommodation: accommodation::Preference,
 }
 
-impl Request {
-    /// Creates a capacity request from already-identified location, species, and preference values.
-    pub const fn new(
-        location_id: LocationId,
-        species: crate::entities::Species,
-        accommodation: accommodation::Preference,
-    ) -> Self {
-        Self {
-            location_id,
-            species,
-            accommodation,
-        }
-    }
-}
+impl Request {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Capacity outcome an agent may present to staff when handling a boarding request.
@@ -327,17 +275,7 @@ pub enum Decision {
     },
 }
 
-impl Decision {
-    /// Returns the human review gate required before staff override a denied capacity decision.
-    pub fn required_review_gate(&self) -> Option<policy::ReviewGate> {
-        match self {
-            Self::AvailableForReview { review_gate, .. }
-            | Self::Deny { review_gate, .. }
-            | Self::ReconciliationRequired { review_gate, .. } => Some(review_gate.clone()),
-            Self::Waitlist { .. } => None,
-        }
-    }
-}
+impl Decision {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Reasons boarding capacity policy must deny confirmation from available evidence.
@@ -361,66 +299,4 @@ pub enum WaitlistReason {
 /// Deterministic boarding capacity policy that does not invent inventory.
 pub struct Policy;
 
-impl Policy {
-    /// Evaluates a boarding request against room inventory and returns confirm, waitlist, or denial evidence.
-    pub fn evaluate(&self, request: &Request, snapshot: &Snapshot) -> Decision {
-        let mut compatible_but_full = false;
-        let acceptable_accommodations = request.accommodation.acceptable_kinds();
-
-        for wanted in &acceptable_accommodations {
-            if !wanted.supports_species(&request.species) {
-                return Decision::Deny {
-                    reason: DenialReason::SpeciesAccommodationMismatch,
-                    review_gate: policy::ReviewGate::ManagerApproval,
-                };
-            }
-
-            for segment in snapshot.segments() {
-                match segment.occupancy_state() {
-                    OccupancyState::OverOccupied(anomaly) if segment.accommodation == *wanted => {
-                        return Decision::ReconciliationRequired {
-                            anomaly,
-                            review_gate: policy::ReviewGate::ManagerApproval,
-                        };
-                    }
-                    OccupancyState::Available { .. }
-                    | OccupancyState::Full
-                    | OccupancyState::OverOccupied(_) => {}
-                }
-            }
-        }
-
-        for wanted in acceptable_accommodations {
-            for segment in snapshot.segments() {
-                if segment.accommodation == wanted {
-                    match segment.occupancy_state() {
-                        OccupancyState::Available { .. } => {
-                            return Decision::AvailableForReview {
-                                accommodation: wanted,
-                                review_gate: policy::ReviewGate::ManagerApproval,
-                            };
-                        }
-                        OccupancyState::Full => compatible_but_full = true,
-                        OccupancyState::OverOccupied(anomaly) => {
-                            return Decision::ReconciliationRequired {
-                                anomaly,
-                                review_gate: policy::ReviewGate::ManagerApproval,
-                            };
-                        }
-                    }
-                }
-            }
-        }
-
-        if compatible_but_full {
-            Decision::Waitlist {
-                reason: WaitlistReason::EligibleSegmentFull,
-            }
-        } else {
-            Decision::Deny {
-                reason: DenialReason::NoEligibleSegment,
-                review_gate: policy::ReviewGate::ManagerApproval,
-            }
-        }
-    }
-}
+impl Policy {}

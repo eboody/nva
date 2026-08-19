@@ -56,7 +56,7 @@ async fn metrics_endpoint_exports_bounded_prometheus_request_series() {
             .clone()
             .oneshot(
                 axum_http::Request::builder()
-                    .uri("/healthz")
+                    .uri("/v1/healthz")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -68,7 +68,7 @@ async fn metrics_endpoint_exports_bounded_prometheus_request_series() {
     let response = app
         .oneshot(
             axum_http::Request::builder()
-                .uri("/metrics")
+                .uri("/v1/metrics")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -83,7 +83,7 @@ async fn metrics_endpoint_exports_bounded_prometheus_request_series() {
     let body = String::from_utf8(body.to_vec()).unwrap();
     assert!(body.contains("pet_resort_api_requests_total"));
     assert!(body.contains("method=\"GET\""));
-    assert!(body.contains("route=\"/healthz\""));
+    assert!(body.contains("route=\"/v1/healthz\""));
     assert!(body.contains("status_class=\"2xx\"} 2"));
     assert!(body.contains("pet_resort_api_request_duration_seconds_bucket"));
 }

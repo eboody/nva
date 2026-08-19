@@ -75,12 +75,7 @@ pub struct GetImmunizationTypes {
     species: SpeciesId,
 }
 
-impl GetImmunizationTypes {
-    /// Wraps an already-observed Gingr identifier without claiming anything beyond provider provenance.
-    pub const fn new(species: SpeciesId) -> Self {
-        Self { species }
-    }
-}
+impl GetImmunizationTypes {}
 
 impl Request for GetImmunizationTypes {
     fn method(&self) -> Method {
@@ -102,12 +97,7 @@ pub struct GetAnimalImmunizations {
     animal: AnimalId,
 }
 
-impl GetAnimalImmunizations {
-    /// Wraps an already-observed Gingr identifier without claiming anything beyond provider provenance.
-    pub const fn new(animal: AnimalId) -> Self {
-        Self { animal }
-    }
-}
+impl GetAnimalImmunizations {}
 
 impl Request for GetAnimalImmunizations {
     fn method(&self) -> Method {

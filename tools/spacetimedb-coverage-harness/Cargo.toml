@@ -1,0 +1,17 @@
+[workspace]
+
+[package]
+name = "nva-spacetimedb-coverage-harness"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+app = { path = "../../app" }
+domain = { path = "../../domain" }
+minicov = "0.3.9"
+nva-spacetimedb = { path = "../../apps/spacetimedb", features = ["wasm-coverage-runtime"] }
+spacetimedb = "=2.6.0"

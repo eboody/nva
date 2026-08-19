@@ -57,6 +57,6 @@ The guardrail checks:
 - changed Markdown for stale-process wording that should either be removed or explicitly justified in the handoff;
 - canonical local-demo/API architecture docs for stale open-item/future/bootstrap language even when the checkout is otherwise clean;
 - tracked and untracked cache/build/database/archive artifacts that should not survive as workspace noise;
-- the checked OpenAPI v0 artifact against the literal Axum `/v0/` route surface.
+- the checked OpenAPI v0 artifact against the literal Axum `/v1/` route surface.
 
 The guardrail is intentionally narrow. Passing it does not replace targeted Rust, web, docs, compose, or smoke gates required by the card; it only proves that common stale/noisy closeout failures were checked mechanically. Use `--all-markdown` for a broader advisory stale-wording sweep, but treat older planning/audit files as candidates for follow-up rather than automatic closeout blockers unless the card touched or relies on them.

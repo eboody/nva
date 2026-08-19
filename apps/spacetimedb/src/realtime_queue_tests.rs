@@ -1,9 +1,10 @@
 use crate::{
-    adapter::{ActorDirectoryAdapter, BlockedActionLogAdapter},
+    adapter::{
+        ActorDirectoryAdapter, AuditLogAdapter, BlockedActionLogAdapter, OutcomeRecorderAdapter,
+    },
     authz,
     read_model::{
-        BlockedActionNoticeRow, HygieneOutcomeCardRow, HygieneOutcomeCardV1Row,
-        ManagerQueueItemRow, StaffQueueItemRow,
+        BlockedActionNoticeRow, HygieneOutcomeCardRow, ManagerQueueItemRow, StaffQueueItemRow,
     },
     storage::review_queue::{
         ActorRefColumn, BlockedActionAttemptRow, BlockedActionColumn, BlockedActionReasonColumn,
@@ -13,17 +14,90 @@ use crate::{
         WorkflowOutcomeRow, codec, transition,
     },
     tables::{
-        ActorKindColumn, LocationScopeRow, LocationScopeV1Row, ReviewerRoleColumn,
-        RoleAssignmentRow, StaffActorRow,
+        ActorKindColumn, LocationScopeRow, ReviewerRoleColumn, RoleAssignmentRow, StaffActorRow,
     },
 };
 use app::data_quality_hygiene as hygiene;
-use app::data_quality_hygiene::{ActorDirectory, AuthorizationPolicy, BlockedActionLog};
+use app::data_quality_hygiene::{
+    ActorDirectory, AuditLog, AuthorizationPolicy, BlockedActionLog, OutcomeRecorder,
+};
 
 #[test]
 fn external_callers_cannot_invoke_privileged_demo_seed_reducers() {
     assert!(!crate::reducers::fixture_seed_authorized(false));
     assert!(crate::reducers::fixture_seed_authorized(true));
+}
+
+#[derive(Default)]
+struct InMemoryActorSeedStore {
+    actors: Vec<StaffActorRow>,
+    roles: Vec<RoleAssignmentRow>,
+    scopes: Vec<LocationScopeRow>,
+}
+
+impl crate::fixture_seed::ActorStore for InMemoryActorSeedStore {
+    fn upsert_actor(&mut self, row: StaffActorRow) {
+        self.actors.retain(|actor| actor.actor_id != row.actor_id);
+        self.actors.push(row);
+    }
+
+    fn insert_role(&mut self, mut row: RoleAssignmentRow) {
+        row.id = self.roles.len() as u64 + 1;
+        self.roles.push(row);
+    }
+
+    fn insert_scope(&mut self, mut row: LocationScopeRow) {
+        row.id = self.scopes.len() as u64 + 1;
+        self.scopes.push(row);
+    }
+}
+
+#[test]
+fn actor_seed_plan_is_shared_authorized_replay_safe_and_preserves_additive_assignments() {
+    let mut store = InMemoryActorSeedStore::default();
+    let command = crate::fixture_seed::ActorSeed {
+        actor_id: "alice".to_owned(),
+        identity: "identity-alice".to_owned(),
+        actor_kind: ActorKindColumn::Staff,
+        actor_ref: "staff-alice".to_owned(),
+        review_role: ReviewerRoleColumn::FrontDeskAgent,
+        location_id: "101".to_owned(),
+    };
+
+    assert_eq!(
+        crate::fixture_seed::execute_actor_seed(
+            &mut store,
+            crate::fixture_seed::Authorization::External,
+            command.clone(),
+        ),
+        Err(crate::fixture_seed::Error::ExternalCaller)
+    );
+    assert!(store.actors.is_empty());
+
+    crate::fixture_seed::execute_actor_seed(
+        &mut store,
+        crate::fixture_seed::Authorization::Internal,
+        command.clone(),
+    )
+    .unwrap();
+    crate::fixture_seed::execute_actor_seed(
+        &mut store,
+        crate::fixture_seed::Authorization::Internal,
+        crate::fixture_seed::ActorSeed {
+            actor_kind: ActorKindColumn::Manager,
+            actor_ref: "manager-alice".to_owned(),
+            review_role: ReviewerRoleColumn::GeneralManager,
+            ..command
+        },
+    )
+    .unwrap();
+
+    assert_eq!(store.actors.len(), 1);
+    assert_eq!(store.actors[0].actor_kind, ActorKindColumn::Manager);
+    assert_eq!(store.roles.len(), 2);
+    assert_eq!(store.scopes.len(), 2);
+    assert_eq!(store.roles[0].id, 1);
+    assert_eq!(store.roles[1].id, 2);
 }
 
 fn location_101() -> String {
@@ -38,7 +112,7 @@ fn pending_location_101_issue() -> ReviewQueueItemRow {
         claimed_by_actor_id: None,
         status: ReviewQueueStatusColumn::PendingStaffReview,
         source_ref: Some(SourceRecordRefColumn {
-            system: SourceSystemColumn::Gingr,
+            system: SourceSystemColumn::ProviderOrPms,
             record_id: "reservation:abc".to_owned(),
         }),
         issue_ref: "dq-issue-location-101".to_owned(),
@@ -58,7 +132,7 @@ fn reported_outcome_provenance_is_derived_from_the_authorized_queue_row() {
     let (source_ref, issue_ref) = crate::reducers::reported_outcome_provenance(&row)
         .expect("queue row carries the provenance required for reported outcome admission");
 
-    assert_eq!(source_ref.system(), domain::source::System::Gingr);
+    assert_eq!(source_ref.system(), domain::source::System::ProviderOrPms);
     assert_eq!(source_ref.record_id().as_str(), "reservation:abc");
     assert_eq!(issue_ref.as_str(), "dq-issue-location-101");
 
@@ -76,100 +150,6 @@ fn review_queue_codec_rejects_unsupported_schema_versions() {
 }
 
 #[test]
-fn authenticated_legacy_scope_migration_is_actor_bound_atomic_and_idempotent() {
-    let actors = vec![StaffActorRow {
-        actor_id: "alice".to_owned(),
-        identity: "identity-alice".to_owned(),
-        actor_kind: ActorKindColumn::Staff,
-        actor_ref: "staff-alice".to_owned(),
-        schema_version: codec::REVIEW_QUEUE_SCHEMA_VERSION,
-    }];
-    let roles = vec![RoleAssignmentRow {
-        id: 1,
-        actor_id: "alice".to_owned(),
-        review_role: ReviewerRoleColumn::FrontDeskAgent,
-        schema_version: codec::REVIEW_QUEUE_SCHEMA_VERSION,
-    }];
-    let legacy = vec![
-        LocationScopeRow {
-            id: 1,
-            actor_id: "alice".to_owned(),
-            location_id: "101".to_owned(),
-        },
-        LocationScopeRow {
-            id: 2,
-            actor_id: "alice".to_owned(),
-            location_id: "101".to_owned(),
-        },
-        LocationScopeRow {
-            id: 3,
-            actor_id: "bob".to_owned(),
-            location_id: "102".to_owned(),
-        },
-    ];
-    let alice = hygiene::ActorId::try_new("alice").unwrap();
-
-    let pending = authz::authenticated_legacy_scope_migration(
-        "identity-alice",
-        &alice,
-        &actors,
-        &roles,
-        &legacy,
-        &[],
-    )
-    .unwrap();
-    assert_eq!(pending.len(), 1);
-    assert_eq!(pending[0].actor_id, "alice");
-    assert_eq!(pending[0].location_id, "101");
-    assert_eq!(
-        pending[0].schema_version,
-        codec::REVIEW_QUEUE_SCHEMA_VERSION
-    );
-
-    let second = authz::authenticated_legacy_scope_migration(
-        "identity-alice",
-        &alice,
-        &actors,
-        &roles,
-        &legacy,
-        &pending,
-    )
-    .unwrap();
-    assert!(second.is_empty());
-
-    let bob = hygiene::ActorId::try_new("bob").unwrap();
-    assert!(matches!(
-        authz::authenticated_legacy_scope_migration(
-            "identity-alice",
-            &bob,
-            &actors,
-            &roles,
-            &legacy,
-            &[],
-        ),
-        Err(authz::RehydrationError::AuthenticatedActorMismatch)
-    ));
-
-    let mut malformed = legacy;
-    malformed.push(LocationScopeRow {
-        id: 4,
-        actor_id: "alice".to_owned(),
-        location_id: "00000000-0000-0000-0000-000000000000".to_owned(),
-    });
-    assert!(matches!(
-        authz::authenticated_legacy_scope_migration(
-            "identity-alice",
-            &alice,
-            &actors,
-            &roles,
-            &malformed,
-            &[],
-        ),
-        Err(authz::RehydrationError::MalformedLocationScope)
-    ));
-}
-
-#[test]
 fn staff_queue_projection_keeps_location_source_and_claim_state_visible() {
     let item: StaffQueueItemRow = codec::staff_queue_item(&pending_location_101_issue());
 
@@ -180,7 +160,7 @@ fn staff_queue_projection_keeps_location_source_and_claim_state_visible() {
     assert_eq!(
         item.source_ref,
         Some(SourceRecordRefColumn {
-            system: SourceSystemColumn::Gingr,
+            system: SourceSystemColumn::ProviderOrPms,
             record_id: "reservation:abc".to_owned(),
         })
     );
@@ -205,6 +185,66 @@ fn manager_queue_projection_only_includes_manager_gated_work() {
 }
 
 #[test]
+fn outcome_and_audit_adapters_preserve_evidence_and_redact_no_actor_variant() {
+    let action_id = hygiene::ActionId::try_new("adapter-action").unwrap();
+    let source_ref = domain::source::RecordRef::new(
+        domain::source::System::ProviderOrPms,
+        domain::source::record::Id::try_new("reservation:adapter").unwrap(),
+    );
+    let outcome = hygiene::OutcomeRecord::builder()
+        .action_id(action_id.clone())
+        .recorded_by(domain::entities::ActorRef::System)
+        .outcome(hygiene::FeedbackOutcome::Completed)
+        .before_minutes(hygiene::LaborMinutes::try_new(12).unwrap())
+        .actual_minutes(hygiene::LaborMinutes::try_new(7).unwrap())
+        .source_record_refs(vec![source_ref])
+        .issue_refs(vec![hygiene::IssueRef::try_new("issue:adapter").unwrap()])
+        .build()
+        .unwrap();
+    let mut recorder = OutcomeRecorderAdapter::default();
+    let receipt = recorder.record_outcome(outcome);
+    assert_eq!(receipt.action_id(), &action_id);
+    assert_eq!(recorder.rows()[0].actual_minutes, 7);
+    let outcome_card = codec::staff_outcome_card(recorder.rows()[0].clone());
+    assert_eq!(outcome_card.reported_actual_minutes_spent, 7);
+    assert_eq!(
+        codec::initial_status(),
+        ReviewQueueStatusColumn::PendingStaffReview
+    );
+
+    let actors = [
+        domain::entities::ActorRef::Customer(domain::entities::CustomerId::new(
+            uuid::Uuid::from_u128(1),
+        )),
+        domain::entities::ActorRef::Staff {
+            staff_id: domain::entities::StaffId::try_new("staff-adapter").unwrap(),
+        },
+        domain::entities::ActorRef::Manager {
+            manager_id: domain::entities::ManagerId::try_new("manager-adapter").unwrap(),
+        },
+        domain::entities::ActorRef::Agent {
+            workflow: domain::agent::Name::try_new("agent-adapter").unwrap(),
+        },
+        domain::entities::ActorRef::System,
+    ];
+    let mut audit = AuditLogAdapter::default();
+    for actor in actors {
+        audit.append_audit_record(hygiene::AuditRecord::new(
+            action_id.clone(),
+            actor,
+            vec![hygiene::BlockedAction::SendCustomerMessage],
+        ));
+    }
+    let rows = audit.rows();
+    assert_eq!(rows.len(), 5);
+    assert_eq!(rows.last().unwrap().actor_id, "system");
+    assert!(
+        rows.iter()
+            .all(|row| row.blocked_actions == vec![BlockedActionColumn::SendCustomerMessage])
+    );
+}
+
+#[test]
 fn split_actor_role_and_scope_rows_promote_into_app_authorization_policy() {
     let directory = ActorDirectoryAdapter::new(
         vec![StaffActorRow {
@@ -220,7 +260,7 @@ fn split_actor_role_and_scope_rows_promote_into_app_authorization_policy() {
             review_role: ReviewerRoleColumn::FrontDeskLead,
             schema_version: codec::REVIEW_QUEUE_SCHEMA_VERSION,
         }],
-        vec![LocationScopeV1Row {
+        vec![LocationScopeRow {
             id: 0,
             actor_id: "alice".to_owned(),
             location_id: location_101(),
@@ -348,6 +388,50 @@ fn conflicting_role_rows_fail_closed_without_inventing_multi_role_policy() {
 }
 
 #[test]
+fn duplicate_identical_role_rows_fail_closed_instead_of_amplifying_authority() {
+    let actor = staff_actor(
+        "alice",
+        "identity-alice",
+        ActorKindColumn::Staff,
+        "staff-alice",
+    );
+    let roles = [
+        role_assignment("alice", ReviewerRoleColumn::FrontDeskLead),
+        role_assignment("alice", ReviewerRoleColumn::FrontDeskLead),
+    ];
+    let scopes: [LocationScopeRow; 0] = [];
+
+    assert_eq!(
+        authz::actor_assignment_from_rows(&actor, roles.iter(), scopes.iter()),
+        Err(authz::RehydrationError::DuplicateRoleAssignment)
+    );
+}
+
+#[test]
+fn actor_directory_rejects_duplicate_actor_ids_before_authority_promotion() {
+    let directory = ActorDirectoryAdapter::new(
+        vec![
+            staff_actor(
+                "alice",
+                "identity-alice-a",
+                ActorKindColumn::Staff,
+                "staff-alice",
+            ),
+            staff_actor(
+                "alice",
+                "identity-alice-b",
+                ActorKindColumn::Staff,
+                "staff-alice",
+            ),
+        ],
+        vec![role_assignment("alice", ReviewerRoleColumn::FrontDeskLead)],
+        vec![location_scope("alice", "101")],
+    );
+
+    assert!(directory.resolve_actor(&actor_id("alice")).is_none());
+}
+
+#[test]
 fn malformed_location_scope_fails_the_whole_authority_rehydration() {
     let actor = staff_actor(
         "alice",
@@ -404,24 +488,13 @@ fn ai_service_actor_can_draft_but_outcome_cards_never_allow_live_delivery() {
     assert!(policy.can_work_queue_item(&ai, &review_item));
     assert!(!policy.can_record_outcome(&ai, &review_item));
 
-    let legacy_card = HygieneOutcomeCardRow {
-        action_id: "legacy-dq-action-location-101".to_owned(),
-        recorded_by: ActorRefColumn::System,
-        outcome: FeedbackOutcomeColumn::Completed,
-        minutes_saved: 4,
-        live_delivery_allowed: false,
-        source_record_refs: Vec::new(),
-        issue_refs: Vec::new(),
-    };
-    assert_eq!(legacy_card.minutes_saved, 4);
-
-    let outcome_card = HygieneOutcomeCardV1Row::new(
+    let outcome_card = HygieneOutcomeCardRow::new(
         "dq-action-location-101".to_owned(),
         ActorRefColumn::System,
         FeedbackOutcomeColumn::Completed,
         9,
         vec![SourceRecordRefColumn {
-            system: SourceSystemColumn::Gingr,
+            system: SourceSystemColumn::ProviderOrPms,
             record_id: "reservation-101".to_owned(),
         }],
         vec!["dq-issue-location-101".to_owned()],
@@ -434,7 +507,7 @@ fn ai_service_actor_can_draft_but_outcome_cards_never_allow_live_delivery() {
 fn realtime_identity_provenance_and_parent_rows_redact_debug_output() {
     let actor = ActorRefColumn::Staff("private-actor-id".to_owned());
     let source_ref = SourceRecordRefColumn {
-        system: SourceSystemColumn::Gingr,
+        system: SourceSystemColumn::ProviderOrPms,
         record_id: "private-source-record".to_owned(),
     };
     assert_eq!(format!("{actor:?}"), "ActorRefColumn([REDACTED])");
@@ -466,14 +539,6 @@ fn realtime_identity_provenance_and_parent_rows_redact_debug_output() {
         format!(
             "{:?}",
             LocationScopeRow {
-                id: 1,
-                actor_id: "private-actor-id".to_owned(),
-                location_id: "private-location".to_owned(),
-            }
-        ),
-        format!(
-            "{:?}",
-            LocationScopeV1Row {
                 id: 1,
                 actor_id: "private-actor-id".to_owned(),
                 location_id: "private-location".to_owned(),
@@ -744,6 +809,116 @@ fn only_claim_owner_can_recommend_or_dispose_claimed_work() {
 }
 
 #[test]
+fn transition_errors_and_operation_labels_cover_every_fail_closed_reason() {
+    let labels = [
+        (transition::Operation::Claim, "claim"),
+        (
+            transition::Operation::AttachRecommendation,
+            "attach recommendation",
+        ),
+        (
+            transition::Operation::RecordStaffDisposition,
+            "record staff disposition",
+        ),
+        (
+            transition::Operation::RecordManagerOutcome,
+            "record manager outcome",
+        ),
+        (transition::Operation::CaptureOutcome, "capture outcome"),
+        (
+            transition::Operation::BlockUnsafeSideEffect,
+            "block unsafe side effect",
+        ),
+    ];
+    for (operation, label) in labels {
+        assert_eq!(operation.to_string(), label);
+    }
+
+    let errors = [
+        transition::Error::InvalidSourceState {
+            operation: transition::Operation::Claim,
+            actual: ReviewQueueStatusColumn::Blocked,
+        },
+        transition::Error::ActorAlreadyClaimed {
+            claimed_by: "alice".to_owned(),
+        },
+        transition::Error::ActorDoesNotOwnClaim,
+        transition::Error::ManagerGateRequired,
+        transition::Error::ManagerGateNotRequired,
+        transition::Error::OutcomeDoesNotMatchDisposition,
+    ];
+    for error in errors {
+        assert!(!error.to_string().is_empty());
+    }
+
+    let mut already_claimed = pending_location_101_issue();
+    already_claimed.claimed_by_actor_id = Some("alice".to_owned());
+    assert!(matches!(
+        transition::claim(&mut already_claimed, "sam".to_owned()),
+        Err(transition::Error::ActorAlreadyClaimed { .. })
+    ));
+
+    let mut blocked_claim = pending_location_101_issue();
+    blocked_claim.status = ReviewQueueStatusColumn::Blocked;
+    assert!(matches!(
+        transition::claim(&mut blocked_claim, "sam".to_owned()),
+        Err(transition::Error::InvalidSourceState { .. })
+    ));
+
+    let mut unclaimed_disposition = pending_location_101_issue();
+    assert!(matches!(
+        transition::record_staff_disposition(
+            &mut unclaimed_disposition,
+            "sam",
+            StaffDispositionColumn::Defer,
+        ),
+        Err(transition::Error::InvalidSourceState { .. })
+    ));
+
+    let mut manager_gated_completion = pending_location_101_issue();
+    transition::claim(&mut manager_gated_completion, "sam".to_owned()).unwrap();
+    assert_eq!(
+        transition::record_staff_disposition(
+            &mut manager_gated_completion,
+            "sam",
+            StaffDispositionColumn::CompleteWithoutManagerApproval,
+        ),
+        Err(transition::Error::ManagerGateRequired)
+    );
+
+    let mut premature_manager_outcome = pending_location_101_issue();
+    assert!(matches!(
+        transition::record_manager_outcome(
+            &mut premature_manager_outcome,
+            ManagerOutcomeColumn::Approved,
+        ),
+        Err(transition::Error::InvalidSourceState { .. })
+    ));
+
+    let mut missing_manager_gate = pending_location_101_issue();
+    missing_manager_gate.status = ReviewQueueStatusColumn::PendingManagerApproval;
+    missing_manager_gate.required_review_gates.clear();
+    assert_eq!(
+        transition::record_manager_outcome(
+            &mut missing_manager_gate,
+            ManagerOutcomeColumn::Approved
+        ),
+        Err(transition::Error::ManagerGateRequired)
+    );
+
+    let mut blockable = pending_location_101_issue();
+    transition::block_unsafe_side_effect(&mut blockable).unwrap();
+    assert_eq!(blockable.status, ReviewQueueStatusColumn::Blocked);
+
+    let mut missing_disposition = pending_location_101_issue();
+    missing_disposition.status = ReviewQueueStatusColumn::ReadyForOutcome;
+    assert_eq!(
+        transition::capture_outcome(&mut missing_disposition, FeedbackOutcomeColumn::Completed,),
+        Err(transition::Error::OutcomeDoesNotMatchDisposition)
+    );
+}
+
+#[test]
 fn terminal_dispositions_only_authorize_semantically_matching_outcomes() {
     for (manager_outcome, feedback_outcome) in [
         (
@@ -771,21 +946,20 @@ fn terminal_dispositions_only_authorize_semantically_matching_outcomes() {
         transition::capture_outcome(&mut row, feedback_outcome).unwrap();
     }
 
-    for staff_disposition in StaffDispositionColumn::ALL
-        .into_iter()
-        .filter(|disposition| *disposition != StaffDispositionColumn::RecommendForManagerApproval)
-    {
+    for (staff_disposition, feedback_outcome) in [
+        (
+            StaffDispositionColumn::CompleteWithoutManagerApproval,
+            FeedbackOutcomeColumn::Completed,
+        ),
+        (
+            StaffDispositionColumn::Defer,
+            FeedbackOutcomeColumn::Deferred,
+        ),
+    ] {
         let mut row = pending_location_101_issue();
         row.required_review_gates.clear();
         transition::claim(&mut row, "alice".to_owned()).unwrap();
         transition::record_staff_disposition(&mut row, "alice", staff_disposition).unwrap();
-        let feedback_outcome = match staff_disposition {
-            StaffDispositionColumn::CompleteWithoutManagerApproval => {
-                FeedbackOutcomeColumn::Completed
-            }
-            StaffDispositionColumn::Defer => FeedbackOutcomeColumn::Deferred,
-            StaffDispositionColumn::RecommendForManagerApproval => unreachable!(),
-        };
         transition::capture_outcome(&mut row, feedback_outcome).unwrap();
     }
 }
@@ -893,8 +1067,8 @@ fn role_assignment(actor_id: &str, review_role: ReviewerRoleColumn) -> RoleAssig
     }
 }
 
-fn location_scope(actor_id: &str, location_id: &str) -> LocationScopeV1Row {
-    LocationScopeV1Row {
+fn location_scope(actor_id: &str, location_id: &str) -> LocationScopeRow {
+    LocationScopeRow {
         id: 0,
         actor_id: actor_id.to_owned(),
         location_id: location_id.to_owned(),

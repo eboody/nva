@@ -1,0 +1,7 @@
+error[E0432]: unresolved imports `storage::operations::ApprovalReviewDisposition`, `storage::operations::ApprovalTargetBinding`
+ --> tests/ui/caller_constructible_approval_evidence_is_absent.rs:2:20
+  |
+2 |     ActorKindCode, ApprovalReviewDisposition, ApprovalTargetBinding, ReviewGateCode,
+  |                    ^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^ no `ApprovalTargetBinding` in `operations`
+  |                    |
+  |                    no `ApprovalReviewDisposition` in `operations`

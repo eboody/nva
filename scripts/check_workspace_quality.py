@@ -4,7 +4,7 @@
 This check is intentionally small and mechanical. It catches the kinds of
 stale/noisy state that are easy to miss in a busy shared Kanban workspace:
 changed Markdown that reintroduces stale-process wording, tracked/untracked
-cache artifacts, and drift between the Axum v0 route surface and the checked
+cache artifacts, and drift between the Axum v1 route surface and the checked
 OpenAPI artifact.
 """
 
@@ -37,6 +37,8 @@ CANONICAL_MARKDOWN_PATHS: frozenset[str] = frozenset(
         "docs/architecture/runtime-contract-boundaries.md",
         "docs/demo/local-demo-walkthrough.md",
         "docs/ops/local-demo-compose.md",
+        "docs/pet-resorts-ai-priorities.md",
+        "docs/plans/2026-08-17-lead-response-booking-conversion.md",
         "docs/quality/kanban-closeout-checklist.md",
     }
 )
@@ -141,34 +143,36 @@ def noisy_artifact_findings(paths: set[str], category: str) -> list[Finding]:
 
 def openapi_route_findings(repo_root: Path) -> tuple[list[Finding], int, int]:
     http_rs = repo_root / "apps" / "api" / "src" / "http.rs"
-    openapi_json = repo_root / "apps" / "api" / "openapi" / "owned-operations-v0.openapi.json"
-    if not http_rs.exists() and not openapi_json.exists():
+    router_rs = repo_root / "apps" / "api" / "src" / "http" / "router.rs"
+    openapi_json = repo_root / "apps" / "api" / "openapi" / "owned-operations-v1.openapi.json"
+    route_sources = [path for path in (http_rs, router_rs) if path.exists()]
+    if not route_sources and not openapi_json.exists():
         return [], 0, 0
-    if not http_rs.exists():
+    if not route_sources:
         return [Finding("OpenAPI/source consistency", http_rs.as_posix(), "missing Axum route source")], 0, 0
     if not openapi_json.exists():
         return [Finding("OpenAPI/source consistency", openapi_json.as_posix(), "missing OpenAPI artifact")], 0, 0
 
-    source = http_rs.read_text(encoding="utf-8")
-    axum_v0_routes = sorted({route for route in ROUTE_LITERAL.findall(source) if route.startswith("/v0/")})
+    source = "\n".join(path.read_text(encoding="utf-8") for path in route_sources)
+    axum_v1_routes = sorted({route for route in ROUTE_LITERAL.findall(source) if route.startswith("/v1/")})
     try:
         spec = json.loads(openapi_json.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
-        return [Finding("OpenAPI/source consistency", openapi_json.as_posix(), f"invalid JSON: {exc}")], len(axum_v0_routes), 0
+        return [Finding("OpenAPI/source consistency", openapi_json.as_posix(), f"invalid JSON: {exc}")], len(axum_v1_routes), 0
 
     openapi_paths = spec.get("paths")
     if not isinstance(openapi_paths, dict):
-        return [Finding("OpenAPI/source consistency", openapi_json.as_posix(), "missing object `paths`")], len(axum_v0_routes), 0
+        return [Finding("OpenAPI/source consistency", openapi_json.as_posix(), "missing object `paths`")], len(axum_v1_routes), 0
 
     spec_routes = sorted(openapi_paths)
-    missing = [route for route in axum_v0_routes if route not in openapi_paths]
-    extra = [route for route in spec_routes if route.startswith("/v0/") and route not in axum_v0_routes]
+    missing = [route for route in axum_v1_routes if route not in openapi_paths]
+    extra = [route for route in spec_routes if route.startswith("/v1/") and route not in axum_v1_routes]
 
     findings: list[Finding] = []
     if missing:
         findings.append(
             Finding(
-                "OpenAPI missing v0 routes",
+                "OpenAPI missing v1 routes",
                 openapi_json.relative_to(repo_root).as_posix(),
                 ", ".join(missing),
             )
@@ -176,12 +180,12 @@ def openapi_route_findings(repo_root: Path) -> tuple[list[Finding], int, int]:
     if extra:
         findings.append(
             Finding(
-                "OpenAPI has stale v0 routes",
+                "OpenAPI has stale v1 routes",
                 openapi_json.relative_to(repo_root).as_posix(),
                 ", ".join(extra),
             )
         )
-    return findings, len(axum_v0_routes), len([route for route in spec_routes if route.startswith("/v0/")])
+    return findings, len(axum_v1_routes), len([route for route in spec_routes if route.startswith("/v1/")])
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -213,7 +217,7 @@ def main(argv: list[str] | None = None) -> int:
     findings.extend(noisy_artifact_findings(tracked_paths, "tracked file should be removed or ignored"))
     findings.extend(noisy_artifact_findings(untracked, "untracked file should be removed, ignored, or intentionally staged elsewhere"))
     findings.extend(stale_markdown_findings(repo_root, paths_for_markdown))
-    openapi_findings, axum_v0_count, openapi_v0_count = openapi_route_findings(repo_root)
+    openapi_findings, axum_v1_count, openapi_v1_count = openapi_route_findings(repo_root)
     findings.extend(openapi_findings)
 
     if findings:
@@ -227,8 +231,8 @@ def main(argv: list[str] | None = None) -> int:
         "workspace_quality_ok "
         f"markdown_scanned={markdown_count} "
         f"canonical_markdown_scanned={len(markdown_paths_to_scan(repo_root, set(canonical_paths)))} "
-        f"openapi_v0_routes={openapi_v0_count} "
-        f"axum_v0_routes={axum_v0_count} "
+        f"openapi_v1_routes={openapi_v1_count} "
+        f"axum_v1_routes={axum_v1_count} "
         f"untracked_noisy_artifacts=0"
     )
     return 0

@@ -29,17 +29,7 @@ use crate::policy;
 /// Count of recent daycare visits used to score pass or membership opportunities.
 pub struct AttendanceVisitCount(u16);
 
-impl AttendanceVisitCount {
-    /// Creates an attendance visit count from prior daycare check-in history.
-    pub const fn new(value: u16) -> Self {
-        Self(value)
-    }
-
-    /// Returns the raw visit count for reporting, scoring, and serialization.
-    pub const fn get(self) -> u16 {
-        self.0
-    }
-}
+impl AttendanceVisitCount {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Care eligibility state used before recommending daycare packages.
@@ -132,47 +122,7 @@ pub enum Decision {
     },
 }
 
-impl Decision {
-    /// Returns the human review gate required before customer messaging, billing, or package action.
-    pub fn review_gate(&self) -> Option<policy::ReviewGate> {
-        match self {
-            Self::RecommendStaffReview { gate, .. } | Self::Suppressed { gate, .. } => {
-                Some(gate.clone())
-            }
-            Self::NoOpportunity { .. } => None,
-        }
-    }
-
-    /// Returns package, payment, provider, and send actions blocked by this decision.
-    pub const fn blocked_actions(&self) -> &'static [BlockedAction] {
-        match self {
-            Self::RecommendStaffReview { .. } | Self::Suppressed { .. } => {
-                PACKAGE_OPPORTUNITY_BLOCKED_ACTIONS
-            }
-            Self::NoOpportunity { .. } => &[],
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Live side effects blocked by daycare package opportunities until staff/system-of-record approval.
-pub enum BlockedAction {
-    /// Do not enroll, modify, renew, or cancel a package or membership autonomously.
-    EnrollPackageOrMembership,
-    /// Do not collect, refund, discount, credit, or invoice from attendance evidence alone.
-    MutatePaymentOrInvoice,
-    /// Do not write package decisions to Gingr/PMS/provider records.
-    MutateProviderRecord,
-    /// Do not send customer package or membership copy without approval.
-    SendCustomerMessage,
-}
-
-const PACKAGE_OPPORTUNITY_BLOCKED_ACTIONS: &[BlockedAction] = &[
-    BlockedAction::EnrollPackageOrMembership,
-    BlockedAction::MutatePaymentOrInvoice,
-    BlockedAction::MutateProviderRecord,
-    BlockedAction::SendCustomerMessage,
-];
+impl Decision {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Strength of a daycare package opportunity from recent attendance evidence.
@@ -205,38 +155,7 @@ pub enum NoOpportunityReason {
 /// Deterministic policy that scores daycare package opportunities from evidence.
 pub struct Policy;
 
-impl Policy {
-    /// Classifies package opportunity evidence into recommend, suppress, or no-opportunity outcomes.
-    pub fn classify(&self, evidence: &Evidence) -> Decision {
-        if matches!(evidence.eligibility, CareEligibility::BlockedBySafetyReview) {
-            return Decision::Suppressed {
-                reason: SuppressionReason::SafetyOrCareReviewRequired,
-                gate: policy::ReviewGate::BehaviorReview,
-            };
-        }
-        if matches!(evidence.payment_state, PaymentState::NeedsBillingReview) {
-            return Decision::Suppressed {
-                reason: SuppressionReason::PaymentOrBillingReviewRequired,
-                gate: policy::ReviewGate::RefundOrDepositException,
-            };
-        }
-        if matches!(evidence.package_state, PackageState::AlreadyCovered) {
-            return Decision::NoOpportunity {
-                reason: NoOpportunityReason::AlreadyCovered,
-            };
-        }
-        if evidence.attendance_visits.get() >= 8 {
-            Decision::RecommendStaffReview {
-                score: OpportunityScore::Strong,
-                gate: policy::ReviewGate::CustomerMessageApproval,
-            }
-        } else {
-            Decision::NoOpportunity {
-                reason: NoOpportunityReason::NotEnoughAttendanceHistory,
-            }
-        }
-    }
-}
+impl Policy {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 /// Caller-reported estimate difference in a source-backed daycare packet; never realized savings.
@@ -249,11 +168,6 @@ impl EstimatedLaborMinutes {
             return Err(LaborMinutesError::Zero);
         }
         Ok(Self(value))
-    }
-
-    /// Returns caller-reported minute evidence retained without a realized-savings claim.
-    pub const fn get(self) -> u16 {
-        self.0
     }
 }
 
@@ -279,11 +193,6 @@ impl ActualLaborMinutes {
             return Err(LaborMinutesError::Zero);
         }
         Ok(Self(value))
-    }
-
-    /// Returns caller-reported minute evidence retained without a realized-savings claim.
-    pub const fn get(self) -> u16 {
-        self.0
     }
 }
 
@@ -328,21 +237,6 @@ pub struct OutcomeRecord {
 }
 
 impl OutcomeRecord {
-    /// Creates caller-reported labor evidence without authorizing package enrollment, billing, provider writes, customer sends, or value claims.
-    pub fn new(
-        disposition: Disposition,
-        before_minutes: EstimatedLaborMinutes,
-        actual_minutes: ActualLaborMinutes,
-        source_record_refs: Vec<crate::source::RecordRef>,
-    ) -> Self {
-        Self {
-            disposition,
-            before_minutes,
-            actual_minutes,
-            source_record_refs,
-        }
-    }
-
     /// Returns reviewer disposition for reporting and quality loops.
     pub const fn disposition(&self) -> Disposition {
         self.disposition
@@ -366,10 +260,5 @@ impl OutcomeRecord {
     /// Reports whether outcome measurement remains tied to source evidence.
     pub fn has_source_evidence(&self) -> bool {
         !self.source_record_refs.is_empty()
-    }
-
-    /// Serializable outcome history cannot publish saved labor minutes.
-    pub const fn reported_estimated_minutes_difference(&self) -> u16 {
-        0
     }
 }

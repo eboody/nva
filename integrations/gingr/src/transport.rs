@@ -7,18 +7,6 @@ pub type Result<T> = core::result::Result<T, TransportError>;
 #[derive(Debug, thiserror::Error)]
 /// Errors raised while building or sending Gingr transport requests.
 pub enum TransportError {
-    #[error("failed to construct Gingr URL for {method:?} {path}: {source}")]
-    /// Gingr URL could not be built or parsed for a specific endpoint request.
-    BuildUrl {
-        /// HTTP method attached at the failure site.
-        method: endpoint::Method,
-        /// Provider endpoint path attached at the failure site.
-        path: endpoint::Path,
-        /// Log-safe request parameters available to diagnostics without exposing secrets.
-        redacted_parameters: Vec<(String, String)>,
-        /// Underlying URL parser or join error.
-        source: url::ParseError,
-    },
     #[error("HTTP transport is not implemented for {method:?} {path}")]
     /// Real HTTP transport is not enabled in this build.
     HttpNotImplemented {
@@ -30,15 +18,6 @@ pub enum TransportError {
 }
 
 impl TransportError {
-    fn build_url(request: &RequestParts, source: url::ParseError) -> Self {
-        Self::BuildUrl {
-            method: request.method,
-            path: request.path,
-            redacted_parameters: request.redacted().parameters,
-            source,
-        }
-    }
-
     fn http_not_implemented(request: &RequestParts) -> Self {
         Self::HttpNotImplemented {
             method: request.method,
@@ -60,14 +39,6 @@ impl RequestParts {
     /// Starts a builder that makes each provider parameter explicit before request capture.
     pub fn builder() -> RequestPartsBuilder {
         RequestPartsBuilder::default()
-    }
-
-    /// Adds the Gingr API key to outbound request parameters.
-    pub fn with_api_key(mut self, api_key: &config::ApiKey) -> Self {
-        self.parameters
-            .push(("key".to_owned(), api_key.expose_for_transport().to_owned()));
-        self.sensitive_parameter_names.push("key".to_owned());
-        self
     }
 
     /// Returns the HTTP method required by this Gingr endpoint.
@@ -96,40 +67,6 @@ impl RequestParts {
         } else {
             &[]
         }
-    }
-
-    /// Returns a copy safe for logs with sensitive request values removed.
-    pub fn redacted(&self) -> RedactedRequest {
-        RedactedRequest {
-            method: self.method,
-            path: self.path,
-            parameters: self
-                .parameters
-                .iter()
-                .map(|(key, value)| {
-                    let rendered = if self
-                        .sensitive_parameter_names
-                        .iter()
-                        .any(|name| name == key)
-                    {
-                        "<redacted>"
-                    } else {
-                        value
-                    };
-                    (key.clone(), rendered.to_owned())
-                })
-                .collect(),
-        }
-    }
-
-    fn url(&self, base_url: &config::BaseUrl) -> Result<url::Url> {
-        let mut url = base_url
-            .join_path(self.path)
-            .map_err(|source| TransportError::build_url(self, source))?;
-        if self.method == endpoint::Method::Get {
-            url.query_pairs_mut().extend_pairs(self.parameters.iter());
-        }
-        Ok(url)
     }
 }
 
@@ -232,55 +169,5 @@ pub struct HttpTransport;
 impl Transport for HttpTransport {
     fn send(&self, _config: &config::Client, request: RequestParts) -> Result<response::Raw> {
         Err(TransportError::http_not_implemented(&request))
-    }
-}
-
-#[derive(Clone, Debug)]
-/// Gingr client configuration bundle shared by endpoint builders and transport.
-pub struct Client<T = HttpTransport> {
-    config: config::Client,
-    transport: T,
-}
-
-impl Client<HttpTransport> {
-    /// Pairs validated Gingr configuration with the transport implementation that will capture or send requests.
-    pub fn new(config: config::Client) -> Self {
-        Self {
-            config,
-            transport: HttpTransport,
-        }
-    }
-}
-
-impl<T> Client<T> {
-    /// Installs a custom transport implementation, usually for tests.
-    pub fn with_transport(config: config::Client, transport: T) -> Self {
-        Self { config, transport }
-    }
-
-    /// Returns the Gingr client configuration used for requests.
-    pub fn config(&self) -> &config::Client {
-        &self.config
-    }
-
-    /// Returns the raw request parts generated for an endpoint without sending it.
-    pub fn capture_request(&self, request: &impl endpoint::Request) -> Result<RequestParts> {
-        let request = request.request_parts().with_api_key(self.config.api_key());
-        let _ = request.url(self.config.base_url())?;
-        Ok(request)
-    }
-
-    /// Returns a log-safe representation of the generated Gingr request.
-    pub fn redacted_request(&self, request: &impl endpoint::Request) -> Result<RedactedRequest> {
-        self.capture_request(request)
-            .map(|request| request.redacted())
-    }
-}
-
-impl<T: Transport> Client<T> {
-    /// Sends the typed Gingr request through the configured transport.
-    pub fn send(&self, request: &impl endpoint::Request) -> Result<response::Raw> {
-        let request = self.capture_request(request)?;
-        self.transport.send(&self.config, request)
     }
 }

@@ -167,13 +167,6 @@ pub struct CapacityPlan {
 }
 
 impl CapacityPlan {
-    /// Creates the boarding value from validated domain parts without re-reading source systems.
-    pub const fn new(room_inventory: RoomInventory, availability: RoomAvailability) -> Self {
-        Self {
-            room_inventory,
-            availability,
-        }
-    }
     /// Returns the inventory count represented by this capacity plan.
     pub const fn room_inventory(&self) -> RoomInventory {
         self.room_inventory
@@ -310,46 +303,5 @@ impl Contract {
     /// Reports whether these boarding rules require deposit collection before confirmation.
     pub fn requires_deposit_collection(&self) -> bool {
         matches!(self.deposit, DepositRule::Required { .. })
-    }
-    /// Builds the baseline PetSuites-style boarding rules used by examples and tests.
-    pub fn standard_petsuites() -> Self {
-        Self::builder()
-            .capacity(CapacityPlan::new(
-                RoomInventory::try_new(1).unwrap(),
-                RoomAvailability::Limited,
-            ))
-            .arrival_window(
-                ServiceWindow::new(
-                    HourOfDay::try_new(7).unwrap(),
-                    HourOfDay::try_new(18).unwrap(),
-                )
-                .unwrap(),
-            )
-            .departure_window(
-                ServiceWindow::new(
-                    HourOfDay::try_new(7).unwrap(),
-                    HourOfDay::try_new(12).unwrap(),
-                )
-                .unwrap(),
-            )
-            .minimum_stay(minimum_stay::Policy::new(
-                StayNights::try_new(1).unwrap(),
-                minimum_stay::Reason::StandardPolicy,
-            ))
-            .cancellation(cancellation::Policy::new(
-                NoticeHours::try_new(24).unwrap(),
-                cancellation::Penalty::ForfeitDeposit,
-            ))
-            .deposit(DepositRule::Required {
-                amount: money::Money::new(
-                    money::MinorUnits::try_new(1).unwrap(),
-                    money::Currency::Usd,
-                ),
-            })
-            .payment(PaymentTiming::DueAtCheckout)
-            .housekeeping(housekeeping::Cadence::DailyRoomReset)
-            .handoff(handoff::Requirement::ArrivalCareReview)
-            .upsells(vec![Upsell::ExitBath, Upsell::TrainingSession])
-            .build()
     }
 }

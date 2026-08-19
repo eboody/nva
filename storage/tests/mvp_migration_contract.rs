@@ -1,5 +1,29 @@
 const MVP_MIGRATION: &str = include_str!("../../migrations/0001_mvp_foundation.sql");
 
+#[test]
+fn clean_slate_schema_has_one_canonical_migration_without_upgrade_bridges() {
+    let migration_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../migrations");
+    let migrations = std::fs::read_dir(migration_dir)
+        .unwrap()
+        .filter_map(std::result::Result::ok)
+        .filter(|entry| {
+            entry
+                .path()
+                .extension()
+                .is_some_and(|extension| extension == "sql")
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        migrations.len(),
+        1,
+        "clean-slate databases have one schema owner"
+    );
+    assert!(!MVP_MIGRATION.contains("ALTER TABLE"));
+    assert!(!MVP_MIGRATION.contains("legacy_persona_missing"));
+    assert!(!MVP_MIGRATION.contains("resolution_status_after_review"));
+}
+
 use storage::operations::ManagerDailyBriefActionKindCode;
 use strum::VariantArray;
 
@@ -97,8 +121,6 @@ fn mvp_migration_rejects_invalid_incident_review_gates_and_incoherent_approval_d
     assert!(MVP_MIGRATION.contains("decided_by_actor_id IS NOT NULL"));
     assert!(MVP_MIGRATION.contains("decided_by_actor_persona IS NOT NULL"));
     assert!(MVP_MIGRATION.contains("approval_records_decider_persona_kind_integrity"));
-    assert!(MVP_MIGRATION.contains("legacy_persona_missing boolean NOT NULL DEFAULT false"));
-    assert!(MVP_MIGRATION.contains("approval_records_legacy_persona_marker_guard"));
     assert!(MVP_MIGRATION.contains("approval_outbox_bindings_actor_persona_kind_integrity"));
     assert!(MVP_MIGRATION.contains("decided_at IS NOT NULL"));
 }
@@ -133,7 +155,6 @@ fn mvp_migration_relationally_closes_and_one_shot_binds_internal_outbox_admissio
     assert!(MVP_MIGRATION.contains("reject_outbox_authority_identity_mutation"));
     assert!(MVP_MIGRATION.contains("outbox_records_durable_history_delete"));
     assert!(MVP_MIGRATION.contains("FOR UPDATE"));
-    assert!(MVP_MIGRATION.contains("approval_outbox_bindings_consumed_outbox_fkey"));
     assert!(MVP_MIGRATION.contains("AFTER INSERT ON outbox_records"));
     assert!(!MVP_MIGRATION.contains("pg_trigger_depth()"));
 }
@@ -192,7 +213,7 @@ fn mvp_migration_supports_data_quality_hygiene_reviewed_internal_handoff_slice()
         "idempotency_key text NOT NULL UNIQUE",
         "workflow_event_id uuid REFERENCES workflow_events(id)",
         "issue_refs jsonb NOT NULL DEFAULT '[]'::jsonb",
-        "resolution_status_after_review text NOT NULL CHECK (resolution_status_after_review IN",
+        "reported_resolution_status text NOT NULL CHECK (reported_resolution_status IN",
         "correlation_id text NOT NULL CHECK (length(trim(correlation_id)) > 0)",
         "status text NOT NULL CHECK (status IN ('pending', 'claimed', 'published', 'failed', 'dead_letter'))",
         "outbox_records require a matching approved approval_record",
@@ -279,4 +300,9 @@ fn migration_explicitly_preserves_payment_projection_and_workflow_result_history
             .contains("payment_deposit_projections retain provider-observed state history")
     );
     assert!(MVP_MIGRATION.contains("workflow_results retain one row per processing attempt"));
+}
+
+#[test]
+fn hygiene_outcomes_use_current_reported_resolution_vocabulary() {
+    assert!(MVP_MIGRATION.contains("reported_resolution_status text NOT NULL"));
 }

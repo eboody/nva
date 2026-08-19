@@ -10,34 +10,7 @@ use crate::{entities, policy};
 /// Boarding upsell policy that classifies offer eligibility from care evidence.
 pub struct Policy;
 
-impl Policy {
-    /// Evaluates whether an exit-bath offer can be drafted or must be held for care-team review.
-    pub fn evaluate_exit_bath(
-        &self,
-        reservation_id: entities::reservation::Id,
-        pet_id: PetId,
-        care_profile: &entities::CareProfile,
-    ) -> Recommendation {
-        let eligibility = if care_profile.allergies.is_empty()
-            && care_profile.medical_conditions.is_empty()
-            && care_profile.medications.is_empty()
-        {
-            Eligibility::Eligible
-        } else {
-            Eligibility::NeedsStaffReview {
-                gate: policy::ReviewGate::MedicalDocumentReview,
-                reason: ReviewReason::CareSafetyAmbiguity,
-            }
-        };
-
-        Recommendation {
-            reservation_id,
-            pet_id,
-            opportunity: Opportunity::ExitBath,
-            eligibility,
-        }
-    }
-}
+impl Policy {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Staff-reviewable boarding upsell recommendation with source reservation, pet, and eligibility evidence.
@@ -52,12 +25,7 @@ pub struct Recommendation {
     pub eligibility: Eligibility,
 }
 
-impl Recommendation {
-    /// Returns the approval gate required before any recommendation becomes customer-facing.
-    pub fn customer_offer_gate(&self) -> Option<policy::ReviewGate> {
-        Some(policy::ReviewGate::CustomerMessageApproval)
-    }
-}
+impl Recommendation {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Boarding-adjacent revenue opportunities that can be recommended from stay evidence.

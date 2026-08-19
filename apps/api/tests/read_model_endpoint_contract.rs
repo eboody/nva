@@ -41,7 +41,7 @@ async fn read_model_routes_keep_fallback_safe_and_label_configured_storage_truth
         std::env::remove_var("MINIO_ENDPOINT");
     }
 
-    let (status, payload) = get_json("/v0/read-models/source-quality-backlog").await;
+    let (status, payload) = get_json("/v1/read-models/source-quality-backlog").await;
 
     assert_eq!(status, axum_http::StatusCode::SERVICE_UNAVAILABLE);
     assert_eq!(
@@ -67,7 +67,7 @@ async fn read_model_routes_keep_fallback_safe_and_label_configured_storage_truth
         std::env::set_var("MINIO_ENDPOINT", "http://127.0.0.1:9000");
     }
 
-    let (status, payload) = get_json("/readyz").await;
+    let (status, payload) = get_json("/v1/readyz").await;
 
     assert_eq!(status, axum_http::StatusCode::OK);
     assert_eq!(payload["database"], "env_configured_not_verified");

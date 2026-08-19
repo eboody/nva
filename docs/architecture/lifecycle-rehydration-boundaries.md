@@ -16,13 +16,13 @@ Persisted JSON and storage rows are not trusted domain facts until they pass an 
 - `domain::entities::Message` rejects outbound-sent directions that still claim draft, approval, queue, suppressed, or cancelled lifecycle states.
 - `domain::workflow::Event` rejects event-type and subject-family mismatches for the known workflow event categories.
 
-## Intentionally tolerated legacy states
+## Current non-authority distinctions
 
-The following states are still tolerated as migration-compatible review evidence, not as live-action authority:
+The following current domain states remain review evidence and never become live-action authority:
 
-- `workflow::Subject::External` remains accepted for all workflow event types so historical provider/task objects can be quarantined and reviewed before later promotion to a customer, pet, or reservation subject.
+- `workflow::Subject::External` remains accepted for all workflow event types so unresolved provider/task objects can be quarantined and reviewed before promotion to a customer, pet, or reservation subject.
 - `reservation::Status::SpecialReview`, `MissingInfo`, `VaccinePending`, and `Waitlisted` may carry hard stops because those states are themselves review/triage states rather than terminal outcomes.
 - `payment::DepositStatus::Refunded` is treated like `Paid` for reference requirements because a refund without the original payment/POS reference is not reconcilable.
 - Message `Suppressed` and `Cancelled` are allowed on outbound drafts because they are safe terminal draft dispositions and do not imply delivery.
 
-These exceptions are compatibility boundaries for durable imports and local demo storage. They do not authorize provider/PMS writes, customer-visible sends, payments/refunds/discounts, schedule changes, or production side effects.
+These are active fail-closed domain distinctions. They do not authorize provider/PMS writes, customer-visible sends, payments/refunds/discounts, schedule changes, or production side effects.

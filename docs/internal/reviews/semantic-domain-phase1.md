@@ -1,4 +1,7 @@
-# Semantic domain Phase 1 review
+<!-- archived-historical-record -->
+# Archived semantic domain Phase 1 review
+
+This review records a superseded tree and is not current architecture authority.
 
 Status: rejected with precise blocker and RED regression test.
 Date: 2026-08-13.

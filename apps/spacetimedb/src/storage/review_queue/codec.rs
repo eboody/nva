@@ -9,7 +9,7 @@ use domain::{data_quality, entities, policy, source};
 
 use crate::{
     read_model::{
-        BlockedActionNoticeRow, HygieneOutcomeCardV1Row, ManagerQueueItemRow, StaffQueueItemRow,
+        BlockedActionNoticeRow, HygieneOutcomeCardRow, ManagerQueueItemRow, StaffQueueItemRow,
     },
     storage::review_queue::{
         BlockedActionAttemptRow, BlockedActionReasonColumn, HygieneOutcomeRow,
@@ -22,7 +22,7 @@ use crate::{
 };
 
 /// Current schema version for review-queue storage rows created by this adapter.
-pub const REVIEW_QUEUE_SCHEMA_VERSION: u32 = 2;
+pub(crate) const REVIEW_QUEUE_SCHEMA_VERSION: u32 = 2;
 
 /// Promotes a private storage row into the app review queue item.
 pub fn review_queue_item(row: &ReviewQueueItemRow) -> Option<hygiene::ReviewQueueItem> {
@@ -138,8 +138,8 @@ pub fn hygiene_outcome_row(outcome: &hygiene::OutcomeRecord, now: u64) -> Hygien
 }
 
 /// Projects an outcome storage row into the staff dashboard read model.
-pub fn staff_outcome_card(row: HygieneOutcomeRow) -> HygieneOutcomeCardV1Row {
-    HygieneOutcomeCardV1Row::new(
+pub fn staff_outcome_card(row: HygieneOutcomeRow) -> HygieneOutcomeCardRow {
+    HygieneOutcomeCardRow::new(
         row.action_id,
         row.recorded_by,
         row.outcome,
@@ -303,7 +303,6 @@ pub const fn review_gate_column(gate: policy::ReviewGate) -> ReviewGateColumn {
 /// Promotes the stored source system into the semantic application value.
 pub const fn source_system(system: SourceSystemColumn) -> source::System {
     match system {
-        SourceSystemColumn::Gingr => source::System::Gingr,
         SourceSystemColumn::Telephony => source::System::Telephony,
         SourceSystemColumn::SmsProvider => source::System::SmsProvider,
         SourceSystemColumn::Email => source::System::Email,
@@ -328,7 +327,6 @@ pub const fn source_system(system: SourceSystemColumn) -> source::System {
 /// Projects source system into its stable storage column.
 pub const fn source_system_column(system: source::System) -> SourceSystemColumn {
     match system {
-        source::System::Gingr => SourceSystemColumn::Gingr,
         source::System::Telephony => SourceSystemColumn::Telephony,
         source::System::SmsProvider => SourceSystemColumn::SmsProvider,
         source::System::Email => SourceSystemColumn::Email,

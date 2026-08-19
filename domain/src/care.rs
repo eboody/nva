@@ -119,13 +119,6 @@ redacted_debug!(MedicationDose, "MedicationDose(<redacted>)");
 redacted_debug!(MedicationSchedule, "MedicationSchedule(<redacted>)");
 redacted_debug!(ReviewReason, "ReviewReason(<redacted>)");
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Checkout care exception retained when care summary or departure-note evidence needs staff/manager review.
-pub enum CheckoutException {
-    /// Care summary or departure notes still need staff/manager review before checkout confidence.
-    DepartureCareReviewRequired,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Named staff or customer contact used for care-plan coordination.
 pub struct ContactRef {
@@ -133,12 +126,7 @@ pub struct ContactRef {
     pub name: ContactName,
 }
 
-impl ContactRef {
-    /// Assembles this care value from already-validated domain parts.
-    pub fn new(name: ContactName) -> Self {
-        Self { name }
-    }
-}
+impl ContactRef {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Whether medication instructions require additional care-team review.
@@ -152,9 +140,4 @@ pub enum MedicationReviewRequirement {
     },
 }
 
-impl MedicationReviewRequirement {
-    /// Returns whether care-team review is required before proceeding.
-    pub fn requires_review(&self) -> bool {
-        matches!(self, Self::RequiresReview { .. })
-    }
-}
+impl MedicationReviewRequirement {}

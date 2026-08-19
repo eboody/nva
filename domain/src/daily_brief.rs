@@ -137,17 +137,7 @@ pub mod capacity {
     /// Number of booked units contributing to a capacity metric.
     pub struct Booked(u32);
 
-    impl Booked {
-        /// Assembles this daily brief value from already-validated domain parts.
-        pub const fn new(value: u32) -> Self {
-            Self(value)
-        }
-
-        /// Returns the checked value for storage, reporting, or adapter output.
-        pub const fn get(self) -> u32 {
-            self.0
-        }
-    }
+    impl Booked {}
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
     /// Nonzero service capacity limit used as the denominator for utilization.
@@ -160,11 +150,6 @@ pub mod capacity {
                 return Err(LimitError::ZeroCapacity);
             }
             Ok(Self(value))
-        }
-
-        /// Returns the checked value for storage, reporting, or adapter output.
-        pub const fn get(self) -> u32 {
-            self.0
         }
     }
 
@@ -189,17 +174,7 @@ pub mod capacity {
     /// Capacity saturation expressed in basis points for stable BI/reporting comparisons.
     pub struct SaturationBasisPoints(u32);
 
-    impl SaturationBasisPoints {
-        /// Assembles this daily brief value from already-validated domain parts.
-        pub const fn new(value: u32) -> Self {
-            Self(value)
-        }
-
-        /// Returns the checked value for storage, reporting, or adapter output.
-        pub const fn get(self) -> u32 {
-            self.0
-        }
-    }
+    impl SaturationBasisPoints {}
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
     /// Booked-vs-capacity metric that makes service utilization visible to managers.
     pub struct Metric {
@@ -208,11 +183,6 @@ pub mod capacity {
     }
 
     impl Metric {
-        /// Assembles this daily brief value from already-validated domain parts.
-        pub const fn new(booked: Booked, capacity: Limit) -> Self {
-            Self { booked, capacity }
-        }
-
         /// Returns booked units so occupancy pressure can be compared with capacity.
         pub const fn booked(&self) -> Booked {
             self.booked
@@ -222,13 +192,6 @@ pub mod capacity {
         pub const fn capacity(&self) -> Limit {
             self.capacity
         }
-
-        /// Returns the saturation basis points for this daily brief value.
-        pub fn saturation_basis_points(&self) -> SaturationBasisPoints {
-            SaturationBasisPoints::new(
-                self.booked.get().saturating_mul(10_000) / self.capacity.get(),
-            )
-        }
     }
 }
 
@@ -236,17 +199,7 @@ pub mod capacity {
 /// Count of scheduled staff used to reason about over/understaffing labor risk.
 pub struct ScheduledStaffCount(u16);
 
-impl ScheduledStaffCount {
-    /// Assembles this daily brief value from already-validated domain parts.
-    pub const fn new(value: u16) -> Self {
-        Self(value)
-    }
-
-    /// Returns the checked value for storage, reporting, or adapter output.
-    pub const fn get(self) -> u16 {
-        self.0
-    }
-}
+impl ScheduledStaffCount {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Check-in/check-out workload snapshot for front-desk and care-team planning.

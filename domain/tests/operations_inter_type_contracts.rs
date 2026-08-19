@@ -35,7 +35,7 @@ fn service_demand_fact_carries_operating_day_key_without_labor_or_capacity_schem
             .unwrap(),
     );
     let reservation_ref = source::RecordRef::new(
-        source::System::Gingr,
+        source::System::ProviderOrPms,
         source::record::Id::try_new("reservation-42").unwrap(),
     );
 
@@ -87,7 +87,7 @@ fn service_demand_fact_preserves_quality_issues_without_turning_source_location_
             .unwrap(),
     );
     let reservation_ref = source::RecordRef::new(
-        source::System::Gingr,
+        source::System::ProviderOrPms,
         source::record::Id::try_new("reservation-42").unwrap(),
     );
     let issue = data_quality::Issue::new(
@@ -145,20 +145,17 @@ fn service_demand_fact_rejects_empty_source_evidence() {
 }
 
 fn source_provenance() -> source::Provenance {
-    source::gingr::Provenance::builder()
-        .endpoint(source::gingr::Endpoint::try_new("GET /reservations").unwrap())
-        .provider_record_id(source::gingr::ProviderRecordId::try_new("reservation-42").unwrap())
-        .related_provider_ids(Vec::new())
-        .extraction_batch(source::gingr::ExtractionBatchId::try_new("batch-2026-06-16").unwrap())
+    source::Provenance::builder()
+        .system(source::System::ProviderOrPms)
+        .endpoint(source::Endpoint::try_new("GET /reservations").unwrap())
+        .record_id(source::record::Id::try_new("reservation-42").unwrap())
+        .extraction_batch(source::ExtractionBatchId::try_new("batch-2026-06-16").unwrap())
         .pulled_at(source::Timestamp::try_new("2026-06-16T20:00:00Z").unwrap())
-        .request_scope(source::gingr::RequestScope::try_new("location=west-loop").unwrap())
-        .provider_schema_version(
-            source::gingr::ProviderSchemaVersion::try_new("local-parser-v1").unwrap(),
-        )
-        .source_payload_hash(source::PayloadHash::try_new("sha256:reservation42").unwrap())
+        .request_scope(source::RequestScope::try_new("location=west-loop").unwrap())
+        .schema_version(source::SchemaVersion::try_new("local-parser-v1").unwrap())
+        .payload_hash(source::PayloadHash::try_new("sha256:reservation42").unwrap())
         .raw_payload_ref(
             source::RawPayloadRef::try_new("restricted://gingr/reservations/42.json").unwrap(),
         )
         .build()
-        .promote()
 }

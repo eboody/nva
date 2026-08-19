@@ -22,6 +22,23 @@ error[E0560]: struct `domain::entities::Reservation` has no field named `ends_at
    |
    = note: all struct fields are already assigned
 
+error[E0599]: no associated function or constant named `required` found for struct `Deposit` in the current scope
+  --> tests/ui/aggregate_literal_bypass.rs:15:41
+   |
+15 |         deposit: Some(payment::Deposit::required(
+   |                                         ^^^^^^^^ associated function or constant not found in `Deposit`
+   |
+note: if you're trying to build a new `Deposit`, consider using `Deposit::try_from_persisted` which returns `std::result::Result<Deposit, domain::payment::Error>`
+  --> src/payment/mod.rs
+   |
+   | /     pub fn try_from_persisted(
+   | |         amount: Money,
+   | |         refundable_until: Option<DateTime<Utc>>,
+   | |         status: DepositStatus,
+   | |         payment_reference: Option<Reference>,
+   | |     ) -> Result<Self> {
+   | |_____________________^
+
 error[E0560]: struct `domain::entities::Message` has no field named `direction`
   --> tests/ui/aggregate_literal_bypass.rs:28:9
    |
@@ -45,6 +62,23 @@ error[E0560]: struct `domain::entities::Message` has no field named `approval_ga
    |         ^^^^^^^^^^^^^ `domain::entities::Message` does not have this field
    |
    = note: all struct fields are already assigned
+
+error[E0599]: no associated function or constant named `new` found for struct `domain::workflow::EventId` in the current scope
+  --> tests/ui/aggregate_literal_bypass.rs:37:38
+   |
+37 |         event_id: workflow::EventId::new(Uuid::from_u128(35)),
+   |                                      ^^^ associated function or constant not found in `domain::workflow::EventId`
+   |
+note: if you're trying to build a new `domain::workflow::EventId`, consider using `domain::workflow::EventId::try_new` which returns `std::result::Result<domain::workflow::EventId, NilIdentityError>`
+  --> src/workflow/event.rs
+   |
+   |     pub const fn try_new(value: Uuid) -> std::result::Result<Self, entities::NilIdentityError> {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: there is a method `ne` with a similar name
+   |
+37 -         event_id: workflow::EventId::new(Uuid::from_u128(35)),
+37 +         event_id: workflow::EventId::ne(Uuid::from_u128(35)),
+   |
 
 error: cannot construct `domain::entities::Incident` with struct literal syntax due to private fields
   --> tests/ui/aggregate_literal_bypass.rs:87:28

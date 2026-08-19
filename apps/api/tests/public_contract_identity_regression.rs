@@ -5,19 +5,19 @@ use pet_resort_api::{
     public_contract::{
         ApiContractMetadata, DataQualityHygieneContextResponse,
         DataQualityHygieneOutcomeCaptureRequest, LiveSideEffectsMode,
-        ManagerDailyBriefOutcomeCaptureRequest, ProviderBoundaryMode, SourceRecordRef,
+        ManagerDailyBriefOutcomeCaptureRequest, ProviderBoundaryMode, WireSourceRecordRef,
     },
 };
 use serde_json::json;
 use tower::ServiceExt;
 
 #[test]
-fn v0_contract_metadata_round_trips_with_semantic_protocol_modes() {
-    let metadata = ApiContractMetadata::operations_v0("data_quality_hygiene");
+fn v1_contract_metadata_round_trips_with_semantic_protocol_modes() {
+    let metadata = ApiContractMetadata::operations_v1("data_quality_hygiene");
     let snapshot = json!({
         "owner": "pet_resort_api",
         "boundary": "api_runtime_dto",
-        "schema_version": "pet_resort_api.runtime.v0",
+        "schema_version": "pet_resort_api.runtime.v1",
         "workflow": "data_quality_hygiene",
         "provider_boundary": "evidence_refs_only",
         "live_side_effects": "disabled"
@@ -36,16 +36,16 @@ fn v0_contract_metadata_round_trips_with_semantic_protocol_modes() {
 }
 
 #[test]
-fn v0_source_record_ref_round_trips_without_an_untyped_value_boundary() {
+fn v1_source_record_ref_round_trips_without_an_untyped_value_boundary() {
     let snapshot = json!({
         "system": "gingr",
         "record_type": "customer",
         "record_id": "customer-17",
         "observed_at": "2026-06-17T09:05:00Z",
-        "adapter_version": "gingr-v0-readonly"
+        "adapter_version": "gingr-v1-readonly"
     });
 
-    let source_ref = serde_json::from_value::<SourceRecordRef>(snapshot.clone()).unwrap();
+    let source_ref = serde_json::from_value::<WireSourceRecordRef>(snapshot.clone()).unwrap();
     assert_eq!(serde_json::to_value(source_ref).unwrap(), snapshot);
 }
 
@@ -74,7 +74,7 @@ fn sensitive_outcome_capture_debug_redacts_identity_feedback_and_provenance() {
             "record_type": "customer",
             "record_id": "sensitive-record-42",
             "observed_at": "2026-06-17T00:00:00Z",
-            "adapter_version": "gingr-v0-readonly"
+            "adapter_version": "gingr-v1-readonly"
         }],
         "issue_refs": ["sensitive-issue-9"],
         "reported_resolution_status": "acknowledged",
@@ -189,11 +189,11 @@ fn outcome_dtos_reject_zero_minutes_nil_locations_and_malformed_operating_days_d
 }
 
 #[tokio::test]
-async fn v0_data_quality_context_round_trips_through_the_canonical_public_dto() {
+async fn v1_data_quality_context_round_trips_through_the_canonical_public_dto() {
     let response = http::router_with_test_auth_state(http::VaccineDocumentState::default())
         .oneshot(
             axum::http::Request::builder()
-                .uri("/v0/agent/context/data-quality-hygiene?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17")
+                .uri("/v1/agent/context/data-quality-hygiene?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17")
                 .header("x-test-auth-actor-id", "general-manager-17")
                 .header("x-test-auth-role", "general_manager")
                 .header(

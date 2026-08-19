@@ -4,11 +4,13 @@
 //! sessions, and AKC prep. Duration is validated before persistence so runtime
 //! workflows cannot report impossible zero-week programs as source evidence.
 
+use core::num::NonZeroU8;
+
 use serde::{Deserialize, Deserializer, Serialize};
 
 use domain::training::program;
 
-use crate::operations::{self, StorageField};
+use crate::projection::{Error, Result};
 
 /// Storage shape for a migrated training service rules.
 #[derive(
@@ -16,17 +18,6 @@ use crate::operations::{self, StorageField};
 )]
 #[serde(transparent)]
 pub struct ContractRecord(pub domain::training::Contract);
-
-/// Storage shape for a reviewed training package/session opportunity outcome.
-///
-/// The wrapped domain record already carries source refs, review disposition,
-/// blocked live actions by model contract, and before/actual labor minutes. Keeping
-/// the storage boundary transparent avoids inventing package-balance authority here.
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, derive_more::From, derive_more::Into,
-)]
-#[serde(transparent)]
-pub struct PackageOpportunityOutcomeRecord(pub domain::training::package::OutcomeRecord);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -51,20 +42,28 @@ pub enum ProgramRecord {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 /// Positive training duration persisted in weeks for stay-and-study offerings.
-pub struct StoredProgramDurationWeeks(u8);
+pub struct StoredProgramDurationWeeks(NonZeroU8);
 
 impl StoredProgramDurationWeeks {
     /// Validates and wraps a positive quantity before it is persisted.
     pub const fn try_new(value: u8) -> std::result::Result<Self, StoredProgramDurationWeeksError> {
-        if value == 0 {
-            return Err(StoredProgramDurationWeeksError::ZeroWeeks);
+        match NonZeroU8::new(value) {
+            Some(value) => Ok(Self(value)),
+            None => Err(StoredProgramDurationWeeksError::ZeroWeeks),
         }
-        Ok(Self(value))
+    }
+
+    const fn from_nonzero(value: NonZeroU8) -> Self {
+        Self(value)
+    }
+
+    const fn into_nonzero(self) -> NonZeroU8 {
+        self.0
     }
 
     /// Returns the provider numeric identifier kept on this wrapper.
     pub const fn get(self) -> u8 {
-        self.0
+        self.0.get()
     }
 }
 
@@ -86,33 +85,25 @@ pub enum StoredProgramDurationWeeksError {
 }
 
 impl TryFrom<program::DurationWeeks> for StoredProgramDurationWeeks {
-    type Error = operations::Error;
+    type Error = Error;
 
-    fn try_from(value: program::DurationWeeks) -> operations::Result<Self> {
-        Self::try_new(value.get()).map_err(|err| operations::Error::InvalidDomainValue {
-            field: StorageField::TrainingProgramDurationWeeks,
-            reason: err.to_string(),
-        })
+    fn try_from(value: program::DurationWeeks) -> Result<Self> {
+        Ok(Self::from_nonzero(value.into_nonzero()))
     }
 }
 
 impl TryFrom<StoredProgramDurationWeeks> for program::DurationWeeks {
-    type Error = operations::Error;
+    type Error = Error;
 
-    fn try_from(value: StoredProgramDurationWeeks) -> operations::Result<Self> {
-        program::DurationWeeks::try_new(value.get()).map_err(|err| {
-            operations::Error::InvalidDomainValue {
-                field: StorageField::TrainingProgramDurationWeeks,
-                reason: err.to_string(),
-            }
-        })
+    fn try_from(value: StoredProgramDurationWeeks) -> Result<Self> {
+        Ok(program::DurationWeeks::from_nonzero(value.into_nonzero()))
     }
 }
 
 impl TryFrom<domain::training::Program> for ProgramRecord {
-    type Error = operations::Error;
+    type Error = Error;
 
-    fn try_from(value: domain::training::Program) -> operations::Result<Self> {
+    fn try_from(value: domain::training::Program) -> Result<Self> {
         Ok(match value {
             domain::training::Program::StayAndStudy { duration } => Self::StayAndStudy {
                 duration_weeks: duration.try_into()?,
@@ -127,9 +118,9 @@ impl TryFrom<domain::training::Program> for ProgramRecord {
 }
 
 impl TryFrom<ProgramRecord> for domain::training::Program {
-    type Error = operations::Error;
+    type Error = Error;
 
-    fn try_from(value: ProgramRecord) -> operations::Result<Self> {
+    fn try_from(value: ProgramRecord) -> Result<Self> {
         Ok(match value {
             ProgramRecord::StayAndStudy { duration_weeks } => Self::StayAndStudy {
                 duration: duration_weeks.try_into()?,
@@ -140,5 +131,19 @@ impl TryFrom<ProgramRecord> for domain::training::Program {
             ProgramRecord::PrivateLesson => Self::PrivateLesson,
             ProgramRecord::AkcCanineGoodCitizenPrep => Self::AkcCanineGoodCitizenPrep,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stored_duration_roundtrips_and_deserialization_rejects_zero() {
+        let stored = StoredProgramDurationWeeks::try_new(3).unwrap();
+        assert_eq!(stored.get(), 3);
+        let duration: program::DurationWeeks = stored.try_into().unwrap();
+        assert_eq!(duration.get(), 3);
+        assert!(serde_json::from_str::<StoredProgramDurationWeeks>("0").is_err());
     }
 }

@@ -4,32 +4,6 @@ use pet_resort_api::http;
 use serde_json::json;
 use tower::ServiceExt;
 
-#[test]
-fn outcome_persistence_uses_server_recording_time_not_client_claimed_time() {
-    let source = include_str!("../src/http.rs");
-    let manager = source
-        .split("async fn capture_manager_daily_brief_action_outcome")
-        .nth(1)
-        .and_then(|tail| {
-            tail.split("async fn capture_data_quality_hygiene_action_outcome")
-                .next()
-        })
-        .expect("manager outcome handler remains inspectable");
-    let hygiene = source
-        .split("async fn capture_data_quality_hygiene_action_outcome")
-        .nth(1)
-        .and_then(|tail| {
-            tail.split("async fn data_quality_hygiene_outcome_summary")
-                .next()
-        })
-        .expect("data-quality outcome handler remains inspectable");
-
-    for handler in [manager, hygiene] {
-        assert!(handler.contains("Utc::now()"));
-        assert!(!handler.contains(".recorded_at(\n            request"));
-    }
-}
-
 async fn post_outcome(
     action_id: &str,
     body: serde_json::Value,
@@ -38,7 +12,7 @@ async fn post_outcome(
     let mut builder = axum_http::request::Builder::new()
         .method(axum_http::Method::POST)
         .uri(format!(
-            "/v0/manager-daily-brief/actions/{action_id}/outcome"
+            "/v1/manager-daily-brief/actions/{action_id}/outcome"
         ))
         .header(axum_http::header::CONTENT_TYPE, "application/json");
     if let Some(actor_id) = actor_id {
@@ -88,7 +62,7 @@ async fn get_manager_daily_brief_context() -> serde_json::Value {
             axum_http::request::Builder::new()
                 .method(axum_http::Method::GET)
                 .uri(
-                    "/agent/context/manager-daily-brief?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",
+                    "/v1/agent/context/manager-daily-brief?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",
                 )
                 .header("x-test-auth-actor-id", "general-manager-17")
                 .header("x-test-auth-role", "general_manager")
@@ -125,7 +99,7 @@ async fn manager_daily_brief_action_by_kind(kind: &str) -> serde_json::Value {
 
 fn source_ref() -> serde_json::Value {
     json!({
-        "system": "gingr",
+        "system": "provider_or_pms",
         "record_type": "reservation",
         "record_id": "reservation-4242",
         "observed_at": "2026-06-17T12:00:00Z",
@@ -167,7 +141,7 @@ async fn post_outcome_with_state(
             axum_http::request::Builder::new()
                 .method(axum_http::Method::POST)
                 .uri(format!(
-                    "/v0/manager-daily-brief/actions/{action_id}/outcome"
+                    "/v1/manager-daily-brief/actions/{action_id}/outcome"
                 ))
                 .header(axum_http::header::CONTENT_TYPE, "application/json")
                 .header("x-test-auth-actor-id", actor_id)
@@ -259,6 +233,10 @@ async fn manager_daily_brief_outcome_capture_persists_staff_feedback_as_reported
     assert_eq!(payload["outcome_record"]["claimable"], false);
     assert_eq!(payload["outcome_record"]["before_minutes"], 20);
     assert_eq!(payload["outcome_record"]["actual_minutes"], 12);
+    assert_ne!(
+        payload["outcome_record"]["timestamp"], "2026-06-17T13:15:00Z",
+        "durable recording time must be server-issued, not copied from the caller"
+    );
     assert_eq!(
         payload["outcome_record"]["source_refs"],
         action["source_refs"]
@@ -345,17 +323,19 @@ async fn manager_daily_brief_outcome_capture_rejects_missing_source_refs() {
 
 #[tokio::test]
 async fn manager_daily_brief_outcome_capture_rejects_attempted_live_side_effects() {
-    for blocked_side_effect in [
-        "send_customer_message",
-        "mutate_provider_or_pms_record",
-        "change_staff_schedule",
-        "move_refund_discount_or_payment",
-        "hide_source_data_quality_issue",
-    ] {
+    for intent in http::DeniedLiveEffectIntent::for_workflow(
+        http::DeniedLiveEffectWorkflow::ManagerDailyBrief,
+    ) {
+        let blocked_side_effect = intent.code();
+        let state = http::VaccineDocumentState::default();
+        let denied_intents = state.denied_live_effect_intent_count();
+        let persisted_records = state.persisted_record_count().await;
         let mut body = outcome_body();
         body["requested_side_effects"] = json!([blocked_side_effect]);
 
-        let (status, payload) = post_outcome("checkout-exception-reservation-4242", body).await;
+        let (status, payload) =
+            post_outcome_with_state(state.clone(), "checkout-exception-reservation-4242", body)
+                .await;
 
         assert_eq!(status, axum_http::StatusCode::UNPROCESSABLE_ENTITY);
         assert_eq!(payload["accepted"], false);
@@ -364,6 +344,14 @@ async fn manager_daily_brief_outcome_capture_rejects_attempted_live_side_effects
             payload["reasons"],
             json!([format!("blocked_side_effect:{blocked_side_effect}")])
         );
+        assert_eq!(payload["live_side_effects_allowed"], false);
+        assert!(payload.get("outbox_candidate").is_none());
+        assert_eq!(
+            state.denied_live_effect_intent_count(),
+            denied_intents + 1,
+            "each recognized forbidden request must cross exactly one observable denial boundary"
+        );
+        assert_eq!(state.persisted_record_count().await, persisted_records);
     }
 }
 

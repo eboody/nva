@@ -2,7 +2,7 @@
 
 `apps/worker` is the background-agent runtime shell for the pet-resort workspace. It is intentionally thin: it boots tracing, reads runtime mode from environment, and holds the current worker-side safety switch for agent/runtime side effects. Durable leasing, queue consumers, schedulers, concrete app services, and provider writes are explicitly not implemented here yet; [`src/main.rs`](./src/main.rs) logs that those pieces are reserved for downstream workflow/data-model cards.
 
-Start with the crate root in [`src/lib.rs`](./src/lib.rs), which exposes [`worker::runtime`](./src/runtime.rs). The executable entry point is [`src/main.rs`](./src/main.rs). Runtime configuration and side-effect-mode types live in [`src/runtime.rs`](./src/runtime.rs), with their current behavior covered by [`tests/runtime_mode_contract.rs`](./tests/runtime_mode_contract.rs).
+Start with the crate root in [`src/lib.rs`](./src/lib.rs), which exposes [`worker::runtime`](./src/runtime.rs). The executable entry point is [`src/main.rs`](./src/main.rs). Runtime configuration and side-effect-mode types live in [`src/runtime.rs`](./src/runtime.rs), with their prior runtime-mode contract retired during the clean-slate reduction.
 
 ## What this shell owns
 
@@ -71,7 +71,7 @@ Because [`runtime::SideEffectMode`](./src/runtime.rs) only has `Stubbed` today, 
 | Runtime config constructor | `pet_resort_worker::runtime::Config::from_env_defaults` | [`src/runtime.rs`](./src/runtime.rs) | Reads `PET_RESORT_AGENT_RUNTIME_MODE` and defaults to `FakeDeterministic` plus `Stubbed`. |
 | Runtime accessors | `Config::agent_runtime_mode`, `Config::side_effect_mode` | [`src/runtime.rs`](./src/runtime.rs) | Expose the selected modes to the process entry point or future wiring. |
 | Executable entry point | `pet_resort_worker` binary `main` | [`src/main.rs`](./src/main.rs) | Initializes tracing, logs runtime/safety modes, and waits for shutdown. |
-| Runtime-mode contract test | `default_worker_runtime_is_fake_and_side_effect_safe` | [`tests/runtime_mode_contract.rs`](./tests/runtime_mode_contract.rs) | Verifies the default mode remains deterministic and side-effect safe. |
+| Runtime-mode contract test | `default_worker_runtime_is_fake_and_side_effect_safe` | `retired clean-slate contract: `tests/runtime_mode_contract.rs`` | Verifies the default mode remains deterministic and side-effect safe. |
 | App agent-runtime port | `app::tools::AgentRuntime` | [`../../app/src/tools.rs`](../../app/src/tools.rs) | App-facing contract for structured agent execution that a future worker adapter may implement. |
 | Hermes automation port | `app::tools::hermes::AutomationHooks` | [`../../app/src/tools.rs`](../../app/src/tools.rs) | Draft-only task/schedule hook contract for Hermes Kanban/cron-style automation. |
 

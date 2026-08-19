@@ -48,11 +48,6 @@ pub enum UnitCountError {
 pub struct OnHandUnits(u32);
 
 impl OnHandUnits {
-    /// Records the count reported by the inventory source before availability math is applied.
-    pub const fn new(value: u32) -> Self {
-        Self(value)
-    }
-
     /// Returns the unit count for storage records, POS mappings, and threshold comparisons.
     pub const fn get(self) -> u32 {
         self.0
@@ -64,11 +59,6 @@ impl OnHandUnits {
 pub struct ReservedUnits(u32);
 
 impl ReservedUnits {
-    /// Records the count reported by the inventory source before availability math is applied.
-    pub const fn new(value: u32) -> Self {
-        Self(value)
-    }
-
     /// Returns the unit count for storage records, POS mappings, and threshold comparisons.
     pub const fn get(self) -> u32 {
         self.0
@@ -78,18 +68,6 @@ impl ReservedUnits {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 /// Units available to sell after reserved units are subtracted from on-hand stock.
 pub struct AvailableUnits(u32);
-
-impl AvailableUnits {
-    /// Records the count reported by the inventory source before availability math is applied.
-    pub const fn new(value: u32) -> Self {
-        Self(value)
-    }
-
-    /// Returns the unit count for storage records, POS mappings, and threshold comparisons.
-    pub const fn get(self) -> u32 {
-        self.0
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Source stock record promoted from POS/inventory data before invariant checks are applied.
@@ -156,11 +134,6 @@ impl Position {
     pub const fn available_units(&self) -> AvailableUnits {
         AvailableUnits(self.on_hand.get() - self.reserved.get())
     }
-
-    /// Reports whether available inventory has fallen to the reorder threshold.
-    pub const fn is_at_or_below_reorder_threshold(&self) -> bool {
-        self.available_units().get() <= self.reorder_at.get()
-    }
 }
 
 impl<'de> Deserialize<'de> for Position {
@@ -184,17 +157,4 @@ pub enum Policy {
         /// Minimum available units that should prompt manager or vendor reorder attention.
         reorder_at: UnitCount,
     },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Availability status used by recommendation policy to suppress unavailable products.
-pub enum Availability {
-    /// Product is available for sale drafts and recommendation candidates.
-    Available,
-    /// Product is unavailable, suppressing POS sale drafts and customer-facing recommendations.
-    OutOfStock,
-    /// Product is on backorder, so staff can see demand but automation must not promise fulfillment.
-    Backordered,
-    /// Inventory source did not provide a confident availability status, so staff should verify before promising stock.
-    Unknown,
 }

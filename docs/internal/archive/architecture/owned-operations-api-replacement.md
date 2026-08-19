@@ -36,7 +36,7 @@ The API replacement should therefore target NVA-owned outcomes:
 
 ## Owned API capability families
 
-The owned operations API should be organized around capability families that preserve business meaning. These families are product contracts, even when a v0 route is still local/demo-only.
+The owned operations API should be organized around capability families that preserve business meaning. These families are product contracts, even when a v1 route is still local/demo-only.
 
 | Capability family | What the owned API should own | Current proof paths | Not owned by provider DTOs |
 | --- | --- | --- | --- |
@@ -112,7 +112,7 @@ Gingr should not:
 - hide missing provider surfaces behind guessed fields;
 - be mirrored into storage unless a normalized projection or source snapshot has a product purpose.
 
-## First v0 workflow candidates
+## First v1 workflow candidates
 
 V0 should pick workflows that already demonstrate the owned-contract shape and convert them into durable API/read-model proof. Good candidates:
 

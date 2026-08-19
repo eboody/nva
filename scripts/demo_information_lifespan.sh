@@ -144,12 +144,12 @@ PY
 echo "[information-lifespan] starting DB/API/worker/staff-web stack"
 run "${compose[@]}" up --build -d --wait pet-resort-api pet-resort-worker staff-web
 
-wait_for_url "${api_url}/v0/healthz" "api-health"
-wait_for_url "${api_url}/v0/readyz" "api-readiness"
+wait_for_url "${api_url}/v1/healthz" "api-health"
+wait_for_url "${api_url}/v1/readyz" "api-readiness"
 wait_for_url "${staff_web_url}/" "staff-web"
 
 echo "[information-lifespan] triggering API information-lifespan run"
-run curl -fsS -X POST "${api_url}/v0/demo/information-lifespan/run" -o "$artifact_dir/api-information-lifespan-run.json"
+run curl -fsS -X POST "${api_url}/v1/demo/information-lifespan/run" -o "$artifact_dir/api-information-lifespan-run.json"
 
 correlation_id="$(python - "$artifact_dir/api-information-lifespan-run.json" <<'PY'
 import json
@@ -171,7 +171,7 @@ PY
 )"
 echo "[information-lifespan] api_run_ok correlation_id=${correlation_id} artifact=$artifact_dir/api-information-lifespan-run.json"
 
-run curl -fsS "${api_url}/v0/demo/information-lifespan/${correlation_id}/report" -o "$artifact_dir/api-information-lifespan-report.json"
+run curl -fsS "${api_url}/v1/demo/information-lifespan/${correlation_id}/report" -o "$artifact_dir/api-information-lifespan-report.json"
 python - "$artifact_dir/api-information-lifespan-report.json" <<'PY'
 import json
 import sys

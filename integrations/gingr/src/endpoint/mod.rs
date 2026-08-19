@@ -40,6 +40,9 @@ pub mod report_cards_files;
 /// Reservation requests used to collect occupancy, check-in, and service-demand evidence.
 pub mod reservations;
 
+mod error;
+
+pub use error::Error;
 pub use reservations::Reservations;
 
 use crate::transport;
@@ -48,69 +51,6 @@ use std::fmt;
 
 /// Result type returned by fallible endpoint operations.
 pub type Result<T> = core::result::Result<T, Error>;
-
-#[derive(Debug, thiserror::Error, PartialEq, Eq)]
-/// Errors raised when Gingr request inputs cannot be represented as safe endpoint parameters.
-pub enum Error {
-    #[error("invalid Gingr date {value:?}: expected YYYY-MM-DD")]
-    /// Provider date did not match the endpoint date format.
-    InvalidDate {
-        /// Raw value supplied by provider docs, fixtures, or caller code so request setup can be corrected.
-        value: String,
-    },
-    #[error("invalid Gingr ISO date {value:?}: expected YYYY-MM-DD")]
-    /// Provider ISO date could not be parsed for a Gingr request.
-    InvalidIsoDate {
-        /// Raw value supplied by provider docs, fixtures, or caller code so request setup can be corrected.
-        value: String,
-    },
-    #[error("invalid Gingr date range: start {start} must not be after end {end}")]
-    /// Start date is after end date in a Gingr request.
-    ReversedDateRange {
-        /// Start attached to this Gingr error or DTO.
-        start: Date,
-        /// End attached to this Gingr error or DTO.
-        end: Date,
-    },
-    #[error("invalid Gingr date range: reservations range may not exceed 30 days")]
-    /// Date range exceeds the maximum Gingr endpoint window.
-    DateRangeTooLong,
-    #[error("invalid Gingr positive integer {value}: expected non-zero value")]
-    /// Provider integer wrapper rejected zero or an invalid value.
-    InvalidPositiveInteger {
-        /// Raw value supplied by provider docs, fixtures, or caller code so request setup can be corrected.
-        value: u64,
-    },
-    #[error("invalid Gingr text value: expected non-empty text")]
-    /// Required text parameter was empty after trimming.
-    EmptyText,
-    #[error("missing required Gingr endpoint parameter {parameter}")]
-    /// Typed request builder is missing a required Gingr parameter.
-    MissingRequiredParameter {
-        /// Name of the provider parameter missing from a typed endpoint builder.
-        parameter: &'static str,
-    },
-    #[error("invalid Gingr legacy date boundary for {date}: {boundary}")]
-    /// Request asks Gingr for data before the endpoint-supported cutover date.
-    LegacyDateBoundary {
-        /// Date carried with this error or record.
-        date: String,
-        /// Provider cutoff or range rule that the request violated.
-        boundary: &'static str,
-    },
-    #[error("invalid Gingr pagination: {reason}")]
-    /// Pagination parameters would produce an invalid Gingr request.
-    InvalidPagination {
-        /// Reason the pagination pair would ask Gingr for an unsupported slice.
-        reason: &'static str,
-    },
-    #[error("invalid Gingr subscription bill day {value}: expected 1..=31")]
-    /// Subscription bill day was outside Gingr-supported month bounds.
-    InvalidBillDayOfMonth {
-        /// Raw value supplied by provider docs, fixtures, or caller code so request setup can be corrected.
-        value: u8,
-    },
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// HTTP methods used by typed Gingr endpoint descriptors.
@@ -125,22 +65,7 @@ pub enum Method {
 /// Gingr endpoint date formatted as `YYYY-MM-DD` for provider query/form parameters.
 pub struct Date(NaiveDate);
 
-impl Date {
-    /// Validates a Gingr date parameter used for provider filtering, not a canonical reservation date.
-    pub fn parse(raw: impl AsRef<str>) -> Result<Self> {
-        let raw = raw.as_ref();
-        NaiveDate::parse_from_str(raw, "%Y-%m-%d")
-            .map(Self)
-            .map_err(|_| Error::InvalidDate {
-                value: raw.to_owned(),
-            })
-    }
-
-    /// Returns the parsed calendar date used by Gingr endpoint filters.
-    pub const fn inner(self) -> NaiveDate {
-        self.0
-    }
-}
+impl Date {}
 
 impl fmt::Display for Date {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -152,17 +77,7 @@ impl fmt::Display for Date {
 /// Gingr ISO-style date filter formatted as `YYYY-MM-DD` where endpoints use nested params.
 pub struct IsoDate(NaiveDate);
 
-impl IsoDate {
-    /// Validates a Gingr date parameter used for provider filtering, not a canonical reservation date.
-    pub fn parse(raw: impl AsRef<str>) -> Result<Self> {
-        let raw = raw.as_ref();
-        NaiveDate::parse_from_str(raw, "%Y-%m-%d")
-            .map(Self)
-            .map_err(|_| Error::InvalidIsoDate {
-                value: raw.to_owned(),
-            })
-    }
-}
+impl IsoDate {}
 
 impl fmt::Display for IsoDate {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -178,17 +93,6 @@ pub struct DateRange {
 }
 
 impl DateRange {
-    /// Builds an inclusive Gingr date window for reservation and commerce requests after range checks pass.
-    pub fn new(start: Date, end: Date) -> Result<Self> {
-        if start > end {
-            return Err(Error::ReversedDateRange { start, end });
-        }
-        if (end.inner() - start.inner()).num_days() > 29 {
-            return Err(Error::DateRangeTooLong);
-        }
-        Ok(Self { start, end })
-    }
-
     /// Returns the inclusive start date sent to Gingr.
     pub const fn start(self) -> Date {
         self.start
@@ -244,7 +148,6 @@ id_type!(ReservationId);
 id_type!(LocationId);
 id_type!(SpeciesId);
 id_type!(FormId);
-id_type!(ReferenceId);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, derive_more::Display)]
 /// Static Gingr API path emitted by an endpoint descriptor.
@@ -254,11 +157,6 @@ impl Path {
     /// Stores the static Gingr API path emitted by a typed request descriptor.
     pub const fn new(value: &'static str) -> Self {
         Self(value)
-    }
-
-    /// Returns the validated endpoint path segment.
-    pub const fn as_str(self) -> &'static str {
-        self.0
     }
 }
 
@@ -272,15 +170,7 @@ impl PartialEq<&str> for Path {
 /// Positive provider record limit used to bound Gingr list/search responses.
 pub struct Limit(u64);
 
-impl Limit {
-    /// Validates the maximum number of provider records to request from a Gingr list endpoint.
-    pub fn new(value: u64) -> Result<Self> {
-        if value == 0 {
-            return Err(Error::InvalidPositiveInteger { value });
-        }
-        Ok(Self(value))
-    }
-}
+impl Limit {}
 
 /// Defines the behavior required from a request participant in the endpoint workflow.
 pub trait Request {
@@ -304,12 +194,4 @@ pub trait Request {
             .sensitive_parameter_names(self.sensitive_parameter_names())
             .build()
     }
-}
-
-pub(crate) fn non_empty_text(value: impl Into<String>) -> Result<String> {
-    let value = value.into().trim().to_owned();
-    if value.is_empty() {
-        return Err(Error::EmptyText);
-    }
-    Ok(value)
 }

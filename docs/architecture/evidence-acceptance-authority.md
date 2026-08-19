@@ -47,7 +47,7 @@ Unknown relationships are represented as unresolved, ambiguous, candidate, or re
 3. Missing provenance remains missing or blocks promotion; adapters do not invent plausible evidence.
 4. Domain-to-storage projection is lossless for every known state.
 5. Storage-to-domain promotion is fallible and constructor-equivalent.
-6. Unknown stable codes and schema versions follow an explicit compatibility policy; they never silently become current authority.
+6. Unknown stable codes and schema versions are rejected at active boundaries; they never silently become current authority.
 7. OpenAPI and runtime serde share one canonical semantic owner and are structurally parity-tested.
 8. Rust stable codes and SQL constraints are parity-tested.
 9. Polymorphic or history-oriented storage shapes do not become executable authority merely because their strings and identifiers match.
@@ -65,9 +65,10 @@ and fail-closed.
 
 PostgreSQL outcome admission is part of the same boundary. It takes update-strength locks on the exact approval, review packet, and workflow event; checks the owned workflow/event contract, reviewed action, actor/persona/gate, chronology, location, correlation, and canonical source provenance; and freezes every referenced lineage row after admission. Reciprocal mutation guards and concurrent database tests prevent a writer from changing accepted meaning after or concurrently with outcome insertion.
 
-Provider mapping versions are NVA-owned mapper labels, not claims about a verified Gingr endpoint or
+Provider mapping versions are NVA-owned mapper labels, not claims about a verified provider endpoint or
 schema. Opaque observed endpoint and schema labels are preserved until authoritative provider
-contracts exist. Realtime authority evolves additively as well: the deployed SpacetimeDB `location_scope` shape is preserved byte-for-byte as migration input, while authorization reads only `location_scope_v1`. On the first authenticated operation for an actor, exact identity plus validated single-role state atomically promotes that actor's well-formed legacy locations into v1; sibling, malformed, duplicate, or ambiguous authority fails closed before insertion.
+contracts exist. Realtime authorization reads only its canonical current scope representation; sibling,
+malformed, duplicate, or ambiguous identity and scope evidence fails closed before insertion.
 
 Business-value attribution follows the same boundary. Analytics `ReportedReviewedAction`, CRM booking observations, and site-finance reviewed-action records are serializable evidence candidates only. Their reporting APIs return non-claimable until a future authenticated boundary issues opaque accepted attribution. Persisted enums, recommendation references, audit references, manager-decision rows, and caller-provided booleans cannot manufacture a recovered-booking, revenue, retention, or ROI claim. Lead `ConversionObservation` and `ReviewApprovalEvidence` likewise cannot issue value attribution or queueable contact authority. Permissioned-knowledge `ActorContext`, applicability, and document approval labels are history rather than access authority; `AuthorizedEvidence` has no production issuer and cannot be cloned or serialized, so knowledge requests escalate until authenticated actor and document-approval roots exist.
 
@@ -80,7 +81,7 @@ Every consequential model statement should be identifiable as one of:
 - **Universal invariant:** true regardless of provider implementation.
 - **Business hypothesis:** plausible but not yet confirmed from actual workflows/data.
 - **Source observation:** directly evidenced by a specific source record or contract.
-- **Migration assumption:** temporarily required to reconcile incomplete legacy evidence.
+
 - **Owned policy:** an intentional NVA decision rather than copied provider behavior.
 - **Unknown:** explicitly unresolved and unable to authorize a consequential action.
 

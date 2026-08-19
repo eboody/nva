@@ -1,0 +1,23 @@
+error[E0432]: unresolved import `app::crm_retention::EligibilityReason`
+ --> tests/ui/crm_retention_eligibility_literal.rs:1:26
+  |
+1 | use app::crm_retention::{EligibilityReason, FollowUpEligibility};
+  |                          ^^^^^^^^^^^^^^^^^ no `EligibilityReason` in `crm_retention`
+  |
+help: a similar name exists in the module
+  |
+1 - use app::crm_retention::{EligibilityReason, FollowUpEligibility};
+1 + use app::crm_retention::{IneligibilityReason, FollowUpEligibility};
+  |
+
+error[E0223]: ambiguous associated type
+ --> tests/ui/crm_retention_eligibility_literal.rs:4:19
+  |
+4 |     let _forged = FollowUpEligibility::Eligible {
+  |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+help: if there were a trait named `Example` with associated type `Eligible` implemented for `FollowUpEligibility`, you could use the fully-qualified path
+  |
+4 -     let _forged = FollowUpEligibility::Eligible {
+4 +     let _forged = <FollowUpEligibility as Example>::Eligible {
+  |

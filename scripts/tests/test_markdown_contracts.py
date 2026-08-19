@@ -1,4 +1,5 @@
 import importlib.util
+import subprocess
 import tempfile
 import textwrap
 import unittest
@@ -87,6 +88,37 @@ class MarkdownContractsTest(unittest.TestCase):
             failures = contracts.check_local_markdown_links(root)
 
         self.assertEqual(failures, [])
+
+    def test_active_markdown_cannot_name_a_path_deleted_by_the_candidate(self):
+        contracts = load_markdown_contracts_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "test@example.invalid"],
+                cwd=root,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "Markdown Contract Test"],
+                cwd=root,
+                check=True,
+            )
+            self.write(root, "app/tests/removed_contract.rs", "#[test]\nfn old() {}\n")
+            self.write(
+                root,
+                "docs/workflows/current.md",
+                "Proof: `app/tests/removed_contract.rs`.\n",
+            )
+            subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-q", "-m", "baseline"], cwd=root, check=True)
+            (root / "app/tests/removed_contract.rs").unlink()
+
+            failures = contracts.check_deleted_path_references(root)
+
+        self.assertEqual(len(failures), 1)
+        self.assertIn("docs/workflows/current.md:1", failures[0])
+        self.assertIn("app/tests/removed_contract.rs", failures[0])
 
     def test_readme_coverage_contract_requires_workspace_and_domain_module_readmes(self):
         contracts = load_markdown_contracts_module()

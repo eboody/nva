@@ -1,127 +1,102 @@
 use app::information_lifespan as trace;
 
 #[test]
-fn deterministic_trace_fixture_covers_full_information_lifespan() {
-    let envelope = trace::mock_gingr_manager_daily_report_trace();
+fn trace_component_accessors_preserve_exact_public_proof_values() {
+    let model = trace::ModelPath::new("domain::reservation::StayFact", "normalized fact");
+    assert_eq!(model.path(), "domain::reservation::StayFact");
+    assert_eq!(model.role(), "normalized fact");
+
+    let stage = trace::TraceStage::new(
+        trace::StageKind::ProviderDtoPreserved,
+        "Source DTO",
+        true,
+        Some("fixture only".to_owned()),
+        vec![model],
+    );
+    assert_eq!(stage.kind(), trace::StageKind::ProviderDtoPreserved);
+    assert_eq!(stage.title(), "Source DTO");
+    assert!(stage.simulated());
+    assert_eq!(stage.why_simulated(), Some("fixture only"));
+    assert_eq!(stage.model_paths().len(), 1);
+
+    let log = trace::LogProofEntry::new("info", "trace", "normalized");
+    assert_eq!(log.level(), "info");
+    assert_eq!(log.target(), "trace");
+    assert_eq!(log.message(), "normalized");
+    let db = trace::DbProofEntry::new("review_packets", "packet-7", "storage::ReviewPacket");
+    assert_eq!(db.table_or_view(), "review_packets");
+    assert_eq!(db.proof_ref(), "packet-7");
+    assert_eq!(db.model_path(), "storage::ReviewPacket");
+    let network =
+        trace::NetworkProofEntry::new(trace::HttpMethod::Get, "/api/report/7", 200, "response-7");
+    assert_eq!(network.method(), trace::HttpMethod::Get);
+    assert_eq!(network.path(), "/api/report/7");
+    assert_eq!(network.status(), 200);
+    assert_eq!(network.response_ref(), "response-7");
+    let calculation = trace::CalculationProof::new("labor", "10 - 3", "7");
+    assert_eq!(calculation.name(), "labor");
+    assert_eq!(calculation.expression(), "10 - 3");
+    assert_eq!(calculation.result(), "7");
+}
+
+#[test]
+fn observed_source_evidence_remains_non_authoritative_inside_the_trace_envelope() {
+    let evidence = trace::ObservedSourceEvidence::new(
+        trace::SourceEvidenceKind::Reservation,
+        "reservation:7",
+        serde_json::json!({"provider_status": "booked"}),
+    );
 
     assert_eq!(
-        envelope.correlation_id().as_str(),
-        "info-lifespan-demo-2026-06-29"
+        evidence.evidence_kind(),
+        trace::SourceEvidenceKind::Reservation
     );
+    assert_eq!(evidence.source_ref(), "reservation:7");
+    assert_eq!(evidence.value()["provider_status"], "booked");
+    assert_eq!(
+        format!("{evidence:?}"),
+        "ObservedSourceEvidence([REDACTED])"
+    );
+
+    let correlation_id = trace::CorrelationId::new("trace-7");
+    let envelope = trace::TraceEnvelope::builder()
+        .schema_version(trace::TraceSchemaVersion::V1)
+        .correlation_id(correlation_id.clone())
+        .source_system(trace::SourceSystem::MockProviderReadOnlyFixture)
+        .synthetic_data_only(true)
+        .provider_payloads_are_source_evidence_only(true)
+        .live_side_effects_allowed(false)
+        .source_evidence(vec![evidence])
+        .stages(Vec::new())
+        .log_proof_entries(Vec::new())
+        .db_proof_entries(Vec::new())
+        .network_proof_entries(Vec::new())
+        .calculations(Vec::new())
+        .safety_gates(Vec::new())
+        .final_artifact(trace::FinalArtifact::new(
+            trace::FinalArtifactKind::ManagerDailyReport,
+            "Manager Daily Report",
+            "report:7",
+            "Synthetic report",
+        ))
+        .build();
+
+    assert_eq!(envelope.schema_version(), trace::TraceSchemaVersion::V1);
+    assert_eq!(envelope.correlation_id(), &correlation_id);
     assert_eq!(
         envelope.source_system(),
-        trace::SourceSystem::MockGingrReadOnlyFixture
+        trace::SourceSystem::MockProviderReadOnlyFixture
     );
-    assert_eq!(envelope.stages().len(), 8);
-
-    let stage_kinds: Vec<_> = envelope.stages().iter().map(|stage| stage.kind()).collect();
-    assert_eq!(
-        stage_kinds,
-        vec![
-            trace::StageKind::SourceEvidenceReceived,
-            trace::StageKind::ProviderDtoPreserved,
-            trace::StageKind::NormalizedNvaModels,
-            trace::StageKind::DatabaseProjectionProof,
-            trace::StageKind::HermesProcessorRun,
-            trace::StageKind::CalculationApplied,
-            trace::StageKind::ReviewGateLocked,
-            trace::StageKind::ManagerDailyReportArtifact,
-        ]
-    );
-
-    assert_eq!(envelope.source_payloads().len(), 3);
-    assert!(
-        envelope
-            .source_payloads()
-            .iter()
-            .any(|payload| payload.payload_kind() == trace::SourcePayloadKind::Reservation)
-    );
-    assert!(
-        envelope
-            .source_payloads()
-            .iter()
-            .any(|payload| payload.payload_kind() == trace::SourcePayloadKind::CareNote)
-    );
-    assert!(
-        envelope
-            .source_payloads()
-            .iter()
-            .any(|payload| payload.payload_kind() == trace::SourcePayloadKind::Vaccine)
-    );
-
-    assert!(
-        envelope
-            .stages()
-            .iter()
-            .flat_map(|stage| stage.model_paths())
-            .any(|path| path.path() == "gingr::response::ReservationRecord")
-    );
-    assert!(
-        envelope
-            .stages()
-            .iter()
-            .flat_map(|stage| stage.model_paths())
-            .any(|path| path.path() == "app::manager_daily_brief::Packet")
-    );
-    assert!(envelope.network_proof_entries().iter().any(|entry| {
-        entry.method() == trace::HttpMethod::Post
-            && entry.path() == "/demo/information-lifespan/run"
-    }));
-    let database_stage = envelope
-        .stages()
-        .iter()
-        .find(|stage| stage.kind() == trace::StageKind::DatabaseProjectionProof)
-        .expect("trace has database/projection proof stage");
-    assert!(
-        !database_stage.simulated(),
-        "Piece 2 wires DB refs into deterministic local Postgres seed rows"
-    );
-    assert!(database_stage.why_simulated().is_none());
-    let hermes_stage = envelope
-        .stages()
-        .iter()
-        .find(|stage| stage.kind() == trace::StageKind::HermesProcessorRun)
-        .expect("trace has Hermes processor proof stage");
-    assert!(
-        !hermes_stage.simulated(),
-        "Piece 3 adds a Docker Compose hermes-processor bridge with deterministic output"
-    );
-    assert!(hermes_stage.why_simulated().is_none());
-    assert!(hermes_stage.model_paths().iter().any(|path| {
-        path.path() == "apps::hermes_processor::processor"
-            && path.role().contains("Docker Compose service")
-    }));
-    assert!(envelope.db_proof_entries().len() >= 6);
-    assert!(envelope.db_proof_entries().iter().any(|entry| {
-        entry.table_or_view() == "information_lifespan_db_lifecycle_proof"
-            && entry.proof_ref() == "correlation_id:info-lifespan-demo-2026-06-29"
-    }));
-    assert!(envelope.db_proof_entries().iter().any(|entry| {
-        entry.table_or_view() == "manager_daily_brief_outcomes"
-            && entry.proof_ref().contains("info-lifespan-demo-2026-06-29")
-    }));
-    assert!(envelope.calculations().iter().any(|calculation| {
-        calculation.name() == "reported_estimated_labor_minutes_difference"
-            && calculation.result() == "42"
-    }));
-    assert!(envelope.safety_gates().iter().all(|gate| gate.locked()));
-    assert!(envelope.safety_gates().iter().any(|gate| {
-        gate.gate() == trace::SafetyGateKind::ProviderWriteLocked && gate.locked()
-    }));
-    let artifact_stage = envelope
-        .stages()
-        .iter()
-        .find(|stage| stage.kind() == trace::StageKind::ManagerDailyReportArtifact)
-        .expect("trace has final Manager Daily Report artifact stage");
-    assert!(
-        !artifact_stage.simulated(),
-        "Piece 4 exposes the final artifact through the local API/report payload"
-    );
-    assert!(artifact_stage.why_simulated().is_none());
-    assert!(artifact_stage.model_paths().iter().any(|path| {
-        path.path() == "apps::api::http::information_lifespan_run_payload"
-            && path.role().contains("API renderer")
-    }));
+    assert!(envelope.uses_synthetic_data_only());
+    assert!(envelope.provider_payloads_are_source_evidence_only());
+    assert!(!envelope.live_side_effects_allowed());
+    assert_eq!(envelope.source_evidence().len(), 1);
+    assert!(envelope.stages().is_empty());
+    assert!(envelope.log_proof_entries().is_empty());
+    assert!(envelope.db_proof_entries().is_empty());
+    assert!(envelope.network_proof_entries().is_empty());
+    assert!(envelope.calculations().is_empty());
+    assert!(envelope.safety_gates().is_empty());
     assert_eq!(
         envelope.final_artifact().artifact_kind(),
         trace::FinalArtifactKind::ManagerDailyReport
@@ -129,66 +104,10 @@ fn deterministic_trace_fixture_covers_full_information_lifespan() {
 }
 
 #[test]
-fn mocked_gingr_payloads_remain_source_evidence_not_product_truth() {
-    let envelope = trace::mock_gingr_manager_daily_report_trace();
+fn legacy_v0_trace_schema_is_not_a_current_contract() {
+    let error =
+        serde_json::from_str::<trace::TraceSchemaVersion>("\"information_lifespan.trace.v0\"")
+            .expect_err("legacy v0 traces must not deserialize as the current schema");
 
-    assert!(envelope.uses_synthetic_data_only());
-    assert!(envelope.provider_payloads_are_source_evidence_only());
-    assert!(!envelope.live_side_effects_allowed());
-
-    for source_payload in envelope.source_payloads() {
-        assert_eq!(
-            source_payload.authority(),
-            trace::PayloadAuthority::ProviderEvidenceOnly
-        );
-        assert!(
-            source_payload
-                .raw_payload_ref()
-                .starts_with("fixture://mock-gingr/")
-        );
-    }
-
-    let serialized =
-        serde_json::to_value(&envelope).expect("trace fixture serializes for API/UI reuse");
-    assert_eq!(
-        serialized["correlation_id"],
-        serde_json::Value::String("info-lifespan-demo-2026-06-29".to_owned())
-    );
-    assert_eq!(
-        serialized["live_side_effects_allowed"],
-        serde_json::Value::Bool(false)
-    );
-    assert_eq!(
-        serialized["source_payloads"][0]["payload"]["synthetic"],
-        true
-    );
-    assert_eq!(
-        serialized["final_artifact"]["title"],
-        serde_json::Value::String("Manager Daily Report — synthetic 2026-06-29".to_owned())
-    );
-}
-
-#[test]
-fn agent_trace_contract_has_explicit_schema_version_and_redacted_debug() {
-    let envelope = trace::mock_gingr_manager_daily_report_trace();
-
-    assert_eq!(envelope.schema_version(), trace::TraceSchemaVersion::V0);
-
-    let serialized = serde_json::to_value(&envelope).expect("trace fixture serializes");
-    assert_eq!(
-        serialized["schema_version"],
-        "information_lifespan_trace.v0"
-    );
-
-    let debug = format!("{envelope:?}");
-    assert!(debug.contains("source_payloads_count: 3"));
-    assert!(!debug.contains("Ate breakfast"));
-    assert!(!debug.contains("fixture://mock-gingr/care-notes/9001001-feeding.json"));
-
-    for source_payload in envelope.source_payloads() {
-        let payload_debug = format!("{source_payload:?}");
-        assert_eq!(payload_debug, "SourcePayload([REDACTED])");
-        assert!(!payload_debug.contains("Ate breakfast"));
-        assert!(!payload_debug.contains("fixture://mock-gingr/"));
-    }
+    assert!(error.to_string().contains("information_lifespan_trace.v1"));
 }

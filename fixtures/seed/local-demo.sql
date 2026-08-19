@@ -349,7 +349,7 @@ WITH demo_location AS (
         actor_persona,
         feedback,
         issue_refs,
-        resolution_status_after_review,
+        reported_resolution_status,
         owner_persona,
         action_kind,
         before_minutes,

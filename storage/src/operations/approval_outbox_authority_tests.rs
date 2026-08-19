@@ -39,6 +39,94 @@ fn internal_handoff_topics_are_closed_and_non_live() {
     );
 }
 
+#[test]
+fn pending_outbox_admission_rejects_every_mismatched_binding_dimension() {
+    type MutatePending = fn(&mut PendingOutboxRecord);
+    let cases: [(&str, MutatePending, ApprovalOutboxAuthorityMismatch); 9] = [
+        (
+            "outbox id",
+            |pending| pending.id = "different-outbox-id".to_owned(),
+            ApprovalOutboxAuthorityMismatch::ApprovalRelation,
+        ),
+        (
+            "idempotency key",
+            |pending| pending.idempotency_key = "different-idempotency-key".to_owned(),
+            ApprovalOutboxAuthorityMismatch::ApprovalRelation,
+        ),
+        (
+            "availability timestamp",
+            |pending| pending.available_at = "2026-06-18T13:15:00Z".to_owned(),
+            ApprovalOutboxAuthorityMismatch::ApprovalRelation,
+        ),
+        (
+            "approval record id",
+            |pending| pending.approval_record_id = "different-approval-id".to_owned(),
+            ApprovalOutboxAuthorityMismatch::ApprovalRelation,
+        ),
+        (
+            "review gate",
+            |pending| pending.review_gate = ReviewGateCode::BehaviorReview,
+            ApprovalOutboxAuthorityMismatch::ApprovalRelation,
+        ),
+        (
+            "aggregate kind",
+            |pending| pending.aggregate_kind = "different-kind".to_owned(),
+            ApprovalOutboxAuthorityMismatch::ApprovalRelation,
+        ),
+        (
+            "aggregate id",
+            |pending| pending.aggregate_id = "different-aggregate-id".to_owned(),
+            ApprovalOutboxAuthorityMismatch::ApprovalRelation,
+        ),
+        (
+            "handoff topic",
+            |pending| pending.topic = InternalHandoffTopic::SiteFinanceReviewedHandoff,
+            ApprovalOutboxAuthorityMismatch::InternalHandoff,
+        ),
+        (
+            "handoff payload",
+            |pending| pending.payload = json!({"different": true}),
+            ApprovalOutboxAuthorityMismatch::InternalHandoff,
+        ),
+    ];
+
+    for (dimension, mutate, expected_reason) in cases {
+        let (mut projection, mut pending) = admitted_pending_outbox();
+        mutate(&mut pending);
+
+        let error = projection
+            .record_pending_outbox(pending)
+            .expect_err(&format!("mismatched {dimension} must be rejected"));
+        assert!(
+            matches!(
+                error,
+                Error::ApprovalOutboxAuthority { reason } if reason == expected_reason
+            ),
+            "mismatched {dimension} returned the wrong rejection: {error:?}"
+        );
+        assert!(projection.outbox_candidate().is_none());
+    }
+}
+
+fn admitted_pending_outbox() -> (ApprovalOutboxProjection, PendingOutboxRecord) {
+    let mut projection = approved_projection_with_outbox_id("00000000-0000-0000-0000-000000000104");
+    projection.approval_record.status = "approved".to_owned();
+    projection.approval_record.decided_by_actor_kind = Some(ActorKindCode::Manager);
+    projection.approval_record.decided_by_actor_id = Some("general-manager-1".to_owned());
+    projection.approval_record.decided_at = Some("2026-06-17T13:15:00Z".to_owned());
+    projection.admission_authority_available = true;
+    let reviewer = CurrentApprovalReviewerCapability::try_new(
+        ActorKindCode::Manager,
+        "general-manager-1".to_owned(),
+    )
+    .expect("manager is review capable");
+    let authority = projection
+        .authorize_internal_handoff(&reviewer, expected_handoff())
+        .expect("matching current reviewer and binding issue one-shot authority");
+
+    (projection, PendingOutboxRecord::admit(authority))
+}
+
 fn expected_handoff() -> InternalHandoff {
     InternalHandoff::new(
         InternalHandoffTopic::DataQualityHygieneReviewedHandoff,
@@ -71,18 +159,6 @@ fn approved_projection_with_outbox_id(outbox_record_id: &str) -> ApprovalOutboxP
             .workflow_name("data-quality-hygiene".to_owned())
             .event_kind("context_created".to_owned())
             .gate(ReviewGateCode::ManagerApproval)
-            .disposition(ApprovalReviewDisposition::approved(
-                ActorKindCode::Manager,
-                "general-manager-1".to_owned(),
-                "2026-06-17T13:15:00Z".to_owned(),
-                None,
-                ApprovalTargetBinding::new(
-                    approval_record_id,
-                    "message".to_owned(),
-                    subject_id,
-                    ReviewGateCode::ManagerApproval,
-                ),
-            ))
             .target_kind("message".to_owned())
             .agent_actor_id("data-quality-hygiene-agent".to_owned())
             .workflow_payload(json!({"live_side_effects_allowed": false}))

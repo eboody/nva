@@ -62,11 +62,6 @@ impl Timezone {
     pub fn as_str(&self) -> &str {
         &self.0
     }
-
-    /// Consumes the timezone into its validated string identifier.
-    pub fn into_inner(self) -> String {
-        self.0
-    }
 }
 
 impl<'de> Deserialize<'de> for Timezone {

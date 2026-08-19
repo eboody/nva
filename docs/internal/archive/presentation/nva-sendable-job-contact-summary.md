@@ -28,7 +28,7 @@ It checks the OpenAPI contract, runs the Data-Quality Hygiene local loop, proves
 demo_owned_operations_api_ok local_fixture_only=true live_side_effects_allowed=false
 ```
 
-The checked OpenAPI artifact is at [`apps/api/openapi/owned-operations-v0.openapi.json`](../../apps/api/openapi/owned-operations-v0.openapi.json), and the presentation run sheet is [`docs/presentation/nva-presentation-checklist.md`](nva-presentation-checklist.md). The realtime queue presenter script is:
+The checked OpenAPI artifact is at [`apps/api/openapi/owned-operations-v1.openapi.json`](../../apps/api/openapi/owned-operations-v1.openapi.json), and the presentation run sheet is [`docs/presentation/nva-presentation-checklist.md`](nva-presentation-checklist.md). The realtime queue presenter script is:
 
 ```sh
 scripts/spacetimedb_realtime_queue_demo.sh --self-test

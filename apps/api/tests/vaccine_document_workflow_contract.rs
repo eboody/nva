@@ -65,7 +65,7 @@ async fn json_request(
 async fn vaccine_document_upload_persists_extraction_review_and_audit_evidence() {
     let (status, payload) = json_request(
         axum_http::Method::POST,
-        "/vaccine-documents/uploads",
+        "/v1/vaccine-documents/uploads",
         json!({
             "pet_id": "00000000-0000-0000-0000-000000000101",
             "customer_id": "00000000-0000-0000-0000-000000000201",
@@ -118,7 +118,7 @@ async fn vaccine_document_upload_persists_extraction_review_and_audit_evidence()
 async fn staff_approval_updates_vaccine_eligibility_and_preserves_document_audit_lineage() {
     let (_, upload) = json_request(
         axum_http::Method::POST,
-        "/vaccine-documents/uploads",
+        "/v1/vaccine-documents/uploads",
         json!({
             "pet_id": "00000000-0000-0000-0000-000000000101",
             "customer_id": "00000000-0000-0000-0000-000000000201",
@@ -135,7 +135,7 @@ async fn staff_approval_updates_vaccine_eligibility_and_preserves_document_audit
 
     let (status, approved) = json_request(
         axum_http::Method::POST,
-        &format!("/vaccine-documents/review-packets/{review_packet_id}/approve"),
+        &format!("/v1/vaccine-documents/review-packets/{review_packet_id}/approve"),
         json!({ "reviewed_by_staff_id": "medical-reviewer-demo" }),
     )
     .await;
@@ -166,7 +166,7 @@ async fn staff_approval_updates_vaccine_eligibility_and_preserves_document_audit
 async fn staff_rejection_keeps_pet_ineligible_and_marks_extracted_record_rejected() {
     let (_, upload) = json_request(
         axum_http::Method::POST,
-        "/vaccine-documents/uploads",
+        "/v1/vaccine-documents/uploads",
         json!({
             "pet_id": "00000000-0000-0000-0000-000000000101",
             "customer_id": "00000000-0000-0000-0000-000000000201",
@@ -183,7 +183,7 @@ async fn staff_rejection_keeps_pet_ineligible_and_marks_extracted_record_rejecte
 
     let (status, rejected) = json_request(
         axum_http::Method::POST,
-        &format!("/vaccine-documents/review-packets/{review_packet_id}/reject"),
+        &format!("/v1/vaccine-documents/review-packets/{review_packet_id}/reject"),
         json!({ "reviewed_by_staff_id": "medical-reviewer-demo", "reason": "name/date mismatch" }),
     )
     .await;

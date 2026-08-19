@@ -1,0 +1,11 @@
+error[E0433]: cannot find `CompletionStatus` in `checkout_completion`
+ --> tests/ui/checkout_compatibility_model_is_absent.rs:4:34
+  |
+4 |     let _ = checkout_completion::CompletionStatus::ReportedStaffCheckout;
+  |                                  ^^^^^^^^^^^^^^^^ could not find `CompletionStatus` in `checkout_completion`
+
+error[E0433]: cannot find `StaffHandoff` in `checkout_completion`
+ --> tests/ui/checkout_compatibility_model_is_absent.rs:5:34
+  |
+5 |     let _ = checkout_completion::StaffHandoff::builder();
+  |                                  ^^^^^^^^^^^^ could not find `StaffHandoff` in `checkout_completion`

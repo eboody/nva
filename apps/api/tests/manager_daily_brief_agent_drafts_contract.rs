@@ -5,11 +5,18 @@ use serde_json::json;
 use tower::ServiceExt;
 
 async fn post_json(body: serde_json::Value) -> (axum_http::StatusCode, serde_json::Value) {
-    let response = http::router_with_test_auth_state(http::VaccineDocumentState::default())
+    post_json_with_state(http::VaccineDocumentState::default(), body).await
+}
+
+async fn post_json_with_state(
+    state: http::VaccineDocumentState,
+    body: serde_json::Value,
+) -> (axum_http::StatusCode, serde_json::Value) {
+    let response = http::router_with_test_auth_state(state)
         .oneshot(
             axum_http::request::Builder::new()
                 .method(axum_http::Method::POST)
-                .uri("/agent/drafts/manager-daily-brief")
+                .uri("/v1/agent/drafts/manager-daily-brief")
                 .header(axum_http::header::CONTENT_TYPE, "application/json")
                 .header("x-test-auth-actor-id", "hermes-agent")
                 .header("x-test-auth-role", "general_manager")
@@ -38,14 +45,14 @@ async fn post_json(body: serde_json::Value) -> (axum_http::StatusCode, serde_jso
 fn valid_source_refs() -> serde_json::Value {
     json!([
         {
-            "system": "gingr",
+            "system": "provider_or_pms",
             "record_type": "service_demand_forecast",
             "record_id": "reservation-42",
             "observed_at": "2026-06-17T00:00:00Z",
             "adapter_version": "nva-local-manager-daily-brief-fixture-v1"
         },
         {
-            "system": "gingr",
+            "system": "provider_or_pms",
             "record_type": "source_data_quality_issue",
             "record_id": "reservation-42",
             "observed_at": "2026-06-17T00:00:00Z",
@@ -164,16 +171,17 @@ async fn manager_daily_brief_agent_drafts_rejects_missing_or_wrong_review_gates(
 
 #[tokio::test]
 async fn manager_daily_brief_agent_drafts_rejects_live_side_effect_attempts() {
-    for blocked_side_effect in [
-        "send_customer_message",
-        "mutate_provider_or_pms_record",
-        "change_staff_schedule",
-        "move_refund_discount_or_payment",
-    ] {
+    for intent in http::DeniedLiveEffectIntent::for_workflow(
+        http::DeniedLiveEffectWorkflow::ManagerDailyBrief,
+    ) {
+        let blocked_side_effect = intent.code();
+        let state = http::VaccineDocumentState::default();
+        let denied_intents = state.denied_live_effect_intent_count();
+        let persisted_records = state.persisted_record_count().await;
         let mut body = accepted_demand_draft_body();
         body["actions"][0]["requested_side_effects"] = json!([blocked_side_effect]);
 
-        let (status, payload) = post_json(body).await;
+        let (status, payload) = post_json_with_state(state.clone(), body).await;
 
         assert_eq!(status, axum_http::StatusCode::UNPROCESSABLE_ENTITY);
         assert_eq!(payload["accepted_actions"].as_array().unwrap().len(), 0);
@@ -183,6 +191,13 @@ async fn manager_daily_brief_agent_drafts_rejects_live_side_effect_attempts() {
                 .unwrap()
                 .contains(&json!(format!("blocked_side_effect:{blocked_side_effect}")))
         );
+        assert_eq!(
+            payload["rejected_actions"][0]["live_side_effects_allowed"],
+            false
+        );
+        assert!(payload.get("outbox_candidate").is_none());
+        assert_eq!(state.denied_live_effect_intent_count(), denied_intents + 1);
+        assert_eq!(state.persisted_record_count().await, persisted_records);
     }
 }
 

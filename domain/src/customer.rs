@@ -524,6 +524,7 @@ pub mod intelligence {
                 },
             )
             .unwrap();
+            assert_eq!(accepted_note.pet_id(), None);
             let membership = SegmentMembership::try_new(
                 customer_id,
                 SegmentDefinition::builder()
@@ -554,6 +555,58 @@ pub mod intelligence {
                 .build();
             let accepted_consent = consent::issue_accepted_consent(consent).unwrap();
 
+            assert!(matches!(
+                MarketingUsePermission::try_from_membership(
+                    &membership,
+                    None,
+                    access::AllowedUse::InternalDecisionSupport,
+                    now,
+                ),
+                Err(Error::AllowedUseMismatch)
+            ));
+            assert!(matches!(
+                MarketingUsePermission::try_from_membership(
+                    &membership,
+                    None,
+                    access::AllowedUse::MarketingCampaign,
+                    now + chrono::Duration::minutes(2),
+                ),
+                Err(Error::AllowedUseMismatch)
+            ));
+            assert!(matches!(
+                MarketingUsePermission::try_from_membership(
+                    &membership,
+                    None,
+                    access::AllowedUse::MarketingCampaign,
+                    now,
+                ),
+                Err(Error::MissingMarketingConsentEvidence)
+            ));
+            let wrong_subject_consent = consent::ConsentEvidence::builder()
+                .channel(consent::Channel::Email)
+                .purpose(consent::Purpose::MarketingRetention)
+                .status(consent::ConsentStatus::Granted)
+                .source(source::System::Crm)
+                .subject(consent::Subject::Customer(entities::CustomerId::new(
+                    Uuid::from_u128(2),
+                )))
+                .source_record(source::RecordRef::new(
+                    source::System::Crm,
+                    source::record::Id::try_new("consent-wrong-subject").unwrap(),
+                ))
+                .source_schema_version(source::SchemaVersion::try_new("v1").unwrap())
+                .effective_from(now - chrono::Duration::hours(1))
+                .build();
+            assert!(matches!(
+                MarketingUsePermission::try_from_membership(
+                    &membership,
+                    Some(consent::issue_accepted_consent(wrong_subject_consent).unwrap()),
+                    access::AllowedUse::MarketingCampaign,
+                    now,
+                ),
+                Err(Error::MissingMarketingConsentEvidence)
+            ));
+
             let permission = MarketingUsePermission::try_from_membership(
                 &membership,
                 Some(accepted_consent),
@@ -562,6 +615,273 @@ pub mod intelligence {
             )
             .unwrap();
             assert_eq!(permission.customer_id(), customer_id);
+            assert_eq!(permission.segment(), Segment::ServiceRecoveryWatchlist);
+            assert_eq!(
+                permission.allowed_use(),
+                access::AllowedUse::MarketingCampaign
+            );
+            assert_eq!(
+                permission.consent_evidence().channel(),
+                consent::Channel::Email
+            );
+            assert_eq!(membership.customer_id(), customer_id);
+            assert_eq!(membership.segment(), Segment::ServiceRecoveryWatchlist);
+            assert_eq!(membership.definition().version().as_ref(), "v1");
+            assert_eq!(
+                membership.basis(),
+                &[SegmentBasis::ComplaintResolvedRecently]
+            );
+            assert_eq!(membership.evidence().len(), 1);
+            assert!(membership.is_current_at(now));
+        }
+
+        fn reviewed_note(
+            now: DateTime<Utc>,
+            note_id: NoteId,
+            customer_id: entities::CustomerId,
+            reviewer: access::ActorId,
+            visibility: access::VisibilityScope,
+            allowed_uses: Vec<access::AllowedUse>,
+        ) -> StructuredNote {
+            StructuredNote::builder()
+                .id(note_id)
+                .customer_id(customer_id)
+                .pet_id(entities::PetId::new(Uuid::from_u128(9)))
+                .kind(NoteKind::ServiceRecovery)
+                .body(NoteBody::try_new("Sensitive recovery context").unwrap())
+                .visibility(visibility)
+                .allowed_uses(allowed_uses)
+                .source(SignalSource::StaffObservation)
+                .confidence(identity::Confidence::High)
+                .review_state(ReviewState::Accepted)
+                .reviewed_by(reviewer)
+                .effective_interval(
+                    EffectiveInterval::try_new(
+                        now - chrono::Duration::hours(1),
+                        Some(now + chrono::Duration::hours(1)),
+                    )
+                    .unwrap(),
+                )
+                .recorded_at(now - chrono::Duration::hours(2))
+                .build()
+        }
+
+        #[test]
+        fn crm_acceptance_rejects_mismatched_expired_or_wrong_scope_evidence() {
+            let now = Utc.with_ymd_and_hms(2026, 8, 18, 5, 0, 0).unwrap();
+            let customer_id = entities::CustomerId::new(Uuid::from_u128(7));
+            let reviewer = access::ActorId::try_new("reviewer-7").unwrap();
+            let note_id = NoteId::try_new("note-7").unwrap();
+            let note = reviewed_note(
+                now,
+                note_id.clone(),
+                customer_id,
+                reviewer.clone(),
+                access::VisibilityScope::OperationsOnly,
+                vec![access::AllowedUse::InternalDecisionSupport],
+            );
+            assert_eq!(
+                format!("{:?}", NoteBody::try_new("secret").unwrap()),
+                "NoteBody([REDACTED])"
+            );
+            assert_eq!(format!("{note:?}"), "StructuredNote([REDACTED])");
+            assert_eq!(note.id(), &note_id);
+            assert_eq!(note.customer_id(), customer_id);
+            assert_eq!(
+                note.pet_id(),
+                Some(entities::PetId::new(Uuid::from_u128(9)))
+            );
+            assert_eq!(note.visibility(), access::VisibilityScope::OperationsOnly);
+            assert_eq!(note.review_state(), ReviewState::Accepted);
+            assert_eq!(note.reviewed_by(), Some(&reviewer));
+            assert!(note.effective_interval().contains(now));
+
+            assert_eq!(
+                EffectiveInterval::try_new(now, Some(now)),
+                Err(Error::EffectiveIntervalEndMustFollowStart)
+            );
+            assert!(
+                serde_json::from_value::<EffectiveInterval>(serde_json::json!({
+                    "start": "2026-08-18T05:00:00Z",
+                    "end": "2026-08-18T04:00:00Z"
+                }))
+                .is_err()
+            );
+
+            let mismatched = NoteAcceptanceAuthority {
+                note_id: NoteId::try_new("other-note").unwrap(),
+                customer_id,
+                reviewer: reviewer.clone(),
+                accepted_for: access::AllowedUse::InternalDecisionSupport,
+                accepted_at: now,
+            };
+            assert!(matches!(
+                AcceptedNote::accept(note, mismatched),
+                Err(Error::NoteNotAccepted)
+            ));
+
+            let note = reviewed_note(
+                now,
+                note_id.clone(),
+                customer_id,
+                reviewer.clone(),
+                access::VisibilityScope::OperationsOnly,
+                vec![access::AllowedUse::InternalDecisionSupport],
+            );
+            assert!(matches!(
+                AcceptedNote::accept(
+                    note,
+                    NoteAcceptanceAuthority {
+                        note_id: note_id.clone(),
+                        customer_id,
+                        reviewer: reviewer.clone(),
+                        accepted_for: access::AllowedUse::InternalDecisionSupport,
+                        accepted_at: now + chrono::Duration::hours(2),
+                    }
+                ),
+                Err(Error::EvidenceExpired)
+            ));
+
+            let note = reviewed_note(
+                now,
+                note_id.clone(),
+                customer_id,
+                reviewer.clone(),
+                access::VisibilityScope::OperationsOnly,
+                vec![access::AllowedUse::InternalDecisionSupport],
+            );
+            assert!(matches!(
+                AcceptedNote::accept(
+                    note,
+                    NoteAcceptanceAuthority {
+                        note_id: note_id.clone(),
+                        customer_id,
+                        reviewer: reviewer.clone(),
+                        accepted_for: access::AllowedUse::MarketingCampaign,
+                        accepted_at: now,
+                    }
+                ),
+                Err(Error::AllowedUseMismatch)
+            ));
+
+            let note = reviewed_note(
+                now,
+                note_id.clone(),
+                customer_id,
+                reviewer.clone(),
+                access::VisibilityScope::OperationsOnly,
+                vec![access::AllowedUse::MarketingCampaign],
+            );
+            assert!(matches!(
+                AcceptedNote::accept(
+                    note,
+                    NoteAcceptanceAuthority {
+                        note_id,
+                        customer_id,
+                        reviewer: reviewer.clone(),
+                        accepted_for: access::AllowedUse::MarketingCampaign,
+                        accepted_at: now,
+                    }
+                ),
+                Err(Error::VisibilityUseMismatch)
+            ));
+
+            let definition = SegmentDefinition::builder()
+                .segment(Segment::RecurringDaycareCandidate)
+                .version(SegmentVersion::try_new("v2").unwrap())
+                .allowed_use(access::AllowedUse::MarketingCampaign)
+                .visibility(access::VisibilityScope::MarketingEligible)
+                .review_gate(policy::ReviewGate::ManagerApproval)
+                .build();
+            assert_eq!(definition.segment(), Segment::RecurringDaycareCandidate);
+            assert_eq!(
+                definition.allowed_use(),
+                access::AllowedUse::MarketingCampaign
+            );
+            assert_eq!(
+                definition.visibility(),
+                access::VisibilityScope::MarketingEligible
+            );
+            assert!(matches!(
+                SegmentMembership::try_new(
+                    customer_id,
+                    definition,
+                    Vec::new(),
+                    EffectiveInterval::try_new(now, None).unwrap(),
+                    Vec::new(),
+                ),
+                Err(Error::MissingEvidence)
+            ));
+
+            let accepted_for_wrong_customer = AcceptedNote::accept(
+                reviewed_note(
+                    now,
+                    NoteId::try_new("membership-customer").unwrap(),
+                    customer_id,
+                    reviewer.clone(),
+                    access::VisibilityScope::OperationsOnly,
+                    vec![access::AllowedUse::InternalDecisionSupport],
+                ),
+                NoteAcceptanceAuthority {
+                    note_id: NoteId::try_new("membership-customer").unwrap(),
+                    customer_id,
+                    reviewer: reviewer.clone(),
+                    accepted_for: access::AllowedUse::InternalDecisionSupport,
+                    accepted_at: now,
+                },
+            )
+            .unwrap();
+            assert!(matches!(
+                SegmentMembership::try_new(
+                    entities::CustomerId::new(Uuid::from_u128(8)),
+                    SegmentDefinition::builder()
+                        .segment(Segment::RecurringDaycareCandidate)
+                        .version(SegmentVersion::try_new("v3").unwrap())
+                        .allowed_use(access::AllowedUse::InternalDecisionSupport)
+                        .visibility(access::VisibilityScope::OperationsOnly)
+                        .review_gate(policy::ReviewGate::ManagerApproval)
+                        .build(),
+                    vec![SegmentBasis::VisitCadenceDeclined],
+                    EffectiveInterval::try_new(now, None).unwrap(),
+                    vec![accepted_for_wrong_customer],
+                ),
+                Err(Error::EvidenceCustomerMismatch)
+            ));
+
+            let accepted_for_wrong_use = AcceptedNote::accept(
+                reviewed_note(
+                    now,
+                    NoteId::try_new("membership-use").unwrap(),
+                    customer_id,
+                    reviewer.clone(),
+                    access::VisibilityScope::OperationsOnly,
+                    vec![access::AllowedUse::InternalDecisionSupport],
+                ),
+                NoteAcceptanceAuthority {
+                    note_id: NoteId::try_new("membership-use").unwrap(),
+                    customer_id,
+                    reviewer,
+                    accepted_for: access::AllowedUse::InternalDecisionSupport,
+                    accepted_at: now,
+                },
+            )
+            .unwrap();
+            assert!(matches!(
+                SegmentMembership::try_new(
+                    customer_id,
+                    SegmentDefinition::builder()
+                        .segment(Segment::RecurringDaycareCandidate)
+                        .version(SegmentVersion::try_new("v4").unwrap())
+                        .allowed_use(access::AllowedUse::MarketingCampaign)
+                        .visibility(access::VisibilityScope::MarketingEligible)
+                        .review_gate(policy::ReviewGate::ManagerApproval)
+                        .build(),
+                    vec![SegmentBasis::VisitCadenceDeclined],
+                    EffectiveInterval::try_new(now, None).unwrap(),
+                    vec![accepted_for_wrong_use],
+                ),
+                Err(Error::AllowedUseMismatch)
+            ));
         }
     }
 

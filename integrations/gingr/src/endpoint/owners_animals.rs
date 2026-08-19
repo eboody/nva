@@ -1,6 +1,6 @@
 use core::fmt;
 
-use super::{AnimalId, FormId, Method, OwnerId, Request, ReservationId, non_empty_text};
+use super::{AnimalId, FormId, Method, OwnerId, Request, ReservationId};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 /// Opaque provider `where` clause string passed to Gingr owner/animal search endpoints.
@@ -10,14 +10,6 @@ pub struct ProviderWhereClause {
 }
 
 impl ProviderWhereClause {
-    /// Captures the provider field/value filter exactly as Gingr expects it so reviewers can audit the lookup.
-    pub fn new(field: impl Into<String>, value: impl Into<String>) -> Self {
-        Self {
-            field: field.into(),
-            value: value.into(),
-        }
-    }
-
     fn parameter_pair(&self) -> (String, String) {
         (format!("params[{}]", self.field), self.value.clone())
     }
@@ -76,11 +68,6 @@ impl Request for Animals {
 pub struct SensitiveLookup(String);
 
 impl SensitiveLookup {
-    /// Captures the provider field/value filter exactly as Gingr expects it so reviewers can audit the lookup.
-    pub fn new(value: impl Into<String>) -> super::Result<Self> {
-        Ok(Self(non_empty_text(value)?))
-    }
-
     fn as_str(&self) -> &str {
         &self.0
     }
@@ -113,42 +100,7 @@ pub struct Owner {
     lookup: OwnerLookup,
 }
 
-impl Owner {
-    /// Builds an owner lookup by Gingr owner identifier.
-    pub fn by_id(id: OwnerId) -> Self {
-        Self {
-            lookup: OwnerLookup::OwnerId(id),
-        }
-    }
-
-    /// Builds an owner lookup by Gingr animal identifier.
-    pub fn by_animal(id: AnimalId) -> Self {
-        Self {
-            lookup: OwnerLookup::AnimalId(id),
-        }
-    }
-
-    /// Builds an owner lookup by Gingr reservation identifier.
-    pub fn by_reservation(id: ReservationId) -> Self {
-        Self {
-            lookup: OwnerLookup::ReservationId(id),
-        }
-    }
-
-    /// Builds an owner lookup by phone number.
-    pub fn by_phone(phone: SensitiveLookup) -> Self {
-        Self {
-            lookup: OwnerLookup::Phone(phone),
-        }
-    }
-
-    /// Builds an owner lookup by email address.
-    pub fn by_email(email: SensitiveLookup) -> Self {
-        Self {
-            lookup: OwnerLookup::Email(email),
-        }
-    }
-}
+impl Owner {}
 
 impl Request for Owner {
     fn method(&self) -> Method {
@@ -205,12 +157,7 @@ pub struct Form {
     kind: FormKind,
 }
 
-impl Form {
-    /// Wraps an already-observed Gingr identifier without claiming anything beyond provider provenance.
-    pub const fn new(kind: FormKind) -> Self {
-        Self { kind }
-    }
-}
+impl Form {}
 
 impl Request for Form {
     fn method(&self) -> Method {
@@ -234,12 +181,7 @@ pub mod custom_field {
     /// Non-empty provider custom-field name used for Gingr custom-field search.
     pub struct Name(String);
 
-    impl Name {
-        /// Captures the provider field/value filter exactly as Gingr expects it so reviewers can audit the lookup.
-        pub fn new(value: impl Into<String>) -> super::super::Result<Self> {
-            Ok(Self(non_empty_text(value)?))
-        }
-    }
+    impl Name {}
 
     #[derive(Clone, Debug, PartialEq, Eq, bon::Builder)]
     /// Request descriptor for Gingr custom-field search across provider owner or animal fields.
@@ -279,23 +221,7 @@ pub struct AnimalCareInfo {
     animal_id: AnimalId,
 }
 
-impl AnimalCareInfo {
-    /// Builds an animal-care endpoint request for feeding instructions.
-    pub fn feeding(animal_id: AnimalId) -> Self {
-        Self {
-            path: "/api/v1/get_feeding_info",
-            animal_id,
-        }
-    }
-
-    /// Builds an animal-care endpoint request for medication instructions.
-    pub fn medication(animal_id: AnimalId) -> Self {
-        Self {
-            path: "/api/v1/get_medication_info",
-            animal_id,
-        }
-    }
-}
+impl AnimalCareInfo {}
 
 impl Request for AnimalCareInfo {
     fn method(&self) -> Method {

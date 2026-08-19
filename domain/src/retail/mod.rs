@@ -2,7 +2,7 @@
 //!
 //! Operator summary: this module supports staff queues for retail sale drafts, checkout attachments, customer-safe recommendation drafts, low-stock reorder work, and vendor-managed notices. It reduces front-desk and manager labor by turning SKU/catalog facts, stock counts, customer preference, care sensitivity, checkout source, price exceptions, and reorder thresholds into typed decisions instead of ad hoc manual review.
 //!
-//! It is not a live automation layer. `domain::retail` does not send customer messages, promise medical outcomes, place vendor orders, mutate POS/Gingr transactions, reconcile payments, approve comps/refunds, or attach products to reservations. Provider DTOs/endpoints, storage records/codes, and source/provenance facts remain authoritative in their own layers; this module only evaluates promoted domain facts.
+//! It is not a live automation layer. `domain::retail` does not send customer messages, promise medical outcomes, place vendor orders, mutate provider transactions, reconcile payments, approve comps/refunds, or attach products to reservations. Provider DTOs/endpoints, storage records/codes, and source/provenance facts remain authoritative in their own layers; this module only evaluates promoted domain facts.
 //!
 //! Review gates protect pets, customers, and staff: unavailable or non-sellable items are denied, opted-out customers and unavailable products suppress recommendations, supplement/diet and care-plan conflicts require staff or manager review, medical-claim customer copy is rejected or approval-gated, reservation-checkout attachments require customer-message approval, price exceptions require manager approval, impossible stock math is rejected, and reorder actions become threshold-backed manager tasks or vendor notices rather than automatic purchases.
 
@@ -34,9 +34,6 @@ pub enum Error {
     #[error("retail inventory position cannot reserve more units than are on hand")]
     /// Blocks impossible stock math before POS drafts, recommendations, or reorder tasks use the inventory count.
     ReservedUnitsExceedOnHand,
-    #[error("retail recommendation rationale is required")]
-    /// Blocks recommendation candidates that lack a staff-readable reason for the suggested product.
-    MissingRationale,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
@@ -58,22 +55,5 @@ impl Contract {
     /// Reports whether the contracted inventory threshold indicates manager/vendor reorder attention is due.
     pub fn should_reorder(&self) -> bool {
         matches!(self.inventory, inventory::Policy::Tracked { on_hand, reorder_at } if on_hand.get() <= reorder_at.get())
-    }
-
-    /// Builds a representative PetSuites-style retail policy bundle for docs/tests without claiming it is live policy.
-    pub fn standard_petsuites() -> Self {
-        Self::builder()
-            .product(Product::new(
-                Sku::try_new("PETSUITES-RETAIL").unwrap(),
-                product::Category::PersonalizedUpsell,
-            ))
-            .pos(pos::Policy::IntegratedWithReservationCheckout)
-            .inventory(inventory::Policy::Tracked {
-                on_hand: inventory::UnitCount::try_new(1).unwrap(),
-                reorder_at: inventory::UnitCount::try_new(10).unwrap(),
-            })
-            .recommendation(recommendation::Rule::AnxietySupportAfterBoarding)
-            .reorder(reorder::Policy::AutoCreateManagerTask)
-            .build()
     }
 }

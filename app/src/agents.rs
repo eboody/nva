@@ -53,22 +53,13 @@ use domain::{agent, policy, workflow};
 
 pub use domain::agent::{OutputSchemaName, PolicyInstruction};
 
-/// App-facing alias for the domain agent specification used by workflow automation.
-///
-/// A spec is the stable rules an agent runner receives before it builds a
-/// prompt packet: the workflow identity, business purpose, read/draft tools it
-/// may use, actions it must never take directly, and deterministic review gates
-/// that keep resort staff in control of bookings, messages, schedules, and
-/// safety-sensitive decisions.
-pub type AgentSpec = agent::Spec;
-
 /// Rules implemented by app workflow agents that prepare safe prompt packets.
 ///
-/// Implementors expose their immutable [`AgentSpec`], package an event and typed
+/// Implementors expose their immutable [`agent::Spec`], package an event and typed
 /// input into an [`AgentPromptPacket`], then validate model/tool output before it
 /// is accepted as a draft or evidence bundle. The trait is intentionally about
 /// preparing and checking workflow artifacts; it does not grant authority to
-/// write back to Gingr, send pet-parent messages, change labor schedules, or
+/// write back to a provider system, send pet-parent messages, change labor schedules, or
 /// mutate reservations.
 pub trait WorkflowAgent<Input, Output> {
     /// Returns the agent's operational specification.
@@ -76,7 +67,7 @@ pub trait WorkflowAgent<Input, Output> {
     /// The spec names the workflow, states its labor/customer-service purpose,
     /// lists only the read or draft tools the runner may expose, and records the
     /// review gates that must remain outside model control.
-    fn spec(&self) -> AgentSpec;
+    fn spec(&self) -> agent::Spec;
     /// Builds the prompt packet for one workflow event and typed input payload.
     ///
     /// The returned packet should contain source event context, workflow input,
@@ -105,7 +96,7 @@ pub trait WorkflowAgent<Input, Output> {
 /// the workflow name, source event, approved input facts, policy instructions,
 /// and expected output shape recorded here.
 ///
-/// Next step: compare the packet fields with the workflow's `AgentSpec` and
+/// Next step: compare the packet fields with the workflow's `agent::Spec` and
 /// review gates before treating any generated output as usable evidence. The
 /// field-level Rustdoc below documents the API shape; it does not grant live
 /// authority to book, charge, message, schedule, or override policy.
@@ -162,7 +153,7 @@ pub struct AgentPromptPacket<T> {
 /// exposes read/draft tools and review gates while forbidding direct actions
 /// such as confirming bookings, changing schedules, waiving deposits, diagnosing
 /// pets, or sending customer messages without approval.
-pub fn baseline_agent_specs() -> Vec<AgentSpec> {
+pub fn baseline_agent_specs() -> Vec<agent::Spec> {
     vec![
         spec(
             "inquiry-intake",
@@ -287,8 +278,8 @@ fn spec<const TOOLS: usize, const FORBIDDEN: usize, const GATES: usize>(
     allowed_tools: [&str; TOOLS],
     forbidden_actions: [&str; FORBIDDEN],
     default_review_gates: [policy::ReviewGate; GATES],
-) -> AgentSpec {
-    AgentSpec::builder()
+) -> agent::Spec {
+    agent::Spec::builder()
         .name(agent::Name::try_new(name).expect("baseline agent names are non-empty"))
         .purpose(agent::Purpose::try_new(purpose).expect("baseline purposes are non-empty"))
         .allowed_tools(

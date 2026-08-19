@@ -6,6 +6,9 @@ license.workspace = true
 repository.workspace = true
 publish = false
 
+[features]
+wasm-coverage-runtime = ["dep:minicov"]
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 
@@ -14,3 +17,9 @@ app.workspace = true
 domain.workspace = true
 spacetimedb = "2"
 uuid.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+minicov = { version = "0.3.9", optional = true }
+
+[dev-dependencies]
+trybuild.workspace = true

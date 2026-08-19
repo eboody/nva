@@ -15,8 +15,8 @@ use crate::{
     read_model::staff_queue_item::blocked_action_notice,
     storage::review_queue::codec,
     tables::{
-        LocationScopeV1Row, ReviewQueueItemRow, RoleAssignmentRow, StaffActorRow,
-        blocked_action_attempt, hygiene_audit_event, hygiene_outcome, location_scope_v1,
+        LocationScopeRow, ReviewQueueItemRow, RoleAssignmentRow, StaffActorRow,
+        blocked_action_attempt, hygiene_audit_event, hygiene_outcome, location_scope,
         review_queue_item, role_assignment, staff_actor,
     },
 };
@@ -43,9 +43,9 @@ impl HygieneCaptureRuntime {
                 .iter()
                 .collect::<Vec<RoleAssignmentRow>>(),
             ctx.db
-                .location_scope_v1()
+                .location_scope()
                 .iter()
-                .collect::<Vec<LocationScopeV1Row>>(),
+                .collect::<Vec<LocationScopeRow>>(),
         );
         let review_items = ctx
             .db

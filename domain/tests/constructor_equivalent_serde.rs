@@ -127,7 +127,7 @@ fn equivalent_domain_value_serde_rejects_constructor_invalid_values() {
         operating_day(),
         analytics::service_demand::DemandUnits::try_new(1).unwrap(),
         vec![domain::source::RecordRef::new(
-            domain::source::System::Gingr,
+            domain::source::System::ProviderOrPms,
             domain::source::record::Id::try_new("reservation-1").unwrap(),
         )],
         analytics::ProjectionVersion::try_new("demand-v1").unwrap(),

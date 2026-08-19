@@ -327,7 +327,6 @@ pub mod assistant {
             struct RawAnswerPacket {
                 context: ActorContext,
                 answer: AnswerText,
-                #[serde(default)]
                 state: AnswerState,
                 confidence: identity::Confidence,
                 escalation: Option<EscalationReason>,
@@ -605,6 +604,22 @@ pub mod knowledge {
         pub(super) const fn has_source_conflict(&self) -> bool {
             self.source_conflict
         }
+
+        #[cfg(test)]
+        pub(super) fn test_only(
+            document_id: DocumentId,
+            section: SectionRef,
+            source_conflict: bool,
+        ) -> Self {
+            Self {
+                document_id,
+                passage_id: PassageId::try_new("test-passage").unwrap(),
+                section,
+                retrieved_at: DateTime::<Utc>::UNIX_EPOCH,
+                allowed_use: access::AllowedUse::InternalDecisionSupport,
+                source_conflict,
+            }
+        }
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
@@ -766,4 +781,214 @@ pub struct Spec {
     /// These gates keep manager approval, customer-message approval, medical
     /// document review, and similar authority outside the model-generated output.
     pub default_review_gates: Vec<policy::ReviewGate>,
+}
+
+#[cfg(test)]
+mod coverage_convergence_tests {
+    use chrono::TimeZone as _;
+    use serde_json::json;
+    use uuid::Uuid;
+
+    use super::*;
+
+    fn context(role: access::ActorRole) -> assistant::ActorContext {
+        assistant::ActorContext::builder()
+            .actor_id(access::ActorId::try_new("actor-7").unwrap())
+            .role(role)
+            .title(access::Title::try_new("shift lead").unwrap())
+            .location_id(entities::LocationId::new(Uuid::from_u128(7)))
+            .purpose(assistant::Purpose::SopLookup)
+            .allowed_uses(vec![access::AllowedUse::InternalDecisionSupport])
+            .build()
+    }
+
+    #[test]
+    fn assistant_identity_promotion_and_purpose_scopes_remain_exact() {
+        let staff = context(access::ActorRole::FrontDesk);
+        assert_eq!(
+            staff.location_id(),
+            entities::LocationId::new(Uuid::from_u128(7))
+        );
+        assert_eq!(staff.role(), access::ActorRole::FrontDesk);
+        assert_eq!(staff.purpose(), assistant::Purpose::SopLookup);
+        assert!(staff.allows_use(access::AllowedUse::InternalDecisionSupport));
+        assert!(matches!(
+            staff.promote_staff_actor_ref(),
+            Ok(entities::ActorRef::Staff { .. })
+        ));
+        assert!(matches!(
+            staff.promote_manager_actor_ref(),
+            Err(assistant::ActorPromotionError::RoleNotManagerActor { .. })
+        ));
+
+        let manager = context(access::ActorRole::SiteManager);
+        assert!(matches!(
+            manager.promote_manager_actor_ref(),
+            Ok(entities::ActorRef::Manager { .. })
+        ));
+        assert_eq!(
+            manager.promote_staff_actor_ref(),
+            Err(assistant::ActorPromotionError::ManagerRoleIsNotStaffActor)
+        );
+        let regional = context(access::ActorRole::RegionalOperations);
+        assert!(matches!(
+            regional.promote_staff_actor_ref(),
+            Err(assistant::ActorPromotionError::RoleNotStaffActor(_))
+        ));
+        for purpose in [
+            assistant::Purpose::SopLookup,
+            assistant::Purpose::PricingQuestion,
+            assistant::Purpose::VendorLookup,
+            assistant::Purpose::SiteOpsSupport,
+        ] {
+            assert_eq!(
+                purpose.required_allowed_use(),
+                access::AllowedUse::InternalDecisionSupport
+            );
+        }
+    }
+
+    #[test]
+    fn cited_answers_require_exact_nonconflicting_authorized_passages() {
+        let document_id = knowledge::DocumentId::try_new("sop-7").unwrap();
+        let section = knowledge::SectionRef::try_new("check-in").unwrap();
+        let citation = knowledge::Citation::builder()
+            .document_id(document_id.clone())
+            .section(section.clone())
+            .build();
+        let claim = assistant::Claim::builder()
+            .id(assistant::ClaimId::try_new("claim-7").unwrap())
+            .citation(citation.clone())
+            .build();
+        let evidence =
+            knowledge::AuthorizedEvidence::test_only(document_id.clone(), section.clone(), false);
+        let packet = assistant::AnswerPacket::try_cited(
+            context(access::ActorRole::FrontDesk),
+            assistant::AnswerText::try_new("Use the approved check-in SOP.").unwrap(),
+            vec![claim],
+            vec![evidence],
+            vec![citation.clone()],
+            identity::Confidence::High,
+        )
+        .unwrap();
+        assert_eq!(packet.state(), assistant::AnswerState::Cited);
+        assert!(packet.is_cited());
+        assert_eq!(packet.authorized_evidence().len(), 1);
+        let encoded = serde_json::to_value(&packet).unwrap();
+        assert!(encoded.get("authorized_evidence").is_none());
+
+        let conflicting =
+            knowledge::AuthorizedEvidence::test_only(document_id.clone(), section.clone(), true);
+        assert_eq!(
+            assistant::AnswerPacket::try_cited(
+                context(access::ActorRole::FrontDesk),
+                assistant::AnswerText::try_new("conflict").unwrap(),
+                vec![
+                    assistant::Claim::builder()
+                        .id(assistant::ClaimId::try_new("claim-conflict").unwrap())
+                        .citation(citation.clone())
+                        .build()
+                ],
+                vec![conflicting],
+                vec![citation.clone()],
+                identity::Confidence::Low,
+            ),
+            Err(assistant::Error::ConflictingPolicyEvidence)
+        );
+        let unsupported = knowledge::AuthorizedEvidence::test_only(
+            document_id,
+            knowledge::SectionRef::try_new("different-section").unwrap(),
+            false,
+        );
+        assert_eq!(
+            assistant::AnswerPacket::try_cited(
+                context(access::ActorRole::FrontDesk),
+                assistant::AnswerText::try_new("unsupported").unwrap(),
+                vec![
+                    assistant::Claim::builder()
+                        .id(assistant::ClaimId::try_new("claim-unsupported").unwrap())
+                        .citation(citation.clone())
+                        .build()
+                ],
+                vec![unsupported],
+                vec![citation],
+                identity::Confidence::Low,
+            ),
+            Err(assistant::Error::UncitedClaim)
+        );
+    }
+
+    #[test]
+    fn serialized_answer_state_cannot_rehydrate_cited_authority() {
+        assert!(
+            serde_json::from_value::<assistant::AnswerPacket>(json!({
+                "context": context(access::ActorRole::FrontDesk),
+                "answer": "caller supplied",
+                "state": "Cited",
+                "confidence": "High",
+                "escalation": null
+            }))
+            .is_err()
+        );
+        assert!(
+            serde_json::from_value::<assistant::AnswerPacket>(json!({
+                "context": context(access::ActorRole::FrontDesk),
+                "answer": "caller supplied",
+                "state": "Escalated",
+                "confidence": "Low",
+                "escalation": null
+            }))
+            .is_err()
+        );
+        let draft: assistant::AnswerPacket = serde_json::from_value(json!({
+            "context": context(access::ActorRole::FrontDesk),
+            "answer": "draft only",
+            "state": "Draft",
+            "confidence": "Low",
+            "escalation": null
+        }))
+        .unwrap();
+        assert_eq!(draft.state(), assistant::AnswerState::Draft);
+        assert!(!draft.is_cited());
+        assert_eq!(
+            format!(
+                "{:?}",
+                assistant::AnswerText::try_new("private answer").unwrap()
+            ),
+            "AnswerText([REDACTED])"
+        );
+    }
+
+    #[test]
+    fn approved_knowledge_checks_applicability_currency_and_declared_sections() {
+        let now = Utc.with_ymd_and_hms(2026, 8, 18, 5, 0, 0).unwrap();
+        let section = knowledge::SectionRef::try_new("check-in").unwrap();
+        let document = knowledge::Document::builder()
+            .id(knowledge::DocumentId::try_new("sop-7").unwrap())
+            .title(knowledge::Title::try_new("Check-in SOP").unwrap())
+            .kind(knowledge::DocumentKind::Sop)
+            .status(knowledge::ApprovalStatus::Approved)
+            .applicability(
+                knowledge::Applicability::builder()
+                    .locations(vec![entities::LocationId::new(Uuid::from_u128(7))])
+                    .services(vec![entities::ServiceKind::Boarding])
+                    .roles(vec![access::ActorRole::FrontDesk])
+                    .build(),
+            )
+            .sections(vec![section.clone()])
+            .effective_at(now - chrono::Duration::hours(1))
+            .review_due_at(now + chrono::Duration::hours(1))
+            .build();
+        assert_eq!(
+            document.id(),
+            &knowledge::DocumentId::try_new("sop-7").unwrap()
+        );
+        assert!(document.applies_to(
+            entities::LocationId::new(Uuid::from_u128(7)),
+            entities::ServiceKind::Boarding,
+            access::ActorRole::FrontDesk
+        ));
+        assert!(document.is_current_at(now));
+        assert!(document.contains_section(&section));
+    }
 }

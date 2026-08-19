@@ -18,18 +18,7 @@ pub enum Kind {
     CatCondo,
 }
 
-impl Kind {
-    /// Reports whether this accommodation can safely serve the requested pet species.
-    pub const fn supports_species(self, species: &crate::entities::Species) -> bool {
-        matches!(
-            (self, species),
-            (
-                Self::ClassicDogSuite | Self::LuxuryDogSuite,
-                crate::entities::Species::Dog
-            ) | (Self::CatCondo, crate::entities::Species::Cat)
-        )
-    }
-}
+impl Kind {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Guest or staff accommodation preference supplied to a boarding capacity check.
@@ -86,12 +75,4 @@ pub enum AlternativesError {
     },
 }
 
-impl Preference {
-    /// Exposes the acceptable accommodation kinds in evaluation order for capacity policy.
-    pub fn acceptable_kinds(&self) -> Vec<Kind> {
-        match self {
-            Self::Specific(kind) => vec![*kind],
-            Self::AnyOf(kinds) => kinds.iter().copied().collect(),
-        }
-    }
-}
+impl Preference {}

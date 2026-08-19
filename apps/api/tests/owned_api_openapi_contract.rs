@@ -4,7 +4,7 @@ use pet_resort_api::{http, public_contract};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
-const OPENAPI: &str = include_str!("../openapi/owned-operations-v0.openapi.json");
+const OPENAPI: &str = include_str!("../openapi/owned-operations-v1.openapi.json");
 
 fn openapi_field_is_nullable(schema: &Value) -> bool {
     schema["type"]
@@ -28,7 +28,7 @@ async fn get_json(uri: &str) -> (axum_http::StatusCode, Value) {
                 .expect("request builds"),
         )
         .await
-        .expect("owned v0 get request succeeds");
+        .expect("owned v1 get request succeeds");
 
     let status = response.status();
     let body = response
@@ -74,7 +74,7 @@ async fn post_json(uri: &str, body: Value) -> (axum_http::StatusCode, Value) {
                 .expect("request builds"),
         )
         .await
-        .expect("owned v0 post request succeeds");
+        .expect("owned v1 post request succeeds");
 
     let status = response.status();
     let body = response
@@ -89,7 +89,7 @@ async fn post_json(uri: &str, body: Value) -> (axum_http::StatusCode, Value) {
 }
 
 #[test]
-fn checked_openapi_artifact_names_owned_v0_operations_and_safe_schemas() {
+fn checked_openapi_artifact_names_owned_v1_operations_and_safe_schemas() {
     let spec: Value = serde_json::from_str(OPENAPI).expect("checked OpenAPI json parses");
 
     assert_eq!(spec["openapi"], "3.1.0");
@@ -98,20 +98,28 @@ fn checked_openapi_artifact_names_owned_v0_operations_and_safe_schemas() {
         "NVA Pet Resorts Owned Operations API"
     );
     assert_eq!(spec["info"]["version"], "0.1.0");
+    assert!(
+        !OPENAPI.contains("information_lifespan_trace.v0"),
+        "canonical v1 OpenAPI must not advertise a v0 information-lifespan schema tag"
+    );
+    assert_eq!(
+        spec["components"]["schemas"]["InformationLifespanTraceSchemaVersion"]["enum"],
+        json!(["information_lifespan_trace.v1"])
+    );
 
     let paths = spec["paths"].as_object().expect("paths object");
     for route in [
-        "/v0/healthz",
-        "/v0/readyz",
-        "/v0/ops/metrics/summary",
-        "/v0/agent/context/manager-daily-brief",
-        "/v0/agent/context/data-quality-hygiene",
-        "/v0/agent/drafts/data-quality-hygiene",
-        "/v0/data-quality-hygiene/actions/{action_id}/outcome",
-        "/v0/data-quality-hygiene/outcomes/summary",
-        "/v0/read-models/source-quality-backlog",
+        "/v1/healthz",
+        "/v1/readyz",
+        "/v1/ops/metrics/summary",
+        "/v1/agent/context/manager-daily-brief",
+        "/v1/agent/context/data-quality-hygiene",
+        "/v1/agent/drafts/data-quality-hygiene",
+        "/v1/data-quality-hygiene/actions/{action_id}/outcome",
+        "/v1/data-quality-hygiene/outcomes/summary",
+        "/v1/read-models/source-quality-backlog",
     ] {
-        assert!(paths.contains_key(route), "missing v0 route {route}");
+        assert!(paths.contains_key(route), "missing v1 route {route}");
     }
 
     let schemas = spec["components"]["schemas"]
@@ -234,7 +242,7 @@ fn data_quality_outcome_response_has_closed_nested_runtime_schemas() {
 #[test]
 fn checked_openapi_marks_authenticated_mutations_and_their_fail_closed_responses() {
     let spec: Value = serde_json::from_str(OPENAPI).expect("checked OpenAPI json parses");
-    let outcome = &spec["paths"]["/v0/data-quality-hygiene/actions/{action_id}/outcome"]["post"];
+    let outcome = &spec["paths"]["/v1/data-quality-hygiene/actions/{action_id}/outcome"]["post"];
 
     assert_eq!(outcome["security"], json!([{"StaffSessionCookie": []}]));
     for status in ["401", "403"] {
@@ -343,14 +351,36 @@ fn runtime_contract_manifest_matches_openapi_fields_requiredness_nullability_enu
 fn runtime_route_inventory_matches_openapi_including_manager_daily_brief_mutations() {
     let spec: Value = serde_json::from_str(OPENAPI).expect("checked OpenAPI json parses");
     let documented = spec["paths"].as_object().expect("paths object");
-    for route in public_contract::owned_v0_routes() {
+    for route in [
+        "/v1/agent/context/data-quality-hygiene",
+        "/v1/agent/context/manager-daily-brief",
+        "/v1/agent/context/permissioned-knowledge",
+        "/v1/agent/context/site-finance",
+        "/v1/agent/drafts/data-quality-hygiene",
+        "/v1/agent/drafts/manager-daily-brief",
+        "/v1/data-quality-hygiene/actions/{action_id}/outcome",
+        "/v1/data-quality-hygiene/outcomes/summary",
+        "/v1/demo/information-lifespan/run",
+        "/v1/demo/information-lifespan/{correlation_id}/report",
+        "/v1/healthz",
+        "/v1/inquiries",
+        "/v1/manager-daily-brief/actions/{action_id}/outcome",
+        "/v1/metrics",
+        "/v1/ops/metrics/summary",
+        "/v1/read-models/source-quality-backlog",
+        "/v1/readyz",
+        "/v1/staff/inquiries",
+        "/v1/vaccine-documents/review-packets/{review_packet_id}/approve",
+        "/v1/vaccine-documents/review-packets/{review_packet_id}/reject",
+        "/v1/vaccine-documents/uploads",
+    ] {
         assert!(
-            documented.contains_key(*route),
+            documented.contains_key(route),
             "OpenAPI missing runtime route {route}"
         );
     }
     assert_eq!(
-        documented["/v0/manager-daily-brief/actions/{action_id}/outcome"]["post"]["requestBody"]["content"]
+        documented["/v1/manager-daily-brief/actions/{action_id}/outcome"]["post"]["requestBody"]["content"]
             ["application/json"]["schema"]["$ref"],
         "#/components/schemas/ManagerDailyBriefOutcomeCaptureRequest"
     );
@@ -395,7 +425,7 @@ fn manager_daily_brief_outcome_schema_exposes_reported_nonclaimable_disposition(
 #[test]
 fn manager_daily_brief_errors_advertise_the_actual_closed_workflow_envelope() {
     let spec: Value = serde_json::from_str(OPENAPI).expect("checked OpenAPI json parses");
-    let operation = &spec["paths"]["/v0/manager-daily-brief/actions/{action_id}/outcome"]["post"];
+    let operation = &spec["paths"]["/v1/manager-daily-brief/actions/{action_id}/outcome"]["post"];
     for status in ["401", "403", "409", "422"] {
         assert_eq!(
             operation["responses"][status]["content"]["application/json"]["schema"]["$ref"],
@@ -422,7 +452,7 @@ fn manager_daily_brief_errors_advertise_the_actual_closed_workflow_envelope() {
 fn public_contract_dtos_serialize_owned_boundary_and_error_posture() {
     use pet_resort_api::error::{ErrorContext, ErrorKind, PublicApiError};
 
-    let metadata = public_contract::ApiContractMetadata::operations_v0("data-quality-hygiene");
+    let metadata = public_contract::ApiContractMetadata::operations_v1("data-quality-hygiene");
     let error = PublicApiError::new(
         ErrorKind::Validation {
             details: vec![public_contract::ErrorDetail::field(
@@ -446,8 +476,8 @@ fn public_contract_dtos_serialize_owned_boundary_and_error_posture() {
 }
 
 #[tokio::test]
-async fn v0_routes_expose_safe_runtime_readiness_and_data_quality_context() {
-    let (health_status, health) = get_json("/v0/healthz").await;
+async fn v1_routes_expose_safe_runtime_readiness_and_data_quality_context() {
+    let (health_status, health) = get_json("/v1/healthz").await;
     assert_eq!(health_status, axum_http::StatusCode::OK);
     assert_eq!(health["live_side_effects"], "disabled");
     assert_eq!(
@@ -455,14 +485,14 @@ async fn v0_routes_expose_safe_runtime_readiness_and_data_quality_context() {
         "evidence_refs_only"
     );
 
-    let (ready_status, ready) = get_json("/v0/readyz").await;
+    let (ready_status, ready) = get_json("/v1/readyz").await;
     assert_eq!(ready_status, axum_http::StatusCode::OK);
     assert_eq!(ready["workflow_repository"]["active_adapter"], "in_memory");
     assert_eq!(ready["live_customer_messaging"], "disabled");
     assert_eq!(ready["live_provider_writes"], "disabled");
 
     let (manager_context_status, manager_context) = get_json(
-        "/v0/agent/context/manager-daily-brief?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",
+        "/v1/agent/context/manager-daily-brief?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",
     )
     .await;
     assert_eq!(manager_context_status, axum_http::StatusCode::OK);
@@ -487,7 +517,7 @@ async fn v0_routes_expose_safe_runtime_readiness_and_data_quality_context() {
     );
 
     let (context_status, context) = get_json(
-        "/v0/agent/context/data-quality-hygiene?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",
+        "/v1/agent/context/data-quality-hygiene?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",
     )
     .await;
     assert_eq!(context_status, axum_http::StatusCode::OK);
@@ -508,18 +538,18 @@ async fn v0_routes_expose_safe_runtime_readiness_and_data_quality_context() {
 }
 
 #[tokio::test]
-async fn v0_data_quality_draft_rejection_preserves_safe_error_shape() {
+async fn v1_data_quality_draft_rejection_preserves_safe_error_shape() {
     let context = get_json(
-        "/v0/agent/context/data-quality-hygiene?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",
+        "/v1/agent/context/data-quality-hygiene?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",
     )
     .await
     .1;
     let action = context["hygiene_actions"][0].clone();
     let (status, payload) = post_json(
-        "/v0/agent/drafts/data-quality-hygiene",
+        "/v1/agent/drafts/data-quality-hygiene",
         json!({
             "context_packet_id": context["audit"]["context_packet_id"],
-            "correlation_id": "data-quality-hygiene:test-v0-draft",
+            "correlation_id": "data-quality-hygiene:test-v1-draft",
             "actions": [{
                 "action_id": action["id"],
                 "kind": action["kind"],
@@ -554,13 +584,13 @@ async fn v0_data_quality_draft_rejection_preserves_safe_error_shape() {
 }
 
 #[tokio::test]
-async fn v0_read_model_route_returns_safe_fallback_when_database_is_not_configured() {
+async fn v1_read_model_route_returns_safe_fallback_when_database_is_not_configured() {
     unsafe {
         std::env::remove_var("DATABASE_URL");
     }
 
     let (status, payload) =
-        get_json("/v0/read-models/source-quality-backlog?location_id=local").await;
+        get_json("/v1/read-models/source-quality-backlog?location_id=local").await;
 
     assert_eq!(status, axum_http::StatusCode::SERVICE_UNAVAILABLE);
     assert_eq!(
@@ -575,7 +605,7 @@ async fn v0_read_model_route_returns_safe_fallback_when_database_is_not_configur
 
     let spec: Value = serde_json::from_str(OPENAPI).expect("checked OpenAPI json parses");
     let route_responses =
-        &spec["paths"]["/v0/read-models/source-quality-backlog"]["get"]["responses"];
+        &spec["paths"]["/v1/read-models/source-quality-backlog"]["get"]["responses"];
     assert_eq!(
         route_responses["200"]["content"]["application/json"]["schema"]["$ref"],
         "#/components/schemas/SourceQualityBacklogResponse"
@@ -587,22 +617,22 @@ async fn v0_read_model_route_returns_safe_fallback_when_database_is_not_configur
 }
 
 #[tokio::test]
-async fn v0_success_payloads_include_openapi_required_contract_fields() {
+async fn v1_success_payloads_include_openapi_required_contract_fields() {
     let spec: Value = serde_json::from_str(OPENAPI).expect("checked OpenAPI json parses");
     let schemas = &spec["components"]["schemas"];
 
     let context = get_json(
-        "/v0/agent/context/data-quality-hygiene?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",
+        "/v1/agent/context/data-quality-hygiene?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",
     )
     .await
     .1;
     let action = context["hygiene_actions"][0].clone();
 
     let (draft_status, draft) = post_json(
-        "/v0/agent/drafts/data-quality-hygiene",
+        "/v1/agent/drafts/data-quality-hygiene",
         json!({
             "context_packet_id": context["audit"]["context_packet_id"],
-            "correlation_id": "data-quality-hygiene:test-v0-contract-success",
+            "correlation_id": "data-quality-hygiene:test-v1-contract-success",
             "actions": [{
                 "action_id": action["id"],
                 "kind": action["kind"],
@@ -622,7 +652,7 @@ async fn v0_success_payloads_include_openapi_required_contract_fields() {
     );
 
     let (summary_status, summary) = get_json(
-        "/v0/data-quality-hygiene/outcomes/summary?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",
+        "/v1/data-quality-hygiene/outcomes/summary?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",
     )
     .await;
     assert_eq!(summary_status, axum_http::StatusCode::OK);
@@ -632,7 +662,7 @@ async fn v0_success_payloads_include_openapi_required_contract_fields() {
     );
 
     let outcome_uri = format!(
-        "/v0/data-quality-hygiene/actions/{}/outcome",
+        "/v1/data-quality-hygiene/actions/{}/outcome",
         action["id"].as_str().expect("action id is a string")
     );
     let (outcome_status, outcome) = post_json(
@@ -646,7 +676,7 @@ async fn v0_success_payloads_include_openapi_required_contract_fields() {
             "issue_refs": action["issue_refs"],
             "reported_resolution_status": "repaired",
             "timestamp": "2026-06-17T16:00:00Z",
-            "audit": { "correlation_id": "data-quality-hygiene:test-v0-outcome" },
+            "audit": { "correlation_id": "data-quality-hygiene:test-v1-outcome" },
             "requested_side_effects": [],
             "idempotency_key": "openapi-contract-outcome-1"
         }),

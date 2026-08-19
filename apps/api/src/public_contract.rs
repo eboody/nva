@@ -1,4 +1,4 @@
-//! Product-owned API schema contracts for NVA Pet Resorts operations v0.
+//! Product-owned API schema contracts for NVA Pet Resorts operations v1.
 //!
 //! These DTOs are the stable public boundary for the replacement API. Provider
 //! payloads remain quarantined source evidence and never become public resources.
@@ -22,9 +22,9 @@ where
     Ok(value)
 }
 
-pub const OWNED_OPERATIONS_API_VERSION: &str = "pet_resort_api.runtime.v0";
-pub const OWNED_OPERATIONS_API_BOUNDARY: &str = "api_runtime_dto";
-pub const OWNED_OPERATIONS_API_OWNER: &str = "pet_resort_api";
+const OWNED_OPERATIONS_API_VERSION: &str = "pet_resort_api.runtime.v1";
+pub(crate) const OWNED_OPERATIONS_API_BOUNDARY: &str = "api_runtime_dto";
+pub(crate) const OWNED_OPERATIONS_API_OWNER: &str = "pet_resort_api";
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -49,7 +49,7 @@ pub struct ApiContractMetadata {
 }
 
 impl ApiContractMetadata {
-    pub fn operations_v0(workflow: impl Into<String>) -> Self {
+    pub fn operations_v1(workflow: impl Into<String>) -> Self {
         Self {
             owner: OWNED_OPERATIONS_API_OWNER.to_owned(),
             boundary: OWNED_OPERATIONS_API_BOUNDARY.to_owned(),
@@ -66,7 +66,7 @@ pub struct RequestMetadata {
     pub request_id: String,
     pub correlation_id: Option<String>,
     pub payload_logging: PayloadLogging,
-    pub actor: Option<ActorRef>,
+    pub actor: Option<WireActorRef>,
     pub location_id: Option<String>,
     pub tenant_id: Option<String>,
 }
@@ -80,13 +80,14 @@ pub enum PayloadLogging {
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
-pub struct ActorRef {
+/// Wire-only actor payload. Handlers must authenticate and promote it into canonical actor types before use.
+pub struct WireActorRef {
     /// Product persona asserted for this operation.
     pub persona: String,
     /// Stable actor identity authenticated by the runtime boundary.
     pub id: String,
     /// Optional narrower role claim when a workflow requires one.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub actor_role: Option<String>,
 }
 
@@ -99,10 +100,13 @@ pub struct SourceRef {
     pub source_visibility: Option<String>,
 }
 
-/// Stable source-record evidence shape used by the v0 workflow routes.
+/// Wire-only source-record evidence shape used by the v1 workflow routes.
+///
+/// Handlers must validate and promote these primitives before persistence; the
+/// payload itself carries no source acceptance or executable authority.
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(deny_unknown_fields)]
-pub struct SourceRecordRef {
+pub struct WireSourceRecordRef {
     pub system: String,
     pub record_type: String,
     pub record_id: String,
@@ -115,15 +119,15 @@ pub struct SourceRecordRef {
 #[serde(deny_unknown_fields)]
 pub struct ManagerDailyBriefOutcomeCaptureRequest {
     /// Caller-reported disposition label retained as nonclaimable evidence.
-    pub outcome: storage::operations::ManagerDailyBriefOutcomeCode,
+    pub outcome: app::manager_daily_brief::FeedbackOutcome,
     /// Caller-reported minutes spent handling the action; not proof of completion or measured labor effect.
     pub actual_minutes: NonZeroU16,
     /// Caller-provided actor/persona labels; transport authentication does not prove review.
-    pub actor: ActorRef,
+    pub actor: WireActorRef,
     /// Caller-reported feedback describing what was claimed to have happened.
     pub feedback: String,
     /// Source records correlated to the report; they do not prove review or completion.
-    pub source_refs: Vec<SourceRecordRef>,
+    pub source_refs: Vec<WireSourceRecordRef>,
     /// Caller-reported observation timestamp used in replay identity; durable recording time is server-issued.
     pub timestamp: DateTime<Utc>,
     /// Correlation evidence for this workflow operation.
@@ -155,15 +159,15 @@ pub struct ManagerDailyBriefOutcomeReporting {
     pub operating_day: NaiveDate,
 }
 
-impl fmt::Debug for ActorRef {
+impl fmt::Debug for WireActorRef {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("ActorRef([REDACTED])")
+        formatter.write_str("WireActorRef([REDACTED])")
     }
 }
 
-impl fmt::Debug for SourceRecordRef {
+impl fmt::Debug for WireSourceRecordRef {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("SourceRecordRef([REDACTED])")
+        formatter.write_str("WireSourceRecordRef([REDACTED])")
     }
 }
 
@@ -274,10 +278,9 @@ pub struct DataQualityIssue {
     pub kind: String,
     pub severity: String,
     pub workflow_blocking: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub detail: Option<String>,
-    #[serde(default)]
-    pub source_refs: Vec<SourceRecordRef>,
+    pub source_refs: Vec<WireSourceRecordRef>,
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -285,7 +288,7 @@ pub struct DataQualityCandidate {
     pub id: String,
     pub kind: String,
     pub issue: DataQualityIssue,
-    pub source_refs: Vec<SourceRecordRef>,
+    pub source_refs: Vec<WireSourceRecordRef>,
     pub source_freshness: String,
     pub sensitivity: String,
 }
@@ -298,7 +301,7 @@ pub struct DataQualityAction {
     pub owner_persona: String,
     pub removed_manual_work: String,
     pub rationale: String,
-    pub source_refs: Vec<SourceRecordRef>,
+    pub source_refs: Vec<WireSourceRecordRef>,
     pub issue_refs: Vec<String>,
     pub review_gates: Vec<String>,
     pub labor_impact: ReportedLaborEstimateEvidence,
@@ -327,15 +330,10 @@ pub struct DataQualityHygieneContextResponse {
 pub struct DataQualityHygieneSubmittedAction {
     pub action_id: String,
     pub kind: String,
-    #[serde(default)]
-    pub source_refs: Vec<SourceRecordRef>,
-    #[serde(default)]
+    pub source_refs: Vec<WireSourceRecordRef>,
     pub issue_refs: Vec<String>,
-    #[serde(default)]
     pub review_gates: Vec<String>,
-    #[serde(default)]
     pub requested_side_effects: Vec<String>,
-    #[serde(default)]
     pub attempted_ambiguity_resolution: bool,
 }
 
@@ -533,7 +531,7 @@ pub struct DataQualityHygieneOutcomeCaptureRequest {
     actual_minutes: NonZeroU16,
     actor: DataQualityHygieneOutcomeActor,
     feedback: String,
-    source_refs: Vec<SourceRecordRef>,
+    source_refs: Vec<WireSourceRecordRef>,
     issue_refs: Vec<String>,
     reported_resolution_status: DataQualityResolutionStatus,
     timestamp: DateTime<Utc>,
@@ -559,7 +557,7 @@ impl DataQualityHygieneOutcomeCaptureRequest {
         &self.feedback
     }
 
-    pub fn source_refs(&self) -> &[SourceRecordRef] {
+    pub fn source_refs(&self) -> &[WireSourceRecordRef] {
         &self.source_refs
     }
 
@@ -871,18 +869,187 @@ pub fn runtime_schema_contracts() -> &'static [RuntimeSchemaContract] {
     CONTRACTS
 }
 
-/// Returns every canonical v0 route implemented by this runtime slice.
-pub fn owned_v0_routes() -> &'static [&'static str] {
-    &[
-        "/v0/healthz",
-        "/v0/readyz",
-        "/v0/ops/metrics/summary",
-        "/v0/agent/context/manager-daily-brief",
-        "/v0/manager-daily-brief/actions/{action_id}/outcome",
-        "/v0/agent/context/data-quality-hygiene",
-        "/v0/agent/drafts/data-quality-hygiene",
-        "/v0/data-quality-hygiene/actions/{action_id}/outcome",
-        "/v0/data-quality-hygiene/outcomes/summary",
-        "/v0/read-models/source-quality-backlog",
-    ]
+#[cfg(test)]
+mod coverage_convergence_tests {
+    use chrono::{TimeZone as _, Utc};
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn sensitive_runtime_contract_values_remain_redacted_and_validated() {
+        let actor = WireActorRef {
+            persona: "general_manager".to_owned(),
+            id: "manager-7".to_owned(),
+            actor_role: Some("site_manager".to_owned()),
+        };
+        let source = WireSourceRecordRef {
+            system: "manual_import".to_owned(),
+            record_type: "data_quality_issue".to_owned(),
+            record_id: "source-7".to_owned(),
+            observed_at: Utc.with_ymd_and_hms(2026, 8, 18, 5, 0, 0).unwrap(),
+            adapter_version: "manual-v1".to_owned(),
+        };
+        let audit = ManagerDailyBriefOutcomeAudit {
+            correlation_id: IdempotencyKey::try_new("correlation-7").unwrap(),
+        };
+        let reporting = ManagerDailyBriefOutcomeReporting {
+            location_id: Uuid::from_u128(7),
+            operating_day: NaiveDate::from_ymd_opt(2026, 8, 18).unwrap(),
+        };
+        let request = ManagerDailyBriefOutcomeCaptureRequest {
+            outcome: app::manager_daily_brief::FeedbackOutcome::Completed,
+            actual_minutes: NonZeroU16::new(7).unwrap(),
+            actor: actor.clone(),
+            feedback: "reviewed".to_owned(),
+            source_refs: vec![source.clone()],
+            timestamp: source.observed_at,
+            audit,
+            reporting,
+            requested_side_effects: Vec::new(),
+            idempotency_key: IdempotencyKey::try_new("manager-outcome-7").unwrap(),
+        };
+
+        assert_eq!(format!("{actor:?}"), "WireActorRef([REDACTED])");
+        assert_eq!(format!("{source:?}"), "WireSourceRecordRef([REDACTED])");
+        assert_eq!(
+            format!("{:?}", request.audit),
+            "ManagerDailyBriefOutcomeAudit([REDACTED])"
+        );
+        assert_eq!(
+            format!("{:?}", request.reporting),
+            "ManagerDailyBriefOutcomeReporting([REDACTED])"
+        );
+        assert_eq!(
+            format!("{request:?}"),
+            "ManagerDailyBriefOutcomeCaptureRequest([REDACTED])"
+        );
+        assert_eq!(
+            format!("{:?}", request.idempotency_key),
+            "IdempotencyKey([REDACTED])"
+        );
+        assert!(
+            serde_json::from_value::<ManagerDailyBriefOutcomeReporting>(json!({
+                "location_id": Uuid::nil(),
+                "operating_day": "2026-08-18"
+            }))
+            .unwrap_err()
+            .to_string()
+            .contains("UUID must not be nil")
+        );
+    }
+
+    #[test]
+    fn runtime_field_contract_helpers_describe_every_enforced_scalar_shape() {
+        let ordinary = field(
+            "actor",
+            true,
+            Some("#/components/schemas/ActorRef"),
+            &["staff"],
+        );
+        assert!(ordinary.nullable);
+        assert_eq!(ordinary.nested_ref, Some("#/components/schemas/ActorRef"));
+        assert_eq!(ordinary.enum_values, &["staff"]);
+
+        let date_time = date_time_field("observed_at");
+        assert_eq!(date_time.format, Some("date-time"));
+        let formatted = formatted_field("location_id", "uuid");
+        assert_eq!(formatted.format, Some("uuid"));
+        let positive = positive_integer_field("actual_minutes");
+        assert_eq!(positive.minimum, Some(1));
+        let nonnegative = nonnegative_integer_field("before_minutes");
+        assert_eq!(nonnegative.minimum, Some(0));
+        let nonempty = nonempty_string_field("idempotency_key");
+        assert_eq!(nonempty.min_length, Some(1));
+
+        assert!(runtime_schema_contracts().iter().any(|contract| {
+            contract.name == "ManagerDailyBriefOutcomeReporting"
+                && contract
+                    .fields
+                    .iter()
+                    .any(|field| field.format == Some("uuid"))
+        }));
+    }
+
+    #[test]
+    fn persona_and_outcome_accessors_preserve_exact_boundary_vocabulary() {
+        assert_eq!(
+            DataQualityHygienePersona::GeneralManager.as_str(),
+            "general_manager"
+        );
+        assert_eq!(
+            DataQualityHygienePersona::AssistantGeneralManager.as_str(),
+            "assistant_general_manager"
+        );
+        assert_eq!(
+            DataQualityHygienePersona::FrontDeskLead.as_str(),
+            "front_desk_lead"
+        );
+        assert_eq!(
+            DataQualityHygienePersona::FrontDeskAgent.as_str(),
+            "front_desk_agent"
+        );
+        assert_eq!(
+            DataQualityHygienePersona::RegionalOperator.as_str(),
+            "regional_operator"
+        );
+        assert_eq!(
+            DataQualityHygienePersona::OperationsAnalyst.as_str(),
+            "operations_analyst"
+        );
+
+        let captured: DataQualityHygieneOutcomeCaptureRequest = serde_json::from_value(json!({
+            "outcome": "deferred",
+            "actual_minutes": 3,
+            "actor": {
+                "id": "actor-3",
+                "persona": "front_desk_agent",
+                "actor_role": "front_desk_agent"
+            },
+            "feedback": "waiting for source evidence",
+            "source_refs": [{
+                "system": "manual_import",
+                "record_type": "issue",
+                "record_id": "issue-3",
+                "observed_at": "2026-08-18T05:00:00Z",
+                "adapter_version": "manual-v1"
+            }],
+            "issue_refs": ["issue-3"],
+            "reported_resolution_status": "acknowledged",
+            "timestamp": "2026-08-18T05:00:00Z",
+            "audit": {"correlation_id": "correlation-3"},
+            "requested_side_effects": [],
+            "idempotency_key": "outcome-3"
+        }))
+        .unwrap();
+
+        assert_eq!(captured.outcome(), DataQualityHygieneOutcome::Deferred);
+        assert_eq!(captured.actual_minutes(), 3);
+        assert_eq!(captured.actor().id(), "actor-3");
+        assert_eq!(
+            captured.actor().persona(),
+            DataQualityHygienePersona::FrontDeskAgent
+        );
+        assert_eq!(
+            captured.actor().actor_role(),
+            DataQualityHygienePersona::FrontDeskAgent
+        );
+        assert_eq!(captured.feedback(), "waiting for source evidence");
+        assert_eq!(captured.source_refs().len(), 1);
+        assert_eq!(captured.issue_refs(), &["issue-3"]);
+        assert_eq!(
+            captured.reported_resolution_status(),
+            DataQualityResolutionStatus::Acknowledged
+        );
+        assert_eq!(
+            captured.timestamp(),
+            Utc.with_ymd_and_hms(2026, 8, 18, 5, 0, 0).unwrap()
+        );
+        assert_eq!(captured.audit().correlation_id(), "correlation-3");
+        assert!(captured.requested_side_effects().is_empty());
+        assert_eq!(
+            captured.idempotency_key().expose_for_fingerprint(),
+            "outcome-3"
+        );
+    }
 }

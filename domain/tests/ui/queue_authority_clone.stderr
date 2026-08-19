@@ -1,5 +1,5 @@
-error[E0599]: no method named `clone` found for struct `QueueAuthorization` in the current scope
- --> tests/ui/queue_authority_clone.rs:4:43
+error[E0432]: unresolved import `domain::entities::message_record::QueueAuthorization`
+ --> tests/ui/queue_authority_clone.rs:1:5
   |
-4 |     let _: QueueAuthorization = authority.clone();
-  |                                           ^^^^^ method not found in `QueueAuthorization`
+1 | use domain::entities::message_record::QueueAuthorization;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ no `QueueAuthorization` in `entities::message::message_record`

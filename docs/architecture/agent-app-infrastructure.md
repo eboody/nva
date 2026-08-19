@@ -161,7 +161,7 @@ services:
 
 The important boundary is not Docker itself. The important boundary is that the agent runtime talks to the deterministic app through typed APIs/tools rather than raw Postgres, raw object storage, or provider-specific records.
 
-The first minimal Manager Daily Brief bridge is intentionally scripts-based: `scripts/hermes-tools/get_manager_daily_brief_context`, `scripts/hermes-tools/submit_manager_daily_brief_draft`, and `scripts/hermes-tools/record_manager_daily_brief_outcome`. See `docs/ops/hermes-manager-daily-brief-bridge.md` for worker-profile usage and the later MCP migration note.
+The first minimal Manager Daily Brief bridge is intentionally scripts-based: `scripts/hermes-tools/get_manager_daily_brief_context`, `scripts/hermes-tools/submit_manager_daily_brief_draft`, and `scripts/hermes-tools/record_manager_daily_brief_outcome`. See `docs/ops/manager-daily-brief-local-smoke.md` for the executable local rehearsal.
 
 ## Agent/app interface pattern
 

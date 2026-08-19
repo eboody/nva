@@ -1,0 +1,11 @@
+error[E0425]: cannot find type `Deposit` in module `domain::entities`
+ --> tests/ui/reservation_payment_convenience_aliases.rs:2:37
+  |
+2 |     let _: Option<domain::entities::Deposit> = None;
+  |                                     ^^^^^^^ not found in `domain::entities`
+
+error[E0425]: cannot find type `PaymentStatus` in module `domain::entities`
+ --> tests/ui/reservation_payment_convenience_aliases.rs:3:37
+  |
+3 |     let _: Option<domain::entities::PaymentStatus> = None;
+  |                                     ^^^^^^^^^^^^^ not found in `domain::entities`

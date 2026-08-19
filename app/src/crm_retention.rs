@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use domain::{entities, grooming, message, policy, source};
 use nutype::nutype;
+use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize};
 
 use crate::checkout_completion;
@@ -72,13 +73,6 @@ pub enum ConsentStatus {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Modeled reason for future opaque eligibility; current serialized inputs cannot produce eligible authority.
-pub enum EligibilityReason {
-    /// Names the reason a future opaque issuer could use; current serialized inputs cannot issue it.
-    SourceGroundedRetentionOpportunity,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Evidence-only reason that current retention input remains ineligible and cannot create a queue, task, or draft.
 pub enum IneligibilityReason {
     /// Explains that the workflow is checkout not staff verified when deciding whether an agent draft is allowed.
@@ -101,19 +95,23 @@ pub enum IneligibilityReason {
     AcceptedConsentAuthorityUnavailable,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Outcome of the deterministic contact-safety check for retention follow-up.
-pub enum FollowUpEligibility {
-    /// Modeled future eligibility state; current serialized inputs never produce this variant and cannot authorize queue work or drafting.
-    Eligible {
-        /// Reason value stored on this variant.
-        reason: EligibilityReason,
-    },
-    /// Reason copied from reviewed source input for audit, reviewer explanation, or agent context; callers must not invent or mutate it.
-    Ineligible {
-        /// Reason value stored on this variant.
-        reason: IneligibilityReason,
-    },
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Opaque evidence that the current retention workflow stopped before draft eligibility.
+///
+/// The value is neither caller-constructible nor deserializable as a reusable capability.
+pub struct FollowUpEligibility {
+    reason: IneligibilityReason,
+}
+
+impl FollowUpEligibility {
+    const fn ineligible(reason: IneligibilityReason) -> Self {
+        Self { reason }
+    }
+
+    /// Returns the reason the workflow stopped before creating queue or draft authority.
+    pub const fn reason(self) -> IneligibilityReason {
+        self.reason
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -121,12 +119,6 @@ pub enum FollowUpEligibility {
 pub enum SafeAgentAction {
     /// Allows agents to summarize retention evidence for staff review without mutating records or contacting customers.
     SummarizeRetentionEvidence,
-    /// Allows agents to create internal staff review task for staff review without mutating records or contacting customers.
-    /// This action is modeled for a future opaque eligibility issuer and is unavailable from current serialized inputs.
-    CreateInternalStaffReviewTask,
-    /// Allows agents to draft customer follow up for review for staff review without mutating records or contacting customers.
-    /// This action is modeled for a future opaque eligibility issuer and is unavailable from current serialized inputs.
-    DraftCustomerFollowUpForReview,
     /// Allows agents to record follow up outcome evidence for staff review without mutating records or contacting customers.
     RecordFollowUpOutcomeEvidence,
 }
@@ -172,18 +164,6 @@ pub enum EvidenceReviewStatus {
     Expired,
     /// Evidence may inform internal staff tasks but cannot drive customer marketing copy.
     OperationsOnly,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Caller-serializable compatibility classification retained as non-authoritative history.
-///
-/// No variant proves review, a booking, recommendation impact, conversion, completion, or value;
-/// current reporting normalizes these labels to no-action evidence.
-pub enum ReportedOutcomeClassification {
-    /// Reports a correlated-booking-observation label without proving a booking or attribution.
-    CorrelatedBookingObservation,
-    /// Reports a no-action label for deferred, suppressed, wrong-source, or otherwise ineligible evidence.
-    NoActionOutcome,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -266,13 +246,39 @@ impl OpportunityEvidence {
     pub const fn review_status(&self) -> EvidenceReviewStatus {
         self.review_status
     }
+}
 
-    /// Reports whether this serializable history independently authorizes marketing use.
-    ///
-    /// Historical review labels cannot mint accepted evidence, so this is deliberately
-    /// false until an opaque, authenticated promotion authority is integrated.
-    pub const fn can_drive_marketing_draft(&self) -> bool {
-        false
+#[cfg(test)]
+mod changed_line_tests {
+    use super::*;
+
+    #[test]
+    fn evidence_review_status_reports_the_caller_supplied_non_authority_label() {
+        let evidence = OpportunityEvidence::builder()
+            .reason_code(SourceGroundedReasonCode::CustomerAskedAboutFutureStay)
+            .summary(EvidenceSummary::try_new("Owner asked about a later stay.").unwrap())
+            .provenance(
+                source::Provenance::builder()
+                    .system(source::System::Crm)
+                    .endpoint(source::Endpoint::try_new("CRM retention fixture").unwrap())
+                    .record_id(source::record::Id::try_new("retention-coverage").unwrap())
+                    .extraction_batch(source::ExtractionBatchId::try_new("coverage-batch").unwrap())
+                    .pulled_at(source::Timestamp::try_new("2026-08-18T00:00:00Z").unwrap())
+                    .request_scope(source::RequestScope::try_new("coverage-only").unwrap())
+                    .schema_version(source::SchemaVersion::try_new("v1").unwrap())
+                    .payload_hash(source::PayloadHash::try_new("sha256:coverage").unwrap())
+                    .raw_payload_ref(
+                        source::RawPayloadRef::try_new("fixture/coverage.json").unwrap(),
+                    )
+                    .build(),
+            )
+            .review_status(EvidenceReviewStatus::OperationsOnly)
+            .build();
+
+        assert_eq!(
+            evidence.review_status(),
+            EvidenceReviewStatus::OperationsOnly
+        );
     }
 }
 
@@ -353,12 +359,12 @@ impl ContactPermission {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, bon::Builder)]
+#[derive(Clone, PartialEq, Eq, Serialize, bon::Builder)]
 /// Input rules for building the workflow packet from source-grounded records.
 pub struct Request {
     reservation_id: entities::reservation::Id,
     customer_id: entities::CustomerId,
-    checkout_packet: checkout_completion::Packet,
+    checkout_packet: checkout_completion::ReviewPacket,
     contact_permission: ContactPermission,
     #[builder(default)]
     opportunities: Vec<RetentionOpportunity>,
@@ -378,7 +384,7 @@ impl Request {
     }
 
     /// Returns the checkout packet evidence available to retention follow-up review while leaving provider, customer, payment, and schedule systems unchanged.
-    pub const fn checkout_packet(&self) -> &checkout_completion::Packet {
+    pub const fn checkout_packet(&self) -> &checkout_completion::ReviewPacket {
         &self.checkout_packet
     }
 
@@ -423,7 +429,7 @@ impl DraftFollowUp {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Serialize)]
+#[derive(Clone, PartialEq, Eq)]
 /// Staff-facing evidence packet; current serialized values cannot create eligibility, queue work, a task, or a draft.
 pub struct StaffReviewPacket {
     reservation_id: entities::reservation::Id,
@@ -436,47 +442,31 @@ pub struct StaffReviewPacket {
     required_review_gates: Vec<policy::ReviewGate>,
 }
 
-#[derive(Deserialize)]
-struct SerializedStaffReviewPacket {
-    reservation_id: entities::reservation::Id,
-    customer_id: entities::CustomerId,
-    eligibility: FollowUpEligibility,
-    draft_channel: Option<message::Channel>,
-    opportunities: Vec<RetentionOpportunity>,
-    staff_evidence: Vec<OpportunityEvidence>,
-    draft_follow_up: DraftFollowUp,
-    required_review_gates: Vec<policy::ReviewGate>,
+#[derive(Serialize)]
+struct EligibilityEvidence {
+    reason: IneligibilityReason,
 }
 
-impl<'de> Deserialize<'de> for StaffReviewPacket {
-    fn deserialize<Deserializer>(deserializer: Deserializer) -> Result<Self, Deserializer::Error>
+impl Serialize for StaffReviewPacket {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        Deserializer: serde::Deserializer<'de>,
+        S: serde::Serializer,
     {
-        let serialized = SerializedStaffReviewPacket::deserialize(deserializer)?;
-        let _reported_authority = (
-            serialized.eligibility,
-            serialized.draft_channel,
-            serialized.required_review_gates,
-        );
-        let eligibility = FollowUpEligibility::Ineligible {
-            reason: IneligibilityReason::AcceptedConsentAuthorityUnavailable,
-        };
-
-        Ok(Self {
-            reservation_id: serialized.reservation_id,
-            customer_id: serialized.customer_id,
-            eligibility,
-            draft_channel: None,
-            opportunities: serialized.opportunities,
-            staff_evidence: serialized.staff_evidence,
-            draft_follow_up: DraftFollowUp {
-                channel: serialized.draft_follow_up.channel,
-                review_state: message::ReviewState::Suppressed,
-                suppression_flags: serialized.draft_follow_up.suppression_flags,
+        let mut state = serializer.serialize_struct("StaffReviewPacket", 8)?;
+        state.serialize_field("reservation_id", &self.reservation_id)?;
+        state.serialize_field("customer_id", &self.customer_id)?;
+        state.serialize_field(
+            "eligibility",
+            &EligibilityEvidence {
+                reason: self.eligibility.reason(),
             },
-            required_review_gates: required_review_gates_for(eligibility),
-        })
+        )?;
+        state.serialize_field("draft_channel", &self.draft_channel)?;
+        state.serialize_field("opportunities", &self.opportunities)?;
+        state.serialize_field("staff_evidence", &self.staff_evidence)?;
+        state.serialize_field("draft_follow_up", &self.draft_follow_up)?;
+        state.serialize_field("required_review_gates", &self.required_review_gates)?;
+        state.end()
     }
 }
 
@@ -533,14 +523,6 @@ impl StaffReviewPacket {
         &self.opportunities
     }
 
-    /// Returns an empty set because serialized opportunity evidence cannot personalize a customer follow-up draft.
-    pub fn marketable_opportunities(&self) -> Vec<&RetentionOpportunity> {
-        self.opportunities
-            .iter()
-            .filter(|opportunity| opportunity.evidence().can_drive_marketing_draft())
-            .collect()
-    }
-
     /// Returns suppressed historical draft metadata; it does not authorize queue work, drafting, or contact.
     pub const fn draft_follow_up(&self) -> &DraftFollowUp {
         &self.draft_follow_up
@@ -557,7 +539,7 @@ impl StaffReviewPacket {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Serialize)]
+#[derive(Clone, PartialEq, Eq)]
 /// Reviewable packet handed to staff or agents with deterministic gates already applied.
 pub struct Packet {
     reservation_id: entities::reservation::Id,
@@ -571,47 +553,27 @@ pub struct Packet {
     source_record_refs: Vec<source::RecordRef>,
 }
 
-#[derive(Deserialize)]
-struct SerializedPacket {
-    reservation_id: entities::reservation::Id,
-    customer_id: entities::CustomerId,
-    eligibility: FollowUpEligibility,
-    draft_channel: Option<message::Channel>,
-    review_packet: StaffReviewPacket,
-    required_review_gates: Vec<policy::ReviewGate>,
-    safe_agent_actions: Vec<SafeAgentAction>,
-    blocked_actions: Vec<BlockedAction>,
-    source_record_refs: Vec<source::RecordRef>,
-}
-
-impl<'de> Deserialize<'de> for Packet {
-    fn deserialize<Deserializer>(deserializer: Deserializer) -> Result<Self, Deserializer::Error>
+impl Serialize for Packet {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        Deserializer: serde::Deserializer<'de>,
+        S: serde::Serializer,
     {
-        let serialized = SerializedPacket::deserialize(deserializer)?;
-        let _reported_authority = (
-            serialized.eligibility,
-            serialized.draft_channel,
-            serialized.required_review_gates,
-            serialized.safe_agent_actions,
-            serialized.blocked_actions,
-        );
-        let eligibility = FollowUpEligibility::Ineligible {
-            reason: IneligibilityReason::AcceptedConsentAuthorityUnavailable,
-        };
-
-        Ok(Self {
-            reservation_id: serialized.reservation_id,
-            customer_id: serialized.customer_id,
-            eligibility,
-            draft_channel: None,
-            review_packet: serialized.review_packet,
-            required_review_gates: required_review_gates_for(eligibility),
-            safe_agent_actions: safe_agent_actions_for(eligibility),
-            blocked_actions: blocked_actions_for(),
-            source_record_refs: serialized.source_record_refs,
-        })
+        let mut state = serializer.serialize_struct("Packet", 9)?;
+        state.serialize_field("reservation_id", &self.reservation_id)?;
+        state.serialize_field("customer_id", &self.customer_id)?;
+        state.serialize_field(
+            "eligibility",
+            &EligibilityEvidence {
+                reason: self.eligibility.reason(),
+            },
+        )?;
+        state.serialize_field("draft_channel", &self.draft_channel)?;
+        state.serialize_field("review_packet", &self.review_packet)?;
+        state.serialize_field("required_review_gates", &self.required_review_gates)?;
+        state.serialize_field("safe_agent_actions", &self.safe_agent_actions)?;
+        state.serialize_field("blocked_actions", &self.blocked_actions)?;
+        state.serialize_field("source_record_refs", &self.source_record_refs)?;
+        state.end()
     }
 }
 
@@ -679,8 +641,8 @@ impl Workflow {
     /// unless a future non-serializable authority boundary establishes eligibility.
     pub fn evaluate(request: Request) -> Packet {
         let draft_channel = request.contact_permission.retention_draft_channel();
-        let eligibility = eligibility_for(&request, draft_channel);
-        let required_review_gates = required_review_gates_for(eligibility);
+        let eligibility = eligibility_for();
+        let required_review_gates = required_review_gates();
         let staff_evidence = request
             .opportunities
             .iter()
@@ -688,11 +650,7 @@ impl Workflow {
             .collect::<Vec<_>>();
         let draft_follow_up = DraftFollowUp {
             channel: draft_channel.unwrap_or(request.contact_permission.preferred_channel()),
-            review_state: if matches!(eligibility, FollowUpEligibility::Eligible { .. }) {
-                message::ReviewState::ApprovalRequested
-            } else {
-                message::ReviewState::Suppressed
-            },
+            review_state: message::ReviewState::Suppressed,
             suppression_flags: request.suppression_flags.clone(),
         };
         let review_packet = StaffReviewPacket {
@@ -705,7 +663,7 @@ impl Workflow {
             draft_follow_up,
             required_review_gates: required_review_gates.clone(),
         };
-        let safe_agent_actions = safe_agent_actions_for(eligibility);
+        let safe_agent_actions = safe_agent_actions();
         let blocked_actions = blocked_actions_for();
         let mut source_record_refs = vec![source::RecordRef::from_provenance(
             request.checkout_packet.provenance(),
@@ -735,32 +693,19 @@ impl Workflow {
     }
 }
 
-fn eligibility_for(
-    _request: &Request,
-    _draft_channel: Option<message::Channel>,
-) -> FollowUpEligibility {
-    FollowUpEligibility::Ineligible {
-        reason: IneligibilityReason::CheckoutNotStaffVerified,
-    }
+fn eligibility_for() -> FollowUpEligibility {
+    FollowUpEligibility::ineligible(IneligibilityReason::CheckoutNotStaffVerified)
 }
 
-fn required_review_gates_for(eligibility: FollowUpEligibility) -> Vec<policy::ReviewGate> {
-    match eligibility {
-        FollowUpEligibility::Eligible { .. } => vec![policy::ReviewGate::CustomerMessageApproval],
-        FollowUpEligibility::Ineligible { .. } => vec![policy::ReviewGate::ManagerApproval],
-    }
+fn required_review_gates() -> Vec<policy::ReviewGate> {
+    vec![policy::ReviewGate::ManagerApproval]
 }
 
-fn safe_agent_actions_for(eligibility: FollowUpEligibility) -> Vec<SafeAgentAction> {
-    let mut actions = vec![
+fn safe_agent_actions() -> Vec<SafeAgentAction> {
+    vec![
         SafeAgentAction::SummarizeRetentionEvidence,
         SafeAgentAction::RecordFollowUpOutcomeEvidence,
-    ];
-    if matches!(eligibility, FollowUpEligibility::Eligible { .. }) {
-        actions.push(SafeAgentAction::CreateInternalStaffReviewTask);
-        actions.push(SafeAgentAction::DraftCustomerFollowUpForReview);
-    }
-    actions
+    ]
 }
 
 fn blocked_actions_for() -> Vec<BlockedAction> {
@@ -826,51 +771,5 @@ impl OutcomeRecord {
     /// Returns the evidence evidence available to retention follow-up review while leaving provider, customer, payment, and schedule systems unchanged.
     pub fn evidence(&self) -> &[OpportunityEvidence] {
         &self.evidence
-    }
-
-    /// Returns the records staff evidence only evidence available to retention follow-up review while leaving provider, customer, payment, and schedule systems unchanged.
-    pub const fn records_staff_evidence_only(&self) -> bool {
-        true
-    }
-
-    /// Returns the blocked actions evidence available to retention follow-up review while leaving provider, customer, payment, and schedule systems unchanged.
-    pub fn blocked_actions(&self) -> Vec<BlockedAction> {
-        blocked_actions_for()
-    }
-
-    /// Reports whether caller-reported outcome labels correlate with the same reservation, customer, and source-reference labels as the evidence packet. This shape check authenticates no accepted source evidence, review, booking, action, contact, completion, or value.
-    pub fn matches_reported_packet_evidence(&self, packet: &Packet) -> bool {
-        self.reservation_id == packet.reservation_id
-            && self.customer_id == packet.customer_id
-            && self.evidence.iter().any(|evidence| {
-                evidence.can_drive_marketing_draft()
-                    && packet
-                        .source_record_refs()
-                        .contains(&source::RecordRef::from_provenance(evidence.provenance()))
-            })
-    }
-
-    /// Normalizes caller-reported retention history to no-action compatibility evidence.
-    ///
-    /// The current workflow has no accepted booking-correlation authority, so the positive
-    /// compatibility variant is unreachable and cannot contribute to recovered-booking counts.
-    pub fn reported_outcome_classification_for(
-        &self,
-        packet: &Packet,
-    ) -> ReportedOutcomeClassification {
-        if self.matches_reported_packet_evidence(packet)
-            && matches!(
-                self.outcome,
-                FollowUpOutcome::BookedNextStay
-                    | FollowUpOutcome::Converted {
-                        conversion: ConversionKind::ResortServiceBooked
-                            | ConversionKind::GroomingRebooked
-                    }
-            )
-        {
-            ReportedOutcomeClassification::CorrelatedBookingObservation
-        } else {
-            ReportedOutcomeClassification::NoActionOutcome
-        }
     }
 }

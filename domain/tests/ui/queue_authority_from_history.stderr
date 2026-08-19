@@ -1,13 +1,11 @@
-error[E0451]: fields `approval_id`, `message_id`, `gate` and `reviewer` of struct `ReviewerAuthority` are private
-  --> tests/ui/queue_authority_from_history.rs:21:9
+error[E0422]: cannot find struct, variant or union type `ReviewerAuthority` in module `entities::message_record`
+  --> tests/ui/queue_authority_from_history.rs:20:56
    |
 20 |     let reviewer_authority = entities::message_record::ReviewerAuthority {
-   |                              ------------------------------------------- in this type
-21 |         approval_id: approval.id(),
-   |         ^^^^^^^^^^^ private field
-22 |         message_id,
-   |         ^^^^^^^^^^ private field
-23 |         gate: policy::ReviewGate::CustomerMessageApproval,
-   |         ^^^^ private field
-24 |         reviewer: entities::ActorRef::System,
-   |         ^^^^^^^^ private field
+   |                                                        ^^^^^^^^^^^^^^^^^ not found in `entities::message_record`
+
+error[E0425]: cannot find function `authorize_queue` in module `entities::message_record`
+  --> tests/ui/queue_authority_from_history.rs:26:39
+   |
+26 |     let _ = entities::message_record::authorize_queue(&approval, reviewer_authority);
+   |                                       ^^^^^^^^^^^^^^^ not found in `entities::message_record`

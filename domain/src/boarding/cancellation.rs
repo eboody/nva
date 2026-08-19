@@ -14,12 +14,7 @@ pub struct Policy {
     pub penalty: Penalty,
 }
 
-impl Policy {
-    /// Creates a cancellation policy from validated notice and penalty values.
-    pub const fn new(notice: NoticeHours, penalty: Penalty) -> Self {
-        Self { notice, penalty }
-    }
-}
+impl Policy {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Penalties a resort may apply when a boarding cancellation misses the notice window.

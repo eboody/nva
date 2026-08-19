@@ -10,7 +10,7 @@
 //! provider notes or reconciling free-text labels.
 //!
 //! This module must not book, confirm, cancel, check in/out, hold capacity, change pricing,
-//! move money, mutate Gingr/provider/PMS records, or send customer messages. It is source
+//! move money, mutate provider/PMS records, or send customer messages. It is source
 //! vocabulary only. Live authority stays with the provider/PMS ledger, approved location policy,
 //! verified payment/deposit records, customer/pet/reservation source snapshots, and accountable
 //! staff/manager approvals.
@@ -38,11 +38,6 @@ impl MinimumAgeWeeks {
             return Err(Error::EmptyMinimumAge);
         }
         Ok(Self(value))
-    }
-
-    /// Returns the minimum age threshold used by booking and policy adapters.
-    pub const fn get(self) -> u8 {
-        self.0
     }
 }
 
@@ -76,11 +71,6 @@ pub struct AgeThreshold {
 }
 
 impl AgeThreshold {
-    /// Assembles a reservation policy value from validated age and reason parts.
-    pub const fn new(minimum: MinimumAgeWeeks, reason: AgePolicyReason) -> Self {
-        Self { minimum, reason }
-    }
-
     /// Returns the reservation minimum used by the policy gate.
     pub const fn minimum(&self) -> MinimumAgeWeeks {
         self.minimum
@@ -108,11 +98,6 @@ impl AddOnLabel {
         }
         Ok(Self(value))
     }
-
-    /// Returns the owned inner string for storage or outbound mapping.
-    pub fn into_inner(self) -> String {
-        self.0
-    }
 }
 
 impl<'de> Deserialize<'de> for AddOnLabel {
@@ -129,30 +114,4 @@ impl<'de> Deserialize<'de> for AddOnLabel {
 pub enum CheckoutSourceException {
     /// Provider/PMS record conflicts with the staff handoff or checkout packet.
     ProviderRecordConflict,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Caller-constructible compatibility label retained as checkout evidence; it proves no staff action, system-of-record state, completion, or labor value.
-pub enum CheckoutCompletionDisposition {
-    /// Caller supplied the legacy `StaffVerified` label; no staff verification or checkout completion is proven.
-    StaffVerified,
-    /// Caller supplied the legacy manager-review-required label; no review request or manager action is created.
-    ManagerReviewRequired,
-    /// Caller supplied the legacy source-reconciliation label; no provider state or reconciliation action is established.
-    SourceReconciliationRequired,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Business reasons for moving or rejecting a reservation workflow transition.
-pub enum TransitionReason {
-    /// Transition was initiated by a customer request.
-    CustomerRequested,
-    /// Transition was blocked because the requested capacity is unavailable.
-    CapacityUnavailable,
-    /// Transition is blocked by a non-overridable policy.
-    PolicyHardStop,
-    /// Transition is blocked until required customer or pet details are supplied.
-    MissingRequiredInformation,
-    /// Staff manually approved a workflow transition.
-    StaffOverride,
 }

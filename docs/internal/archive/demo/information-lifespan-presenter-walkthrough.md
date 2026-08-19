@@ -17,7 +17,7 @@ Primary references:
 - Board artifact: [Information Lifespan + Hermes Processor Demo Board](../kanban/2026-06-29-information-lifespan-hermes-demo-board.md).
 - Operator runbook: [Local Docker Compose demo runbook](../ops/local-demo-compose.md).
 - UI entrypoint: `staff-web` at `http://127.0.0.1:${PET_RESORT_STAFF_WEB_HOST_PORT:-3000}` after the script starts Compose.
-- API proof endpoints: `POST /v0/demo/information-lifespan/run` and `GET /v0/demo/information-lifespan/{correlation_id}/report`.
+- API proof endpoints: `POST /v1/demo/information-lifespan/run` and `GET /v1/demo/information-lifespan/{correlation_id}/report`.
 
 The script writes proof artifacts under `.artifacts/information-lifespan/` and `.var/information-lifespan/`. Treat those files as local demo evidence, not production logs.
 
@@ -122,9 +122,9 @@ Useful inspect paths:
 
 Point to the network-visible run card:
 
-- browser route: `/api/local-demo/v0/demo/information-lifespan/run`
-- upstream route: `/v0/demo/information-lifespan/run`
-- replay route: `/v0/demo/information-lifespan/{correlation_id}/report`
+- browser route: `/api/local-demo/v1/demo/information-lifespan/run`
+- upstream route: `/v1/demo/information-lifespan/run`
+- replay route: `/v1/demo/information-lifespan/{correlation_id}/report`
 - response preview fields: `correlation_id`, `artifact_ref`, `stage_count`, `estimated_labor_minutes_saved`, `review_gate_count`, `live_side_effects_allowed=false`
 
 Suggested line:

@@ -94,7 +94,7 @@ async fn upload_vaccine_document_with_actor(
     request_json_on(
         app,
         axum_http::Method::POST,
-        "/vaccine-documents/uploads",
+        "/v1/vaccine-documents/uploads",
         vaccine_upload_body(uploaded_by_staff_id),
         trusted_actor,
     )
@@ -107,7 +107,7 @@ async fn data_quality_context(app: axum::Router) -> serde_json::Value {
             axum_http::request::Builder::new()
                 .method(axum_http::Method::GET)
                 .uri(format!(
-                    "/agent/context/data-quality-hygiene?location_id={LOCAL_LOCATION_ID}&operating_day=2026-06-17"
+                    "/v1/agent/context/data-quality-hygiene?location_id={LOCAL_LOCATION_ID}&operating_day=2026-06-17"
                 ))
                 .header("x-test-auth-actor-id", "general-manager-17")
                 .header("x-test-auth-role", "general_manager")
@@ -166,7 +166,7 @@ async fn mutating_routes_reject_missing_trusted_actor_context_even_when_body_nam
         app,
         axum_http::Method::POST,
         &format!(
-            "/data-quality-hygiene/actions/{}/outcome",
+            "/v1/data-quality-hygiene/actions/{}/outcome",
             action["id"].as_str().unwrap()
         ),
         data_quality_outcome_body(action, "front-desk-lead-17", "front_desk_lead"),
@@ -194,7 +194,7 @@ async fn outcome_routes_authenticate_before_revealing_request_validation_results
         app.clone(),
         axum_http::Method::POST,
         &format!(
-            "/data-quality-hygiene/actions/{}/outcome",
+            "/v1/data-quality-hygiene/actions/{}/outcome",
             hygiene_action["id"].as_str().unwrap()
         ),
         invalid_hygiene_outcome,
@@ -211,7 +211,7 @@ async fn outcome_routes_authenticate_before_revealing_request_validation_results
         app.clone(),
         axum_http::Method::GET,
         &format!(
-            "/agent/context/manager-daily-brief?location_id={LOCAL_LOCATION_ID}&operating_day=2026-06-17"
+            "/v1/agent/context/manager-daily-brief?location_id={LOCAL_LOCATION_ID}&operating_day=2026-06-17"
         ),
         json!(null),
         Some(general_manager()),
@@ -223,7 +223,7 @@ async fn outcome_routes_authenticate_before_revealing_request_validation_results
         app,
         axum_http::Method::POST,
         &format!(
-            "/manager-daily-brief/actions/{}/outcome",
+            "/v1/manager-daily-brief/actions/{}/outcome",
             manager_action["id"].as_str().unwrap()
         ),
         json!({
@@ -250,15 +250,15 @@ async fn outcome_routes_authenticate_before_revealing_request_validation_results
 #[tokio::test]
 async fn every_post_mutation_authenticates_before_json_validation_or_state_access() {
     for uri in [
-        "/inquiries",
-        "/agent/drafts/manager-daily-brief",
-        "/agent/drafts/data-quality-hygiene",
-        "/data-quality-hygiene/actions/action-id/outcome",
-        "/manager-daily-brief/actions/action-id/outcome",
-        "/demo/information-lifespan/run",
-        "/vaccine-documents/uploads",
-        "/vaccine-documents/review-packets/00000000-0000-0000-0000-000000000001/approve",
-        "/vaccine-documents/review-packets/00000000-0000-0000-0000-000000000001/reject",
+        "/v1/inquiries",
+        "/v1/agent/drafts/manager-daily-brief",
+        "/v1/agent/drafts/data-quality-hygiene",
+        "/v1/data-quality-hygiene/actions/action-id/outcome",
+        "/v1/manager-daily-brief/actions/action-id/outcome",
+        "/v1/demo/information-lifespan/run",
+        "/v1/vaccine-documents/uploads",
+        "/v1/vaccine-documents/review-packets/00000000-0000-0000-0000-000000000001/approve",
+        "/v1/vaccine-documents/review-packets/00000000-0000-0000-0000-000000000001/reject",
     ] {
         let response = http::router_with_test_auth_state(http::VaccineDocumentState::default())
             .oneshot(
@@ -284,7 +284,7 @@ async fn trusted_role_cannot_be_replaced_by_a_body_persona_claim() {
         app,
         axum_http::Method::POST,
         &format!(
-            "/data-quality-hygiene/actions/{}/outcome",
+            "/v1/data-quality-hygiene/actions/{}/outcome",
             action["id"].as_str().unwrap()
         ),
         data_quality_outcome_body(action, "general-manager-1", "front_desk_lead"),
@@ -303,7 +303,7 @@ async fn data_quality_draft_requires_trusted_actor_before_json_validation() {
         .oneshot(
             axum_http::request::Builder::new()
                 .method(axum_http::Method::POST)
-                .uri("/v0/agent/drafts/data-quality-hygiene")
+                .uri("/v1/agent/drafts/data-quality-hygiene")
                 .header(axum_http::header::CONTENT_TYPE, "application/json")
                 .body(Body::from("{}"))
                 .expect("request builds"),
@@ -318,7 +318,7 @@ async fn inquiry_intake_rejects_missing_trusted_actor_context_before_mutating_ru
     let (status, payload) = request_json_on(
         http::router_with_state(http::VaccineDocumentState::default()),
         axum_http::Method::POST,
-        "/inquiries",
+        "/v1/inquiries",
         json!({
             "source_event_key": "unauthenticated-inquiry",
             "location_id": LOCAL_LOCATION_ID,
@@ -340,14 +340,15 @@ async fn inquiry_intake_rejects_explicit_nil_location_identity() {
     let (status, payload) = request_json_on(
         http::router_with_test_auth_state(http::VaccineDocumentState::default()),
         axum_http::Method::POST,
-        "/inquiries",
+        "/v1/inquiries",
         json!({
             "source_event_key": "nil-location-inquiry",
             "location_id": "00000000-0000-0000-0000-000000000000",
             "customer": {"full_name": "Casey", "email": "casey@example.test"},
             "pet": {"name": "Miso", "species": "dog"},
             "service": "boarding",
-            "message": "Need boarding details."
+            "message": "Need boarding details.",
+            "contact_attempts": []
         }),
         Some(front_desk_lead()),
     )
@@ -398,7 +399,7 @@ async fn trusted_actor_context_must_match_body_actor_claim_before_review_mutatio
     let (forged_review_status, forged_review_payload) = request_json_on(
         app,
         axum_http::Method::POST,
-        &format!("/vaccine-documents/review-packets/{review_packet_id}/approve"),
+        &format!("/v1/vaccine-documents/review-packets/{review_packet_id}/approve"),
         json!({
             "reviewed_by_staff_id": "forged-reviewer-from-body",
             "reason": "Body actor id must remain an unauthoritative claim."
@@ -428,7 +429,7 @@ async fn mutating_routes_reject_wrong_location_or_role_from_trusted_actor_contex
         app.clone(),
         axum_http::Method::POST,
         &format!(
-            "/data-quality-hygiene/actions/{}/outcome",
+            "/v1/data-quality-hygiene/actions/{}/outcome",
             action["id"].as_str().unwrap()
         ),
         data_quality_outcome_body(action, "front-desk-lead-17", "front_desk_lead"),
@@ -464,7 +465,7 @@ async fn staff_sensitive_reads_require_trusted_actor_context_and_reject_role_cla
     let (staff_status, staff_payload) = request_json_on(
         app.clone(),
         axum_http::Method::GET,
-        "/staff/inquiries",
+        "/v1/staff/inquiries",
         json!(null),
         None,
     )
@@ -476,7 +477,7 @@ async fn staff_sensitive_reads_require_trusted_actor_context_and_reject_role_cla
     );
 
     let permissioned_uri = format!(
-        "/agent/context/permissioned-knowledge?location_id={LOCAL_LOCATION_ID}&service=boarding&role=general_manager&section=check-in.required-documents"
+        "/v1/agent/context/permissioned-knowledge?location_id={LOCAL_LOCATION_ID}&service=boarding&role=general_manager&section=check-in.required-documents"
     );
     let (missing_status, missing_payload) = request_json_on(
         app.clone(),
@@ -508,13 +509,13 @@ async fn staff_sensitive_reads_require_trusted_actor_context_and_reject_role_cla
 async fn operational_reads_reject_missing_trusted_actor_context() {
     let app = http::router_with_test_auth_state(http::VaccineDocumentState::default());
     let routes = [
-        "/v0/read-models/source-quality-backlog",
-        "/v0/demo/information-lifespan/info-lifespan-demo-2026-06-29/report",
-        "/v0/ops/metrics/summary",
-        "/v0/agent/context/data-quality-hygiene?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",
-        "/v0/agent/context/site-finance",
-        "/v0/data-quality-hygiene/outcomes/summary?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",
-        "/v0/agent/context/manager-daily-brief?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",
+        "/v1/read-models/source-quality-backlog",
+        "/v1/demo/information-lifespan/info-lifespan-demo-2026-06-29/report",
+        "/v1/ops/metrics/summary",
+        "/v1/agent/context/data-quality-hygiene?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",
+        "/v1/agent/context/site-finance",
+        "/v1/data-quality-hygiene/outcomes/summary?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",
+        "/v1/agent/context/manager-daily-brief?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17",
     ];
 
     for route in routes {

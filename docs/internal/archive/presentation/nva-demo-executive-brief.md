@@ -53,7 +53,7 @@ If you want to run the workflow and operations lanes separately:
 ./scripts/smoke_data_quality_hygiene_disabled_worker_outbox.sh
 ```
 
-The checked OpenAPI artifact is at [`apps/api/openapi/owned-operations-v0.openapi.json`](../../apps/api/openapi/owned-operations-v0.openapi.json).
+The checked OpenAPI artifact is at [`apps/api/openapi/owned-operations-v1.openapi.json`](../../apps/api/openapi/owned-operations-v1.openapi.json).
 
 ## What the demo proves
 

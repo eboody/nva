@@ -32,20 +32,34 @@ fn main() -> anyhow::Result<()> {
             serde_json::to_string_pretty(&agents::baseline_agent_specs())?
         ),
         Command::Tools => {
-            let tools = vec![
-                tools::ExternalToolCandidate::GingrPortal,
-                tools::ExternalToolCandidate::PaymentProvider,
-                tools::ExternalToolCandidate::SmsProvider,
-                tools::ExternalToolCandidate::EmailProvider,
-                tools::ExternalToolCandidate::FileStorage,
-                tools::ExternalToolCandidate::OcrOrDocumentAi,
-                tools::ExternalToolCandidate::CameraOrWebcamProvider,
-                tools::ExternalToolCandidate::HermesKanban,
-                tools::ExternalToolCandidate::HermesCronOrWebhook,
-                tools::ExternalToolCandidate::Postgres,
-            ];
+            let tools = external_tool_candidates();
             println!("{}", serde_json::to_string_pretty(&tools)?);
         }
     }
     Ok(())
+}
+
+fn external_tool_candidates() -> Vec<tools::ExternalToolCandidate> {
+    vec![
+        tools::ExternalToolCandidate::ProviderPortal,
+        tools::ExternalToolCandidate::PaymentProvider,
+        tools::ExternalToolCandidate::SmsProvider,
+        tools::ExternalToolCandidate::EmailProvider,
+        tools::ExternalToolCandidate::FileStorage,
+        tools::ExternalToolCandidate::OcrOrDocumentAi,
+        tools::ExternalToolCandidate::CameraOrWebcamProvider,
+        tools::ExternalToolCandidate::HermesKanban,
+        tools::ExternalToolCandidate::HermesCronOrWebhook,
+        tools::ExternalToolCandidate::Postgres,
+    ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tool_catalog_uses_the_provider_neutral_portal_capability() {
+        assert!(external_tool_candidates().contains(&tools::ExternalToolCandidate::ProviderPortal));
+    }
 }

@@ -10,14 +10,14 @@ use crate::{
     storage::review_queue::{
         BlockedActionAttemptRow, HygieneAuditEventRow, HygieneOutcomeRow, ReviewQueueItemRow, codec,
     },
-    tables::{LocationScopeV1Row, RoleAssignmentRow, StaffActorRow},
+    tables::{LocationScopeRow, RoleAssignmentRow, StaffActorRow},
 };
 
 /// Read-side actor directory backed by SpacetimeDB rows loaded at reducer entry.
 pub struct ActorDirectoryAdapter {
     actors: Vec<StaffActorRow>,
     roles: Vec<RoleAssignmentRow>,
-    scopes: Vec<LocationScopeV1Row>,
+    scopes: Vec<LocationScopeRow>,
 }
 
 impl ActorDirectoryAdapter {
@@ -25,7 +25,7 @@ impl ActorDirectoryAdapter {
     pub fn new(
         actors: Vec<StaffActorRow>,
         roles: Vec<RoleAssignmentRow>,
-        scopes: Vec<LocationScopeV1Row>,
+        scopes: Vec<LocationScopeRow>,
     ) -> Self {
         Self {
             actors,

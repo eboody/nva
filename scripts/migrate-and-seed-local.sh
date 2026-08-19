@@ -24,10 +24,8 @@ done
 
 "${compose_bin[@]}" exec -T postgres pg_isready -U pet_resort -d pet_resort >/dev/null
 
-for migration in migrations/0001_mvp_foundation.sql migrations/0002_data_quality_read_models.sql migrations/0003_semantic_authority_upgrade.sql; do
-  echo "applying ${migration}"
-  "${compose_bin[@]}" exec -T postgres psql -v ON_ERROR_STOP=1 -U pet_resort -d pet_resort < "${migration}"
-done
+echo "applying canonical clean-slate schema"
+"${compose_bin[@]}" exec -T postgres psql -v ON_ERROR_STOP=1 -U pet_resort -d pet_resort < migrations/0001_mvp_foundation.sql
 
 echo "seeding safe synthetic local demo data"
 "${compose_bin[@]}" exec -T postgres psql -v ON_ERROR_STOP=1 -U pet_resort -d pet_resort < fixtures/seed/local-demo.sql

@@ -1,12 +1,11 @@
 //! Information-lifespan trace contract for the synthetic Hermes demo.
 //!
 //! This module owns the canonical envelope that later API, database, Hermes,
-//! and staff-web cards can replay. Gingr-shaped payloads here are synthetic,
-//! read-only source evidence only; they never become NVA product authority and
-//! never authorize live PMS/provider/customer/payment side effects.
+//! and staff-web cards can replay. Source payloads are observed evidence only;
+//! they never become NVA product authority and never authorize live source-system,
+//! customer, payment, or scheduling side effects.
 
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -29,17 +28,17 @@ impl CorrelationId {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Versioned public/agent schema tag for the trace envelope.
 pub enum TraceSchemaVersion {
-    /// Initial information-lifespan trace contract used by the local Manager Daily Report demo.
-    #[serde(rename = "information_lifespan_trace.v0")]
-    V0,
+    /// Canonical v1 information-lifespan trace contract used by the local Manager Daily Report demo.
+    #[serde(rename = "information_lifespan_trace.v1")]
+    V1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-/// Source system posture for the trace; the demo currently uses only mocked Gingr evidence.
+/// Source system posture for the trace; the demo currently uses only mocked provider evidence.
 pub enum SourceSystem {
-    /// Synthetic read-only Gingr-shaped fixture used for local demo proof.
-    MockGingrReadOnlyFixture,
+    /// Synthetic read-only provider-shaped fixture used for local demo proof.
+    MockProviderReadOnlyFixture,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -66,22 +65,14 @@ pub enum StageKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-/// Provider-shaped payload family preserved in the source evidence drawer.
-pub enum SourcePayloadKind {
-    /// Synthetic Gingr reservation/stay payload.
+/// Source-evidence family preserved in the trace drawer.
+pub enum SourceEvidenceKind {
+    /// Reservation or stay source evidence.
     Reservation,
-    /// Synthetic Gingr care-note payload.
+    /// Care-note source evidence.
     CareNote,
-    /// Synthetic Gingr vaccination payload.
+    /// Vaccination source evidence.
     Vaccine,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-/// Authority assigned to a source payload before NVA normalization.
-pub enum PayloadAuthority {
-    /// Payload is evidence only and must be promoted through NVA rules before use.
-    ProviderEvidenceOnly,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -146,69 +137,46 @@ impl ModelPath {
 }
 
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-/// Provider-shaped source evidence whose unrestricted payload and raw reference are redacted from diagnostics.
-pub struct SourcePayload {
-    payload_kind: SourcePayloadKind,
-    authority: PayloadAuthority,
-    provider_model_path: String,
-    nva_target_model_path: String,
-    raw_payload_ref: String,
-    payload: serde_json::Value,
+/// Observed source evidence retained without provider-specific shape or executable authority.
+pub struct ObservedSourceEvidence {
+    evidence_kind: SourceEvidenceKind,
+    source_ref: String,
+    value: serde_json::Value,
 }
 
-impl fmt::Debug for SourcePayload {
+impl fmt::Debug for ObservedSourceEvidence {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("SourcePayload([REDACTED])")
+        formatter.write_str("ObservedSourceEvidence([REDACTED])")
     }
 }
 
-impl SourcePayload {
-    /// Captures a mocked provider payload as source evidence only.
+impl ObservedSourceEvidence {
+    /// Captures an observed value as non-authoritative source evidence.
     pub fn new(
-        payload_kind: SourcePayloadKind,
-        provider_model_path: impl Into<String>,
-        nva_target_model_path: impl Into<String>,
-        raw_payload_ref: impl Into<String>,
-        payload: serde_json::Value,
+        evidence_kind: SourceEvidenceKind,
+        source_ref: impl Into<String>,
+        value: serde_json::Value,
     ) -> Self {
         Self {
-            payload_kind,
-            authority: PayloadAuthority::ProviderEvidenceOnly,
-            provider_model_path: provider_model_path.into(),
-            nva_target_model_path: nva_target_model_path.into(),
-            raw_payload_ref: raw_payload_ref.into(),
-            payload,
+            evidence_kind,
+            source_ref: source_ref.into(),
+            value,
         }
     }
 
-    /// Payload family used by report-relevant source facts.
-    pub const fn payload_kind(&self) -> SourcePayloadKind {
-        self.payload_kind
+    /// Evidence family used by the trace.
+    pub const fn evidence_kind(&self) -> SourceEvidenceKind {
+        self.evidence_kind
     }
 
-    /// Authority boundary attached to the payload.
-    pub const fn authority(&self) -> PayloadAuthority {
-        self.authority
+    /// Adapter-owned reference to the observed source value.
+    pub fn source_ref(&self) -> &str {
+        &self.source_ref
     }
 
-    /// Provider DTO/source model path that preserves the raw evidence shape.
-    pub fn provider_model_path(&self) -> &str {
-        &self.provider_model_path
-    }
-
-    /// NVA-owned model path that later stages may promote into after validation.
-    pub fn nva_target_model_path(&self) -> &str {
-        &self.nva_target_model_path
-    }
-
-    /// Fixture/ref for the raw provider-shaped payload.
-    pub fn raw_payload_ref(&self) -> &str {
-        &self.raw_payload_ref
-    }
-
-    /// Provider-shaped synthetic payload.
-    pub const fn payload(&self) -> &serde_json::Value {
-        &self.payload
+    /// Observed source value retained as evidence only.
+    pub const fn value(&self) -> &serde_json::Value {
+        &self.value
     }
 }
 
@@ -506,7 +474,7 @@ impl FinalArtifact {
     }
 }
 
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize, bon::Builder)]
 /// Canonical reusable information-lifespan trace envelope.
 pub struct TraceEnvelope {
     schema_version: TraceSchemaVersion,
@@ -515,7 +483,7 @@ pub struct TraceEnvelope {
     synthetic_data_only: bool,
     provider_payloads_are_source_evidence_only: bool,
     live_side_effects_allowed: bool,
-    source_payloads: Vec<SourcePayload>,
+    source_evidence: Vec<ObservedSourceEvidence>,
     stages: Vec<TraceStage>,
     log_proof_entries: Vec<LogProofEntry>,
     db_proof_entries: Vec<DbProofEntry>,
@@ -556,9 +524,9 @@ impl TraceEnvelope {
         self.live_side_effects_allowed
     }
 
-    /// Source payloads that begin the trace.
-    pub fn source_payloads(&self) -> &[SourcePayload] {
-        &self.source_payloads
+    /// Observed source evidence that begins the trace.
+    pub fn source_evidence(&self) -> &[ObservedSourceEvidence] {
+        &self.source_evidence
     }
 
     /// Ordered visible stages.
@@ -609,7 +577,6 @@ impl fmt::Debug for TraceEnvelope {
                 &self.provider_payloads_are_source_evidence_only,
             )
             .field("live_side_effects_allowed", &self.live_side_effects_allowed)
-            .field("source_payloads_count", &self.source_payloads.len())
             .field("stages_count", &self.stages.len())
             .field("log_proof_entries_count", &self.log_proof_entries.len())
             .field("db_proof_entries_count", &self.db_proof_entries.len())
@@ -621,290 +588,5 @@ impl fmt::Debug for TraceEnvelope {
             .field("safety_gates_count", &self.safety_gates.len())
             .field("final_artifact", &self.final_artifact)
             .finish()
-    }
-}
-
-/// Builds the deterministic synthetic trace fixture used by Piece 1 and later replay cards.
-pub fn mock_gingr_manager_daily_report_trace() -> TraceEnvelope {
-    let source_payloads = vec![
-        SourcePayload::new(
-            SourcePayloadKind::Reservation,
-            "gingr::response::ReservationRecord",
-            "domain::reservation::StayFact",
-            "fixture://mock-gingr/reservations/9001001.json",
-            json!({
-                "synthetic": true,
-                "id": 9001001,
-                "owner_id": 7001,
-                "animal_id": 8101,
-                "status": "checked_in",
-                "service_type": "boarding",
-                "start_at": "2026-06-29T13:00:00Z",
-                "end_at": "2026-07-02T15:00:00Z",
-                "why_received": "manager daily report needs today's in-house boarding demand and source lineage"
-            }),
-        ),
-        SourcePayload::new(
-            SourcePayloadKind::CareNote,
-            "gingr::response::provider::Payload",
-            "domain::care::CareNoteFact",
-            "fixture://mock-gingr/care-notes/9001001-feeding.json",
-            json!({
-                "synthetic": true,
-                "reservation_id": 9001001,
-                "animal_id": 8101,
-                "note_type": "feeding",
-                "body": "Ate breakfast; monitor dinner appetite.",
-                "recorded_at": "2026-06-29T14:30:00Z",
-                "visibility": "internal_only",
-                "why_received": "manager report highlights care exceptions without customer sends"
-            }),
-        ),
-        SourcePayload::new(
-            SourcePayloadKind::Vaccine,
-            "gingr::response::provider::Payload",
-            "domain::vaccine::ReviewFact",
-            "fixture://mock-gingr/vaccines/8101-rabies.json",
-            json!({
-                "synthetic": true,
-                "animal_id": 8101,
-                "vaccine_name": "rabies",
-                "expires_on": "2026-07-05",
-                "verification_status": "needs_staff_review",
-                "why_received": "manager report surfaces near-expiry vaccine work as a review gate, not an automated medical decision"
-            }),
-        ),
-    ];
-
-    TraceEnvelope {
-        schema_version: TraceSchemaVersion::V0,
-        correlation_id: CorrelationId::new("info-lifespan-demo-2026-06-29"),
-        source_system: SourceSystem::MockGingrReadOnlyFixture,
-        synthetic_data_only: true,
-        provider_payloads_are_source_evidence_only: true,
-        live_side_effects_allowed: false,
-        source_payloads,
-        stages: vec![
-            TraceStage::new(
-                StageKind::SourceEvidenceReceived,
-                "Mock Gingr event received",
-                false,
-                None,
-                vec![ModelPath::new(
-                    "app::information_lifespan::SourcePayload",
-                    "synthetic read-only source evidence",
-                )],
-            ),
-            TraceStage::new(
-                StageKind::ProviderDtoPreserved,
-                "Provider DTO/source model preserved",
-                false,
-                None,
-                vec![
-                    ModelPath::new(
-                        "gingr::response::ReservationRecord",
-                        "provider reservation evidence",
-                    ),
-                    ModelPath::new(
-                        "gingr::response::provider::Payload",
-                        "provider-shaped care/vaccine evidence",
-                    ),
-                ],
-            ),
-            TraceStage::new(
-                StageKind::NormalizedNvaModels,
-                "NVA-owned models normalized",
-                false,
-                None,
-                vec![
-                    ModelPath::new("domain::source::RecordRef", "source lineage pointer"),
-                    ModelPath::new(
-                        "app::manager_daily_brief::SourceFact",
-                        "reviewable NVA source fact",
-                    ),
-                    ModelPath::new(
-                        "app::manager_daily_brief::Packet",
-                        "manager-owned workflow packet",
-                    ),
-                ],
-            ),
-            TraceStage::new(
-                StageKind::DatabaseProjectionProof,
-                "Database rows/projections prove lineage",
-                false,
-                None,
-                vec![
-                    ModelPath::new(
-                        "migrations::source_import_runs/source_quality_issues/workflow_events/review_packets/approval_records/audit_events/manager_daily_brief_outcomes",
-                        "local Postgres seed rows linked by correlation id",
-                    ),
-                    ModelPath::new(
-                        "migrations::information_lifespan_db_lifecycle_proof",
-                        "queryable lifecycle projection for the demo trace",
-                    ),
-                ],
-            ),
-            TraceStage::new(
-                StageKind::HermesProcessorRun,
-                "Hermes processor container enriches trace",
-                false,
-                None,
-                vec![
-                    ModelPath::new(
-                        "apps::hermes_processor::processor",
-                        "Docker Compose service that consumes the synthetic trace and emits report-ready JSON",
-                    ),
-                    ModelPath::new(
-                        "schemas::information_lifespan_hermes_processor_output",
-                        "validated processor output contract for API/UI handoff",
-                    ),
-                ],
-            ),
-            TraceStage::new(
-                StageKind::CalculationApplied,
-                "Calculations and ranking applied",
-                false,
-                None,
-                vec![ModelPath::new(
-                    "app::manager_daily_brief::LaborImpactEstimate",
-                    "labor-value calculation",
-                )],
-            ),
-            TraceStage::new(
-                StageKind::ReviewGateLocked,
-                "Unsafe side effects locked behind review",
-                false,
-                None,
-                vec![ModelPath::new(
-                    "app::manager_daily_brief::BlockedAction",
-                    "explicit side-effect lock enum",
-                )],
-            ),
-            TraceStage::new(
-                StageKind::ManagerDailyReportArtifact,
-                "Manager Daily Report artifact produced",
-                false,
-                None,
-                vec![
-                    ModelPath::new(
-                        "app::information_lifespan::FinalArtifact",
-                        "report artifact contract emitted by the Piece 4 API response",
-                    ),
-                    ModelPath::new(
-                        "apps::api::http::information_lifespan_run_payload",
-                        "local API renderer for the final Manager Daily Report artifact",
-                    ),
-                ],
-            ),
-        ],
-        log_proof_entries: vec![
-            LogProofEntry::new(
-                "INFO",
-                "information_lifespan",
-                "mock Gingr source evidence accepted from fixture",
-            ),
-            LogProofEntry::new(
-                "INFO",
-                "information_lifespan",
-                "provider payload retained as source evidence only",
-            ),
-            LogProofEntry::new(
-                "WARN",
-                "information_lifespan.safety",
-                "provider writes/customer sends/payment movement locked",
-            ),
-        ],
-        db_proof_entries: vec![
-            DbProofEntry::new(
-                "source_import_runs",
-                "source_import_run:info-lifespan-demo-2026-06-29;correlation_id:info-lifespan-demo-2026-06-29",
-                "migrations::source_import_runs",
-            ),
-            DbProofEntry::new(
-                "source_quality_issues",
-                "source_quality_issue:vaccine-near-expiry:8101;correlation_id:info-lifespan-demo-2026-06-29",
-                "migrations::source_quality_issues",
-            ),
-            DbProofEntry::new(
-                "workflow_events",
-                "workflow_event:manager-daily-report:2026-06-29;correlation_id:info-lifespan-demo-2026-06-29",
-                "app::manager_daily_brief::Request",
-            ),
-            DbProofEntry::new(
-                "review_packets",
-                "review_packet:vaccine-near-expiry:8101;correlation_id:info-lifespan-demo-2026-06-29",
-                "app::manager_daily_brief::BriefAction",
-            ),
-            DbProofEntry::new(
-                "manager_daily_brief_outcomes",
-                "manager_daily_brief_outcome:synthetic-2026-06-29;correlation_id:info-lifespan-demo-2026-06-29",
-                "storage::operations::ManagerDailyBriefOutcomeRecord",
-            ),
-            DbProofEntry::new(
-                "information_lifespan_db_lifecycle_proof",
-                "correlation_id:info-lifespan-demo-2026-06-29",
-                "migrations::information_lifespan_db_lifecycle_proof",
-            ),
-        ],
-        network_proof_entries: vec![
-            NetworkProofEntry::new(
-                HttpMethod::Post,
-                "/demo/information-lifespan/run",
-                200,
-                "response://information-lifespan/info-lifespan-demo-2026-06-29",
-            ),
-            NetworkProofEntry::new(
-                HttpMethod::Get,
-                "/demo/information-lifespan/info-lifespan-demo-2026-06-29/report",
-                200,
-                "response://manager-daily-report/synthetic-2026-06-29",
-            ),
-        ],
-        calculations: vec![
-            CalculationProof::new("source_snapshots", "reservation + care_note + vaccine", "3"),
-            CalculationProof::new(
-                "normalized_facts",
-                "reservation demand + care exception + vaccine review",
-                "3",
-            ),
-            CalculationProof::new(
-                "reported_estimated_labor_minutes_difference",
-                "60 minute caller-reported manual baseline - 18 minute caller-reported workflow estimate",
-                "42",
-            ),
-        ],
-        safety_gates: vec![
-            SafetyGateProof::new(
-                SafetyGateKind::ProviderWriteLocked,
-                true,
-                "demo is read-only and never mutates Gingr/PMS records",
-            ),
-            SafetyGateProof::new(
-                SafetyGateKind::CustomerSendLocked,
-                true,
-                "manager report can draft internal tasks only; no live sends",
-            ),
-            SafetyGateProof::new(
-                SafetyGateKind::MedicalReviewRequired,
-                true,
-                "vaccine fact is surfaced for staff review, not auto-accepted",
-            ),
-            SafetyGateProof::new(
-                SafetyGateKind::ScheduleChangeLocked,
-                true,
-                "staffing/demand recommendation cannot change schedules",
-            ),
-            SafetyGateProof::new(
-                SafetyGateKind::PaymentMovementLocked,
-                true,
-                "payments, refunds, and discounts are outside this demo authority",
-            ),
-        ],
-        final_artifact: FinalArtifact::new(
-            FinalArtifactKind::ManagerDailyReport,
-            "Manager Daily Report — synthetic 2026-06-29",
-            "artifact://manager-daily-report/synthetic-2026-06-29",
-            "3 source snapshots, 3 normalized facts, 6 DB proof refs, 5 review locks, 42 reported estimated labor minute difference",
-        ),
     }
 }

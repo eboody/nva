@@ -1,13 +1,5 @@
-error[E0308]: mismatched types
- --> tests/ui/approval_evidence_is_not_pending_outbox_authority.rs:4:40
+error[E0432]: unresolved import `storage::operations::ApprovalReviewDisposition`
+ --> tests/ui/approval_evidence_is_not_pending_outbox_authority.rs:1:27
   |
-4 |     let _ = PendingOutboxRecord::admit(evidence);
-  |             -------------------------- ^^^^^^^^ expected `ApprovedInternalHandoffAuthority`, found `ApprovalReviewDisposition`
-  |             |
-  |             arguments to this function are incorrect
-  |
-note: associated function defined here
- --> src/operations.rs
-  |
-  |     pub fn admit(authority: ApprovedInternalHandoffAuthority) -> Self {
-  |            ^^^^^
+1 | use storage::operations::{ApprovalReviewDisposition, PendingOutboxRecord};
+  |                           ^^^^^^^^^^^^^^^^^^^^^^^^^ no `ApprovalReviewDisposition` in `operations`

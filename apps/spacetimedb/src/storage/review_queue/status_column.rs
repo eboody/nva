@@ -5,7 +5,7 @@
 
 /// Caller-reported feedback label encoded in review-queue storage.
 ///
-/// These compatibility values do not prove review, completion, suppression, or resolution.
+/// These observed outcome labels do not prove review, completion, suppression, or resolution.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, spacetimedb::SpacetimeType)]
 pub enum FeedbackOutcomeColumn {
     /// Caller reported a completed label; cleanup completion is not proven.
@@ -60,8 +60,6 @@ pub enum BlockedActionReasonColumn {
 /// Stable upstream-system discriminator for source record references.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, spacetimedb::SpacetimeType)]
 pub enum SourceSystemColumn {
-    /// Represents the `Gingr` semantic case.
-    Gingr,
     /// Represents the `Telephony` semantic case.
     Telephony,
     /// Represents the `SmsProvider` semantic case.
@@ -102,8 +100,7 @@ pub enum SourceSystemColumn {
 
 impl SourceSystemColumn {
     /// Every supported variant value for exhaustive codec contracts.
-    pub const ALL: [Self; 19] = [
-        Self::Gingr,
+    pub const ALL: [Self; 18] = [
         Self::Telephony,
         Self::SmsProvider,
         Self::Email,
@@ -162,14 +159,7 @@ pub enum StaffDispositionColumn {
     Defer,
 }
 
-impl StaffDispositionColumn {
-    /// Every supported variant value for exhaustive codec contracts.
-    pub const ALL: [Self; 3] = [
-        Self::RecommendForManagerApproval,
-        Self::CompleteWithoutManagerApproval,
-        Self::Defer,
-    ];
-}
+impl StaffDispositionColumn {}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, spacetimedb::SpacetimeType)]
 /// Stable manager outcome column representation used at this boundary.
@@ -182,10 +172,7 @@ pub enum ManagerOutcomeColumn {
     Deferred,
 }
 
-impl ManagerOutcomeColumn {
-    /// Every supported variant value for exhaustive codec contracts.
-    pub const ALL: [Self; 3] = [Self::Approved, Self::Rejected, Self::Deferred];
-}
+impl ManagerOutcomeColumn {}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, spacetimedb::SpacetimeType)]
 /// Stable blocked action column representation used at this boundary.

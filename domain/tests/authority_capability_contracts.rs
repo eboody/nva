@@ -13,6 +13,7 @@ fn executable_authority_cannot_be_manufactured_or_replayed_by_callers() {
     tests.compile_fail("tests/ui/incident_closure_from_history.rs");
     tests.compile_fail("tests/ui/marketing_permission_from_consent_evidence.rs");
     tests.compile_fail("tests/ui/accepted_note_from_serialized_history.rs");
+    tests.compile_fail("tests/ui/compatibility_alias_cannot_mint_accepted_note.rs");
     tests.compile_fail("tests/ui/accepted_note_clone.rs");
     tests.compile_fail("tests/ui/accepted_note_serialize.rs");
 }

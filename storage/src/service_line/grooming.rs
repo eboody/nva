@@ -4,11 +4,13 @@
 //! for rebooking workflows. Unknown or groomer-recommended cadence remains a
 //! domain decision rather than a fabricated storage value.
 
+use core::num::NonZeroU8;
+
 use serde::{Deserialize, Deserializer, Serialize};
 
 use domain::grooming::rebooking;
 
-use crate::operations::{self, StorageField};
+use crate::projection::{Error, Result};
 
 /// Storage shape for a migrated grooming service rules.
 #[derive(
@@ -45,19 +47,22 @@ pub enum ServiceCode {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 /// Positive grooming cadence interval persisted in weeks.
-pub struct StoredCadenceWeeks(u8);
+pub struct StoredCadenceWeeks(NonZeroU8);
 
 impl StoredCadenceWeeks {
     /// Validates and wraps a positive quantity before it is persisted.
     pub const fn try_new(value: u8) -> std::result::Result<Self, StoredCadenceWeeksError> {
-        if value == 0 {
-            return Err(StoredCadenceWeeksError::ZeroWeeks);
+        match NonZeroU8::new(value) {
+            Some(value) => Ok(Self(value)),
+            None => Err(StoredCadenceWeeksError::ZeroWeeks),
         }
-        Ok(Self(value))
     }
 
-    /// Returns the provider numeric identifier kept on this wrapper.
-    pub const fn get(self) -> u8 {
+    const fn from_nonzero(value: NonZeroU8) -> Self {
+        Self(value)
+    }
+
+    const fn into_nonzero(self) -> NonZeroU8 {
         self.0
     }
 }
@@ -81,10 +86,10 @@ pub enum StoredCadenceWeeksError {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-/// Stable discriminator preserving why a grooming cadence does or does not carry weeks.
-pub enum StoredCadenceKind {
-    /// A positive interval is stored separately in `grooming_cadence_weeks`.
-    EveryWeeks,
+/// Canonical persisted grooming cadence; invalid kind/interval combinations are unrepresentable.
+pub enum CadenceRecord {
+    /// Rebook after a positive number of weeks.
+    EveryWeeks(StoredCadenceWeeks),
     /// Rebooking is driven by need rather than a fixed interval.
     AsNeeded,
     /// A groomer must recommend the next interval.
@@ -93,62 +98,41 @@ pub enum StoredCadenceKind {
     Unknown,
 }
 
-impl StoredCadenceKind {
-    /// Converts a domain cadence into its lossless stable kind and optional interval columns.
-    pub fn from_domain(
-        cadence: rebooking::Cadence,
-    ) -> operations::Result<(Self, Option<StoredCadenceWeeks>)> {
+impl CadenceRecord {
+    /// Converts a domain cadence into its lossless persisted representation.
+    pub fn from_domain(cadence: rebooking::Cadence) -> Result<Self> {
         match cadence {
-            rebooking::Cadence::EveryWeeks(weeks) => {
-                Ok((Self::EveryWeeks, Some(weeks.try_into()?)))
-            }
-            rebooking::Cadence::AsNeeded => Ok((Self::AsNeeded, None)),
-            rebooking::Cadence::GroomerRecommended => Ok((Self::GroomerRecommended, None)),
-            rebooking::Cadence::Unknown => Ok((Self::Unknown, None)),
+            rebooking::Cadence::EveryWeeks(weeks) => Ok(Self::EveryWeeks(weeks.try_into()?)),
+            rebooking::Cadence::AsNeeded => Ok(Self::AsNeeded),
+            rebooking::Cadence::GroomerRecommended => Ok(Self::GroomerRecommended),
+            rebooking::Cadence::Unknown => Ok(Self::Unknown),
         }
     }
 
-    /// Rehydrates a domain cadence only when the discriminator and interval columns agree.
-    pub fn into_domain(
-        self,
-        weeks: Option<StoredCadenceWeeks>,
-    ) -> operations::Result<rebooking::Cadence> {
-        match (self, weeks) {
-            (Self::EveryWeeks, Some(weeks)) => {
-                Ok(rebooking::Cadence::EveryWeeks(weeks.try_into()?))
-            }
-            (Self::AsNeeded, None) => Ok(rebooking::Cadence::AsNeeded),
-            (Self::GroomerRecommended, None) => Ok(rebooking::Cadence::GroomerRecommended),
-            (Self::Unknown, None) => Ok(rebooking::Cadence::Unknown),
-            _ => Err(operations::Error::StorageShapeMismatch {
-                record: operations::RecordKind::ServiceOffering,
-                reason: operations::ShapeMismatchReason::FieldBelongsToDifferentVariant,
-            }),
+    /// Rehydrates the canonical domain cadence.
+    pub fn into_domain(self) -> Result<rebooking::Cadence> {
+        match self {
+            Self::EveryWeeks(weeks) => Ok(rebooking::Cadence::EveryWeeks(weeks.try_into()?)),
+            Self::AsNeeded => Ok(rebooking::Cadence::AsNeeded),
+            Self::GroomerRecommended => Ok(rebooking::Cadence::GroomerRecommended),
+            Self::Unknown => Ok(rebooking::Cadence::Unknown),
         }
     }
 }
 
 impl TryFrom<rebooking::CadenceWeeks> for StoredCadenceWeeks {
-    type Error = operations::Error;
+    type Error = Error;
 
-    fn try_from(value: rebooking::CadenceWeeks) -> operations::Result<Self> {
-        Self::try_new(value.get()).map_err(|err| operations::Error::InvalidDomainValue {
-            field: StorageField::GroomingCadenceWeeks,
-            reason: err.to_string(),
-        })
+    fn try_from(value: rebooking::CadenceWeeks) -> Result<Self> {
+        Ok(Self::from_nonzero(value.into_nonzero()))
     }
 }
 
 impl TryFrom<StoredCadenceWeeks> for rebooking::CadenceWeeks {
-    type Error = operations::Error;
+    type Error = Error;
 
-    fn try_from(value: StoredCadenceWeeks) -> operations::Result<Self> {
-        rebooking::CadenceWeeks::try_new(value.get()).map_err(|err| {
-            operations::Error::InvalidDomainValue {
-                field: StorageField::GroomingCadenceWeeks,
-                reason: err.to_string(),
-            }
-        })
+    fn try_from(value: StoredCadenceWeeks) -> Result<Self> {
+        Ok(rebooking::CadenceWeeks::from_nonzero(value.into_nonzero()))
     }
 }
 
@@ -183,5 +167,23 @@ impl From<domain::grooming::Service> for ServiceCode {
             domain::grooming::Service::CoatSkinSpecificProduct => Self::CoatSkinSpecificProduct,
             domain::grooming::Service::FirstTimeGroomingOffer => Self::FirstTimeGroomingOffer,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cadence_record_roundtrips_positive_weeks_without_optional_discriminator_drift() {
+        let weeks = StoredCadenceWeeks::try_new(6).unwrap();
+        assert_eq!(
+            CadenceRecord::EveryWeeks(weeks).into_domain().unwrap(),
+            rebooking::Cadence::EveryWeeks(weeks.try_into().unwrap())
+        );
+
+        let domain_weeks: rebooking::CadenceWeeks = weeks.try_into().unwrap();
+        assert_eq!(domain_weeks.get(), 6);
+        assert!(serde_json::from_str::<StoredCadenceWeeks>("0").is_err());
     }
 }

@@ -117,17 +117,7 @@ pub enum ServiceVariant {
     CatIndividualPlaytime,
 }
 
-impl ServiceVariant {
-    /// Maps the customer-facing service variant to the care mode used by eligibility and staffing policy.
-    pub const fn care_mode(self) -> CareMode {
-        match self {
-            Self::AllDayPlay | Self::HalfDayPlay => CareMode::DogGroupPlay,
-            Self::DayBoarding => CareMode::DogIndividualDayBoarding,
-            Self::DayPlayPlusRoom => CareMode::DogHybridPlayAndRoom,
-            Self::CatIndividualPlaytime => CareMode::CatIndividualEnrichment,
-        }
-    }
-}
+impl ServiceVariant {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Operational care mode that determines whether group-play, individual care, or cat enrichment rules apply.
@@ -188,10 +178,6 @@ pub struct StaffPetRatio {
     pets: PetCount,
 }
 impl StaffPetRatio {
-    /// Creates the daycare value from validated domain parts without trusting raw source primitives.
-    pub const fn new(staff: StaffCount, pets: PetCount) -> Self {
-        Self { staff, pets }
-    }
     /// Returns the allowed pet count per staff member for coverage checks.
     pub const fn pets_per_staff(&self) -> PetCount {
         self.pets
@@ -253,24 +239,5 @@ impl Contract {
                 self.group_assignment,
                 GroupAssignmentRule::TemperamentAndSizeMatched
             )
-    }
-    /// Builds the baseline PetSuites-style daycare rules used by examples and tests.
-    pub fn standard_petsuites() -> Self {
-        Self::builder()
-            .attendance(AttendancePolicy::ReservationRequired)
-            .package(PackagePolicy::PrepaidPasses {
-                visits: PackageVisits::try_new(5).unwrap(),
-            })
-            .ratio(StaffPetRatio::new(
-                StaffCount::try_new(1).unwrap(),
-                PetCount::try_new(12).unwrap(),
-            ))
-            .group_assignment(GroupAssignmentRule::TemperamentAndSizeMatched)
-            .incident(incident::Policy::ManagerReviewAndCustomerNotice)
-            .eligibility(vec![
-                EligibilityRequirement::TemperamentAssessment,
-                EligibilityRequirement::VaccinesCurrent,
-            ])
-            .build()
     }
 }

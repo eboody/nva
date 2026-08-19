@@ -4,7 +4,6 @@ use strum::VariantArray;
 #[test]
 fn source_system_external_codes_parse_display_and_iterate_stably() {
     let cases = [
-        ("gingr", source::System::Gingr),
         ("telephony", source::System::Telephony),
         ("sms_provider", source::System::SmsProvider),
         ("email", source::System::Email),

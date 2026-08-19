@@ -12,13 +12,24 @@ class ReportedOutcomeVocabularyTest(unittest.TestCase):
         hygiene = (REPO_ROOT / "app/src/data_quality_hygiene.rs").read_text(encoding="utf-8")
         reducers = (REPO_ROOT / "apps/spacetimedb/src/reducers.rs").read_text(encoding="utf-8")
         runtime = (REPO_ROOT / "apps/spacetimedb/src/runtime.rs").read_text(encoding="utf-8")
-        storage = (REPO_ROOT / "storage/src/operations.rs").read_text(encoding="utf-8")
+        storage = "\n".join(
+            path.read_text(encoding="utf-8")
+            for path in (
+                REPO_ROOT / "storage/src/operations.rs",
+                REPO_ROOT / "storage/src/operations/approval_outbox.rs",
+                REPO_ROOT / "storage/src/operations/service_catalog.rs",
+                REPO_ROOT / "storage/src/operations/data_quality.rs",
+                REPO_ROOT / "storage/src/operations/manager_daily_brief.rs",
+                REPO_ROOT / "storage/src/operations/site_finance.rs",
+                REPO_ROOT / "storage/src/operations/workflow.rs",
+            )
+        )
         api_contract = (REPO_ROOT / "apps/api/src/public_contract.rs").read_text(encoding="utf-8")
         api_http = (REPO_ROOT / "apps/api/src/http.rs").read_text(encoding="utf-8")
         workflow_source = (REPO_ROOT / "domain/src/workflow.rs").read_text(encoding="utf-8")
         lead_source = (REPO_ROOT / "domain/src/lead.rs").read_text(encoding="utf-8")
         labor_crosswalk = (REPO_ROOT / "docs/safety/labor-cost-with-human-review-crosswalk.md").read_text(encoding="utf-8")
-        openapi = (REPO_ROOT / "apps/api/openapi/owned-operations-v0.openapi.json").read_text(encoding="utf-8")
+        openapi = (REPO_ROOT / "apps/api/openapi/owned-operations-v1.openapi.json").read_text(encoding="utf-8")
 
         for forbidden in (
             "Uses completed boarding stay as source-grounded evidence",

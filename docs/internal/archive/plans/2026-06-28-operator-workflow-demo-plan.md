@@ -4,7 +4,7 @@
 
 **Goal:** Replace the current sales-pitch-heavy presentation page with a concrete, interactive pet-resort operator workflow that shows messy work becoming a manager action plan, with safety gates and live API proof as supporting evidence.
 
-**Architecture:** Keep the existing Next.js staff demo and Rust API, but change the presentation hierarchy: the first screen becomes an operator scenario, the middle is a working before/after workflow, and architecture/proof becomes secondary/expandable evidence. Add a small typed scenario model in `apps/staff-web/app/page.tsx` first; only add/adjust API endpoints if the UI cannot honestly show a live manager brief from existing `/v0/agent/context/manager-daily-brief` and `/v0/read-models/source-quality-backlog` data.
+**Architecture:** Keep the existing Next.js staff demo and Rust API, but change the presentation hierarchy: the first screen becomes an operator scenario, the middle is a working before/after workflow, and architecture/proof becomes secondary/expandable evidence. Add a small typed scenario model in `apps/staff-web/app/page.tsx` first; only add/adjust API endpoints if the UI cannot honestly show a live manager brief from existing `/v1/agent/context/manager-daily-brief` and `/v1/read-models/source-quality-backlog` data.
 
 **Tech Stack:** Next.js/React in `apps/staff-web`, existing local-demo proxy at `apps/staff-web/app/api/local-demo/[...path]/route.ts`, Rust API endpoints under `apps/api`, existing demo script `./scripts/demo_owned_operations_api.sh`, deployed Coolify app at `https://nva-demo.eman.network`.
 
@@ -76,10 +76,10 @@ The viewer sees three columns:
 
 Below the workflow, keep a compact “technical proof” drawer:
 
-- live `/v0/readyz` status;
-- live `/v0/ops/metrics/summary` counters;
-- live `/v0/read-models/source-quality-backlog` rows;
-- live `/v0/agent/context/manager-daily-brief?...` response;
+- live `/v1/readyz` status;
+- live `/v1/ops/metrics/summary` counters;
+- live `/v1/read-models/source-quality-backlog` rows;
+- live `/v1/agent/context/manager-daily-brief?...` response;
 - raw JSON excerpt.
 
 Architecture/migration language should move under a “Why this scales” section after the workflow proves value.
@@ -536,7 +536,7 @@ git commit -m "feat: add interactive manager workflow cockpit"
 **Files:**
 - Modify: `apps/staff-web/app/page.tsx`
 - Modify: `apps/staff-web/app/globals.css`
-- Modify only if necessary: `apps/api/src/http.rs`, `apps/api/openapi/owned-operations-v0.openapi.json`, tests under `apps/api/tests/`
+- Modify only if necessary: `apps/api/src/http.rs`, `apps/api/openapi/owned-operations-v1.openapi.json`, tests under `apps/api/tests/`
 
 **Step 1: Rename technical proof section**
 
@@ -553,10 +553,10 @@ Change heading from “Show the API and DB doing work” to:
 
 For each call row, add a short purpose label:
 
-- `/v0/readyz`: system alive;
-- `/v0/ops/metrics/summary`: counters/audit evidence;
-- `/v0/read-models/source-quality-backlog`: messy source facts;
-- `/v0/agent/context/manager-daily-brief?...`: manager actions.
+- `/v1/readyz`: system alive;
+- `/v1/ops/metrics/summary`: counters/audit evidence;
+- `/v1/read-models/source-quality-backlog`: messy source facts;
+- `/v1/agent/context/manager-daily-brief?...`: manager actions.
 
 **Step 3: If manager brief JSON has useful actions, display them**
 
@@ -571,7 +571,7 @@ If API changes are needed, use TDD:
 - update/add contract test in `apps/api/tests/manager_daily_brief_agent_context_contract.rs`;
 - update OpenAPI contract test in `apps/api/tests/owned_api_openapi_contract.rs` if schema/path changes;
 - implement in `apps/api/src/http.rs` or the app layer as appropriate;
-- regenerate/update `apps/api/openapi/owned-operations-v0.openapi.json` if required.
+- regenerate/update `apps/api/openapi/owned-operations-v1.openapi.json` if required.
 
 **Step 5: Verify**
 
@@ -589,7 +589,7 @@ Expected: pass.
 **Step 6: Commit**
 
 ```bash
-git add apps/staff-web/app/page.tsx apps/staff-web/app/globals.css apps/api/src/http.rs apps/api/openapi/owned-operations-v0.openapi.json apps/api/tests scripts/demo_owned_operations_api.sh
+git add apps/staff-web/app/page.tsx apps/staff-web/app/globals.css apps/api/src/http.rs apps/api/openapi/owned-operations-v1.openapi.json apps/api/tests scripts/demo_owned_operations_api.sh
 git commit -m "feat: tie live proof to manager workflow demo"
 ```
 

@@ -170,10 +170,10 @@ Source evidence:
 
 Test evidence:
 
-- [app/tests/booking_triage_mvp.rs](../../../app/tests/booking_triage_mvp.rs) covers vaccine-review blocking, confirmation draft gating, audit-event drafts, behavior/special review, hard rejection dominance, and premature-draft rejection.
-- [app/tests/checkout_completion_workflow_contracts.rs](../../../app/tests/checkout_completion_workflow_contracts.rs) covers checkout routes, manager/customer-message gates, source-not-checked-out behavior, and audit-event draft suppression/creation.
+- `retired clean-slate contract: app/tests/booking_triage_mvp.rs` covers vaccine-review blocking, confirmation draft gating, audit-event drafts, behavior/special review, hard rejection dominance, and premature-draft rejection.
+- `retired clean-slate contract: app/tests/checkout_completion_workflow_contracts.rs` covers checkout routes, manager/customer-message gates, source-not-checked-out behavior, and audit-event draft suppression/creation.
 - [app/tests/crm_retention_workflow_contracts.rs](../../../app/tests/crm_retention_workflow_contracts.rs) covers retention eligibility, contact-consent suppression, blocked actions, source refs, and outcome capture.
-- [app/tests/workflow_service_composition_contracts.rs](../../../app/tests/workflow_service_composition_contracts.rs) is cited by booking workflow docs for booking/deposit composition and payment-movement blocking.
+- `retired clean-slate contract: app/tests/workflow_service_composition_contracts.rs` is cited by booking workflow docs for booking/deposit composition and payment-movement blocking.
 
 Rustdoc evidence after running `cargo doc --no-deps --workspace` should exist under local `target/doc/` module paths for `app::booking_triage`, `app::checkout_completion`, `app::crm_retention`, `app::manager_daily_brief`, `domain::entities`, `domain::reservation`, `domain::boarding`, `domain::workflow`, `domain::policy`, `domain::source`, and `storage::operations`. This page cites source paths instead of relying on generated Rustdoc being present.
 

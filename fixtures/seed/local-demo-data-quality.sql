@@ -261,7 +261,7 @@ INSERT INTO data_quality_hygiene_outcomes (
     actor_persona,
     feedback,
     issue_refs,
-    resolution_status_after_review,
+    reported_resolution_status,
     owner_persona,
     action_kind,
     before_minutes,

@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@01ba1edad32c6f80dbcce879d3e0fa5a00b2a84e # 1.96.0
         with:
-          components: rustfmt, clippy
+          components: rustfmt, clippy, rust-analyzer
       - uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
       - uses: taiki-e/install-action@82cd3e7658a6f96c86c0234aeeda1748937cb0a1 # v2
         with:
@@ -28,12 +28,83 @@ jobs:
       - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
       - run: cargo clippy --release --workspace --all-targets --all-features --locked -- -D warnings
       - run: cargo test --workspace --all-targets --all-features --locked
-      - run: cargo doc --workspace --no-deps --locked
+      - run: cargo doc --workspace --all-features --no-deps --locked
         env:
           RUSTDOCFLAGS: -D warnings
       - run: python scripts/check_rustdoc_completeness.py
+      - name: Generate and enforce the canonical public API inventory
+        run: |
+          python scripts/generate_public_api_inventory.py --repo-root . --doc-root target/doc
+          git diff --exit-code -- docs/quality/generated-public-api-inventory.md
       - run: cargo audit --deny warnings
       - run: cargo deny check
+
+  rust-coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: pet_resort
+          POSTGRES_DB: pet_resort
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pet_resort -d pet_resort"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://pet_resort@127.0.0.1:5432/pet_resort
+      TEST_DATABASE_URL: postgres://pet_resort@127.0.0.1:5432/pet_resort
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@01ba1edad32c6f80dbcce879d3e0fa5a00b2a84e # nightly-2026-08-15
+        with:
+          toolchain: nightly-2026-08-15
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
+      - uses: taiki-e/install-action@82cd3e7658a6f96c86c0234aeeda1748937cb0a1 # v2
+        with:
+          tool: cargo-llvm-cov@0.6.16
+      - name: Install pinned SpacetimeDB WASM coverage prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes clang
+          archive="$RUNNER_TEMP/spacetime-v2.6.0.tar.gz"
+          install_dir="$RUNNER_TEMP/spacetime-v2.6.0"
+          curl --fail --location --silent --show-error \
+            https://github.com/clockworklabs/SpacetimeDB/releases/download/v2.6.0/spacetime-x86_64-unknown-linux-gnu.tar.gz \
+            --output "$archive"
+          echo "24f5c011a1c5b14e9458f230f67f4700f2c89ce1d26bfee35c1f4d3570dc1ac8  $archive" \
+            | sha256sum --check
+          mkdir -p "$install_dir"
+          tar -xzf "$archive" -C "$install_dir"
+          sudo install "$install_dir/spacetimedb-cli" /usr/local/bin/spacetime
+          spacetime --version | grep -F "spacetimedb tool version 2.6.0;"
+      - run: cargo install sqlx-cli --version 0.8.6 --locked --no-default-features --features postgres,rustls
+      - run: sqlx migrate run --source migrations --database-url "$DATABASE_URL"
+      - run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f fixtures/seed/local-demo.sql
+      - run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f fixtures/seed/local-demo-data-quality.sql
+      - name: Generate and enforce measured Rust coverage
+        run: |
+          coverage_base="${{ github.event.pull_request.base.sha || github.event.before }}"
+          if [[ -z "$coverage_base" || "$coverage_base" =~ ^0+$ ]] || ! git cat-file -e "${coverage_base}^{commit}"; then
+            coverage_base="$(git rev-parse --verify HEAD^ 2>/dev/null || git rev-parse HEAD)"
+          fi
+          RUST_COVERAGE_BASE_REF="$coverage_base" ./scripts/check_rust_coverage.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: rust-coverage
+          path: |
+            coverage/lcov.info
+            coverage/rust-coverage-summary.json
+            coverage/html/
+          if-no-files-found: error
 
   repository-quality:
     runs-on: ubuntu-latest
@@ -43,6 +114,7 @@ jobs:
       - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff # v6
       - run: uv run --with pytest --with pyyaml pytest scripts/tests -q
       - run: python scripts/check_workspace_quality.py --repo-root .
+      - run: python scripts/check_architecture_quality.py --repo-root .
       - run: python scripts/check_markdown_links.py
 
   frontend:

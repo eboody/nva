@@ -40,28 +40,7 @@
 //! ```
 
 use super::*;
-use crate::{entities, policy};
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Eligibility evidence staff review before a pet may enter daycare group play.
-pub struct Evidence {
-    /// Pet whose daycare eligibility is being evaluated.
-    pub pet_id: PetId,
-    /// Pet species used to prevent group-play rules from applying to unsupported care modes.
-    pub species: entities::Species,
-    /// Requested service that drives scheduling and labor estimates.
-    pub service: ServiceVariant,
-    /// Freshness of temperament assessment required for safe group assignment.
-    pub temperament: TemperamentAssessmentFreshness,
-    /// Vaccine proof readiness from source records or staff review.
-    pub vaccines: VaccineReadiness,
-    /// Spay/neuter status used for group-play policy review.
-    pub spay_neuter: entities::SpayNeuterStatus,
-    /// Active incident restriction that may suspend group play.
-    pub incident: incident::Restriction,
-    /// Current staffing coverage decision used before admitting a pet to group play.
-    pub staff_coverage: coverage::Decision,
-}
+use crate::policy;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Freshness state of the temperament assessment required for daycare group play.
@@ -145,57 +124,4 @@ pub enum DenialReason {
 /// Deterministic policy that converts source evidence into daycare group-play eligibility.
 pub struct GroupPlayPolicy;
 
-impl GroupPlayPolicy {
-    /// Evaluates species, service, temperament, vaccine, spay/neuter, incident, and coverage gates for group play.
-    pub fn evaluate(&self, evidence: &Evidence) -> GroupPlayDecision {
-        if let incident::Restriction::SuspendedPendingManagerReview { pet_id } = evidence.incident {
-            return GroupPlayDecision::TemporarilySuspended {
-                pet_id,
-                gate: policy::ReviewGate::ManagerApproval,
-            };
-        }
-        if !matches!(evidence.species, entities::Species::Dog)
-            || !matches!(
-                evidence.service.care_mode(),
-                CareMode::DogGroupPlay | CareMode::DogHybridPlayAndRoom
-            )
-        {
-            return GroupPlayDecision::Ineligible {
-                reason: DenialReason::ServiceUnavailableForSpeciesOrCareMode,
-            };
-        }
-        if !matches!(
-            evidence.temperament,
-            TemperamentAssessmentFreshness::Current
-        ) {
-            return GroupPlayDecision::NeedsStaffReview {
-                reason: ReviewReason::MissingCurrentTemperamentAssessment,
-                gate: policy::ReviewGate::BehaviorReview,
-            };
-        }
-        if !matches!(evidence.vaccines, VaccineReadiness::Current) {
-            return GroupPlayDecision::NeedsStaffReview {
-                reason: ReviewReason::VaccineProofRequiresReview,
-                gate: policy::ReviewGate::MedicalDocumentReview,
-            };
-        }
-        if matches!(
-            evidence.spay_neuter,
-            entities::SpayNeuterStatus::Intact | entities::SpayNeuterStatus::Unknown
-        ) {
-            return GroupPlayDecision::NeedsStaffReview {
-                reason: ReviewReason::SpayNeuterStatusRequiresReview,
-                gate: policy::ReviewGate::BehaviorReview,
-            };
-        }
-        if !matches!(evidence.staff_coverage, coverage::Decision::Sufficient) {
-            return GroupPlayDecision::NeedsStaffReview {
-                reason: ReviewReason::StaffCoverageRequiresReview,
-                gate: policy::ReviewGate::ManagerApproval,
-            };
-        }
-        GroupPlayDecision::Eligible {
-            basis: EligibleBasis::CurrentEvidence,
-        }
-    }
-}
+impl GroupPlayPolicy {}

@@ -30,7 +30,7 @@
 //! ```
 
 use super::*;
-use crate::{entities, policy};
+use crate::policy;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Daycare incident handling policy that determines notes, customer notice, and group-play suspension.
@@ -95,28 +95,4 @@ impl Disposition {
 /// Deterministic classifier that maps incident severity to restrictions and review gates.
 pub struct Classifier;
 
-impl Classifier {
-    /// Classifies an incident severity for a pet into a disposition staff can act on.
-    pub fn classify(&self, pet_id: entities::PetId, severity: Severity) -> Disposition {
-        let (restriction, required_gate) = match severity {
-            Severity::StaffNoteOnly => (Restriction::None, None),
-            Severity::OwnerNotice => (
-                Restriction::None,
-                Some(policy::ReviewGate::CustomerMessageApproval),
-            ),
-            Severity::ManagerReview => {
-                (Restriction::None, Some(policy::ReviewGate::ManagerApproval))
-            }
-            Severity::SuspendGroupPlay => (
-                Restriction::SuspendedPendingManagerReview { pet_id },
-                Some(policy::ReviewGate::ManagerApproval),
-            ),
-        };
-        Disposition {
-            pet_id,
-            severity,
-            restriction,
-            required_gate,
-        }
-    }
-}
+impl Classifier {}

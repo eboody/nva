@@ -69,3 +69,11 @@ fn canonical_semantic_owner_modules_do_not_hide_renamed_bridge_reexports() {
         );
     }
 }
+
+#[test]
+fn historical_strategic_facade_is_not_an_active_domain_surface() {
+    let root = file("domain/src/lib.rs");
+
+    assert!(!root.contains("pub mod strategic_ai_ops"));
+    assert!(!root.contains("strategic_ai_ops_bridge.rs"));
+}

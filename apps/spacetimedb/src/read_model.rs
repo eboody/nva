@@ -8,6 +8,4 @@ pub mod manager_queue_item;
 pub mod staff_queue_item;
 
 pub use manager_queue_item::ManagerQueueItemRow;
-pub use staff_queue_item::{
-    BlockedActionNoticeRow, HygieneOutcomeCardRow, HygieneOutcomeCardV1Row, StaffQueueItemRow,
-};
+pub use staff_queue_item::{BlockedActionNoticeRow, HygieneOutcomeCardRow, StaffQueueItemRow};

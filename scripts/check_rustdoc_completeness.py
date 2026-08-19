@@ -64,16 +64,13 @@ RENDERED_DOC_EXPECTATIONS = (
         ),
     ),
     RenderedDocExpectation(
-        "app/booking_triage/struct.Request.html",
+        "app/booking_triage/struct.StaffEvaluationPacket.html",
         (
-            "RequestStateTrait",
-            "RequestIntakeBuilder",
-            "__StatumRequestIntakeBuilderMissingSlot0Reservation",
-            "method.attach_pet_profile",
-            "Attaches pet profile evidence before the request can move to policy decisioning.",
-            "method.attach_policy_snapshot",
-            "method.mark_ready_for_policy_decision",
-            "Returns the reservation identifier this booking-readiness packet is evaluating.",
+            "Staff evaluation packet used by the booking-readiness workflow",
+            "method.deterministic_result",
+            "Returns the deterministic policy result that staff must inspect before acting.",
+            "method.audit_event_drafts",
+            "Returns append-only audit event drafts for packet creation and agent output review.",
         ),
     ),
 )

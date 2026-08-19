@@ -10,13 +10,29 @@
 
 ---
 
+## Clean-slate platform addendum (2026-08-18)
+
+This addendum supersedes every compatibility-preservation requirement below. NVA is pre-live: no deployed consumer, persisted production data, historical wire shape, migration sequence, public path, alias, fixture, or test has backward-compatibility standing merely because it exists in the current tree.
+
+Classify each such surface as **remove**, **replace with canonical current design**, or **keep for intrinsic current value**. Default to removal when history is its only justification. In particular, the clean-slate target is one current PostgreSQL schema, one current SpacetimeDB schema, one intentional `v1` API/OpenAPI contract, one semantic owner and canonical public path per concept, private raw boundary records that promote fallibly into domain/application values, and no legacy/historical compatibility vocabulary in production code or active documentation.
+
+The implementation order is correctness, semantic fidelity, expressive types and APIs, coherent patterns, concept-owned organization, then maintainability and extensibility. Provider-native DTOs and identifiers belong in integration adapters; generic provenance and honest source uncertainty remain in the domain. Semantic enums, newtypes, module-local errors, builders, and typestate are preferred when they encode real distinctions or legal-operation phases rather than ceremony.
+
+Clean-slate simplification must preserve the intrinsic safety invariants: `Observed<T> -> Candidate<T> -> Accepted<T>`, opaque and scope-bound `Authority<Action, Subject, Scope>`, fallible promotion, redacted diagnostics, exact target/subject/scope checks, and one-shot authority consumption. Caller-created or serialized evidence must remain unable to mint authenticated identity, acceptance/review, completion/contact, queue/outbox, payment/execution, measured labor, realized savings, or value.
+
+The revised completion bar requires executable zero-compatibility-debt and canonical-path gates rather than allowlisting compatibility directories, historical replay, aliases, or old names. Stale compatibility tests are replaced with current behavioral, architecture, or compile-fail contracts through strict RED-GREEN-REFACTOR. Final approval requires a fresh exact-tree independent review against this clean-slate specification; earlier compatibility-preserving verdicts do not authorize the revised tree.
+
+Where later sections say to preserve byte/schema compatibility, freeze historical contracts, retain temporary compatibility re-exports, isolate historical names, or run deployed-base/historical-upgrade verification, this addendum replaces that instruction with the canonical clean-slate design and fresh-schema/current-contract verification.
+
+---
+
 ## Non-negotiable invariants
 
 1. `Observed<T> -> Candidate<T> -> Accepted<T>` and `Authority<Action, Subject, Scope>` remain fail closed.
 2. Caller-created, serialized, historical, compatibility, and label-only evidence cannot mint identity, review, completion, contact, queue, outbox, payment, execution, measured labor, realized savings, or value.
 3. The `domain` crate remains storage-decoupled. Provider DTOs remain quarantined in integration boundaries.
-4. Historical PostgreSQL and SpacetimeDB compatibility remains byte/schema compatible through explicit codecs.
-5. No behavior-preserving refactor may change public JSON/OpenAPI/SQL contracts without an explicit contract test and migration decision.
+4. PostgreSQL, SpacetimeDB, JSON, and OpenAPI expose only the canonical current contract; historical shapes are removed unless independently justified by a real current external protocol.
+5. Every boundary-contract change begins with an explicit test for the intended canonical design and a deliberate schema/API decision.
 6. Every production edit begins with a failing characterization, architecture, compile-fail, or behavior test.
 7. `.vscode/` remains untouched and untracked.
 
@@ -194,6 +210,8 @@ Each split follows concept ownership, not arbitrary line-count slicing.
 **Objective:** Make legacy names visible only at wire/storage boundaries.
 
 **Acceptance:** Active domain/app/API code uses current semantic vocabulary. Historical field names appear only in migrations, deployed row types, serde aliases, and compatibility tests.
+
+**Status (2026-08-17): Complete.** The retained surfaces and removal conditions are recorded in `docs/quality/historical-compatibility-inventory.md`; the architecture baseline now permits zero compatibility leakage outside explicit codecs.
 
 ### Task 14: Replace denial-heavy prose with structural impossibility
 

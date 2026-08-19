@@ -36,8 +36,6 @@ pub mod daily_update;
 pub mod data_quality_hygiene;
 /// Canonical trace contract and synthetic source evidence for the information-lifespan demo.
 pub mod information_lifespan;
-/// Local deterministic fixtures that exercise agent and tool gates.
-pub mod local_smoke;
 pub mod manager_daily_brief;
 /// Permissioned knowledge retrieval workflow that cites authorized fixture evidence or escalates.
 pub mod permissioned_knowledge;
@@ -46,9 +44,3 @@ pub mod site_finance;
 pub mod tools;
 /// Application-owned workflow repository and read-model ports used by runtime adapters.
 pub mod workflow_repository;
-
-/// Common app rules for shells that need agent specs and tool catalogs.
-pub mod prelude {
-    pub use crate::agents::{AgentPromptPacket, WorkflowAgent, baseline_agent_specs};
-    pub use crate::tools::{availability, draft_update};
-}

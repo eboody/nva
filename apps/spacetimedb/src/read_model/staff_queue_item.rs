@@ -74,38 +74,13 @@ pub struct BlockedActionNoticeRow {
     pub schema_version: u32,
 }
 
-/// Legacy reviewed-outcome card retained unchanged for additive schema compatibility.
-///
-/// Current reducers never read or write this historical table because its
-/// `minutes_saved` field encodes a realized-value claim that caller-created
-/// history cannot establish.
-#[spacetimedb::table(accessor = hygiene_outcome_card)]
-#[derive(Clone)]
-pub struct HygieneOutcomeCardRow {
-    /// Action id shown to dashboard clients.
-    #[primary_key]
-    pub action_id: String,
-    /// Compact actor label for display.
-    pub recorded_by: ActorRefColumn,
-    /// Legacy caller-reported outcome label for display; it proves no review, action, completion, measurement, or value.
-    pub outcome: FeedbackOutcomeColumn,
-    /// Legacy claimed minutes value retained only to preserve deployed row shape.
-    pub minutes_saved: u32,
-    /// Whether protected live side effects remain blocked.
-    pub live_delivery_allowed: bool,
-    /// Source refs displayed for review traceability.
-    pub source_record_refs: Vec<SourceRecordRefColumn>,
-    /// Issue refs displayed for review traceability.
-    pub issue_refs: Vec<IssueRefColumn>,
-}
-
-/// Version-one caller-reported outcome card with evidence-only labor semantics.
+/// Caller-reported outcome card with evidence-only labor semantics.
 ///
 /// Admission and projection preserve reported labels; they do not prove review,
 /// completion, suppression, resolution, measured labor, or realized value.
-#[spacetimedb::table(accessor = hygiene_outcome_card_v1)]
+#[spacetimedb::table(accessor = hygiene_outcome_card)]
 #[derive(Clone)]
-pub struct HygieneOutcomeCardV1Row {
+pub struct HygieneOutcomeCardRow {
     /// Action id shown to dashboard clients.
     #[primary_key]
     pub action_id: String,
@@ -123,7 +98,7 @@ pub struct HygieneOutcomeCardV1Row {
     pub issue_refs: Vec<IssueRefColumn>,
 }
 
-impl HygieneOutcomeCardV1Row {
+impl HygieneOutcomeCardRow {
     /// Creates a current read-model row from admitted caller-reported storage evidence.
     pub fn new(
         action_id: String,
@@ -161,5 +136,4 @@ redacted_debug!(
     StaffQueueItemRow => "StaffQueueItemRow",
     BlockedActionNoticeRow => "BlockedActionNoticeRow",
     HygieneOutcomeCardRow => "HygieneOutcomeCardRow",
-    HygieneOutcomeCardV1Row => "HygieneOutcomeCardV1Row",
 );

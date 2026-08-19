@@ -11,7 +11,7 @@ async fn readiness_payload() -> serde_json::Value {
     let response = http::router()
         .oneshot(
             axum_http::request::Builder::new()
-                .uri("/readyz")
+                .uri("/v1/readyz")
                 .body(Body::empty())
                 .expect("request builds"),
         )
@@ -68,7 +68,7 @@ async fn health_endpoint_reports_safe_local_service_identity() {
     let response = http::router()
         .oneshot(
             axum_http::request::Builder::new()
-                .uri("/healthz")
+                .uri("/v1/healthz")
                 .body(Body::empty())
                 .expect("request builds"),
         )
@@ -169,7 +169,7 @@ async fn site_finance_agent_context_exposes_review_audit_without_value_claim_aut
     let response = http::router_with_test_auth_state(http::VaccineDocumentState::default())
         .oneshot(
             axum_http::request::Builder::new()
-                .uri("/agent/context/site-finance")
+                .uri("/v1/agent/context/site-finance")
                 .header("x-test-auth-actor-id", "general-manager-17")
                 .header("x-test-auth-role", "general_manager")
                 .header(
@@ -220,7 +220,7 @@ async fn inquiry_submission_creates_review_gated_intake_record() {
         .oneshot(
             axum_http::request::Builder::new()
                 .method(axum_http::Method::POST)
-                .uri("/inquiries")
+                .uri("/v1/inquiries")
                 .header("x-test-auth-actor-id", "front-desk-lead-17")
                 .header("x-test-auth-role", "front_desk_lead")
                 .header("x-test-auth-location-id", "00c0ffee-0000-0000-0000-000000000001")
@@ -243,7 +243,8 @@ async fn inquiry_submission_creates_review_gated_intake_record() {
                             "start": "2026-07-03",
                             "end": "2026-07-07"
                         },
-                        "message": "Miso needs boarding over the holiday. Do you need vaccine records?"
+                        "message": "Miso needs boarding over the holiday. Do you need vaccine records?",
+                        "contact_attempts": []
                     })
                     .to_string(),
                 ))
@@ -288,7 +289,7 @@ async fn inquiry_intake_records_are_visible_to_staff_review_queue() {
         .oneshot(
             axum_http::request::Builder::new()
                 .method(axum_http::Method::POST)
-                .uri("/inquiries")
+                .uri("/v1/inquiries")
                 .header("x-test-auth-actor-id", "front-desk-lead-17")
                 .header("x-test-auth-role", "front_desk_lead")
                 .header(
@@ -303,7 +304,8 @@ async fn inquiry_intake_records_are_visible_to_staff_review_queue() {
                         "customer": {"full_name": "Riley Patel", "email": "riley@example.test"},
                         "pet": {"name": "Juniper", "species": "dog"},
                         "service": "day_play",
-                        "message": "Can Juniper come for day play next week?"
+                        "message": "Can Juniper come for day play next week?",
+                        "contact_attempts": []
                     })
                     .to_string(),
                 ))
@@ -316,7 +318,7 @@ async fn inquiry_intake_records_are_visible_to_staff_review_queue() {
     let queue_response = app
         .oneshot(
             axum_http::request::Builder::new()
-                .uri("/staff/inquiries")
+                .uri("/v1/staff/inquiries")
                 .header("x-test-auth-actor-id", "front-desk-lead-17")
                 .header("x-test-auth-role", "front_desk_lead")
                 .header(
@@ -394,7 +396,7 @@ async fn caller_reported_lead_response_fixture_remains_nonclaimable_without_live
         .oneshot(
             axum_http::request::Builder::new()
                 .method(axum_http::Method::POST)
-                .uri("/inquiries")
+                .uri("/v1/inquiries")
                 .header("x-test-auth-actor-id", "front-desk-lead-17")
                 .header("x-test-auth-role", "front_desk_lead")
                 .header(
@@ -475,7 +477,7 @@ async fn caller_reported_lead_response_fixture_remains_nonclaimable_without_live
         .oneshot(
             axum_http::request::Builder::new()
                 .method(axum_http::Method::POST)
-                .uri("/inquiries")
+                .uri("/v1/inquiries")
                 .header("x-test-auth-actor-id", "front-desk-lead-17")
                 .header("x-test-auth-role", "front_desk_lead")
                 .header(
@@ -505,7 +507,7 @@ async fn caller_reported_lead_response_fixture_remains_nonclaimable_without_live
     let queue_response = app
         .oneshot(
             axum_http::request::Builder::new()
-                .uri("/staff/inquiries")
+                .uri("/v1/staff/inquiries")
                 .header("x-test-auth-actor-id", "front-desk-lead-17")
                 .header("x-test-auth-role", "front_desk_lead")
                 .header(
@@ -534,7 +536,7 @@ async fn lead_response_fixture_classifies_invalid_and_out_of_order_events() {
         .oneshot(
             axum_http::request::Builder::new()
                 .method(axum_http::Method::POST)
-                .uri("/inquiries")
+                .uri("/v1/inquiries")
                 .header("x-test-auth-actor-id", "front-desk-lead-17")
                 .header("x-test-auth-role", "front_desk_lead")
                 .header("x-test-auth-location-id", "00c0ffee-0000-0000-0000-000000000001")
@@ -584,7 +586,7 @@ async fn request_trace_echoes_safe_request_and_correlation_ids_without_payload_l
     let response = http::router_with_test_auth_state(http::VaccineDocumentState::default())
         .oneshot(
             axum_http::request::Builder::new()
-                .uri("/agent/context/data-quality-hygiene?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17")
+                .uri("/v1/agent/context/data-quality-hygiene?location_id=00c0ffee-0000-0000-0000-000000000001&operating_day=2026-06-17")
                 .header("x-request-id", "ops-readiness-req-001")
                 .header("x-correlation-id", "ops-readiness-corr-001")
                 .header("x-test-auth-actor-id", "general-manager-17")
@@ -638,7 +640,7 @@ async fn permissioned_knowledge_context_fails_closed_without_authenticated_docum
     let response = http::router_with_test_auth_state(http::VaccineDocumentState::default())
         .oneshot(
             axum_http::request::Builder::new()
-                .uri("/agent/context/permissioned-knowledge?location_id=00000000-0000-0000-0000-000000000170&service=boarding&role=front_desk&section=check-in.required-documents")
+                .uri("/v1/agent/context/permissioned-knowledge?location_id=00000000-0000-0000-0000-000000000170&service=boarding&role=front_desk&section=check-in.required-documents")
                 .header("x-test-auth-actor-id", "front-desk-lead-17")
                 .header("x-test-auth-role", "front_desk_lead")
                 .header("x-test-auth-location-id", "00000000-0000-0000-0000-000000000170")
@@ -683,7 +685,7 @@ async fn permissioned_knowledge_context_escalates_scope_mismatch_before_content_
     let response = http::router_with_test_auth_state(http::VaccineDocumentState::default())
         .oneshot(
             axum_http::request::Builder::new()
-                .uri("/agent/context/permissioned-knowledge?location_id=00000000-0000-0000-0000-000000000171&service=boarding&role=front_desk&section=check-in.required-documents")
+                .uri("/v1/agent/context/permissioned-knowledge?location_id=00000000-0000-0000-0000-000000000171&service=boarding&role=front_desk&section=check-in.required-documents")
                 .header("x-test-auth-actor-id", "front-desk-lead-17")
                 .header("x-test-auth-role", "front_desk_lead")
                 .header("x-test-auth-location-id", "00000000-0000-0000-0000-000000000171")
@@ -720,7 +722,7 @@ async fn metrics_summary_separates_local_proof_from_production_observability_gap
     let response = http::router_with_test_auth_state(http::VaccineDocumentState::default())
         .oneshot(
             axum_http::request::Builder::new()
-                .uri("/ops/metrics/summary")
+                .uri("/v1/ops/metrics/summary")
                 .header("x-test-auth-actor-id", "general-manager-17")
                 .header("x-test-auth-role", "general_manager")
                 .header(

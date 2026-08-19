@@ -550,8 +550,8 @@ export const informationLifespanNetworkRequests: NetworkRequestProof[] = [
   {
     id: "run-report-post",
     method: "POST",
-    browserPath: "/api/local-demo/v0/demo/information-lifespan/run",
-    upstreamPath: "/v0/demo/information-lifespan/run",
+    browserPath: "/api/local-demo/v1/demo/information-lifespan/run",
+    upstreamPath: "/v1/demo/information-lifespan/run",
     expectedStatus: 200,
     proofPurpose: "Starts the deterministic trace replay and returns the Manager Daily Report artifact payload.",
     responsePreview: {
@@ -566,8 +566,8 @@ export const informationLifespanNetworkRequests: NetworkRequestProof[] = [
   {
     id: "report-replay-get",
     method: "GET",
-    browserPath: "/api/local-demo/v0/demo/information-lifespan/info-lifespan-demo-2026-06-29/report",
-    upstreamPath: "/v0/demo/information-lifespan/info-lifespan-demo-2026-06-29/report",
+    browserPath: "/api/local-demo/v1/demo/information-lifespan/info-lifespan-demo-2026-06-29/report",
+    upstreamPath: "/v1/demo/information-lifespan/info-lifespan-demo-2026-06-29/report",
     expectedStatus: 200,
     proofPurpose: "Replays the same report by correlation id so the final artifact is addressable, not just fixture copy.",
     responsePreview: {
@@ -585,7 +585,7 @@ export const managerDailyReportArtifact: ManagerDailyReportArtifact = {
   title: "Manager Daily Report — synthetic 2026-06-29",
   artifactRef: "artifact://manager-daily-report/synthetic-2026-06-29",
   correlationId: "info-lifespan-demo-2026-06-29",
-  generatedBy: "POST /v0/demo/information-lifespan/run → GET report replay",
+  generatedBy: "POST /v1/demo/information-lifespan/run → GET report replay",
   summary: "A manager-ready morning packet ranked by source-backed urgency; every action keeps the source, calculation, review gate, and locked side effect visible.",
   valueProof: {
     sourceSnapshots: 3,
@@ -949,7 +949,7 @@ export const proofArtifacts: ProofArtifact[] = [
     existsNow: "Operations API contract includes reviewable workflow responses, readiness/metrics paths, ReviewGateRef, AuditRef, and live_side_effects_allowed=false posture in checked OpenAPI and Rust handlers.",
     syntheticBoundary: "The public staff-web proof is static because a private local API would be brittle on nva-demo.eman.network; no browser claim depends on a running private service.",
     realAccessValidation: "A read-only pilot API run would validate payload shapes against real source extracts while keeping customer sends, PMS writes, schedules, payments, and safety decisions locked.",
-    inspect: ["apps/api/openapi/owned-operations-v0.openapi.json", "apps/api/src/http.rs"]
+    inspect: ["apps/api/openapi/owned-operations-v1.openapi.json", "apps/api/src/http.rs"]
   },
   {
     id: "storage-projections-outcomes",
@@ -973,7 +973,7 @@ export const proofArtifacts: ProofArtifact[] = [
     existsNow: "Audit/outcome events, approval records, outbox_candidate_id, blocked-action policy, and live_side_effects_allowed=false are documented and exposed as candidate/review posture, not delivery authority.",
     syntheticBoundary: "Outbox candidates are local/synthetic proof only; nothing on the public page sends customer messages or writes provider/PMS state.",
     realAccessValidation: "Real access would validate audit completeness, approval provenance, and outbox handoff rules before any approved system-of-record adapter is considered.",
-    inspect: ["docs/architecture/audit-reporting-evidence-backbone.md", "apps/api/openapi/owned-operations-v0.openapi.json", "scripts/demo_owned_operations_api.sh"]
+    inspect: ["docs/architecture/audit-reporting-evidence-backbone.md", "apps/api/openapi/owned-operations-v1.openapi.json", "scripts/demo_owned_operations_api.sh"]
   },
   {
     id: "read-models-bi-replacement",

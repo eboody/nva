@@ -57,6 +57,6 @@ Forward the job-contact summary and, if useful, this Q&A. A short intro is:
 - [Final presentation checklist](nva-presentation-checklist.md)
 - [Skeptical review and objection scan](nva-demo-skeptical-review.md)
 - [Owned operations API replacement talk track](owned-operations-api-replacement-talk-track.md)
-- [Checked OpenAPI artifact](../../apps/api/openapi/owned-operations-v0.openapi.json)
+- [Checked OpenAPI artifact](../../apps/api/openapi/owned-operations-v1.openapi.json)
 - [SpacetimeDB realtime queue demo runbook](../ops/spacetimedb-realtime-queue-demo.md)
 - [Audit/reporting/evidence backbone](../architecture/audit-reporting-evidence-backbone.md)

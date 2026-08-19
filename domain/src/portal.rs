@@ -1,4 +1,4 @@
-//! Customer-portal identifiers imported from external systems such as Gingr.
+//! Customer-portal identifiers imported from external provider systems.
 //!
 //! Portal ids are source facts, not internal authority by themselves: downstream domain
 //! workflows must validate and join them to customer/pet/location records before using

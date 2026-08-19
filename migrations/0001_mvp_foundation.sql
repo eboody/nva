@@ -290,12 +290,6 @@ CREATE TABLE IF NOT EXISTS review_packets (
     updated_at timestamptz NOT NULL DEFAULT now()
 );
 
--- Replay bridge for databases created by the deployed pre-0003 schema. Migration runners apply
--- the ordered files again, so 0001 must not reference current authority columns before 0003 can
--- validate and constrain them.
-ALTER TABLE review_packets
-    ADD COLUMN IF NOT EXISTS reviewed_action_id text;
-
 CREATE TABLE IF NOT EXISTS approval_records (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     target_kind text NOT NULL CHECK (target_kind IN ('reservation', 'document', 'vaccine_record', 'incident', 'message')),
@@ -308,7 +302,6 @@ CREATE TABLE IF NOT EXISTS approval_records (
     decided_by_actor_kind text CHECK (decided_by_actor_kind IN ('customer', 'staff', 'manager', 'system', 'agent')),
     decided_by_actor_id text,
     decided_by_actor_persona text CHECK (decided_by_actor_persona IN ('general_manager', 'assistant_general_manager', 'front_desk_lead', 'front_desk_agent', 'regional_operator', 'operations_analyst')),
-    legacy_persona_missing boolean NOT NULL DEFAULT false,
     decided_at timestamptz,
     review_packet_id uuid REFERENCES review_packets(id),
     CONSTRAINT approval_records_decision_integrity CHECK (
@@ -317,7 +310,6 @@ CREATE TABLE IF NOT EXISTS approval_records (
             AND decided_by_actor_kind IS NOT NULL
             AND decided_by_actor_id IS NOT NULL
             AND decided_by_actor_persona IS NOT NULL
-            AND NOT legacy_persona_missing
             AND decided_at IS NOT NULL
             AND requested_at <= decided_at
         )
@@ -327,43 +319,17 @@ CREATE TABLE IF NOT EXISTS approval_records (
             AND decided_by_actor_kind IS NULL
             AND decided_by_actor_id IS NULL
             AND decided_by_actor_persona IS NULL
-            AND NOT legacy_persona_missing
             AND decided_at IS NULL
         )
     ),
     CONSTRAINT approval_records_decider_persona_kind_integrity CHECK (
-        legacy_persona_missing
-        OR decided_by_actor_kind IS NULL
+        decided_by_actor_kind IS NULL
         OR (decided_by_actor_kind = 'manager' AND decided_by_actor_persona IN ('general_manager', 'assistant_general_manager', 'regional_operator'))
         OR (decided_by_actor_kind = 'staff' AND decided_by_actor_persona IN ('front_desk_lead', 'front_desk_agent', 'operations_analyst'))
     ),
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now()
 );
-
-ALTER TABLE approval_records
-    ADD COLUMN IF NOT EXISTS decided_by_actor_persona text;
-ALTER TABLE approval_records
-    ADD COLUMN IF NOT EXISTS legacy_persona_missing boolean;
-
-CREATE OR REPLACE FUNCTION reject_approval_legacy_persona_marker_forgery()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    IF (TG_OP = 'INSERT' AND NEW.legacy_persona_missing)
-       OR (TG_OP = 'UPDATE' AND NEW.legacy_persona_missing IS DISTINCT FROM OLD.legacy_persona_missing)
-    THEN
-        RAISE EXCEPTION 'legacy approval persona marker is migration-owned and immutable';
-    END IF;
-    RETURN NEW;
-END;
-$$;
-
-DROP TRIGGER IF EXISTS approval_records_legacy_persona_marker_guard ON approval_records;
-CREATE TRIGGER approval_records_legacy_persona_marker_guard
-    BEFORE INSERT OR UPDATE OF legacy_persona_missing ON approval_records
-    FOR EACH ROW EXECUTE FUNCTION reject_approval_legacy_persona_marker_forgery();
 
 CREATE TABLE IF NOT EXISTS manager_daily_brief_outcomes (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -398,7 +364,7 @@ CREATE TABLE IF NOT EXISTS data_quality_hygiene_outcomes (
     actor_persona text NOT NULL CHECK (actor_persona IN ('general_manager', 'assistant_general_manager', 'front_desk_lead', 'front_desk_agent', 'regional_operator', 'operations_analyst')),
     feedback text NOT NULL DEFAULT '',
     issue_refs jsonb NOT NULL DEFAULT '[]'::jsonb,
-    resolution_status_after_review text NOT NULL CHECK (resolution_status_after_review IN ('open', 'acknowledged', 'ignored', 'repaired', 'superseded')),
+    reported_resolution_status text NOT NULL CHECK (reported_resolution_status IN ('open', 'acknowledged', 'ignored', 'repaired', 'superseded')),
     owner_persona text NOT NULL CHECK (owner_persona IN ('general_manager', 'assistant_general_manager', 'front_desk_lead', 'front_desk_agent', 'regional_operator', 'operations_analyst')),
     action_kind text NOT NULL CHECK (action_kind IN ('investigate_missing_source_evidence', 'reconcile_duplicate_customer_or_pet_candidate', 'complete_missing_pet_or_customer_profile_fields', 'review_stale_vaccination_source_freshness', 'normalize_ambiguous_service_line_naming', 'review_checkout_or_unclosed_reservation_evidence', 'escalate_sensitive_or_quarantined_payload', 'review_payment_state_conflict')),
     before_minutes integer NOT NULL CHECK (before_minutes > 0),
@@ -743,25 +709,6 @@ CREATE TABLE IF NOT EXISTS outbox_records (
     )
 );
 
--- Consumption points at the durable row whose validated insertion consumed the
--- binding. The relation is added after both tables exist to avoid making trigger
--- nesting depth or caller-controlled session state part of the authority model.
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1
-        FROM pg_constraint
-        WHERE conname = 'approval_outbox_bindings_consumed_outbox_fkey'
-          AND conrelid = 'approval_outbox_bindings'::regclass
-    ) THEN
-        ALTER TABLE approval_outbox_bindings
-            ADD CONSTRAINT approval_outbox_bindings_consumed_outbox_fkey
-            FOREIGN KEY (consumed_by_outbox_id)
-            REFERENCES outbox_records(id);
-    END IF;
-END;
-$$;
-
 CREATE OR REPLACE FUNCTION enforce_approval_outbox_binding_authority()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -1035,3 +982,246 @@ CREATE INDEX IF NOT EXISTS messages_subject_idx ON messages(subject_kind, subjec
 CREATE INDEX IF NOT EXISTS workflow_events_subject_idx ON workflow_events(subject_kind, subject_id);
 CREATE INDEX IF NOT EXISTS outbox_records_status_available_idx ON outbox_records(status, available_at);
 CREATE INDEX IF NOT EXISTS audit_events_subject_idx ON audit_events(subject_kind, subject_id);
+
+-- Source-quality evidence and canonical operational read models.
+-- Data-Quality Hygiene durable source/import/read-model slice.
+-- This migration adds owned operational evidence and BI-safe read models for one workflow.
+-- It does not authorize live side effects: provider_writes_allowed=false,
+-- customer_messages_allowed=false, live_delivery_allowed=false.
+-- raw provider payloads are redacted or referenced, not exposed through these read models.
+
+CREATE TABLE IF NOT EXISTS source_import_runs (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    source_system text NOT NULL CHECK (length(trim(source_system)) > 0),
+    adapter_version text NOT NULL CHECK (length(trim(adapter_version)) > 0),
+    location_id uuid REFERENCES locations(id),
+    tenant_id text,
+    mode text NOT NULL CHECK (mode IN ('read_only_snapshot', 'dry_run_mapping')),
+    status text NOT NULL CHECK (status IN ('pending', 'completed', 'completed_with_rejections', 'failed')),
+    started_at timestamptz NOT NULL,
+    completed_at timestamptz,
+    record_count integer NOT NULL DEFAULT 0 CHECK (record_count >= 0),
+    rejected_count integer NOT NULL DEFAULT 0 CHECK (rejected_count >= 0),
+    safe_error_class text,
+    redaction_posture text NOT NULL CHECK (length(trim(redaction_posture)) > 0),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    CHECK (completed_at IS NULL OR completed_at >= started_at)
+);
+
+CREATE TABLE IF NOT EXISTS source_quality_issues (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    issue_ref text NOT NULL CHECK (length(trim(issue_ref)) > 0),
+    location_id uuid REFERENCES locations(id),
+    tenant_id text,
+    affected_entity_kind text NOT NULL CHECK (affected_entity_kind IN ('customer', 'pet', 'reservation', 'location', 'source_record')),
+    affected_entity_id text NOT NULL CHECK (length(trim(affected_entity_id)) > 0),
+    field_path text NOT NULL CHECK (length(trim(field_path)) > 0),
+    issue_kind text NOT NULL CHECK (issue_kind IN ('missing_source_evidence', 'duplicate_entity_candidate', 'missing_required_field', 'stale_source_freshness', 'ambiguous_service_line_naming', 'unclosed_reservation_evidence', 'sensitive_payload_quarantine', 'payment_state_conflict')),
+    severity text NOT NULL CHECK (severity IN ('low', 'medium', 'high', 'critical')),
+    freshness text NOT NULL CHECK (freshness IN ('current', 'stale', 'unknown')),
+    sensitivity text NOT NULL CHECK (sensitivity IN ('operational_metadata', 'customer_or_pet_profile', 'medical_or_vaccination', 'payment_state', 'quarantined')),
+    workflow_blocking text NOT NULL CHECK (workflow_blocking IN ('blocking', 'non_blocking')),
+    owner_persona text NOT NULL CHECK (length(trim(owner_persona)) > 0),
+    review_gate text NOT NULL CHECK (review_gate_is_valid(review_gate)),
+    resolution_status text NOT NULL CHECK (resolution_status IN ('open', 'acknowledged', 'ignored', 'repaired', 'superseded')),
+    source_refs jsonb NOT NULL DEFAULT '[]'::jsonb,
+    workflow_event_id uuid REFERENCES workflow_events(id),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    resolved_at timestamptz,
+    CONSTRAINT source_quality_issues_issue_ref_key UNIQUE (issue_ref),
+    CHECK (jsonb_typeof(source_refs) = 'array'),
+    CHECK (resolved_at IS NULL OR resolved_at >= created_at)
+);
+
+CREATE TABLE IF NOT EXISTS sync_gaps (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    source_system text NOT NULL CHECK (length(trim(source_system)) > 0),
+    source_ref jsonb,
+    location_id uuid REFERENCES locations(id),
+    tenant_id text,
+    gap_kind text NOT NULL CHECK (gap_kind IN ('missing_expected_record', 'stale_expected_record', 'mapping_uncertain', 'adapter_failure')),
+    severity text NOT NULL CHECK (severity IN ('low', 'medium', 'high', 'critical')),
+    detected_at timestamptz NOT NULL,
+    age_seconds bigint NOT NULL CHECK (age_seconds >= 0),
+    status text NOT NULL CHECK (status IN ('open', 'acknowledged', 'resolved', 'superseded')),
+    workflow_event_id uuid REFERENCES workflow_events(id),
+    safe_error_class text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    CHECK (source_ref IS NULL OR jsonb_typeof(source_ref) = 'object')
+);
+
+CREATE INDEX IF NOT EXISTS source_import_runs_location_status_idx
+    ON source_import_runs(location_id, status, started_at);
+CREATE INDEX IF NOT EXISTS source_import_runs_source_started_idx
+    ON source_import_runs(source_system, started_at);
+CREATE INDEX IF NOT EXISTS source_quality_issues_location_resolution_severity_idx
+    ON source_quality_issues(location_id, resolution_status, severity);
+CREATE INDEX IF NOT EXISTS source_quality_issues_workflow_event_idx
+    ON source_quality_issues(workflow_event_id);
+CREATE INDEX IF NOT EXISTS source_quality_issues_source_refs_gin_idx
+    ON source_quality_issues USING gin(source_refs);
+CREATE INDEX IF NOT EXISTS sync_gaps_location_status_severity_idx
+    ON sync_gaps(location_id, status, severity);
+CREATE INDEX IF NOT EXISTS sync_gaps_source_detected_idx
+    ON sync_gaps(source_system, detected_at);
+
+CREATE OR REPLACE VIEW source_quality_backlog AS
+SELECT
+    sqi.issue_ref,
+    sqi.location_id,
+    sqi.tenant_id,
+    sqi.affected_entity_kind,
+    sqi.affected_entity_id,
+    sqi.field_path,
+    sqi.issue_kind,
+    sqi.severity,
+    sqi.freshness,
+    sqi.sensitivity,
+    sqi.workflow_blocking,
+    sqi.owner_persona,
+    sqi.review_gate,
+    sqi.resolution_status,
+    sqi.source_refs,
+    sqi.workflow_event_id,
+    latest_outcome.id AS latest_outcome_id,
+    'source_quality_backlog.v1'::text AS projection_version,
+    ARRAY_REMOVE(ARRAY[
+        CASE WHEN sqi.sensitivity IN ('medical_or_vaccination', 'payment_state', 'quarantined') THEN 'raw_payload_redacted' END,
+        CASE WHEN sqi.resolution_status = 'open' THEN 'review_pending' END,
+        CASE WHEN sqi.freshness IN ('stale', 'unknown') THEN 'source_stale' END,
+        'live_side_effects_disabled'
+    ], NULL)::text[] AS caveats
+FROM source_quality_issues sqi
+LEFT JOIN LATERAL (
+    SELECT dqh.id
+    FROM data_quality_hygiene_outcomes dqh
+    WHERE dqh.issue_refs ? sqi.issue_ref
+    ORDER BY dqh.recorded_at DESC
+    LIMIT 1
+) latest_outcome ON TRUE;
+
+CREATE OR REPLACE VIEW data_quality_hygiene_labor_outcomes AS
+SELECT
+    dqh.id,
+    dqh.location_id,
+    dqh.operating_day,
+    dqh.action_kind,
+    dqh.owner_persona,
+    dqh.actor_persona,
+    dqh.outcome,
+    dqh.reported_resolution_status,
+    dqh.before_minutes,
+    dqh.actual_minutes,
+    dqh.reported_estimated_minutes_difference,
+    dqh.issue_refs,
+    dqh.source_refs,
+    dqh.workflow_event_id,
+    dqh.approval_record_id,
+    dqh.correlation_id,
+    'data_quality_hygiene_labor_outcomes.v1'::text AS projection_version,
+    ARRAY['live_side_effects_disabled']::text[] AS caveats
+FROM data_quality_hygiene_outcomes dqh;
+
+CREATE OR REPLACE VIEW audit_lineage AS
+SELECT
+    we.payload->>'correlation_id' AS correlation_id,
+    we.payload->>'request_id' AS request_id,
+    we.id AS workflow_event_id,
+    rp.id AS review_packet_id,
+    ar.id AS approval_record_id,
+    dqh.id AS outcome_id,
+    ob.id AS outbox_id,
+    ARRAY_AGG(ae.id ORDER BY ae.occurred_at) FILTER (WHERE ae.id IS NOT NULL) AS audit_event_ids,
+    'audit_lineage.v1'::text AS projection_version
+FROM workflow_events we
+LEFT JOIN review_packets rp ON rp.workflow_event_id = we.id
+LEFT JOIN approval_records ar ON ar.review_packet_id = rp.id
+LEFT JOIN data_quality_hygiene_outcomes dqh ON dqh.workflow_event_id = we.id
+LEFT JOIN outbox_records ob ON ob.approval_record_id = ar.id
+LEFT JOIN audit_events ae ON ae.workflow_event_id = we.id
+GROUP BY we.id, rp.id, ar.id, dqh.id, ob.id;
+
+CREATE OR REPLACE VIEW import_freshness AS
+WITH import_rollup AS (
+    SELECT
+        source_system,
+        location_id,
+        MAX(completed_at) FILTER (WHERE status IN ('completed', 'completed_with_rejections')) AS last_completed_at,
+        (ARRAY_AGG(adapter_version ORDER BY started_at DESC))[1] AS adapter_version,
+        SUM(record_count) AS record_count,
+        SUM(rejected_count) AS rejected_count,
+        COUNT(*) FILTER (WHERE status = 'failed') AS failed_import_count
+    FROM source_import_runs
+    GROUP BY source_system, location_id
+), gap_rollup AS (
+    SELECT
+        source_system,
+        location_id,
+        COUNT(*) FILTER (WHERE status = 'open') AS open_gap_count
+    FROM sync_gaps
+    GROUP BY source_system, location_id
+)
+SELECT
+    ir.source_system,
+    ir.location_id,
+    ir.last_completed_at,
+    ir.adapter_version,
+    ir.record_count,
+    ir.rejected_count,
+    ir.failed_import_count,
+    COALESCE(gr.open_gap_count, 0) AS open_gap_count,
+    'import_freshness.v1'::text AS projection_version,
+    ARRAY_REMOVE(ARRAY[
+        CASE WHEN ir.rejected_count > 0 THEN 'source_import_had_rejections' END,
+        CASE WHEN ir.failed_import_count > 0 THEN 'source_import_failed' END,
+        CASE WHEN COALESCE(gr.open_gap_count, 0) > 0 THEN 'open_sync_gaps' END
+    ], NULL)::text[] AS caveats
+FROM import_rollup ir
+LEFT JOIN gap_rollup gr
+    ON gr.source_system = ir.source_system
+   AND (gr.location_id = ir.location_id OR (gr.location_id IS NULL AND ir.location_id IS NULL));
+
+CREATE OR REPLACE VIEW information_lifespan_db_lifecycle_proof AS
+SELECT
+    we.payload->>'correlation_id' AS correlation_id,
+    we.payload->>'request_id' AS request_id,
+    we.id AS workflow_event_id,
+    we.workflow_name,
+    we.event_kind,
+    we.payload->>'source_import_run_id' AS source_import_run_id,
+    sir.source_system,
+    sir.adapter_version,
+    sir.mode AS source_import_mode,
+    sir.status AS source_import_status,
+    ARRAY_AGG(DISTINCT sqi.issue_ref) FILTER (WHERE sqi.issue_ref IS NOT NULL) AS source_quality_issue_refs,
+    rp.id AS review_packet_id,
+    ar.id AS approval_record_id,
+    mdbo.id AS manager_daily_brief_outcome_id,
+    ARRAY_AGG(DISTINCT ae.id) FILTER (WHERE ae.id IS NOT NULL) AS audit_event_ids,
+    jsonb_build_object(
+        'source_import_run', we.payload->>'source_import_proof_ref',
+        'workflow_event', we.payload->>'workflow_event_proof_ref',
+        'review_packet', rp.id,
+        'approval_record', ar.id,
+        'manager_daily_brief_outcome', mdbo.action_id,
+        'audit_lineage', we.payload->>'audit_lineage_proof_ref'
+    ) AS db_proof_refs,
+    'information_lifespan_db_lifecycle_proof.v1'::text AS projection_version,
+    ARRAY['synthetic_local_demo_only', 'live_side_effects_disabled', 'raw_payloads_redacted_or_referenced']::text[] AS caveats
+FROM workflow_events we
+LEFT JOIN source_import_runs sir
+    ON sir.id::text = we.payload->>'source_import_run_id'
+LEFT JOIN source_quality_issues sqi
+    ON sqi.workflow_event_id = we.id
+LEFT JOIN review_packets rp
+    ON rp.workflow_event_id = we.id
+LEFT JOIN approval_records ar
+    ON ar.review_packet_id = rp.id
+LEFT JOIN manager_daily_brief_outcomes mdbo
+    ON mdbo.workflow_event_id = we.id
+LEFT JOIN audit_events ae
+    ON ae.workflow_event_id = we.id
+WHERE we.workflow_name = 'information_lifespan_manager_daily_report'
+GROUP BY we.id, sir.id, rp.id, ar.id, mdbo.id;

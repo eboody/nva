@@ -20,7 +20,6 @@
 //! ```
 
 use super::*;
-use chrono::Datelike;
 use nonempty::NonEmpty;
 use std::collections::HashSet;
 
@@ -81,11 +80,6 @@ impl Days {
         }
         Ok(Self(days))
     }
-
-    /// Reports whether the recurrence includes the supplied weekday.
-    pub fn contains(&self, day: chrono::Weekday) -> bool {
-        self.0.contains(&day)
-    }
 }
 
 impl<'de> Deserialize<'de> for Days {
@@ -121,30 +115,10 @@ pub struct Recurrence {
     pub days: Days,
 }
 
-impl Recurrence {
-    /// Creates an attendance date range, rejecting ranges whose end precedes the start.
-    pub const fn new(date_range: DateRange, days: Days) -> Self {
-        Self { date_range, days }
-    }
-}
+impl Recurrence {}
 
 #[derive(Debug, Clone, Default)]
 /// Service that expands recurrence rules into concrete daycare visit dates.
 pub struct Materializer;
 
-impl Materializer {
-    /// Materializes concrete visit dates while excluding source-system exceptions and closures.
-    pub fn materialize(&self, recurrence: &Recurrence, exceptions: &[NaiveDate]) -> Vec<NaiveDate> {
-        let mut dates = Vec::new();
-        let mut current = recurrence.date_range.start;
-        while current <= recurrence.date_range.end {
-            if recurrence.days.contains(current.weekday()) && !exceptions.contains(&current) {
-                dates.push(current);
-            }
-            current = current
-                .succ_opt()
-                .expect("bounded date range should have next date");
-        }
-        dates
-    }
-}
+impl Materializer {}

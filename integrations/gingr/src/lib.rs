@@ -32,4 +32,4 @@ pub mod response;
 pub mod transport;
 pub mod webhook;
 
-pub use config::{ApiKey, BaseUrl, Provider, Subdomain};
+pub use config::{BaseUrl, Provider, Subdomain};

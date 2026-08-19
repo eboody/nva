@@ -42,7 +42,7 @@ async fn upload_vaccine_document(app: axum::Router) -> serde_json::Value {
     let (status, payload) = request_json_on(
         app,
         axum_http::Method::POST,
-        "/vaccine-documents/uploads",
+        "/v1/vaccine-documents/uploads",
         json!({
             "pet_id": "00000000-0000-0000-0000-000000000101",
             "customer_id": "00000000-0000-0000-0000-000000000201",
@@ -70,7 +70,7 @@ async fn vaccine_review_packet_rejects_repeated_or_conflicting_decisions_without
     let (approved_status, approved) = request_json_on(
         app.clone(),
         axum_http::Method::POST,
-        &format!("/vaccine-documents/review-packets/{review_packet_id}/approve"),
+        &format!("/v1/vaccine-documents/review-packets/{review_packet_id}/approve"),
         json!({
             "reviewed_by_staff_id": "medical-reviewer-42",
             "reason": "source document matches rabies policy"
@@ -85,7 +85,7 @@ async fn vaccine_review_packet_rejects_repeated_or_conflicting_decisions_without
     let (conflict_status, conflict) = request_json_on(
         app,
         axum_http::Method::POST,
-        &format!("/vaccine-documents/review-packets/{review_packet_id}/reject"),
+        &format!("/v1/vaccine-documents/review-packets/{review_packet_id}/reject"),
         json!({
             "reviewed_by_staff_id": "medical-reviewer-42",
             "reason": "second reviewer tries to reverse the already consumed packet"
@@ -113,7 +113,7 @@ async fn unknown_vaccine_review_packet_returns_typed_not_found_error_instead_of_
     let (status, payload) = request_json_on(
         app,
         axum_http::Method::POST,
-        "/vaccine-documents/review-packets/00000000-0000-0000-0000-00000000dead/approve",
+        "/v1/vaccine-documents/review-packets/00000000-0000-0000-0000-00000000dead/approve",
         json!({
             "reviewed_by_staff_id": "medical-reviewer-42",
             "reason": "unknown packet should not panic"
@@ -133,7 +133,7 @@ async fn unknown_vaccine_review_packet_returns_typed_not_found_error_instead_of_
 
 #[test]
 fn vaccine_review_transition_preflights_every_linked_record_before_its_first_mutation() {
-    let source = include_str!("../src/http.rs");
+    let source = include_str!("../src/http/state.rs");
     let transition = source
         .split("fn apply_vaccine_review_decision(")
         .nth(1)

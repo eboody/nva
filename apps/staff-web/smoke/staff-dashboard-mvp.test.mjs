@@ -1,11 +1,14 @@
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const styles = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 const demoData = readFileSync(new URL("../app/owned-platform-demo-data.ts", import.meta.url), "utf8");
 const localDemoApiRoute = readFileSync(new URL("../app/api/local-demo/[...path]/route.ts", import.meta.url), "utf8");
+const localDemoProxy = readFileSync(new URL("../app/api/local-demo/[...path]/local-demo-proxy.mjs", import.meta.url), "utf8");
 const surface = `${page}\n${demoData}`;
 
 const literalPattern = (text) => new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
@@ -334,8 +337,8 @@ test("Hermes processor stage shows container execution, logs, output, and fallba
     "The UI degrades to this redacted status instead of claiming a live run",
     "Run information lifespan",
     "network-visible run API",
-    "POST /v0/demo/information-lifespan/run",
-    "GET /v0/demo/information-lifespan/:correlation_id/report",
+    "POST /v1/demo/information-lifespan/run",
+    "GET /v1/demo/information-lifespan/:correlation_id/report",
     "ready; response includes trace, processor proof, safety gates, calculations, and final report",
     "request failed safely",
     "api-run-button",
@@ -535,7 +538,7 @@ test("proof drawer preserves repo-backed technical/evidence package below the pr
     "synthetic / no-access boundary",
     "what real access would validate",
     "where to inspect",
-    "apps/api/openapi/owned-operations-v0.openapi.json",
+    "apps/api/openapi/owned-operations-v1.openapi.json",
     "migrations/0001_mvp_foundation.sql",
     "apps/api/src/http.rs",
     "app/src/manager_daily_brief.rs",
@@ -561,16 +564,56 @@ test("proof drawer preserves repo-backed technical/evidence package below the pr
 });
 
 test("local demo API proxy still rejects path traversal before upstream fetch", () => {
-  assert.match(localDemoApiRoute, /function safeLocalDemoApiPath/);
-  assert.match(localDemoApiRoute, /segments\[0\] !== allowedPathRoot/);
-  assert.match(localDemoApiRoute, /segment === "\."/);
-  assert.match(localDemoApiRoute, /segment === "\.\."/);
-  assert.match(localDemoApiRoute, /segment\.includes\("\/"\)/);
-  assert.match(localDemoApiRoute, /encodeURIComponent\(segment\)/);
+  assert.match(localDemoProxy, /function safeLocalDemoApiPath/);
+  assert.match(localDemoProxy, /segments\[0\] !== allowedPathRoot/);
+  assert.match(localDemoProxy, /segment === "\."/);
+  assert.match(localDemoProxy, /segment === "\.\."/);
+  assert.match(localDemoProxy, /segment\.includes\("\/"\)/);
+  assert.match(localDemoProxy, /encodeURIComponent\(segment\)/);
   assert.match(localDemoApiRoute, /export async function GET/);
   assert.match(localDemoApiRoute, /export async function POST/);
   assert.match(localDemoApiRoute, /method: "GET" \| "POST"/);
   assert.match(localDemoApiRoute, /method,/);
-  assert.match(localDemoApiRoute, /fetch\(upstreamUrl/);
+  assert.match(localDemoProxy, /fetchImpl\(upstreamUrl/);
   assert.doesNotMatch(localDemoApiRoute, /fetch\(`\$\{apiBaseUrl\}\/\$\{path\}`/);
+});
+
+test("local demo v1 policy reaches fetch while v0 is rejected before fetch", async () => {
+  const policyUrl = pathToFileURL(
+    path.join(
+      path.dirname(new URL(import.meta.url).pathname),
+      "../app/api/local-demo/[...path]/local-demo-proxy.mjs"
+    )
+  );
+  const { fetchLocalDemoApi } = await import(policyUrl.href);
+  const fetched = [];
+  const fetchImpl = async (url) => {
+    fetched.push(url.toString());
+    return new Response('{"ok":true}', {
+      status: 200,
+      headers: { "content-type": "application/json" }
+    });
+  };
+
+  const accepted = await fetchLocalDemoApi({
+    apiBaseUrl: "http://api.internal/base",
+    segments: ["v1", "healthz"],
+    search: "?proof=1",
+    method: "GET",
+    headers: new Headers(),
+    fetchImpl
+  });
+  assert.equal(accepted.status, 200);
+  assert.deepEqual(fetched, ["http://api.internal/base/v1/healthz?proof=1"]);
+
+  const rejected = await fetchLocalDemoApi({
+    apiBaseUrl: "http://api.internal/base",
+    segments: ["v0", "healthz"],
+    search: "",
+    method: "GET",
+    headers: new Headers(),
+    fetchImpl
+  });
+  assert.equal(rejected.status, 404);
+  assert.equal(fetched.length, 1, "v0 must be rejected before upstream fetch");
 });

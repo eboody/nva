@@ -12,12 +12,7 @@ pub trait Repository {}
 /// Empty deterministic repository proving that fixture metadata cannot issue retrieval authority.
 pub struct DeterministicFixtureRepository;
 
-impl DeterministicFixtureRepository {
-    /// Compatibility constructor for an unaccepted conflicting-source fixture scenario.
-    pub const fn with_conflicting_boarding_fixture() -> Self {
-        Self
-    }
-}
+impl DeterministicFixtureRepository {}
 
 impl Repository for DeterministicFixtureRepository {}
 
@@ -54,9 +49,11 @@ impl fmt::Debug for Packet {
 impl Packet {
     /// Returns whether this packet may be inserted into assistant context.
     pub fn safe_to_enter_assistant_context(&self) -> bool {
-        self.answer.is_cited()
-            && !self.authorized_passages.is_empty()
-            && self.escalation_reason.is_none()
+        context_entry_is_safe(
+            self.answer.is_cited(),
+            !self.authorized_passages.is_empty(),
+            self.escalation_reason.is_none(),
+        )
     }
 
     /// Current answer state.
@@ -93,6 +90,14 @@ impl Packet {
     pub const fn escalation_reason(&self) -> Option<agent::assistant::EscalationReason> {
         self.escalation_reason
     }
+}
+
+const fn context_entry_is_safe(
+    answer_is_cited: bool,
+    has_authorized_passages: bool,
+    has_no_escalation: bool,
+) -> bool {
+    answer_is_cited && has_authorized_passages && has_no_escalation
 }
 
 /// Permissioned retrieval workflow that authorizes before answer construction.
@@ -140,5 +145,18 @@ fn escalated_packet(
         citations: Vec::new(),
         escalation_reason: Some(reason),
         forbidden_actions,
+    }
+}
+
+#[cfg(test)]
+mod changed_line_tests {
+    use super::*;
+
+    #[test]
+    fn context_entry_requires_citation_authorized_passage_and_no_escalation() {
+        assert!(context_entry_is_safe(true, true, true));
+        assert!(!context_entry_is_safe(false, true, true));
+        assert!(!context_entry_is_safe(true, false, true));
+        assert!(!context_entry_is_safe(true, true, false));
     }
 }

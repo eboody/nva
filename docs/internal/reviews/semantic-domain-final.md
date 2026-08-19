@@ -1,4 +1,7 @@
-# Final independent semantic architecture security and adoption review
+<!-- archived-historical-record -->
+# Archived semantic architecture security and adoption review
+
+This is a historical review of a superseded tree. It is not current architecture authority.
 
 Date: 2026-08-13
 Task: `t_921e8ad6`

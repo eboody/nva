@@ -4,35 +4,13 @@
 //! on surfacing missing instructions and review requirements rather than making medical judgments.
 
 use super::*;
-use crate::{entities, policy};
+use crate::policy;
 
 #[derive(Debug, Clone, Default)]
 /// Boarding care-readiness policy for feeding instructions and medication review.
 pub struct Policy;
 
-impl Policy {
-    /// Builds the pet-specific check-in care plan and review gates from the source care profile.
-    pub fn plan_for_pet(&self, pet_id: PetId, profile: &entities::CareProfile) -> Plan {
-        let mut gates = Vec::new();
-        if profile.feeding_instructions.is_none() {
-            gates.push(ReviewGate::new(
-                GateReason::MissingFeedingInstruction,
-                policy::ReviewGate::MedicalDocumentReview,
-            ));
-        }
-        if profile
-            .medications
-            .iter()
-            .any(|medication| medication.review_requirement.requires_review())
-        {
-            gates.push(ReviewGate::new(
-                GateReason::MedicationRequiresReview,
-                policy::ReviewGate::MedicalDocumentReview,
-            ));
-        }
-        Plan { pet_id, gates }
-    }
-}
+impl Policy {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Pet-specific boarding care plan used by staff before check-in.
@@ -51,20 +29,6 @@ impl Plan {
     pub fn gates(&self) -> &[ReviewGate] {
         &self.gates
     }
-
-    /// Serializable care-plan history always remains blocked until authenticated acceptance.
-    pub const fn readiness(&self) -> Readiness {
-        Readiness::Blocked
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Check-in readiness outcome for a boarding care plan.
-pub enum Readiness {
-    /// Feeding and medication evidence is sufficient for staff to proceed with check-in.
-    ReadyForCheckIn,
-    /// One or more care gates must be resolved before check-in proceeds.
-    Blocked,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -76,12 +40,7 @@ pub struct ReviewGate {
     pub gate: policy::ReviewGate,
 }
 
-impl ReviewGate {
-    /// Creates a care-review gate with the operational reason and required review category.
-    pub const fn new(reason: GateReason, gate: policy::ReviewGate) -> Self {
-        Self { reason, gate }
-    }
-}
+impl ReviewGate {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Reasons a boarding care plan requires staff or medical-document review.

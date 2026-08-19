@@ -1,4 +1,7 @@
-# NVA strategic AI operations Kanban
+<!-- archived-historical-record -->
+# Archived NVA strategic AI operations Kanban
+
+This parked planning snapshot predates the clean-slate canonical owners and is not current architecture authority.
 
 Created: 2026-08-12
 

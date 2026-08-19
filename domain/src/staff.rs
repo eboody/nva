@@ -15,6 +15,11 @@ use crate::daily_brief::{self, FollowUpReason};
 use crate::entities::{self, CustomerId, LocationId, PetId, StaffId};
 use crate::workflow::task as workflow_task;
 
+/// Resort labor-role classifications used to route staff tasks.
+pub mod role;
+
+pub use role::Role;
+
 /// Staff-task completion evidence retained for audit and BI reconciliation.
 pub mod completion_evidence {
     use super::*;
@@ -37,30 +42,6 @@ pub mod completion_evidence {
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 /// Staff-task aggregate construction and rehydration failures.
 pub enum TaskError {
-    #[error("staff task location id is required")]
-    /// Represents the `LocationIdRequired` semantic case.
-    LocationIdRequired,
-    #[error("staff task kind is required")]
-    /// Represents the `KindRequired` semantic case.
-    KindRequired,
-    #[error("staff task title is required")]
-    /// Represents the `TitleRequired` semantic case.
-    TitleRequired,
-    #[error("staff task status is required")]
-    /// Represents the `StatusRequired` semantic case.
-    StatusRequired,
-    #[error("staff task priority is required")]
-    /// Represents the `PriorityRequired` semantic case.
-    PriorityRequired,
-    #[error("staff task due time is required")]
-    /// Represents the `DueAtRequired` semantic case.
-    DueAtRequired,
-    #[error("staff task assignment is required")]
-    /// Represents the `AssignmentRequired` semantic case.
-    AssignmentRequired,
-    #[error("staff task source is required")]
-    /// Represents the `SourceRequired` semantic case.
-    SourceRequired,
     #[error("reported staff-task completion requires evidence")]
     /// Reported completion history omitted its supporting evidence.
     ReportedCompletionRequiresEvidence,
@@ -89,7 +70,6 @@ pub struct Task {
     /// Source record or workflow event that explains why this task exists.
     source: task::Source,
     /// Caller-reported closeout evidence retained for review; it cannot prove realized completion.
-    #[serde(alias = "completion_evidence")]
     reported_completion_evidence: Option<completion_evidence::Evidence>,
 }
 
@@ -109,7 +89,6 @@ struct RawTask {
     due_at: DateTime<Utc>,
     assignment: task::Assignment,
     source: task::Source,
-    #[serde(alias = "completion_evidence")]
     reported_completion_evidence: Option<completion_evidence::Evidence>,
 }
 
@@ -151,11 +130,6 @@ impl<'de> Deserialize<'de> for Task {
 }
 
 impl Task {
-    /// Starts checked construction of the aggregate.
-    pub fn builder() -> TaskBuilder {
-        TaskBuilder::default()
-    }
-
     /// Returns the aggregate location id.
     pub const fn location_id(&self) -> LocationId {
         self.location_id
@@ -215,110 +189,6 @@ impl Task {
                 | task::Kind::MedicationAdministration { .. }
                 | task::Kind::DocumentReview { .. }
         )
-    }
-
-    /// Records caller-reported completion evidence without closing queues or proving realized work.
-    pub fn record_reported_completion(mut self, evidence: completion_evidence::Evidence) -> Self {
-        self.status = task::Status::ReportedCompleted;
-        self.reported_completion_evidence = Some(evidence);
-        self
-    }
-
-    /// Returns false because serialized task history cannot prove realized completion.
-    pub const fn counts_as_realized_completion(&self) -> bool {
-        false
-    }
-}
-
-#[derive(Clone, Default)]
-/// Relationship-checked task builder used at this boundary.
-pub struct TaskBuilder {
-    location_id: Option<LocationId>,
-    kind: Option<task::Kind>,
-    title: Option<workflow_task::Title>,
-    status: Option<task::Status>,
-    priority: Option<task::Priority>,
-    due_at: Option<DateTime<Utc>>,
-    assignment: Option<task::Assignment>,
-    source: Option<task::Source>,
-    reported_completion_evidence: Option<completion_evidence::Evidence>,
-}
-
-impl fmt::Debug for TaskBuilder {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("TaskBuilder([REDACTED])")
-    }
-}
-
-impl TaskBuilder {
-    /// Returns the aggregate location id.
-    pub fn location_id(mut self, value: LocationId) -> Self {
-        self.location_id = Some(value);
-        self
-    }
-
-    /// Returns the aggregate kind.
-    pub fn kind(mut self, value: task::Kind) -> Self {
-        self.kind = Some(value);
-        self
-    }
-
-    /// Returns the aggregate title.
-    pub fn title(mut self, value: workflow_task::Title) -> Self {
-        self.title = Some(value);
-        self
-    }
-
-    /// Returns the aggregate status.
-    pub fn status(mut self, value: task::Status) -> Self {
-        self.status = Some(value);
-        self
-    }
-
-    /// Returns the aggregate priority.
-    pub fn priority(mut self, value: task::Priority) -> Self {
-        self.priority = Some(value);
-        self
-    }
-
-    /// Returns the aggregate due at.
-    pub fn due_at(mut self, value: DateTime<Utc>) -> Self {
-        self.due_at = Some(value);
-        self
-    }
-
-    /// Returns the aggregate assignment.
-    pub fn assignment(mut self, value: task::Assignment) -> Self {
-        self.assignment = Some(value);
-        self
-    }
-
-    /// Returns the aggregate source.
-    pub fn source(mut self, value: task::Source) -> Self {
-        self.source = Some(value);
-        self
-    }
-
-    /// Attaches caller-reported completion evidence for historical rehydration only.
-    pub fn reported_completion_evidence(mut self, value: completion_evidence::Evidence) -> Self {
-        self.reported_completion_evidence = Some(value);
-        self
-    }
-
-    /// Validates the accumulated fields and builds the aggregate.
-    pub fn build(self) -> std::result::Result<Task, TaskError> {
-        RawTask {
-            location_id: self.location_id.ok_or(TaskError::LocationIdRequired)?,
-            kind: self.kind.ok_or(TaskError::KindRequired)?,
-            title: self.title.ok_or(TaskError::TitleRequired)?,
-            status: self.status.ok_or(TaskError::StatusRequired)?,
-            priority: self.priority.ok_or(TaskError::PriorityRequired)?,
-            due_at: self.due_at.ok_or(TaskError::DueAtRequired)?,
-            assignment: self.assignment.ok_or(TaskError::AssignmentRequired)?,
-            source: self.source.ok_or(TaskError::SourceRequired)?,
-            reported_completion_evidence: self.reported_completion_evidence,
-        }
-        .try_into_task()
     }
 }
 
@@ -395,7 +265,6 @@ pub mod task {
         /// Manager must review the task before staff treat it as complete.
         NeedsManagerReview,
         /// Caller-reported history says work was completed; this cannot close queues or prove value.
-        #[serde(alias = "Completed")]
         ReportedCompleted,
         /// Staff task was cancelled or suppressed before completion and should not count as done labor.
         Cancelled,
@@ -455,21 +324,4 @@ pub mod task {
     }
 
     impl_sensitive_task_debug!(Kind, Assignment, Source);
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-/// Resort labor role that can own or be assigned a staff task.
-pub enum Role {
-    /// Front desk team handling check-in, checkout, customer, or document work.
-    FrontDesk,
-    /// Kennel technician team handling pet care, feeding, medication, or cleanup work.
-    KennelTechnician,
-    /// Groomer handling grooming preparation, service, or follow-up work.
-    Groomer,
-    /// Trainer handling training assignment, progress, package, or follow-up work.
-    Trainer,
-    /// Lead staff member triaging work before manager escalation.
-    LeadStaff,
-    /// Manager accountable for approvals, exceptions, and queue escalation.
-    Manager,
 }

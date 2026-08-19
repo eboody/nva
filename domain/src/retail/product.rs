@@ -1,7 +1,6 @@
 //! Product catalog models for SKUs, categories, location offerings, and sellability rules.
 
 use bon::Builder;
-use nutype::nutype;
 use serde::{Deserialize, Serialize};
 
 use crate::entities::LocationId;
@@ -33,11 +32,6 @@ impl Sku {
         Ok(Self(value))
     }
 
-    /// Returns the owned inner string for storage or outbound mapping.
-    pub fn into_inner(self) -> String {
-        self.0
-    }
-
     /// Returns the provider or domain identifier as a string slice.
     pub fn as_str(&self) -> &str {
         &self.0
@@ -61,23 +55,6 @@ pub enum SkuError {
     Empty,
 }
 
-#[nutype(
-    sanitize(trim),
-    validate(not_empty, len_char_max = 160),
-    derive(
-        Debug,
-        Clone,
-        PartialEq,
-        Eq,
-        PartialOrd,
-        Ord,
-        Hash,
-        Serialize,
-        Deserialize
-    )
-)]
-pub struct Name(String);
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Retail product with a SKU and category used across POS, inventory, and recommendation decisions.
 pub struct Product {
@@ -87,11 +64,6 @@ pub struct Product {
 }
 
 impl Product {
-    /// Pairs a validated SKU with its retail category for catalog, inventory, and recommendation work.
-    pub fn new(sku: Sku, category: Category) -> Self {
-        Self { sku, category }
-    }
-
     /// Returns the SKU that ties this product to catalog, inventory, POS, and vendor records.
     pub fn sku(&self) -> &Sku {
         &self.sku
@@ -139,14 +111,4 @@ pub struct LocationOffering {
     pub reorder: reorder::Policy,
 }
 
-impl LocationOffering {
-    /// Serializable catalog history cannot authorize a customer sale.
-    pub const fn can_be_sold_to_customer(&self) -> bool {
-        false
-    }
-
-    /// Serializable inventory history cannot authorize a POS sale draft.
-    pub const fn has_available_sale_units(&self, _quantity: pos::Quantity) -> bool {
-        false
-    }
-}
+impl LocationOffering {}

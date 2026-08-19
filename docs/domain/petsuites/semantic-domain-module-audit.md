@@ -1,4 +1,7 @@
-# PetSuites semantic domain-module audit
+<!-- archived-historical-record -->
+# Archived PetSuites semantic domain-module audit
+
+This audit records a superseded module layout and is not current architecture authority.
 
 Audit date: 2026-06-11
 

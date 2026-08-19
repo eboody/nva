@@ -20,7 +20,7 @@ Classification:
 - Existing SpacetimeDB slice source already present from parent work: `apps/spacetimedb/src/read_model.rs`, `apps/spacetimedb/src/reducers.rs`, `apps/spacetimedb/src/storage/review_queue/codec.rs`, plus new crate/read-model/storage/table files under `apps/spacetimedb/`.
 - Dedicated audit evidence: `docs/architecture/spacetimedb-domain-surface-coverage.md` was updated to mark the blocked-action drift resolved, and this file was added as final stale-state evidence.
 - Other board artifacts left in place: local demo docs, demo seed fixtures, Dockerfiles/compose updates, API/read-model tests, OpenAPI JSON, staff-web smoke/UI files, and package/script changes are broader board outputs rather than stale-state cleanup targets for this task.
-- Generated/API artifact disposition: `apps/api/openapi/owned-operations-v0.openapi.json` remains an intentional touched API artifact from the board. No generated auxiliary cache/report directory was found or cleaned by this gate.
+- Generated/API artifact disposition: `apps/api/openapi/owned-operations-v1.openapi.json` remains an intentional touched API artifact from the board. No generated auxiliary cache/report directory was found or cleaned by this gate.
 - Untracked architecture docs: `audit-reporting-evidence-backbone.md`, `http-runtime-responsibility-cutline.md`, and `spacetimedb-domain-surface-coverage.md` are intentional evidence/decision artifacts and should be staged or reviewed with the feature-board closeout, not discarded as noise.
 
 ## Storage/read-model/reducer role ledger

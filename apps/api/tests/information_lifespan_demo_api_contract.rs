@@ -41,7 +41,7 @@ async fn request_json(
 #[tokio::test]
 async fn information_lifespan_run_endpoint_returns_report_artifact_and_visible_proof() {
     let (status, payload) =
-        request_json(axum_http::Method::POST, "/v0/demo/information-lifespan/run").await;
+        request_json(axum_http::Method::POST, "/v1/demo/information-lifespan/run").await;
 
     assert_eq!(status, axum_http::StatusCode::OK);
     assert_eq!(
@@ -59,6 +59,16 @@ async fn information_lifespan_run_endpoint_returns_report_artifact_and_visible_p
         true
     );
     assert_eq!(payload["trace"]["live_side_effects_allowed"], false);
+    assert_eq!(
+        payload["trace"]["schema_version"],
+        "information_lifespan_trace.v1"
+    );
+    assert!(
+        !payload
+            .to_string()
+            .contains("information_lifespan_trace.v0"),
+        "canonical v1 response must not emit a v0 information-lifespan schema tag"
+    );
     assert!(payload["trace"]["stages"].as_array().unwrap().len() >= 8);
     assert!(
         payload["trace"]["db_proof_entries"]
@@ -101,7 +111,7 @@ async fn information_lifespan_run_endpoint_returns_report_artifact_and_visible_p
 async fn information_lifespan_report_endpoint_replays_same_artifact_by_correlation_id() {
     let (status, payload) = request_json(
         axum_http::Method::GET,
-        "/v0/demo/information-lifespan/info-lifespan-demo-2026-06-29/report",
+        "/v1/demo/information-lifespan/info-lifespan-demo-2026-06-29/report",
     )
     .await;
 
@@ -117,7 +127,7 @@ async fn information_lifespan_report_endpoint_replays_same_artifact_by_correlati
     );
     assert_eq!(
         payload["network_proof"][0]["path"],
-        "/demo/information-lifespan/run"
+        "/v1/demo/information-lifespan/run"
     );
     assert!(
         payload["deferred_production_work"]
@@ -132,7 +142,7 @@ async fn information_lifespan_report_endpoint_replays_same_artifact_by_correlati
 async fn information_lifespan_report_endpoint_rejects_unknown_correlation_id() {
     let (status, payload) = request_json(
         axum_http::Method::GET,
-        "/v0/demo/information-lifespan/not-the-demo/report",
+        "/v1/demo/information-lifespan/not-the-demo/report",
     )
     .await;
 

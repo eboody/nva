@@ -37,7 +37,6 @@
 //! ```
 
 use super::*;
-use crate::{payment, policy};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// Deposit-collection policy used before confirming a boarding reservation.
@@ -46,37 +45,7 @@ pub struct Policy {
     timing: PaymentTiming,
 }
 
-impl Policy {
-    /// Creates a deposit policy from the resort rule and payment timing.
-    pub const fn new(rule: DepositRule, timing: PaymentTiming) -> Self {
-        Self { rule, timing }
-    }
-
-    /// Serializable deposit and policy history cannot authorize confirmation.
-    pub fn readiness_for_confirmation(
-        &self,
-        _deposit: Option<&payment::Deposit>,
-    ) -> ConfirmationReadiness {
-        ConfirmationReadiness::Blocked {
-            blocker: Blocker::ReferenceMissing,
-            review_gate: policy::ReviewGate::RefundOrDepositException,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// Deposit readiness result for boarding reservation confirmation.
-pub enum ConfirmationReadiness {
-    /// Deposit policy is satisfied, waived by manager, or not required for confirmation.
-    Ready,
-    /// Confirmation is blocked until staff collect a deposit or approve an exception.
-    Blocked {
-        /// Operational reason confirmation cannot proceed automatically.
-        blocker: Blocker,
-        /// Manager or billing gate required to override the blocked deposit state.
-        review_gate: policy::ReviewGate,
-    },
-}
+impl Policy {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Reasons deposit policy can block boarding confirmation.

@@ -2,7 +2,7 @@
 
 Status: architecture cutline for the owned Pet Resorts operations API after SpacetimeDB owns live command/subscription state. This page is intentionally a planning artifact; it does not remove current demo routes, change the OpenAPI artifact, publish a SpacetimeDB module, enable live provider/customer side effects, or claim production readiness.
 
-Source context: [API HTTP shell](../../apps/api/src/http.rs), [API public contract DTOs](../../apps/api/src/public_contract.rs), [API README](../../apps/api/README.md), [owned operations OpenAPI contract artifact](../../apps/api/openapi/owned-operations-v0.openapi.json), [owned API storage/read-model cutline](owned-api-storage-read-model-cutline.md), [owned operations API contract](owned-operations-api-contract.md), [runtime contract boundaries](runtime-contract-boundaries.md), and the completed upstream SpacetimeDB/Postgres architecture handoffs recorded on the Kanban parent tasks.
+Source context: [API HTTP shell](../../apps/api/src/http.rs), [API public contract DTOs](../../apps/api/src/public_contract.rs), [API README](../../apps/api/README.md), [owned operations OpenAPI contract artifact](../../apps/api/openapi/owned-operations-v1.openapi.json), [owned API storage/read-model cutline](owned-api-storage-read-model-cutline.md), [owned operations API contract](owned-operations-api-contract.md), [runtime contract boundaries](runtime-contract-boundaries.md), and the completed upstream SpacetimeDB/Postgres architecture handoffs recorded on the Kanban parent tasks.
 
 ## Cutline thesis
 
@@ -95,7 +95,7 @@ Readiness should distinguish `configured`, `connected`, `degraded`, and intentio
 
 HTTP keeps the stable OpenAPI contract for request/response clients, presentation demos, and integration consumers that cannot speak SpacetimeDB subscriptions.
 
-The existing `apps/api/openapi/owned-operations-v0.openapi.json` is safe as a demo/compatibility contract artifact because it explicitly says provider DTOs are evidence only and `live_side_effects_allowed` is false. The migration path below narrows the meaning of its live-looking routes without breaking the presentation demo.
+The existing `apps/api/openapi/owned-operations-v1.openapi.json` is safe as a demo/compatibility contract artifact because it explicitly says provider DTOs are evidence only and `live_side_effects_allowed` is false. The migration path below narrows the meaning of its live-looking routes without breaking the presentation demo.
 
 ## What HTTP should not own once SpacetimeDB owns realtime operations
 
@@ -106,8 +106,8 @@ HTTP should not be the broad polling surface for staff/manager review queues onc
 Current HTTP examples that become compatibility/demo surfaces instead of canonical live surfaces:
 
 - `GET /staff/inquiries` over in-memory state;
-- `GET /v0/agent/context/data-quality-hygiene` when used as a live queue/context feed;
-- `GET /v0/read-models/source-quality-backlog` if treated as operator queue state rather than a durable reporting/read-model endpoint.
+- `GET /v1/agent/context/data-quality-hygiene` when used as a live queue/context feed;
+- `GET /v1/read-models/source-quality-backlog` if treated as operator queue state rather than a durable reporting/read-model endpoint.
 
 The canonical live queue path should be SpacetimeDB public subscription rows such as `StaffQueueItemRow`, `ManagerQueueItemRow`, `BlockedActionNoticeRow`, and `HygieneOutcomeCardRow` from `apps/spacetimedb/src/read_model`. HTTP can keep low-frequency reporting snapshots, but staff dashboards should subscribe to SpacetimeDB for live queue changes.
 
@@ -148,13 +148,13 @@ Avoid app-business-port duplicates such as `ReviewQueueRepository`, `DataQuality
 
 | Current route family | Current role | Post-SpacetimeDB classification |
 | --- | --- | --- |
-| `/healthz`, `/v0/healthz`, `/readyz`, `/v0/readyz` | Edge health/readiness with disabled live side effects. | Keep in HTTP; expand readiness to mention SpacetimeDB/Postgres/S3 posture honestly. |
-| `/ops/metrics/summary`, `/v0/ops/metrics/summary` | Local aggregate demo metrics and labor rollups. | Keep as aggregate/admin/reporting; do not make it a live queue API. |
+| `/healthz`, `/v1/healthz`, `/readyz`, `/v1/readyz` | Edge health/readiness with disabled live side effects. | Keep in HTTP; expand readiness to mention SpacetimeDB/Postgres/S3 posture honestly. |
+| `/ops/metrics/summary`, `/v1/ops/metrics/summary` | Local aggregate demo metrics and labor rollups. | Keep as aggregate/admin/reporting; do not make it a live queue API. |
 | `/inquiries`, `/staff/inquiries` | In-memory inquiry intake and staff queue demo surface. | Keep only as demo/compatibility until promoted; live inquiry queue should become reducer/subscription state if it remains a realtime workflow. |
 | `/agent/context/manager-daily-brief`, `/agent/drafts/manager-daily-brief`, `/manager-daily-brief/actions/{action_id}/outcome` | HTTP demo loop for context, draft validation, and outcome capture. | Move live command/queue parts to SpacetimeDB reducers/read models; keep HTTP compatibility/reporting routes if the presentation demo still needs request/response calls. |
-| `/v0/agent/context/data-quality-hygiene`, `/v0/agent/drafts/data-quality-hygiene`, `/v0/data-quality-hygiene/actions/{action_id}/outcome` | Data-Quality Hygiene context/draft/outcome demo with review gates and blocked side effects. | SpacetimeDB owns live review queue commands/subscriptions; HTTP keeps compatibility adapter or export/report endpoints. |
-| `/v0/data-quality-hygiene/outcomes/summary` | Reviewed local outcome rollup. | Keep as reporting/admin HTTP over durable archive/read model, not live queue truth. |
-| `/v0/read-models/source-quality-backlog` | Postgres/synthetic backlog read-model endpoint. | Keep as BI/reporting/read-model HTTP surface; do not use as broad staff queue polling when SpacetimeDB subscriptions are available. |
+| `/v1/agent/context/data-quality-hygiene`, `/v1/agent/drafts/data-quality-hygiene`, `/v1/data-quality-hygiene/actions/{action_id}/outcome` | Data-Quality Hygiene context/draft/outcome demo with review gates and blocked side effects. | SpacetimeDB owns live review queue commands/subscriptions; HTTP keeps compatibility adapter or export/report endpoints. |
+| `/v1/data-quality-hygiene/outcomes/summary` | Reviewed local outcome rollup. | Keep as reporting/admin HTTP over durable archive/read model, not live queue truth. |
+| `/v1/read-models/source-quality-backlog` | Postgres/synthetic backlog read-model endpoint. | Keep as BI/reporting/read-model HTTP surface; do not use as broad staff queue polling when SpacetimeDB subscriptions are available. |
 | `/vaccine-documents/uploads` | Local upload + document/review demo surface. | Keep upload mediation; move medical document/review state to domain/storage/realtime boundaries before live use. |
 | `/vaccine-documents/review-packets/{id}/approve|reject` | Local review decision demo surface. | Do not keep as duplicated live review commands; either adapt to authoritative reducer/app path or retire to demo-only compatibility. |
 

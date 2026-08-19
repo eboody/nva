@@ -59,8 +59,7 @@ pub enum Source {
     ProviderPoll,
     /// File announced by provider webhook and retained with webhook provenance for audit.
     ProviderWebhook,
-    /// Legacy file imported during migration with provenance preserved for cleanup review.
-    MigrationImport,
+
     /// Source route is unknown, so staff should verify document origin before trusting it in workflows.
     Unknown,
 }
@@ -161,11 +160,6 @@ impl ContentLengthBytes {
         }
         Ok(Self(value))
     }
-
-    /// Returns the checked value for storage, reporting, or adapter output.
-    pub const fn get(self) -> u64 {
-        self.0
-    }
 }
 
 impl<'de> Deserialize<'de> for ContentLengthBytes {
@@ -197,11 +191,6 @@ impl Sha256Digest {
             return Err(Sha256DigestError::InvalidSha256Hex);
         }
         Ok(Self(value))
-    }
-
-    /// Returns the owned inner string for storage or outbound mapping.
-    pub fn into_inner(self) -> String {
-        self.0
     }
 }
 

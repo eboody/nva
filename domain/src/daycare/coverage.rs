@@ -32,14 +32,6 @@ pub struct RosterSnapshot {
 }
 
 impl RosterSnapshot {
-    /// Creates a roster snapshot from scheduled staff and checked-in pet counts.
-    pub const fn new(scheduled_staff: StaffCount, checked_in_pets: PetCount) -> Self {
-        Self {
-            scheduled_staff,
-            checked_in_pets,
-        }
-    }
-
     /// Returns scheduled staff available to supervise daycare pets.
     pub const fn scheduled_staff(&self) -> StaffCount {
         self.scheduled_staff
@@ -81,20 +73,4 @@ pub enum InsufficiencyReason {
 /// Deterministic staffing-coverage policy for daycare ratio review.
 pub struct Policy;
 
-impl Policy {
-    /// Evaluates scheduled staff and checked-in pets against the allowed ratio.
-    pub fn evaluate(&self, roster: &RosterSnapshot, ratio: StaffPetRatio) -> Decision {
-        let allowed = roster
-            .scheduled_staff()
-            .get()
-            .saturating_mul(ratio.pets_per_staff().get());
-        if roster.checked_in_pets().get() <= allowed {
-            Decision::Sufficient
-        } else {
-            Decision::Insufficient {
-                reason: InsufficiencyReason::RatioExceeded,
-                gate: policy::ReviewGate::ManagerApproval,
-            }
-        }
-    }
-}
+impl Policy {}

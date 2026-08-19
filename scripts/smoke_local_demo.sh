@@ -85,14 +85,14 @@ PY
 echo "[smoke-local-demo] checking core compose services"
 "${compose[@]}" ps postgres minio migrate-seed pet-resort-api pet-resort-worker staff-web >/tmp/pet-resort-compose-core-ps.txt || fail "core compose services are not known to this project"
 
-wait_for_url "${api_url}/v0/healthz" "pet-resort-api health"
-curl -fsS "${api_url}/v0/healthz" >/tmp/pet-resort-api-health.json
+wait_for_url "${api_url}/v1/healthz" "pet-resort-api health"
+curl -fsS "${api_url}/v1/healthz" >/tmp/pet-resort-api-health.json
 assert_json_file /tmp/pet-resort-api-health.json "api_health_side_effect_posture"
 
-curl -fsS "${api_url}/v0/readyz" >/tmp/pet-resort-api-ready.json
+curl -fsS "${api_url}/v1/readyz" >/tmp/pet-resort-api-ready.json
 assert_json_file /tmp/pet-resort-api-ready.json "api_readiness_safe_runtime"
 
-curl -fsS "${api_url}/v0/read-models/source-quality-backlog" >/tmp/pet-resort-source-quality-backlog.json
+curl -fsS "${api_url}/v1/read-models/source-quality-backlog" >/tmp/pet-resort-source-quality-backlog.json
 assert_json_file /tmp/pet-resort-source-quality-backlog.json "api_source_quality_backlog_read_model"
 
 wait_for_url "${staff_web_url}/" "staff-web"

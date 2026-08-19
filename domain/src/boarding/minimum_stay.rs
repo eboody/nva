@@ -14,11 +14,6 @@ pub struct Policy {
 }
 
 impl Policy {
-    /// Creates a minimum-stay policy from validated nights and the policy reason.
-    pub const fn new(nights: StayNights, reason: Reason) -> Self {
-        Self { nights, reason }
-    }
-
     /// Returns the minimum nights required before this boarding reservation can be accepted.
     pub const fn nights(&self) -> StayNights {
         self.nights

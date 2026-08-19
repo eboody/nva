@@ -51,10 +51,12 @@ What this does **not** claim:
 
 The next access ask is narrow and read-only: approved docs, exports, sample data, source snapshots, or BI query inventory that validate the source mappings and show which owned read models should be piloted first.
 
-## Related presentation path
+## Archived presentation background
 
-- [NVA demo executive brief](nva-demo-executive-brief.md)
-- [Job presentation walkthrough](job-presentation-walkthrough.md)
-- [Owned operations API replacement talk track](owned-operations-api-replacement-talk-track.md)
-- [Owned operations API replacement thesis](../architecture/owned-operations-api-replacement.md)
-- [Gingr adapter to owned API migration map](../integrations/gingr/owned-api-migration-map.md)
+These archived documents explain how the visual was developed. They are not current API, ownership, compatibility, or authority contracts.
+
+- [NVA demo executive brief](../internal/archive/presentation/nva-demo-executive-brief.md)
+- [Job presentation walkthrough](../internal/archive/presentation/job-presentation-walkthrough.md)
+- [Owned operations API replacement talk track](../internal/archive/presentation/owned-operations-api-replacement-talk-track.md)
+- [Owned operations API replacement thesis](../internal/archive/architecture/owned-operations-api-replacement.md)
+- [Gingr adapter to owned API migration map](../internal/archive/default-docs-removed/integrations/gingr/owned-api-migration-map.md)

@@ -7,7 +7,7 @@
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashSet;
 
-use crate::{entities, money};
+use crate::entities;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Match confidence band for source-to-domain identity promotion.
@@ -20,21 +20,7 @@ pub enum Confidence {
     High,
 }
 
-impl Confidence {
-    /// Classifies a validated basis-points confidence score into a review-facing band.
-    pub const fn from_basis_points(value: money::BasisPoints) -> Self {
-        match value.get() {
-            8_000..=10_000 => Self::High,
-            5_000..=7_999 => Self::Medium,
-            _ => Self::Low,
-        }
-    }
-
-    /// Returns the review-facing confidence band.
-    pub const fn band(self) -> Self {
-        self
-    }
-}
+impl Confidence {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
@@ -99,11 +85,4 @@ pub enum Match {
     },
 }
 
-impl Match {
-    /// Constructs an ambiguous result only from at least two distinct customer identities.
-    pub fn ambiguous(candidates: Vec<entities::CustomerId>) -> Result<Self, Error> {
-        Ok(Self::Ambiguous {
-            candidates: AmbiguousCandidates::try_new(candidates)?,
-        })
-    }
-}
+impl Match {}

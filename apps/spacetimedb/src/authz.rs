@@ -5,14 +5,12 @@
 
 use app::data_quality_hygiene as hygiene;
 use domain::entities;
-use std::collections::BTreeSet;
 use uuid::Uuid;
 
 use crate::{
     storage::review_queue::codec,
     tables::{
-        ActorKindColumn, LocationScopeRow, LocationScopeV1Row, ReviewerRoleColumn,
-        RoleAssignmentRow, StaffActorRow,
+        ActorKindColumn, LocationScopeRow, ReviewerRoleColumn, RoleAssignmentRow, StaffActorRow,
     },
 };
 
@@ -36,8 +34,6 @@ pub enum RehydrationError {
     MalformedLocationScope,
     /// An authority-bearing row uses a schema version this adapter does not understand.
     UnsupportedSchemaVersion,
-    /// The requested actor did not match the authenticated database identity.
-    AuthenticatedActorMismatch,
 }
 
 /// Resolves a SpacetimeDB identity string into an app actor id.
@@ -60,53 +56,6 @@ pub fn actor_id_for_identity<'a>(
         .map_err(|_| RehydrationError::MalformedActor)
 }
 
-/// Plans an additive v1 backfill for only the exact authenticated actor.
-///
-/// Actor, role, current-v1 authority, and every matching legacy location are validated before any
-/// row is returned, allowing the reducer transaction to insert the complete plan or fail closed.
-pub fn authenticated_legacy_scope_migration(
-    authenticated_identity: &str,
-    expected_actor_id: &hygiene::ActorId,
-    actor_rows: &[StaffActorRow],
-    role_rows: &[RoleAssignmentRow],
-    legacy_rows: &[LocationScopeRow],
-    v1_rows: &[LocationScopeV1Row],
-) -> Result<Vec<LocationScopeV1Row>, RehydrationError> {
-    let authenticated_actor_id = actor_id_for_identity(authenticated_identity, actor_rows.iter())?
-        .ok_or(RehydrationError::AuthenticatedActorMismatch)?;
-    if &authenticated_actor_id != expected_actor_id {
-        return Err(RehydrationError::AuthenticatedActorMismatch);
-    }
-    let actor_row = actor_rows
-        .iter()
-        .find(|row| row.actor_id == expected_actor_id.as_ref())
-        .ok_or(RehydrationError::MalformedActor)?;
-    actor_assignment_from_rows(actor_row, role_rows.iter(), v1_rows.iter())?;
-
-    let mut seen_locations = BTreeSet::new();
-    let mut pending = Vec::new();
-    for row in legacy_rows
-        .iter()
-        .filter(|row| row.actor_id == expected_actor_id.as_ref())
-    {
-        parse_location_id(&row.location_id).ok_or(RehydrationError::MalformedLocationScope)?;
-        if !seen_locations.insert(row.location_id.clone())
-            || v1_rows.iter().any(|current| {
-                current.actor_id == row.actor_id && current.location_id == row.location_id
-            })
-        {
-            continue;
-        }
-        pending.push(LocationScopeV1Row {
-            id: 0,
-            actor_id: row.actor_id.clone(),
-            location_id: row.location_id.clone(),
-            schema_version: codec::REVIEW_QUEUE_SCHEMA_VERSION,
-        });
-    }
-    Ok(pending)
-}
-
 /// Promotes exactly one compatible actor, role, and complete scope set.
 ///
 /// The adapter intentionally rejects multiple roles until application policy
@@ -114,7 +63,7 @@ pub fn authenticated_legacy_scope_migration(
 pub fn actor_assignment_from_rows<'a>(
     actor_row: &StaffActorRow,
     role_rows: impl IntoIterator<Item = &'a RoleAssignmentRow>,
-    scope_rows: impl IntoIterator<Item = &'a LocationScopeV1Row>,
+    scope_rows: impl IntoIterator<Item = &'a LocationScopeRow>,
 ) -> Result<hygiene::ActorAssignment, RehydrationError> {
     validate_schema_version(actor_row.schema_version)?;
     let actor_id = hygiene::ActorId::try_new(actor_row.actor_id.clone())

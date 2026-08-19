@@ -1,0 +1,19 @@
+{
+  "branch": {
+    "covered": 527,
+    "percent": 54.0,
+    "total": 976
+  },
+  "changed_production": {
+    "covered_executable_lines": 0,
+    "executable_lines": 0,
+    "files": 0,
+    "uncovered_executable_lines": 0
+  },
+  "line": {
+    "covered": 11943,
+    "percent": 74.3,
+    "total": 16074
+  },
+  "schema_version": 1
+}

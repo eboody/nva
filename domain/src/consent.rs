@@ -98,6 +98,18 @@ impl AcceptedConsent {
             .matches_customer(customer_id, channel, purpose, as_of)
     }
 
+    /// Checks an exact source-record subject, purpose, channel, provenance, and lifecycle.
+    pub fn permits_source_record(
+        &self,
+        subject: &source::RecordRef,
+        channel: Channel,
+        purpose: Purpose,
+        as_of: DateTime<Utc>,
+    ) -> bool {
+        self.evidence
+            .matches_source_record(subject, channel, purpose, as_of)
+    }
+
     /// Returns the serializable historical evidence retained by this accepted fact.
     pub const fn evidence(&self) -> &ConsentEvidence {
         &self.evidence
@@ -129,11 +141,6 @@ impl ConsentEvidence {
         matches!(self.status, ConsentStatus::Granted)
     }
 
-    /// Returns false because serializable evidence cannot grant a channel/purpose use.
-    pub const fn permits(&self, _channel: Channel, _purpose: Purpose) -> bool {
-        false
-    }
-
     fn reports_grant_for(&self, channel: Channel, purpose: Purpose) -> bool {
         self.channel == channel && self.purpose == purpose && self.is_granted()
     }
@@ -152,19 +159,6 @@ impl ConsentEvidence {
             && self.source_schema_version.is_some()
     }
 
-    /// Returns false because serializable evidence cannot mint customer-contact permission.
-    ///
-    /// Exact matching is promoted only behind [`AcceptedConsent`].
-    pub fn permits_customer(
-        &self,
-        _customer_id: entities::CustomerId,
-        _channel: Channel,
-        _purpose: Purpose,
-        _as_of: DateTime<Utc>,
-    ) -> bool {
-        false
-    }
-
     fn matches_customer(
         &self,
         customer_id: entities::CustomerId,
@@ -173,6 +167,19 @@ impl ConsentEvidence {
         as_of: DateTime<Utc>,
     ) -> bool {
         self.subject == Some(Subject::Customer(customer_id))
+            && self.reports_grant_for(channel, purpose)
+            && self.has_complete_source_binding()
+            && self.is_current_at(as_of)
+    }
+
+    fn matches_source_record(
+        &self,
+        subject: &source::RecordRef,
+        channel: Channel,
+        purpose: Purpose,
+        as_of: DateTime<Utc>,
+    ) -> bool {
+        self.subject.as_ref() == Some(&Subject::SourceRecord(subject.clone()))
             && self.reports_grant_for(channel, purpose)
             && self.has_complete_source_binding()
             && self.is_current_at(as_of)

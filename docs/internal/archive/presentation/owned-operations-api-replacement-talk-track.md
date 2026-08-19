@@ -49,9 +49,9 @@ Expected output anchors:
 openapi_title=NVA Pet Resorts Owned Operations API
 openapi_version=0.1.0
 openapi_paths=8
-owned_route=/v0/agent/context/data-quality-hygiene
-owned_route=/v0/ops/metrics/summary
-owned_route=/v0/read-models/source-quality-backlog
+owned_route=/v1/agent/context/data-quality-hygiene
+owned_route=/v1/ops/metrics/summary
+owned_route=/v1/read-models/source-quality-backlog
 contract_lane_ok live_side_effects_allowed=false
 == Workflow lane: Data-Quality Hygiene local loop ==
 context_ok workflow=data-quality-hygiene actions=1 reported_estimated_minutes_difference=15 live_side_effects_allowed=false

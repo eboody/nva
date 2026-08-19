@@ -1,4 +1,7 @@
-# PetSuites service-domain modularization plan
+<!-- archived-historical-record -->
+# Archived PetSuites service-domain modularization plan
+
+This plan records a superseded module layout and is not current architecture authority.
 
 Status: canonical source-of-truth plan for the serialized remediation cards.
 
@@ -46,12 +49,16 @@ Canonical import/call-site posture:
 ```rust
 use domain::service::{boarding, daycare, grooming, retail, training};
 
-let policy: boarding::capacity::Policy = todo!();
-let suite: boarding::accommodation::Kind = todo!();
-let rules: Vec<daycare::eligibility::Rule> = todo!();
-let request: grooming::appointment::Request = todo!();
-let program: training::program::Program = todo!();
-let category: retail::product::Category = todo!();
+fn compose_service_policy(
+    policy: boarding::capacity::Policy,
+    suite: boarding::accommodation::Kind,
+    rules: Vec<daycare::eligibility::Rule>,
+    request: grooming::appointment::Request,
+    program: training::program::Program,
+    category: retail::product::Category,
+) {
+    // Composition belongs to the application workflow that owns these inputs.
+}
 ```
 
 Prefer paths that preserve the semantic owner:

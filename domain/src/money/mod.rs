@@ -12,14 +12,7 @@ pub enum Error {
     #[error("money amount exceeds supported minor-unit range")]
     /// Minor-unit value is too large for checked financial arithmetic.
     AmountOverflow,
-    #[error("cannot combine {left:?} money with {right:?} money")]
-    /// Checked arithmetic refuses to mix different currency authorities.
-    CurrencyMismatch {
-        /// Left-hand currency authority.
-        left: Currency,
-        /// Right-hand currency authority.
-        right: Currency,
-    },
+
     #[error("money addition overflowed minor-unit range")]
     /// Adding two money values would exceed the supported range.
     AdditionOverflow,
@@ -61,8 +54,6 @@ impl<'de> Deserialize<'de> for MinorUnits {
 pub enum Currency {
     /// US dollars, the supported currency for resort charges.
     Usd,
-    /// Temporary compatibility currency for source systems that report a named accounting currency before canonical mapping.
-    AccountingSystem(String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
@@ -76,11 +67,6 @@ impl BasisPoints {
             return Err(Error::BasisPointsOutOfRange);
         }
         Ok(Self(value))
-    }
-
-    /// Returns the basis-points value for stable reporting and serde boundaries.
-    pub const fn get(self) -> u16 {
-        self.0
     }
 }
 
@@ -115,11 +101,6 @@ impl Money {
         Self::try_new(i128::from(minor_units), Currency::Usd)
     }
 
-    /// Builds a zero money value in the named currency.
-    pub fn zero(currency: Currency) -> Self {
-        Self::new(MinorUnits(0), currency)
-    }
-
     /// Assembles a resort money amount from validated minor units and currency.
     pub const fn new(minor_units: MinorUnits, currency: Currency) -> Self {
         Self {
@@ -138,35 +119,13 @@ impl Money {
         self.currency.clone()
     }
 
-    /// Adds money only when both values share the same currency and the sum fits.
-    pub fn checked_add(&self, other: Self) -> Result<Self> {
-        self.ensure_same_currency(&other)?;
-        let amount = self
-            .minor_units
-            .get()
-            .checked_add(other.minor_units.get())
-            .ok_or(Error::AdditionOverflow)?;
-        Ok(Self::new(MinorUnits(amount), self.currency.clone()))
-    }
-
     /// Subtracts money only when both values share the same currency and the result is non-negative.
     pub fn checked_sub(&self, other: Self) -> Result<Self> {
-        self.ensure_same_currency(&other)?;
         let amount = self
             .minor_units
             .get()
             .checked_sub(other.minor_units.get())
             .ok_or(Error::SubtractionWouldBeNegative)?;
         Ok(Self::new(MinorUnits(amount), self.currency.clone()))
-    }
-
-    fn ensure_same_currency(&self, other: &Self) -> Result<()> {
-        if self.currency != other.currency {
-            return Err(Error::CurrencyMismatch {
-                left: self.currency.clone(),
-                right: other.currency.clone(),
-            });
-        }
-        Ok(())
     }
 }

@@ -38,6 +38,7 @@ pub mod daycare;
 pub mod document;
 /// Normalized core entity contracts for locations, customers, pets, reservations, and records.
 pub mod entities;
+mod entity_diagnostics;
 /// Grooming contracts for appointments, services, estimates, rebooking, and history.
 pub mod grooming;
 /// Identity matching contracts for source-to-domain customer, pet, and household reconciliation.
@@ -68,17 +69,10 @@ pub mod reputation;
 pub mod reservation;
 /// Retail contracts for POS, inventory, recommendations, vendors, and reorder signals.
 pub mod retail;
-/// Source-system provenance contracts for Gingr/import facts and normalization assumptions.
+/// Source-system provenance contracts for provider/import facts and normalization assumptions.
 pub mod source;
 /// Staff contracts for scheduling, roles, training, and shift/labor context.
 pub mod staff;
-/// Deprecated compatibility facade for strategic AI-operations contracts.
-///
-/// New code should import the canonical owner modules directly. This facade deliberately contains
-/// only compatibility re-exports so it cannot remain the semantic owner of lead response, customer
-/// intelligence, labor/capacity, assistant/knowledge, finance, or outcome concepts.
-#[path = "strategic_ai_ops_bridge.rs"]
-pub mod strategic_ai_ops;
 /// Temperament contracts for group-play safety and behavior review evidence.
 pub mod temperament;
 /// Training contracts for programs, progress, trainer availability, and upsell workflows.

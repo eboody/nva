@@ -1,4 +1,7 @@
-# Semantic domain Phase 2 aggregate review
+<!-- archived-historical-record -->
+# Archived semantic domain Phase 2 aggregate review
+
+This review records a superseded tree and is not current architecture authority.
 
 Scope: independent review gate for Phase 2 invariant-bearing aggregates in `domain/src/strategic_ai_ops_bridge.rs` and the canonical owner facades exposed through `domain::{lead, customer, operations, agent, analytics}`.
 

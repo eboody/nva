@@ -191,7 +191,7 @@ Run each exact test target and record the expected semantic failure.
 
 **Files:**
 - Modify: `apps/api/src/public_contract.rs`
-- Modify/generate: `apps/api/openapi/owned-operations-v0.openapi.json`
+- Modify/generate: `apps/api/openapi/owned-operations-v1.openapi.json`
 - Modify: `apps/api/tests/owned_api_openapi_contract.rs`
 - Modify Manager Daily Brief route DTO ownership in `apps/api/src/http.rs` where needed.
 

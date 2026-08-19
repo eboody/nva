@@ -141,19 +141,6 @@ pub mod breed_coat {
     }
 
     impl TimeEstimate {
-        /// Creates this grooming value from already-checked resort workflow inputs.
-        pub const fn new(
-            breed: BreedCategory,
-            coat: CoatCondition,
-            minutes: AppointmentMinutes,
-        ) -> Self {
-            Self {
-                breed,
-                coat,
-                minutes,
-            }
-        }
-
         /// Returns the minutes value used by grooming schedule/rebooking review.
         pub const fn minutes(&self) -> AppointmentMinutes {
             self.minutes
@@ -169,19 +156,6 @@ pub enum HistoryRequirement {
     KeepStyleNotesAndPhotos,
     /// Preserve medical or handling notes and route sensitive interpretation through care review.
     KeepMedicalHandlingNotes,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
-/// Grooming estimate request assembled from pet profile facts before staff propose any calendar change.
-pub struct EstimationRequest {
-    /// Pet receiving the grooming or care service.
-    pub pet_id: PetId,
-    /// Requested service that drives scheduling and labor estimates.
-    pub service: Service,
-    /// Breed/coat class used to translate pet profile data into groomer labor demand.
-    pub breed: breed_coat::BreedCategory,
-    /// Coat condition that can raise confidence risk or trigger groomer review.
-    pub coat: breed_coat::CoatCondition,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -229,18 +203,7 @@ pub enum ReviewRequirement {
     CareReview,
 }
 
-impl ReviewRequirement {
-    /// Maps the grooming review lane to the workflow gate that must approve scheduling.
-    pub const fn calendar_execution_gate(self) -> Option<crate::policy::ReviewGate> {
-        match self {
-            Self::None => Some(crate::policy::ReviewGate::ManagerApproval),
-            Self::StaffReview | Self::GroomerReview | Self::ManagerReview => {
-                Some(crate::policy::ReviewGate::ManagerApproval)
-            }
-            Self::CareReview => Some(crate::policy::ReviewGate::MedicalDocumentReview),
-        }
-    }
-}
+impl ReviewRequirement {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 /// Grooming duration decision with evidence, confidence, and the review gate needed before calendar use.
@@ -252,20 +215,6 @@ pub struct DurationEstimate {
 }
 
 impl DurationEstimate {
-    const fn new(
-        minutes: AppointmentMinutes,
-        basis: EstimateBasis,
-        confidence: EstimateConfidence,
-        review: ReviewRequirement,
-    ) -> Self {
-        Self {
-            minutes,
-            basis,
-            confidence,
-            review,
-        }
-    }
-
     /// Returns the minutes value used by grooming schedule/rebooking review.
     pub const fn minutes(&self) -> AppointmentMinutes {
         self.minutes
@@ -285,72 +234,13 @@ impl DurationEstimate {
     pub const fn review(&self) -> ReviewRequirement {
         self.review
     }
-
-    /// Maps the grooming review lane to the workflow gate that must approve scheduling.
-    pub const fn calendar_execution_gate(&self) -> Option<crate::policy::ReviewGate> {
-        self.review.calendar_execution_gate()
-    }
 }
 
 #[derive(Debug, Clone, Default)]
 /// Policy object that chooses a grooming duration from pet history first, then location breed/coat defaults.
 pub struct EstimationPolicy;
 
-impl EstimationPolicy {
-    /// Estimates appointment minutes from source history or local policy defaults and records any required review gate.
-    pub fn estimate(
-        &self,
-        request: EstimationRequest,
-        history: &[history::ServiceHistoryEntry],
-        contract: &Contract,
-    ) -> DurationEstimate {
-        if let Some(entry) = history
-            .iter()
-            .rev()
-            .find(|entry| entry.pet_id == request.pet_id && entry.duration().is_some())
-        {
-            return DurationEstimate::new(
-                entry.duration().expect("checked above"),
-                EstimateBasis::GroomerHistory,
-                EstimateConfidence::Medium,
-                if entry.requires_review() {
-                    ReviewRequirement::GroomerReview
-                } else {
-                    ReviewRequirement::None
-                },
-            );
-        }
-
-        let minutes = contract
-            .time_estimates
-            .iter()
-            .find(|estimate| estimate.breed == request.breed && estimate.coat == request.coat)
-            .or_else(|| {
-                contract
-                    .time_estimates
-                    .iter()
-                    .find(|estimate| estimate.breed == request.breed)
-            })
-            .map(breed_coat::TimeEstimate::minutes)
-            .unwrap_or_else(|| {
-                AppointmentMinutes::try_new(60).expect("default estimate is positive")
-            });
-
-        let review = match request.coat {
-            breed_coat::CoatCondition::Matted => ReviewRequirement::GroomerReview,
-            breed_coat::CoatCondition::Maintained | breed_coat::CoatCondition::ThickUndercoat => {
-                ReviewRequirement::None
-            }
-        };
-        let confidence = if matches!(review, ReviewRequirement::None) {
-            EstimateConfidence::High
-        } else {
-            EstimateConfidence::Medium
-        };
-
-        DurationEstimate::new(minutes, EstimateBasis::BreedCoatPolicy, confidence, review)
-    }
-}
+impl EstimationPolicy {}
 
 /// No-show and late-cancel policy for protecting groomer capacity and rebooking decisions.
 pub mod no_show {
@@ -372,11 +262,6 @@ pub mod no_show {
     pub struct Count(u16);
 
     impl Count {
-        /// Rejects zero or unsupported grooming values before they affect groomer calendars, duration estimates, deposits, reminders, or rebooking prompts.
-        pub const fn try_new(value: u16) -> std::result::Result<Self, std::convert::Infallible> {
-            Ok(Self(value))
-        }
-
         /// Returns the grooming number used by scheduling, estimate, reminder, or rebooking calculations.
         pub const fn get(self) -> u16 {
             self.0
@@ -388,11 +273,6 @@ pub mod no_show {
     pub struct LateCancelCount(u16);
 
     impl LateCancelCount {
-        /// Rejects zero or unsupported grooming values before they affect groomer calendars, duration estimates, deposits, reminders, or rebooking prompts.
-        pub const fn try_new(value: u16) -> std::result::Result<Self, std::convert::Infallible> {
-            Ok(Self(value))
-        }
-
         /// Returns the grooming number used by scheduling, estimate, reminder, or rebooking calculations.
         pub const fn get(self) -> u16 {
             self.0
@@ -409,50 +289,10 @@ pub mod no_show {
     }
 
     impl History {
-        /// Creates this grooming value from already-checked resort workflow inputs.
-        pub const fn new(no_shows: Count, late_cancels: LateCancelCount) -> Self {
-            Self {
-                no_shows,
-                late_cancels,
-            }
-        }
-
         /// Returns the repeat behavior count value used by grooming schedule/rebooking review.
         pub const fn repeat_behavior_count(&self) -> u16 {
             self.no_shows.get().saturating_add(self.late_cancels.get())
         }
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-    /// Grooming no-show evidence disposition issued only by current policy evaluation.
-    pub enum Decision {
-        /// Inert compatibility variant that current policy evaluation never emits.
-        RebookingCandidate {
-            /// Compatibility gate label; it is not eligibility or execution authority.
-            gate: crate::policy::ReviewGate,
-        },
-        /// Reported history remains suppressed because opaque eligibility authority is unavailable.
-        SuppressedRebookingEvidence {
-            /// Why the serialized evidence cannot become a rebooking candidate.
-            reason: SuppressionReason,
-        },
-        /// Review gate that must clear before this grooming decision can trigger a live schedule, deposit, or message action.
-        DepositRequired {
-            /// Approval gate staff must clear before acting on this variant.
-            gate: crate::policy::ReviewGate,
-        },
-        /// Review gate that must clear before this grooming decision can trigger a live schedule, deposit, or message action.
-        ManagerReviewRequired {
-            /// Approval gate staff must clear before acting on this variant.
-            gate: crate::policy::ReviewGate,
-        },
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Reason reported no-show evidence cannot become rebooking authority.
-    pub enum SuppressionReason {
-        /// Current workflows have no opaque, non-serializable eligibility issuer.
-        EligibilityAuthorityUnavailable,
     }
 
     #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -469,49 +309,6 @@ pub mod no_show {
     impl std::fmt::Debug for Evaluation {
         fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             formatter.write_str("Evaluation([REDACTED])")
-        }
-    }
-
-    #[derive(Debug, Clone)]
-    /// Grooming policy object that turns local rules into staff review decisions.
-    pub struct Policy {
-        rule: Rule,
-    }
-
-    impl Policy {
-        /// Creates this grooming value from already-checked resort workflow inputs.
-        pub const fn new(rule: Rule) -> Self {
-            Self { rule }
-        }
-
-        /// Evaluates reported no-show facts without minting rebooking eligibility.
-        pub fn evaluate(
-            &self,
-            customer_id: CustomerId,
-            pet_id: PetId,
-            history: History,
-        ) -> Decision {
-            let _evaluation = Evaluation {
-                customer_id,
-                pet_id,
-                history,
-            };
-            match self.rule {
-                Rule::NoteHistoryOnly => Decision::SuppressedRebookingEvidence {
-                    reason: SuppressionReason::EligibilityAuthorityUnavailable,
-                },
-                Rule::RequireDepositForRebooking if history.repeat_behavior_count() > 0 => {
-                    Decision::DepositRequired {
-                        gate: crate::policy::ReviewGate::RefundOrDepositException,
-                    }
-                }
-                Rule::RequireDepositForRebooking => Decision::SuppressedRebookingEvidence {
-                    reason: SuppressionReason::EligibilityAuthorityUnavailable,
-                },
-                Rule::ManagerReviewBeforeRebooking => Decision::ManagerReviewRequired {
-                    gate: crate::policy::ReviewGate::ManagerApproval,
-                },
-            }
         }
     }
 }
@@ -588,13 +385,6 @@ pub mod history {
         },
     }
 
-    impl ApprovalState {
-        /// Serializable grooming approval history always remains review-required.
-        pub const fn requires_review(&self) -> bool {
-            true
-        }
-    }
-
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Builder)]
     /// Grooming history entry used for future duration estimates, style continuity, care review, and rebooking.
     pub struct ServiceHistoryEntry {
@@ -632,34 +422,41 @@ pub mod history {
         pub const fn duration(&self) -> Option<AppointmentMinutes> {
             self.duration
         }
-
-        /// Reports whether care-team review is needed before proceeding.
-        pub const fn requires_review(&self) -> bool {
-            self.approval.requires_review() || !self.care_refs.is_empty()
-        }
     }
 }
 
 /// Rebooking cadence policy for identifying due, overdue, or history-insufficient grooming follow-up.
 pub mod rebooking {
+    use core::num::NonZeroU8;
+
     use super::*;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
     /// Reported grooming cadence in weeks; it does not establish rebooking eligibility.
-    pub struct CadenceWeeks(u8);
+    pub struct CadenceWeeks(NonZeroU8);
 
     impl CadenceWeeks {
         /// Rejects zero or unsupported grooming values before they affect groomer calendars, duration estimates, deposits, reminders, or rebooking prompts.
         pub const fn try_new(value: u8) -> std::result::Result<Self, CadenceWeeksError> {
-            if value == 0 {
-                return Err(CadenceWeeksError::ZeroWeeks);
+            match NonZeroU8::new(value) {
+                Some(value) => Ok(Self(value)),
+                None => Err(CadenceWeeksError::ZeroWeeks),
             }
-            Ok(Self(value))
+        }
+
+        /// Promotes an already-proven positive week count without repeating validation.
+        pub const fn from_nonzero(value: NonZeroU8) -> Self {
+            Self(value)
+        }
+
+        /// Preserves the proof that this cadence is positive across trusted adapters.
+        pub const fn into_nonzero(self) -> NonZeroU8 {
+            self.0
         }
 
         /// Returns the grooming number used by scheduling, estimate, reminder, or rebooking calculations.
         pub const fn get(self) -> u8 {
-            self.0
+            self.0.get()
         }
     }
 
@@ -691,11 +488,6 @@ pub mod rebooking {
                 return Err(OrdinaryCadenceWeeksError::OutsideOrdinaryGroomingBand);
             }
             Ok(Self(value))
-        }
-
-        /// Returns the grooming number used by scheduling, estimate, reminder, or rebooking calculations.
-        pub const fn get(self) -> u8 {
-            self.0
         }
     }
 
@@ -752,92 +544,9 @@ pub mod rebooking {
         /// Staff can see the groomer recommended cadence required grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         GroomerRecommendedCadenceRequired,
     }
-
-    #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-    /// Compatibility record containing a reported grooming cadence assessment.
-    ///
-    /// Despite the retained type name, this serializable record is evidence only.
-    /// It cannot establish eligibility or create a candidate, ranking, queue,
-    /// task, slot proposal, reminder, or customer draft.
-    pub struct Recommendation {
-        /// Pet receiving the grooming or care service.
-        pub pet_id: PetId,
-        /// Derived cadence date retained as evidence; it cannot make a reminder or candidate due.
-        pub due_on: Option<NaiveDate>,
-        /// Derived cadence label for inspection; it cannot authorize a prompt or review packet.
-        pub status: Status,
-        /// Reason explaining why the rebooking recommendation is due, overdue, or blocked for groomer input.
-        pub rationale: Rationale,
-    }
-
-    impl std::fmt::Debug for Recommendation {
-        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            formatter.write_str("Recommendation([REDACTED])")
-        }
-    }
-
-    #[derive(Debug, Clone, Default)]
-    /// Grooming policy object that turns local rules into staff review decisions.
-    pub struct Policy;
-
-    impl Policy {
-        /// Derives a non-authoritative cadence assessment from reported history.
-        ///
-        /// The returned compatibility record is not rebooking eligibility or
-        /// executable authority and must remain suppressed from downstream work.
-        pub fn recommend_from_history(
-            &self,
-            pet_id: PetId,
-            history: &[history::ServiceHistoryEntry],
-            cadence: Cadence,
-            today: NaiveDate,
-        ) -> Recommendation {
-            let Some(last_completed) = history
-                .iter()
-                .filter(|entry| entry.pet_id == pet_id)
-                .filter(|entry| matches!(entry.outcome, history::ServiceOutcome::Completed))
-                .max_by_key(|entry| entry.completed_on)
-            else {
-                return Recommendation {
-                    pet_id,
-                    due_on: None,
-                    status: Status::NeedsGroomerRecommendation,
-                    rationale: Rationale::NoCompletedHistory,
-                };
-            };
-
-            let Cadence::EveryWeeks(weeks) = cadence else {
-                return Recommendation {
-                    pet_id,
-                    due_on: None,
-                    status: Status::NeedsGroomerRecommendation,
-                    rationale: Rationale::GroomerRecommendedCadenceRequired,
-                };
-            };
-
-            let due_on = last_completed
-                .completed_on
-                .checked_add_days(chrono::Days::new(u64::from(weeks.get()) * 7))
-                .expect("bounded grooming cadence should fit chrono date range");
-            let status = if today > due_on {
-                Status::Overdue
-            } else if today == due_on {
-                Status::DueNow
-            } else {
-                Status::DueLater
-            };
-
-            Recommendation {
-                pet_id,
-                due_on: Some(due_on),
-                status,
-                rationale: Rationale::LastCompletedServiceCadence,
-            }
-        }
-    }
 }
 
-/// Evidence-only reminder compatibility vocabulary; current policy creates no plan or draft.
+/// Grooming reminder timing rules owned by location service contracts.
 pub mod reminder {
     use super::*;
 
@@ -850,86 +559,6 @@ pub mod reminder {
         FortyEightHoursBefore,
         /// Staff can see the morning of grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
         MorningOf,
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Caller-constructible reminder-purpose label retained as suppressed evidence.
-    pub enum Kind {
-        /// Staff can see the appointment confirmation grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
-        AppointmentConfirmation,
-        /// Staff can see the prep instructions grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
-        PrepInstructions,
-        /// Staff can see the morning of grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
-        MorningOf,
-        /// Staff can see the rebooking due grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
-        RebookingDue,
-        /// Staff can see the lapsed cadence winback grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
-        LapsedCadenceWinback,
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Caller-constructible consent label that cannot establish current eligibility or draft authority.
-    pub enum Consent {
-        /// Staff can see the granted grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
-        Granted,
-        /// Staff can see the not granted grooming state during grooming scheduling, estimate, history, rebooking, reminder, or review work.
-        NotGranted,
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-    /// Fail-closed status for reported grooming reminder evidence.
-    pub enum SendBoundary {
-        /// Inert compatibility label that current policy planning never emits.
-        DraftRequiresApproval,
-        /// Inert compatibility label that current policy planning never emits.
-        ReadyForApprovedSend,
-        /// Consent is absent; evidence remains suppressed.
-        SuppressedUntilConsent,
-        /// Serialized consent cannot replace unavailable opaque eligibility authority.
-        EligibilityAuthorityUnavailable,
-    }
-
-    #[derive(Clone, PartialEq, Eq, Serialize)]
-    /// Serialize-only compatibility packet preserving a reported reminder purpose without draft authority.
-    pub struct Plan {
-        /// Customer whose grooming reminder, deposit review, or rebooking packet is being prepared.
-        pub customer_id: CustomerId,
-        /// Reported reminder purpose; it does not control or create customer copy.
-        pub kind: Kind,
-        boundary: SendBoundary,
-    }
-
-    impl std::fmt::Debug for Plan {
-        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            formatter.write_str("Plan([REDACTED])")
-        }
-    }
-
-    impl Plan {
-        /// Returns the fail-closed boundary for this reported reminder evidence.
-        pub const fn send_boundary(&self) -> SendBoundary {
-            self.boundary
-        }
-
-        /// Returns no message gate because current evidence cannot create a draft.
-        pub const fn customer_message_gate(&self) -> Option<crate::policy::ReviewGate> {
-            None
-        }
-    }
-
-    #[derive(Debug, Clone, Default)]
-    /// Evidence-only policy object that cannot mint reminder eligibility.
-    pub struct Policy;
-
-    impl Policy {
-        /// Preserves reported reminder evidence without creating a plan or draft boundary.
-        pub const fn plan(&self, customer_id: CustomerId, kind: Kind, _consent: Consent) -> Plan {
-            Plan {
-                customer_id,
-                kind,
-                boundary: SendBoundary::EligibilityAuthorityUnavailable,
-            }
-        }
     }
 }
 
@@ -960,37 +589,4 @@ impl Contract {
             no_show::Rule::RequireDepositForRebooking | no_show::Rule::ManagerReviewBeforeRebooking
         )
     }
-    /// Builds representative PetSuites-style grooming rules for docs/tests without claiming they are live policy.
-    pub fn standard_petsuites() -> Self {
-        Self::builder()
-            .calendar(calendar::Policy::GroomerSpecific)
-            .time_estimates(vec![breed_coat::TimeEstimate::new(
-                breed_coat::BreedCategory::Doodle,
-                breed_coat::CoatCondition::Matted,
-                AppointmentMinutes::try_new(180).unwrap(),
-            )])
-            .no_show(no_show::Rule::RequireDepositForRebooking)
-            .rebooking(rebooking::Cadence::EveryWeeks(
-                rebooking::CadenceWeeks::try_new(6).unwrap(),
-            ))
-            .reminders(vec![
-                reminder::Rule::FortyEightHoursBefore,
-                reminder::Rule::MorningOf,
-            ])
-            .history(HistoryRequirement::KeepStyleNotesAndPhotos)
-            .build()
-    }
-}
-
-/// Appointment-owned public vocabulary for grooming service requests.
-pub mod appointment {
-    pub use super::{EstimationRequest as Request, Service};
-}
-
-/// Duration-estimate decision vocabulary.
-pub mod duration_estimate {
-    pub use super::{
-        AppointmentMinutes, AppointmentMinutesError, DurationEstimate, EstimateBasis,
-        EstimateConfidence, EstimationPolicy as Policy, ReviewRequirement,
-    };
 }

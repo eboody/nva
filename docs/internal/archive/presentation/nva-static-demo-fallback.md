@@ -16,7 +16,7 @@ Open these in order:
 2. `docs/presentation/owned-operations-api-visual-guide.md` — narration for the diagram and safety caveats.
 3. `docs/presentation/job-presentation-walkthrough.md#local-demo-slice-data-quality-hygiene-in-five-minutes` — the demo section with expected anchors.
 4. `docs/ops/spacetimedb-realtime-queue-demo.md` — realtime queue runbook and the honest local ABI fallback boundary.
-5. `apps/api/openapi/owned-operations-v0.openapi.json` — checked OpenAPI contract artifact.
+5. `apps/api/openapi/owned-operations-v1.openapi.json` — checked OpenAPI contract artifact.
 6. `docs/presentation/nva-presentation-checklist.md#5-demo-command-and-what-to-watch-for` — live-demo anchors and claims-to-avoid context.
 
 If the audience needs only the business story, start from `docs/presentation/nva-sendable-job-contact-summary.md` and then show the visual artifact.
@@ -44,12 +44,12 @@ Contract lane:
 - `openapi_title=NVA Pet Resorts Owned Operations API`
 - `openapi_version=0.1.0`
 - `openapi_paths=8`
-- `owned_route=/v0/agent/context/data-quality-hygiene`
-- `owned_route=/v0/agent/drafts/data-quality-hygiene`
-- `owned_route=/v0/data-quality-hygiene/actions/{action_id}/outcome`
-- `owned_route=/v0/data-quality-hygiene/outcomes/summary`
-- `owned_route=/v0/ops/metrics/summary`
-- `owned_route=/v0/read-models/source-quality-backlog`
+- `owned_route=/v1/agent/context/data-quality-hygiene`
+- `owned_route=/v1/agent/drafts/data-quality-hygiene`
+- `owned_route=/v1/data-quality-hygiene/actions/{action_id}/outcome`
+- `owned_route=/v1/data-quality-hygiene/outcomes/summary`
+- `owned_route=/v1/ops/metrics/summary`
+- `owned_route=/v1/read-models/source-quality-backlog`
 - `contract_lane_ok live_side_effects_allowed=false`
 
 Workflow lane:
@@ -99,7 +99,7 @@ Use this narration:
 Use this file when someone asks for contract evidence beyond prose:
 
 ```text
-apps/api/openapi/owned-operations-v0.openapi.json
+apps/api/openapi/owned-operations-v1.openapi.json
 ```
 
 The pre-flight expectation is title `NVA Pet Resorts Owned Operations API`, version `0.1.0`, and 8 paths, including Data-Quality Hygiene context/draft/outcome routes, local ops metrics, and the source-quality backlog read model.

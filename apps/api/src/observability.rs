@@ -446,3 +446,212 @@ fn escape_label(value: &str) -> String {
         .replace('"', "\\\"")
         .replace('\n', "\\n")
 }
+
+#[cfg(test)]
+mod coverage_convergence_tests {
+    use super::*;
+
+    fn production_pairs() -> Vec<(&'static str, &'static str)> {
+        vec![
+            ("PET_RESORT_TELEMETRY_MODE", "production"),
+            ("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector.test:4317"),
+            (
+                "PET_RESORT_OBSERVABILITY_DASHBOARD_URL",
+                "https://grafana.test/d/nva",
+            ),
+            (
+                "PET_RESORT_OBSERVABILITY_ALERT_POLICY",
+                "https://alerts.test/policies/nva",
+            ),
+        ]
+    }
+
+    #[test]
+    fn production_observability_requires_complete_absolute_operator_evidence() {
+        assert_eq!(ObservabilityConfig::local().mode(), TelemetryMode::Local);
+        assert_eq!(ObservabilityConfig::default().production(), None);
+        assert_eq!(
+            ObservabilityConfig::try_from_pairs(Vec::<(String, String)>::new()).unwrap(),
+            ObservabilityConfig::Local
+        );
+
+        let production = ObservabilityConfig::try_from_pairs(production_pairs()).unwrap();
+        assert_eq!(production.mode(), TelemetryMode::Production);
+        let configured = production.production().unwrap();
+        assert_eq!(configured.otlp_endpoint(), "http://collector.test:4317");
+        assert_eq!(configured.dashboard_url(), "https://grafana.test/d/nva");
+        assert_eq!(
+            configured.alert_policy(),
+            "https://alerts.test/policies/nva"
+        );
+        assert_eq!(production.readiness().durable_traces, "configured_otlp");
+        assert_eq!(
+            ObservabilityConfig::Local.readiness().durable_traces,
+            "not_configured"
+        );
+
+        for omitted in [
+            "OTEL_EXPORTER_OTLP_ENDPOINT",
+            "PET_RESORT_OBSERVABILITY_DASHBOARD_URL",
+            "PET_RESORT_OBSERVABILITY_ALERT_POLICY",
+        ] {
+            let pairs = production_pairs()
+                .into_iter()
+                .filter(|(key, _)| *key != omitted)
+                .collect::<Vec<_>>();
+            assert!(ObservabilityConfig::try_from_pairs(pairs).is_err());
+        }
+        for field in [
+            "OTEL_EXPORTER_OTLP_ENDPOINT",
+            "PET_RESORT_OBSERVABILITY_DASHBOARD_URL",
+        ] {
+            let pairs = production_pairs()
+                .into_iter()
+                .map(|(key, value)| {
+                    if key == field {
+                        (key, "not-an-http-uri")
+                    } else {
+                        (key, value)
+                    }
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                ObservabilityConfig::try_from_pairs(pairs),
+                Err(ObservabilityConfigError::InvalidUri { field })
+            );
+        }
+        assert_eq!(
+            ObservabilityConfig::try_from_pairs([("PET_RESORT_TELEMETRY_MODE", "remote")]),
+            Err(ObservabilityConfigError::InvalidMode("remote".to_owned()))
+        );
+    }
+
+    #[test]
+    fn observability_errors_and_metrics_expose_only_bounded_safe_labels() {
+        let errors = [
+            ObservabilityConfigError::MissingOtlpEndpoint,
+            ObservabilityConfigError::MissingDashboardUrl,
+            ObservabilityConfigError::MissingAlertPolicy,
+            ObservabilityConfigError::InvalidMode("remote".to_owned()),
+            ObservabilityConfigError::InvalidUri { field: "endpoint" },
+        ];
+        for error in errors {
+            assert!(!error.to_string().is_empty());
+        }
+        assert_eq!(
+            TracingInstallError("safe install error".to_owned()).to_string(),
+            "safe install error"
+        );
+
+        let runtime = ObservabilityRuntime::default();
+        assert_eq!(runtime.config().mode(), TelemetryMode::Local);
+        for (method, route, status, millis) in [
+            ("GET", "/v1/healthz", 200, 1),
+            ("POST", "/v1/actions", 302, 10),
+            ("PUT", "/v1/actions", 400, 30),
+            ("PATCH", "/v1/actions", 500, 60),
+            ("DELETE", "/v1/actions", 700, 1_100),
+            ("HEAD", "not-a-route", 204, 1),
+            ("OPTIONS", "/v1/quote\"line\n", 204, 1),
+            ("TRACE", &format!("/{}", "x".repeat(200)), 204, 1),
+        ] {
+            runtime.record_request(method, route, status, Duration::from_millis(millis));
+        }
+        let rendered = runtime.render_prometheus();
+        for method in [
+            "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "OTHER",
+        ] {
+            assert!(rendered.contains(&format!("method=\"{method}\"")));
+        }
+        for status in ["2xx", "3xx", "4xx", "5xx", "other"] {
+            assert!(rendered.contains(&format!("status_class=\"{status}\"")));
+        }
+        assert!(rendered.contains("route=\"unmatched\""));
+        assert!(rendered.contains("quote\\\"line\\n"));
+        assert!(rendered.contains("le=\"+Inf\""));
+    }
+
+    fn run_isolated_tracing_test(test_name: &str, mode: &str) {
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", test_name, "--nocapture"])
+            .env("NVA_TRACING_TEST_CHILD", mode)
+            .status()
+            .unwrap();
+        assert!(status.success(), "isolated {mode} tracing test failed");
+    }
+
+    #[tokio::test]
+    async fn local_tracing_installation_returns_a_guard() {
+        if std::env::var("NVA_TRACING_TEST_CHILD").as_deref() == Ok("local") {
+            let guard = ObservabilityRuntime::new(ObservabilityConfig::Local)
+                .install_tracing()
+                .unwrap();
+            assert!(guard.provider.is_none());
+            return;
+        }
+        run_isolated_tracing_test(
+            "observability::coverage_convergence_tests::local_tracing_installation_returns_a_guard",
+            "local",
+        );
+    }
+
+    #[tokio::test]
+    async fn production_tracing_installs_otlp_and_flushes_on_drop() {
+        if std::env::var("NVA_TRACING_TEST_CHILD").as_deref() == Ok("production") {
+            let config = ObservabilityConfig::try_from_pairs(production_pairs()).unwrap();
+            let guard = ObservabilityRuntime::new(config).install_tracing().unwrap();
+            assert!(guard.provider.is_some());
+            drop(guard);
+            return;
+        }
+        run_isolated_tracing_test(
+            "observability::coverage_convergence_tests::production_tracing_installs_otlp_and_flushes_on_drop",
+            "production",
+        );
+    }
+
+    #[test]
+    fn process_environment_defaults_to_local_observability() {
+        assert_eq!(
+            ObservabilityConfig::from_process_env().unwrap().mode(),
+            TelemetryMode::Local
+        );
+    }
+
+    #[tokio::test]
+    async fn dropping_a_guard_reports_exporter_shutdown_failure_without_panicking() {
+        #[derive(Debug)]
+        struct FailingShutdownExporter;
+
+        impl opentelemetry_sdk::trace::SpanExporter for FailingShutdownExporter {
+            async fn export(
+                &self,
+                _batch: Vec<opentelemetry_sdk::trace::SpanData>,
+            ) -> opentelemetry_sdk::error::OTelSdkResult {
+                Ok(())
+            }
+
+            fn shutdown_with_timeout(
+                &self,
+                _timeout: Duration,
+            ) -> opentelemetry_sdk::error::OTelSdkResult {
+                Err(opentelemetry_sdk::error::OTelSdkError::InternalFailure(
+                    "expected test shutdown failure".to_owned(),
+                ))
+            }
+        }
+
+        let exporter = FailingShutdownExporter;
+        assert!(
+            opentelemetry_sdk::trace::SpanExporter::export(&exporter, Vec::new())
+                .await
+                .is_ok()
+        );
+        let provider = SdkTracerProvider::builder()
+            .with_simple_exporter(exporter)
+            .build();
+        drop(TracingGuard {
+            provider: Some(provider),
+        });
+    }
+}

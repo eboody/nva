@@ -8,7 +8,7 @@ ADR = REPO_ROOT / "docs" / "architecture" / "semantic-domain-ownership-adr.md"
 
 
 class SemanticDomainContractAtlasTest(unittest.TestCase):
-    def test_atlas_and_adr_cover_required_ownership_relationships_and_strategic_overlaps(self):
+    def test_atlas_and_adr_cover_required_ownership_relationships(self):
         atlas = ATLAS.read_text(encoding="utf-8")
         adr = ADR.read_text(encoding="utf-8")
 
@@ -26,19 +26,33 @@ class SemanticDomainContractAtlasTest(unittest.TestCase):
         self.assertIn("new opaque, non-serializable measurement authority", atlas)
         self.assertNotIn("before value claim", atlas)
 
-        for strategic_overlap in (
-            "strategic_ai_ops::source::System",
-            "strategic_ai_ops::communication::Channel",
-            "strategic_ai_ops::crm::StructuredNote",
-            "strategic_ai_ops::capacity::OptimizationRecommendation",
-            "strategic_ai_ops::financial::MoneyCents",
-            "strategic_ai_ops::outcome::Record",
+        for current_owner in (
+            "domain::source::System",
+            "domain::consent",
+            "domain::customer::intelligence",
+            "domain::operations::capacity",
+            "domain::analytics::finance",
+            "domain::analytics::outcome",
         ):
-            self.assertIn(strategic_overlap, atlas)
-            self.assertIn(strategic_overlap, adr)
+            self.assertIn(current_owner, atlas)
 
-        for decision in ("Migrate", "Bridge", "Delete"):
-            self.assertIn(decision, adr)
+        self.assertNotIn("strategic_ai_ops::", atlas)
+        self.assertNotIn("strategic_ai_ops::", adr)
+        self.assertNotIn("strategic bridge", atlas.lower())
+
+    def test_atlas_describes_current_fail_closed_evidence_and_authority_contracts(self):
+        atlas = ATLAS.read_text(encoding="utf-8")
+
+        for required in (
+            "Observed<T> -> Candidate<T> -> Accepted<T>",
+            "provider-neutral",
+            "private issuance",
+            "validated rehydration",
+            "fail closed",
+            "opaque",
+            "non-serializable",
+        ):
+            self.assertIn(required, atlas)
 
 
 if __name__ == "__main__":

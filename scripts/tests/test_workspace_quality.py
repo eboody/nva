@@ -29,23 +29,29 @@ class WorkspaceQualityGateTest(unittest.TestCase):
         api_src = root / "apps" / "api" / "src"
         api_src.mkdir(parents=True, exist_ok=True)
         (api_src / "http.rs").write_text(
+            "mod router;\n",
+            encoding="utf-8",
+        )
+        http_modules = api_src / "http"
+        http_modules.mkdir()
+        (http_modules / "router.rs").write_text(
             "pub fn router_with_state() {\n"
             "    Router::new()\n"
             "        .route(\"/healthz\", get(healthz))\n"
-            "        .route(\"/v0/healthz\", get(healthz))\n"
-            "        .route(\"/v0/read-models/source-quality-backlog\", get(source_quality_backlog));\n"
+            "        .route(\"/v1/healthz\", get(healthz))\n"
+            "        .route(\"/v1/read-models/source-quality-backlog\", get(source_quality_backlog));\n"
             "}\n",
             encoding="utf-8",
         )
         openapi = root / "apps" / "api" / "openapi"
         openapi.mkdir(parents=True, exist_ok=True)
-        (openapi / "owned-operations-v0.openapi.json").write_text(
+        (openapi / "owned-operations-v1.openapi.json").write_text(
             json.dumps(
                 {
                     "openapi": "3.1.0",
                     "paths": {
-                        "/v0/healthz": {"get": {}},
-                        "/v0/read-models/source-quality-backlog": {"get": {}},
+                        "/v1/healthz": {"get": {}},
+                        "/v1/read-models/source-quality-backlog": {"get": {}},
                     },
                     "components": {"schemas": {}},
                 },
@@ -71,7 +77,7 @@ class WorkspaceQualityGateTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("workspace_quality_ok", result.stdout)
         self.assertIn("canonical_markdown_scanned=1", result.stdout)
-        self.assertIn("openapi_v0_routes=2", result.stdout)
+        self.assertIn("openapi_v1_routes=2", result.stdout)
 
     def test_gate_fails_for_stale_wording_in_changed_markdown(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -91,22 +97,22 @@ class WorkspaceQualityGateTest(unittest.TestCase):
         self.assertIn("README.md", result.stderr)
         self.assertIn("placeholder", result.stderr)
 
-    def test_gate_fails_when_openapi_omits_v0_axum_route(self):
+    def test_gate_fails_when_openapi_omits_v1_axum_route(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             self.init_repo(root)
             self.write_minimal_workspace(root)
             self.commit_all(root)
-            spec_path = root / "apps" / "api" / "openapi" / "owned-operations-v0.openapi.json"
+            spec_path = root / "apps" / "api" / "openapi" / "owned-operations-v1.openapi.json"
             spec = json.loads(spec_path.read_text(encoding="utf-8"))
-            del spec["paths"]["/v0/read-models/source-quality-backlog"]
+            del spec["paths"]["/v1/read-models/source-quality-backlog"]
             spec_path.write_text(json.dumps(spec, indent=2), encoding="utf-8")
 
             result = self.run_check(root)
 
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("openapi missing v0 routes", result.stderr.lower())
-        self.assertIn("/v0/read-models/source-quality-backlog", result.stderr)
+        self.assertIn("openapi missing v1 routes", result.stderr.lower())
+        self.assertIn("/v1/read-models/source-quality-backlog", result.stderr)
 
     def test_gate_scans_untracked_markdown_before_closeout(self):
         with tempfile.TemporaryDirectory() as tmp:

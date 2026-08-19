@@ -35,6 +35,11 @@ Safety framing:
 
 Start here when orienting the repo or checking navigation. The current reader path is the root README, then the pilot workflows and safety boundaries above, then the code and proof surfaces below. Older architecture, Kanban, and presentation material is retained under [docs/internal](docs/internal/README.md) and should not override the current pilot pilot proof unless a task explicitly asks for archive archaeology.
 
+Architecture ownership proof:
+
+- [Bounded-context ownership map](docs/architecture/bounded-context-map.md)
+- [Semantic ownership ADR](docs/architecture/semantic-domain-ownership-adr.md)
+
 ## Presentation path: safe local owned API proof
 
 Use the local demo walkthrough and fallback material only as safe, synthetic proof. No live NVA/Gingr data, customer sends, provider/PMS writes, schedule changes, payment actions, deployment, or measured NVA value claims are implied by the demo artifacts.

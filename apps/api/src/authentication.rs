@@ -304,6 +304,16 @@ fn role_allows(role: Role, mutation: Mutation) -> bool {
 mod tests {
     use super::*;
 
+    fn context(role: Role, location_id: Uuid) -> Context {
+        Context {
+            actor: Some(Actor {
+                actor_id: "actor-1".to_owned(),
+                role,
+                location_id,
+            }),
+        }
+    }
+
     #[test]
     fn authenticated_context_debug_redacts_actor_identity_and_location() {
         let actor_id = "private-actor-id";
@@ -320,5 +330,56 @@ mod tests {
         assert_eq!(debug, "Context([REDACTED])");
         assert!(!debug.contains(actor_id));
         assert!(!debug.contains(&location_id.to_string()));
+    }
+
+    #[test]
+    fn source_ingest_rejects_wrong_location_and_disallowed_role() {
+        let location_id = Uuid::new_v4();
+
+        assert_eq!(
+            authorize_source_ingest(
+                &context(Role::GeneralManager, location_id),
+                Mutation::InquiryIntake,
+                Uuid::new_v4(),
+            ),
+            Err(Rejection::ActorLocationNotAuthorized)
+        );
+        assert_eq!(
+            authorize_source_ingest(
+                &context(Role::Unauthorized, location_id),
+                Mutation::InquiryIntake,
+                location_id,
+            ),
+            Err(Rejection::ActorRoleNotAuthorized)
+        );
+    }
+
+    #[test]
+    fn reads_reject_wrong_location_and_disallowed_role() {
+        let location_id = Uuid::new_v4();
+        assert_eq!(
+            authorize_read(
+                &context(Role::GeneralManager, location_id),
+                Read::StaffInquiries,
+                Some(Uuid::new_v4()),
+                None,
+            ),
+            Err(Rejection::ActorLocationNotAuthorized)
+        );
+        assert_eq!(
+            authorize_read(
+                &context(Role::MedicalReviewer, location_id),
+                Read::StaffInquiries,
+                Some(location_id),
+                None,
+            ),
+            Err(Rejection::ActorRoleNotAuthorized)
+        );
+    }
+
+    #[test]
+    fn role_claims_preserve_medical_and_untrusted_vocabulary() {
+        assert_eq!(Role::MedicalReviewer.claim(), "medical_reviewer");
+        assert_eq!(Role::Unauthorized.claim(), "unauthorized");
     }
 }

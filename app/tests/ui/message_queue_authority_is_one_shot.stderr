@@ -1,10 +1,17 @@
-error[E0382]: use of moved value: `authority`
- --> tests/ui/message_queue_authority_is_one_shot.rs:9:31
+error[E0425]: cannot find type `QueueAuthorization` in module `message_record`
+ --> tests/ui/message_queue_authority_is_one_shot.rs:6:32
   |
 6 |     authority: message_record::QueueAuthorization,
-  |     --------- move occurs because `authority` has type `QueueAuthorization`, which does not implement the `Copy` trait
-7 | ) {
+  |                                ^^^^^^^^^^^^^^^^^^ not found in `message_record`
+
+error[E0599]: no method named `queue_with` found for struct `domain::entities::Message` in the current scope
+ --> tests/ui/message_queue_authority_is_one_shot.rs:8:19
+  |
 8 |     let _ = first.queue_with(authority);
-  |                              --------- value moved here
+  |                   ^^^^^^^^^^ method not found in `domain::entities::Message`
+
+error[E0599]: no method named `queue_with` found for struct `domain::entities::Message` in the current scope
+ --> tests/ui/message_queue_authority_is_one_shot.rs:9:20
+  |
 9 |     let _ = second.queue_with(authority);
-  |                               ^^^^^^^^^ value used here after move
+  |                    ^^^^^^^^^^ method not found in `domain::entities::Message`
